@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chat Test</title>
+    <script src="https://cdn.socket.io/4.1.3/socket.io.min.js"></script>
+    <style>
+        #messages {
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+<div id="messages"></div>
+<input id="userToken" type="text" placeholder="User token">
+<button id="connectSocket">Connect Socket</button>
+
+<input id="chatIdInput" type="text" placeholder="Type a chatId...">
+<button id="joinChatId">Join Chat Id</button>
+<input id="messageInput" type="text" placeholder="Type a message...">
+<button id="sendMessageButton">Send Message</button>
+<hr>
+<input id="requestAmountInput" type="number" min="0" step="0.01" placeholder="Request amount...">
+<button id="sendRequestButton">Send Payment Request</button>
+<input id="requesteeIdInput" type="number" placeholder="User ID to chat with...">
+<button id="requestChatButton">Request Chat</button>
+
+<script>
+    let socket=null;
+    const connectSocket = document.getElementById('connectSocket');
+    const userToken = document.getElementById('userToken');
+    connectSocket.addEventListener('click', () => {
+        socket = io('http://localhost:3000', {
+            transports: ['websocket'],
+            withCredentials: true,
+            query: {
+                token: userToken.value
+            }
+        });
+
+        socket.on('connect', () => {
+            console.log('connected');
+        });
+
+        socket.on('message event', (msg) => {
+            const messagesDiv = document.getElementById('messages');
+            messagesDiv.innerHTML += `<p>${msg.text}</p>`;
+        });
+
+        socket.on('payment request', (msg) => {
+            const messagesDiv = document.getElementById('messages');
+            messagesDiv.innerHTML += `<p>${msg.text} (payment request)</p>`;
+        });
+    });
+
+
+    const sendMessageButton = document.getElementById('sendMessageButton');
+    sendMessageButton.addEventListener('click', () => {
+        const messageInput = document.getElementById('messageInput');
+        socket.emit('chat message', {
+            chatId: 1, // replace with actual chat ID
+            senderId: 1, // replace with actual user ID
+            text: messageInput.value
+        });
+        messageInput.value = '';
+    });
+
+    const joinChatId = document.getElementById('joinChatId');
+    joinChatId.addEventListener('click', () => {
+        const chatIdInput = document.getElementById('chatIdInput');
+        socket.emit('join chat room',1);
+        chatIdInput.value = '';
+    });
+
+
+    const sendRequestButton = document.getElementById('sendRequestButton');
+    sendRequestButton.addEventListener('click', () => {
+        const requestAmountInput = document.getElementById('requestAmountInput');
+        socket.emit('payment request', {
+            chatId: 1, // replace with actual chat ID
+            requesterId: 1, // replace with actual user ID
+            requesteeId: 2, // replace with actual user ID
+            amount: requestAmountInput.value
+        });
+        requestAmountInput.value = '';
+    });
+
+    const requestChatButton = document.getElementById('requestChatButton');
+    requestChatButton.addEventListener('click', () => {
+        const requesteeIdInput = document.getElementById('requesteeIdInput');
+        fetch('/chat-request', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                requesterId: 1, // replace with actual user ID
+                requesteeId: requesteeIdInput.value
+            })
+        })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Chat ID: ' + data.chatId);
+            });
+        requesteeIdInput.value = '';
+    });
+
+</script>
+</body>
+</html>
