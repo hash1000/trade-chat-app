@@ -7,14 +7,14 @@ const sequelize = new Sequelize({
   database: process.env.MYSQL_DATABASE,
   host: process.env.MYSQL_HOST,
   port: process.env.MYSQL_PORT,
-  ssl: true,
+  // ssl: true,
   dialect: 'mysql',
-  dialectOptions: {
-    ssl: {
-      minVersion: 'TLSv1',
-      ca: fs.readFileSync("../resources/ca-certificate.crt", "utf8")
-    }
-  }
+  // dialectOptions: {
+  //   ssl: {
+  //     minVersion: 'TLSv1',
+  //     ca: fs.readFileSync("../resources/ca-certificate.crt", "utf8")
+  //   }
+  // }
 })
 
 module.exports = sequelize

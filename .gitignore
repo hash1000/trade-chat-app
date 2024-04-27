@@ -1,0 +1,45 @@
+# Dependency directories
+node_modules/
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+
+# Logs
+*.log
+
+# Build artifacts
+/build
+/dist
+
+# IDE and editor files
+.vscode/
+.idea/
+*.code-workspace
+
+# Dependency lock files
+package-lock.json
+yarn.lock
+
+# Compiled output
+*.min.js
+*.min.css
+*.gz
+
+# Configuration files
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Operating System Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db

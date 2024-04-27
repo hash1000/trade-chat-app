@@ -10,8 +10,8 @@ exports.validateSignup = [
 // Validation middleware for verify 
 exports.validateVerify = [
   body('phoneNumber').notEmpty().withMessage('phone number is required'),
-  body('requestId').notEmpty().withMessage('request Id is required'),
-  body('code').notEmpty().withMessage('code is required'),
+  body('email').isEmail().withMessage('Invalid email'),
+  body('password').notEmpty().withMessage('Password is required'),
   handleValidationErrors
 ]
 
