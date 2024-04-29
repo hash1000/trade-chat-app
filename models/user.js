@@ -1,5 +1,5 @@
-const { DataTypes } = require('sequelize')
-const sequelize = require('../config/database')
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/database');
 
 const User = sequelize.define('User', {
   id: {
@@ -38,7 +38,22 @@ const User = sequelize.define('User', {
     unique: true
   },
   settings: {
-    type: DataTypes.JSON
+    type: DataTypes.JSON,
+    defaultValue: {
+      password: ["defaultPassword"],
+      tags: ["tag1", "tag2"],
+      emails: ["example@example.com"],
+      phoneNumbers: ["1234567890"],
+      description: "Default description"
+    }
+  },
+  friendShip: {
+    type: DataTypes.JSON,
+    defaultValue: {
+      type: "defaultType",
+      userId: 0,
+      profileId: 0
+    }
   },
   createdAt: {
     type: DataTypes.DATE,
@@ -90,15 +105,15 @@ const User = sequelize.define('User', {
   }
 }, {
   tableName: 'users' // Specify the table name
-})
+});
 
 User.prototype.toJSON = function () {
-  const values = { ...this.get() }
-  delete values.password
-  delete values.resetToken
-  delete values.tokenVersion
-  delete values.otp
-  return values
-}
+  const values = { ...this.get() };
+  delete values.password;
+  delete values.resetToken;
+  delete values.tokenVersion;
+  delete values.otp;
+  return values;
+};
 
-module.exports = User
+module.exports = User;
