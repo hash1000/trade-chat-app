@@ -40,7 +40,7 @@ const User = sequelize.define('User', {
   settings: {
     type: DataTypes.JSON,
     defaultValue: {
-      password: ["defaultPassword"],
+      password: "defaultPassword",
       tags: ["tag1", "tag2"],
       emails: ["example@example.com"],
       phoneNumbers: ["1234567890"],
