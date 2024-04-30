@@ -5,13 +5,14 @@ const userProfileService = new UserProfileService()
 class UserProfileController {
   async getUserProfile(req, res) {
     try {
-      const { userId: profileId } = req.params
-      if (!profileId) {
+      const { userId } = req.params;
+      const {dataValues}= req.user;
+      if (!userId) {
         return res.status(404).json({ message: 'User not found' })
       }
-      const user = await userProfileService.getUserProfileById(profileId, req.user.id)
+      const user = await userProfileService.getUserProfileById(userId, dataValues.id)
       if (!user) {
-        return res.status(404).json({ message: 'User not found' })
+       return res.status(404).json({ message: 'User not found' })
       }
       res.json({ user })
     } catch (error) {
