@@ -24,7 +24,6 @@ class UserController {
   async verify(req, res) {
     try {
       const { country_code, phoneNumber, email, password } = req.body;
-
       // Check if the user already exists with the provided phone number
       let user = await userService.getUserByPhoneNumber(
         country_code,
@@ -32,11 +31,13 @@ class UserController {
       );
       let existingUserPhoneNumber,token,existingUserByEmail;
       if(user){
+        console.log(" i am in user phone number")
          existingUserPhoneNumber = user.dataValues;
       }
       // Check if the user already exists with the provided email
       const UserByEmail = await userService.getUserByEmail(email);
       if(UserByEmail){
+        console.log(" i am in user existing email");
         existingUserByEmail = UserByEmail.dataValues;
      }
       if (
@@ -44,6 +45,7 @@ class UserController {
         existingUserByEmail &&
         existingUserPhoneNumber.id === existingUserByEmail.id
       ) {
+        console.log("update token")
         await userService.updateTokenVersion(user);
 
         token = jwt.sign(
@@ -69,6 +71,8 @@ class UserController {
           .status(400)
           .json({ message: "User with this Number already exists" });
       } else {
+        console.log("hellloo i am creating user in verify serveice",user);
+        console.log("i am in repositry",country_code, phoneNumber, email, password);
         user = await userService.createUser({
           email: email,
           password: password,

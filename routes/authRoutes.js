@@ -4,7 +4,7 @@ const { validateSignup, validateVerify, validateLogin, forgotPasswordValidation,
 const decodeToken = require('../middlewares/decodeToken')
 const authenticate = require('../middlewares/authenticate')
 
-const router = express.Router()
+const  router = express.Router()
 const userController = new UserController()
 
 // Signup route

@@ -12,6 +12,7 @@ class UserService {
 
     try {
       // Hash the password
+      console.log("password, email, phoneNumber, country_code>>",password, email, phoneNumber, country_code);
       const hashedPassword = await bcrypt.hash(password, 10)
 
       // Create the user in the repository

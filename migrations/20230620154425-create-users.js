@@ -8,24 +8,7 @@ module.exports = {
         primaryKey: true,
         autoIncrement: true
       },
-      name: {
-        type: Sequelize.STRING,
-        allowNull: true
-      },
-      role: {
-        type: Sequelize.STRING,
-        allowNull: true,
-        defaultValue: 'user'
-      },
-      country_code: {
-        type: Sequelize.STRING,
-        allowNull: false
-      },
       phoneNumber: {
-        type: Sequelize.STRING,
-        allowNull: true
-      },
-      profilePic: {
         type: Sequelize.STRING,
         allowNull: true
       },
@@ -68,28 +51,8 @@ module.exports = {
         type: Sequelize.STRING,
         allowNull: true
       },
-      fcm: {
-        type: Sequelize.STRING,
-        allowNull: true
-      },
       tokenVersion: {
         type: Sequelize.INTEGER,
-        defaultValue: 0
-      },
-      likes: {
-        type: Sequelize.INTEGER,
-        defaultValue: 0
-      },
-      dislikes: {
-        type: Sequelize.INTEGER,
-        defaultValue: 0
-      },
-      is_online: {
-        type: Sequelize.BOOLEAN,
-        defaultValue: false
-      },
-      last_login: {
-        type: Sequelize.BIGINT,
         defaultValue: 0
       },
       personalWalletBalance: {
@@ -100,10 +63,6 @@ module.exports = {
         type: Sequelize.INTEGER,
         defaultValue: 0
       },
-      otp: {
-        type: Sequelize.STRING,
-        allowNull: true
-      }
     });
   },
 

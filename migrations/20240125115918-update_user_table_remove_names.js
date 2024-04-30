@@ -3,18 +3,6 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up (queryInterface, Sequelize) {
-    await queryInterface.removeColumn('users', 'firstName')
-    await queryInterface.removeColumn('users', 'lastName')
-    await queryInterface.removeColumn('users', 'username')
-
-    await queryInterface.addColumn('users', 'name', {
-      type: Sequelize.STRING,
-      allowNull: true
-    })
-  },
-
-  async down (queryInterface, Sequelize) {
-    await queryInterface.removeColumn('users', 'name')
     await queryInterface.addColumn('users', 'firstName', {
       type: Sequelize.STRING,
       allowNull: true
@@ -28,5 +16,12 @@ module.exports = {
       allowNull: true,
       unique: true
     })
+  },
+
+  async down (queryInterface, Sequelize) {
+    await queryInterface.removeColumn('users', 'firstName')
+    await queryInterface.removeColumn('users', 'lastName')
+    await queryInterface.removeColumn('users', 'username')
+
   }
 }

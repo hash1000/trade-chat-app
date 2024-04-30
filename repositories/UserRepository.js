@@ -20,7 +20,7 @@ class UserRepository {
   async getUserProfile(id) {
     const user = await  User.findOne({ where: 
       { id }, 
-      attributes: ['id', 'name', 'role', 'email', 'phoneNumber', 'country_code', 'profilePic', 'createdAt', 'updatedAt', 'likes', 'dislikes', 'last_login']
+      attributes: ['id','firstName','lastName','username', 'role', 'email', 'phoneNumber', 'country_code', 'profilePic', 'createdAt', 'updatedAt', 'likes', 'dislikes', 'last_login']
     })
     return user ? user.toJSON() : null;
   }
