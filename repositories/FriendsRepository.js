@@ -76,7 +76,7 @@ class FriendsRepository {
           [Op.in]: friendsIds
         }
       },
-      attributes: ['id', 'name', 'role', 'country_code', 'email', 'phoneNumber', 'profilePic'],
+      attributes: ['id', 'role', 'country_code', 'email', 'phoneNumber', 'profilePic'],
       raw: true
     })
     const friendsMap = friends.reduce((acc, friend) => {

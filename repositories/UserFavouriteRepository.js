@@ -43,7 +43,7 @@ class UserFavouriteRepository {
           [Op.in]: favouriteIds
         }
       },
-      attributes: ['id', 'name', 'role', 'country_code', 'email', 'phoneNumber', 'profilePic'],
+      attributes: ['id', 'role', 'country_code', 'email', 'phoneNumber', 'profilePic'],
       raw: true
     })
     const friendship = await Friends.findAll({
