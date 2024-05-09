@@ -23,72 +23,89 @@ class UserController {
 
   async verify(req, res) {
     try {
-      const { country_code, phoneNumber, email, password } = req.body;
+      const {
+        country_code,
+        phoneNumber,
+        email,
+        password,
+        username,
+        firstName,
+        lastName,
+        gender,
+        country,
+        age,
+        profilePic,
+        description,
+      } = req.body;
+
       // Check if the user already exists with the provided phone number
-      let user = await userService.getUserByPhoneNumber(
+      const userByPhoneNumber = await userService.getUserByPhoneNumber(
         country_code,
         phoneNumber
       );
-      let existingUserPhoneNumber,token,existingUserByEmail;
-      if(user){
-        console.log(" i am in user phone number")
-         existingUserPhoneNumber = user.dataValues;
-      }
       // Check if the user already exists with the provided email
-      const UserByEmail = await userService.getUserByEmail(email);
-      if(UserByEmail){
-        console.log(" i am in user existing email");
-        existingUserByEmail = UserByEmail.dataValues;
-     }
-      if (
-        existingUserPhoneNumber &&
-        existingUserByEmail &&
-        existingUserPhoneNumber.id === existingUserByEmail.id
-      ) {
-        console.log("update token")
-        await userService.updateTokenVersion(user);
+      const userByEmail = await userService.getUserByEmail(email);
 
-        token = jwt.sign(
-          { userId: user.id, tokenVersion: user.tokenVersion },
+      if (
+        userByPhoneNumber &&
+        userByEmail &&
+        userByPhoneNumber.id === userByEmail.id
+      ) {
+        await userService.updateTokenVersion(userByPhoneNumber);
+        const token = jwt.sign(
+          {
+            userId: userByPhoneNumber.id,
+            tokenVersion: userByPhoneNumber.tokenVersion,
+          },
           process.env.JWT_SECRET_KEY
         );
-        return res
-          .status(400)
-          .json({
-            message: "User with this email and number already exists",
-            token,
-            user,
-          });
-      } else if (existingUserByEmail && existingUserByEmail.email === email) {
+        return res.status(400).json({
+          message: "User with this email and number already exists",
+          token,
+          user: userByPhoneNumber,
+        });
+      } else if (userByEmail && userByEmail.email === email) {
         return res
           .status(400)
           .json({ message: "User with this email already exists" });
       } else if (
-        existingUserPhoneNumber &&
-        existingUserPhoneNumber.phoneNumber === phoneNumber
+        userByPhoneNumber &&
+        userByPhoneNumber.phoneNumber === phoneNumber
       ) {
         return res
           .status(400)
           .json({ message: "User with this Number already exists" });
       } else {
-        console.log("hellloo i am creating user in verify serveice",user);
-        console.log("i am in repositry",country_code, phoneNumber, email, password);
-        user = await userService.createUser({
-          email: email,
-          password: password,
+        const userData = {
+          email,
+          password,
           phoneNumber,
-          country_code: country_code,
-        });
+          country_code,
+          username,
+          firstName,
+          lastName,
+          gender,
+          country,
+          age,
+        };
 
-        token = jwt.sign(
-          { userId: user.id, tokenVersion: 0 },
+        if (profilePic) {
+          userData.profilePic = profilePic;
+        }
+        if (description) {
+          userData.description = description;
+        }
+
+        const newUser = await userService.createUser(userData);
+        const token = jwt.sign(
+          { userId: newUser.id, tokenVersion: 0 },
           process.env.JWT_SECRET_KEY
         );
 
         return res.json({
           message: "Successfully created a new user with this email and number",
           token,
-          user,
+          user: newUser,
         });
       }
     } catch (error) {
@@ -99,34 +116,51 @@ class UserController {
 
   async login(req, res) {
     try {
-      const { email, password } = req.body;
+      const { email, password, country_code, phoneNumber } = req.body;
+      let user = null;
 
-      // Check if the user exists
-      const user = await userService.getUserByEmail(email);
-      if (!user) {
-        return res.status(401).json({ message: "Invalid credentials" });
+      if (email && password) {
+        // Login with email and password
+        user = await userService.getUserByEmail(email);
+
+        if (!user) {
+          return res.status(401).json({ message: "Invalid credentials" });
+        }
+
+        const validatedUser = await userService.verifyUserPassword(
+          user,
+          password
+        );
+        if (!validatedUser) {
+          return res.status(401).json({ message: "Invalid credentials" });
+        }
+
+        await userService.updateTokenVersion(validatedUser);
+      } else if (country_code && phoneNumber) {
+        // Login with country code and phone number
+        user = await userService.getUserByPhoneNumber(
+          country_code,
+          phoneNumber
+        );
+        if (!user) {
+          return res.status(401).json({ message: "Invalid credentials" });
+        }
+      } else {
+        return res.status(400).json({ message: "Invalid request parameters" });
       }
 
-      // Verify the password
-      const validatedUser = await userService.verifyUserPassword(
-        user,
-        password
-      );
-      if (!validatedUser) {
-        return res.status(401).json({ message: "Invalid credentials" });
-      }
-      await userService.updateTokenVersion(validatedUser);
+      await userService.updateTokenVersion(user);
       // Generate JWT token
       const token = jwt.sign(
-        { userId: user.id, tokenVersion: validatedUser.tokenVersion },
+        { userId: user.id, tokenVersion: user.tokenVersion },
         process.env.JWT_SECRET_KEY
       );
 
       // Respond with the token and user data
-      res.json({ token, user });
+      return res.json({ token, user });
     } catch (error) {
       console.error("Error during login:", error);
-      res.status(500).json({ message: "Login failed" });
+      return res.status(500).json({ message: "Login failed" });
     }
   }
 
