@@ -1,119 +1,151 @@
-const UserProfileService = require('../services/UserProfileService') // Replace the path with the correct location of your UserService.js file
+const UserProfileService = require("../services/UserProfileService"); // Replace the path with the correct location of your UserService.js file
 
-const userProfileService = new UserProfileService()
+const userProfileService = new UserProfileService();
 
 class UserProfileController {
   async getUserProfile(req, res) {
     try {
       const { userId } = req.params;
-      const {dataValues}= req.user;
+      const { dataValues } = req.user;
       if (!userId) {
-        return res.status(404).json({ message: 'User not found' })
+        return res.status(404).json({ message: "User not found" });
       }
-      const user = await userProfileService.getUserProfileById(userId, dataValues.id)
+      const user = await userProfileService.getUserProfileById(
+        userId,
+        dataValues.id
+      );
       if (!user) {
-       return res.status(404).json({ message: 'User not found' })
+        return res.status(404).json({ message: "User not found" });
       }
-      res.json({ user })
+      res.json({ user });
     } catch (error) {
-      console.error(error)
-      res.status(500).json({ message: 'Internal server error' })
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
     }
   }
 
   async createLike(req, res) {
     try {
       //  create or update the reaction
-      const { userId: profileId, status } = req.params
-      const userId = req.user.id
-      if (status === 'add') {
-        await userProfileService.createOrUpdateReaction(userId, profileId, 'like')
+      const { userId: profileId, status } = req.params;
+      const userId = req.user.id;
+      if (status === "add") {
+        await userProfileService.createOrUpdateReaction(
+          userId,
+          profileId,
+          "like"
+        );
       } else {
-        await userProfileService.removeReaction(userId, profileId, 'like')
+        await userProfileService.removeReaction(userId, profileId, "like");
       }
-      const user = await userProfileService.getUserProfileById(profileId, req.user.id)
+      const user = await userProfileService.getUserProfileById(
+        profileId,
+        req.user.id
+      );
       if (!user) {
-        return res.status(404).json({ message: 'User not found' })
+        return res.status(404).json({ message: "User not found" });
       }
-      res.json({ user })
+      res.json({ user });
     } catch (error) {
-      console.error(error)
-      res.status(500).json({ message: 'Internal server error' })
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
     }
   }
 
   async createDislike(req, res) {
     try {
       //  create or update the reaction
-      const { userId: profileId, status } = req.params
-      const userId = req.user.id
-      if (status === 'add') {
-        await userProfileService.createOrUpdateReaction(userId, profileId, 'dislike')
+      const { userId: profileId, status } = req.params;
+      const userId = req.user.id;
+      if (status === "add") {
+        await userProfileService.createOrUpdateReaction(
+          userId,
+          profileId,
+          "dislike"
+        );
       } else {
-        await userProfileService.removeReaction(userId, profileId, 'dislike')
+        await userProfileService.removeReaction(userId, profileId, "dislike");
       }
-      const user = await userProfileService.getUserProfileById(profileId, req.user.id)
+      const user = await userProfileService.getUserProfileById(
+        profileId,
+        req.user.id
+      );
       if (!user) {
-        return res.status(404).json({ message: 'User not found' })
+        return res.status(404).json({ message: "User not found" });
       }
-      res.json({ user })
+      res.json({ user });
     } catch (error) {
-      console.error(error)
-      res.status(500).json({ message: 'Internal server error' })
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
     }
   }
   async createFavourite(req, res) {
     try {
       //  create user favourite
-      const { userId: profileId, status } = req.params
-      const userId = req.user.id
-      if (status === 'add') {
-        await userProfileService.createFavourite(userId, profileId)
+      const { userId: profileId, status } = req.params;
+      const userId = req.user.id;
+      if (status === "add") {
+        await userProfileService.createFavourite(userId, profileId);
       } else {
-        await userProfileService.removeFavourite(userId, profileId)
+        await userProfileService.removeFavourite(userId, profileId);
       }
-      const user = await userProfileService.getUserProfileById(profileId, req.user.id)
+      const user = await userProfileService.getUserProfileById(
+        profileId,
+        req.user.id
+      );
       if (!user) {
-        return res.status(404).json({ message: 'User not found' })
+        return res.status(404).json({ message: "User not found" });
       }
-      res.json({ user })
+      res.json({ user });
     } catch (error) {
-      console.error(error)
-      res.status(500).json({ message: 'Internal server error' })
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
     }
   }
 
   async createFriendship(req, res) {
     try {
       //  create user friendship
-      const { userId: profileId, status } = req.params
-      const userId = req.user.id
-      if (status === 'add') {
-        await userProfileService.createFriendship(userId, profileId)
+      const { userId: profileId, status } = req.params;
+      const userId = req.user.id;
+      if (status === "add") {
+        await userProfileService.createFriendship(userId, profileId);
       } else {
-        await userProfileService.removeFriendship(userId, profileId)
+        await userProfileService.removeFriendship(userId, profileId);
       }
-      const user = await userProfileService.getUserProfileById(profileId, req.user.id)
+      const user = await userProfileService.getUserProfileById(
+        profileId,
+        req.user.id
+      );
       if (!user) {
-        return res.status(404).json({ message: 'User not found' })
+        return res.status(404).json({ message: "User not found" });
       }
-      res.json({ user })
+      res.json({ user });
     } catch (error) {
-      console.error(error)
-      res.status(500).json({ message: 'Internal server error' })
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
     }
   }
 
   async getContacts(req, res) {
-    const userId = req.user.id
+    const userId = req.user.id;
     try {
-      const data = await userProfileService.getUserContacts(userId)
-      res.json({ data })
+      const data = await userProfileService.getUserContacts(userId);
+      res.json({ data });
     } catch (error) {
-      console.error(error)
-      res.status(500).json({ message: 'Internal server error' })
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  }
+  async getAllUsers(req, res) {
+    try {
+      const users = await userProfileService.getAllUsersProfile();
+      return res.json({ user: users });
+    } catch (error) {
+      console.error("Error during getting users profile:", error);
+      res.status(500).json({ message: "Login getting users" });
     }
   }
 }
 
-module.exports = UserProfileController
+module.exports = UserProfileController;

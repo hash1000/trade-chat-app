@@ -1,6 +1,5 @@
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
-
 const UserRepository = require("../repositories/UserRepository"); // Replace the path with the correct location of your UserRepository.js file
 const CustomError = require("../errors/CustomError");
 
@@ -110,6 +109,33 @@ class UserService {
       await user.save();
     } catch (error) {
       throw new Error(`Failed to update token version: ${error.message}`);
+    }
+  }
+
+  async getAllProfileUsers() {
+    try {
+      const users = await userRepository.findAll({
+        attributes: [
+          "id",
+          "firstName",
+          "lastName",
+          "username",
+          "role",
+          "email",
+          "phoneNumber",
+          "country_code",
+          "profilePic",
+          "settings",
+          "createdAt",
+          "updatedAt",
+          "likes",
+          "dislikes",
+          "last_login",
+        ],
+      });
+      return users.map((user) => user.toJSON());
+    } catch (error) {
+      throw new Error("Error while fetching users: " + error.message);
     }
   }
 
