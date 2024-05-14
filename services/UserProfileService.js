@@ -205,6 +205,19 @@ class UserService {
   async getUserForNotification(id) {
     return userRepository.getUserTokenAndName(id);
   }
+
+  async getAllUsers() {
+    return userRepository.getAllprofiles();
+  }
+
+  async getAllUsersProfile() {
+    try {
+      const users = await userRepository.getAllUsers();
+      return users;
+    } catch (error) {
+      throw new Error("Error while fetching users: " + error.message);
+    }
+  }
 }
 
 module.exports = UserService;
