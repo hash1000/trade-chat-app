@@ -19,6 +19,65 @@ class UserService {
       throw new Error("Failed to create user");
     }
   }
+  async updateGoogleUser(user,userData) {
+    try {
+      // Update user properties
+      if (userData.password) {
+      const hashedPassword = await bcrypt.hash(userData.password, 10);
+        user.password = hashedPassword;
+      }
+      if (userData.phoneNumber) {
+        user.phoneNumber = userData.phoneNumber;
+      }
+      if (userData.country_code) {
+        user.country_code = userData.country_code;
+      }
+      if (userData.username) {
+        user.username = userData.username;
+      }
+      if (userData.firstName) {
+        user.firstName = userData.firstName;
+      }
+      if (userData.lastName) {
+        user.lastName = userData.lastName;
+      }
+      if (userData.gender) {
+        user.gender = userData.gender;
+      }
+      if (userData.country) {
+        user.country = userData.country;
+      }
+      if (userData.age) {
+        user.age = userData.age;
+      }
+      if (userData.profilePic) {
+        user.profilePic = userData.profilePic;
+      }
+      if (userData.description) {
+        user.description = userData.description;
+      }
+      
+      await user.save();
+  
+      return user;
+    } catch (error) {
+      throw new Error(`Failed to update google user profile: ${error.message}`);
+    }
+  }
+  
+  async createGoogleUser(userData) {
+    try {
+      const { password, ...data } = userData;
+      const newUser = await userRepository.create({
+        password: "",
+        ...data, // Spread the rest of the user data
+      });
+      return newUser;
+    } catch (error) {
+      throw new Error("Failed to create user");
+    }
+  }
+
 
   async updateUserProfile(user, profileData) {
     try {

@@ -32,6 +32,15 @@ exports.validateVerify = [
   handleValidationErrors,
 ];
 
+// Validation middleware for Google sign-in
+exports.validateGoogleSignup = [
+  body("displayName").notEmpty().withMessage("Display name is required"),
+  body("email").isEmail().withMessage("Invalid email"),
+  body("phoneNumber").optional().isString().withMessage("Phone number must be a string"),
+  body("photoURL").optional().isString().withMessage("Profile picture must be a string"),
+  handleValidationErrors,
+];
+
 // Validation middleware for login
 exports.validateLogin = [
   oneOf([

@@ -10,15 +10,15 @@ module.exports = {
       },
       firstName: {
         type: Sequelize.STRING,
-        allowNull: false,
+        allowNull: true,
       },
       lastName: {
         type: Sequelize.STRING,
-        allowNull: false,
+        allowNull: true,
       },
       username: {
         type: Sequelize.STRING,
-        allowNull: false,
+        allowNull: true,
       },
       role: {
         type: Sequelize.STRING,
@@ -27,7 +27,7 @@ module.exports = {
       },
       country_code: {
         type: Sequelize.STRING,
-        allowNull: false,
+        allowNull: true,
       },
       phoneNumber: {
         type: Sequelize.STRING,
@@ -55,7 +55,7 @@ module.exports = {
       },
       password: {
         type: Sequelize.STRING,
-        allowNull: false,
+        allowNull: true,
       },
       email: {
         type: Sequelize.STRING,
@@ -75,7 +75,7 @@ module.exports = {
       friendShip: {
         type: Sequelize.JSON,
         defaultValue: {
-          type: "defaultType",
+          type: "cancel",
           userId: 0,
           profileId: 0,
         },
@@ -102,11 +102,11 @@ module.exports = {
       },
       likes: {
         type: Sequelize.INTEGER,
-        defaultValue: 0,
+        defaultValue: 10,
       },
       dislikes: {
         type: Sequelize.INTEGER,
-        defaultValue: 0,
+        defaultValue: 10,
       },
       is_online: {
         type: Sequelize.BOOLEAN,
@@ -118,11 +118,11 @@ module.exports = {
       },
       personalWalletBalance: {
         type: Sequelize.INTEGER,
-        defaultValue: 0,
+        defaultValue: 50000,
       },
       companyWalletBalance: {
         type: Sequelize.INTEGER,
-        defaultValue: 0,
+        defaultValue: 40000,
       },
       otp: {
         type: Sequelize.STRING,
