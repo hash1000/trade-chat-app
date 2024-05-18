@@ -1,8 +1,8 @@
-"use strict";
+'use strict';
 
 module.exports = {
-  async up(queryInterface, Sequelize) {
-    await queryInterface.createTable("users", {
+  up: async (queryInterface, Sequelize) => {
+    await queryInterface.createTable('Users', {
       id: {
         type: Sequelize.INTEGER,
         primaryKey: true,
@@ -75,18 +75,18 @@ module.exports = {
       friendShip: {
         type: Sequelize.JSON,
         defaultValue: {
-          type: "cancel",
+          type: "defaultType",
           userId: 0,
           profileId: 0,
         },
       },
       createdAt: {
         type: Sequelize.DATE,
-        defaultValue: Sequelize.literal("CURRENT_TIMESTAMP"),
+        defaultValue: Sequelize.NOW,
       },
       updatedAt: {
         type: Sequelize.DATE,
-        defaultValue: Sequelize.literal("CURRENT_TIMESTAMP"),
+        defaultValue: Sequelize.NOW,
       },
       resetToken: {
         type: Sequelize.STRING,
@@ -122,7 +122,7 @@ module.exports = {
       },
       companyWalletBalance: {
         type: Sequelize.INTEGER,
-        defaultValue: 40000,
+        defaultValue: 500000,
       },
       otp: {
         type: Sequelize.STRING,
@@ -131,7 +131,7 @@ module.exports = {
     });
   },
 
-  async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable("users");
-  },
+  down: async (queryInterface, Sequelize) => {
+    await queryInterface.dropTable('Users');
+  }
 };
