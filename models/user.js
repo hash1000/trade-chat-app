@@ -111,7 +111,7 @@ const User = sequelize.define(
     },
     is_online: {
       type: DataTypes.BOOLEAN,
-      defaultValue: 0,
+      defaultValue: false,
     },
     last_login: {
       type: DataTypes.BIGINT,
@@ -127,6 +127,10 @@ const User = sequelize.define(
     },
     otp: {
       type: DataTypes.STRING,
+      allowNull: true,
+    },
+    expiration_time: {
+      type: DataTypes.DATE,
       allowNull: true,
     },
   },

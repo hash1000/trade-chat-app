@@ -41,6 +41,13 @@ router.post(
 // Login route
 router.post("/login", validateLogin, userController.login.bind(userController));
 
+// sendOTP_to_email
+router.post(
+  "/sendOTP_to_email",
+  validateVerify,
+  userController.verify.bind(userController)
+);
+
 // Forgot password route
 router.post(
   "/forgot-password",

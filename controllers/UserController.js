@@ -8,28 +8,65 @@ const userService = new UserService();
 
 class UserController {
   async googleSignIn(req, res) {
-    const { displayName, email, phoneNumber, photoURL } = req.body;
+    const { displayName, email, phoneNumber, country_code, photoURL } =
+      req.body;
+
     try {
       const userData = {
         username: displayName,
         email,
-        phoneNumber,
         photoURL,
+        country_code,
+        phoneNumber,
       };
-      const newUser = await userService.createGoogleUser(userData);
-      const token = jwt.sign(
-        { userId: newUser.id, tokenVersion: 0 },
-        process.env.JWT_SECRET_KEY
-      );
 
-      return res.json({
-        message: "Successfully created a new user with this email and number",
-        token,
-        user: newUser,
-      });
+      // Check if the user already exists with the provided email
+      const userByEmail = await userService.getUserByEmail(email);
+      if (userByEmail) {
+        await userService.updateTokenVersion(userByEmail);
+        const token = jwt.sign(
+          {
+            userId: userByEmail.id,
+            tokenVersion: userByEmail.tokenVersion,
+          },
+          process.env.JWT_SECRET_KEY
+        );
+        return res.status(200).json({
+          message:
+            "A user with this email already exists. Authentication successful.",
+          token,
+          user: userByEmail,
+        });
+      } else {
+        // Check if the user already exists with the provided phone number
+        const userByPhoneNumber = await userService.getUserByPhoneNumber(
+          country_code,
+          phoneNumber
+        );
+        if (userByPhoneNumber) {
+          return res
+            .status(409)
+            .json({ message: "A user with this phone number already exists." });
+        } else {
+          const newUser = await userService.createGoogleUser(userData);
+          const token = jwt.sign(
+            { userId: newUser.id, tokenVersion: 0 },
+            process.env.JWT_SECRET_KEY
+          );
+
+          return res.status(201).json({
+            message:
+              "A new user has been successfully created with this email and phone number.",
+            token,
+            user: newUser,
+          });
+        }
+      }
     } catch (error) {
-      console.error("Error during sign up:", error);
-      res.status(500).json({ message: "Failed to verify sign up Data" });
+      console.error("Error during Google sign-in:", error);
+      res.status(500).json({
+        message: "An error occurred while processing the sign-up data.",
+      });
     }
   }
 
@@ -65,6 +102,10 @@ class UserController {
       } = req.body;
 
       const userByEmail = await userService.getUserByEmail(email);
+      if (!userByEmail) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
       const userData = {
         password,
         phoneNumber,
@@ -76,12 +117,9 @@ class UserController {
         country,
         age,
       };
-      if (profilePic) {
-        userData.profilePic = profilePic;
-      }
-      if (description) {
-        userData.description = description;
-      }
+
+      if (profilePic) userData.profilePic = profilePic;
+      if (description) userData.description = description;
 
       const updateUser = await userService.updateGoogleUser(
         userByEmail,
@@ -93,13 +131,13 @@ class UserController {
       );
 
       return res.json({
-        message: "Successfully created a new user with this email and number",
+        message: "User profile updated successfully",
         token,
         user: updateUser,
       });
     } catch (error) {
-      console.error("Error during Google profile update", error);
-      res.status(500).json({ message: "Failed to update Google profile " });
+      console.error("Error during Google profile update:", error);
+      res.status(500).json({ message: "Failed to update Google profile" });
     }
   }
 
@@ -120,12 +158,10 @@ class UserController {
         description,
       } = req.body;
 
-      // Check if the user already exists with the provided phone number
       const userByPhoneNumber = await userService.getUserByPhoneNumber(
         country_code,
         phoneNumber
       );
-      // Check if the user already exists with the provided email
       const userByEmail = await userService.getUserByEmail(email);
 
       if (
@@ -141,22 +177,20 @@ class UserController {
           },
           process.env.JWT_SECRET_KEY
         );
-        return res.status(400).json({
-          message: "User with this email and number already exists",
+        return res.status(200).json({
+          message:
+            "User with this email and phone number already exists. Authentication successful.",
           token,
           user: userByPhoneNumber,
         });
-      } else if (userByEmail && userByEmail.email === email) {
+      } else if (userByEmail) {
         return res
-          .status(400)
-          .json({ message: "User with this email already exists" });
-      } else if (
-        userByPhoneNumber &&
-        userByPhoneNumber.phoneNumber === phoneNumber
-      ) {
+          .status(409)
+          .json({ message: "User with this email already exists." });
+      } else if (userByPhoneNumber) {
         return res
-          .status(400)
-          .json({ message: "User with this Number already exists" });
+          .status(409)
+          .json({ message: "User with this phone number already exists." });
       } else {
         const userData = {
           email,
@@ -171,12 +205,8 @@ class UserController {
           age,
         };
 
-        if (profilePic) {
-          userData.profilePic = profilePic;
-        }
-        if (description) {
-          userData.description = description;
-        }
+        if (profilePic) userData.profilePic = profilePic;
+        if (description) userData.description = description;
 
         const newUser = await userService.createUser(userData);
         const token = jwt.sign(
@@ -184,15 +214,16 @@ class UserController {
           process.env.JWT_SECRET_KEY
         );
 
-        return res.json({
-          message: "Successfully created a new user with this email and number",
+        return res.status(201).json({
+          message:
+            "Successfully created a new user with this email and phone number.",
           token,
           user: newUser,
         });
       }
     } catch (error) {
-      console.error("Error during sign up:", error);
-      res.status(500).json({ message: "Failed to verify OTP" });
+      console.error("Error during verification:", error);
+      res.status(500).json({ message: "Failed to verify user." });
     }
   }
 
@@ -201,12 +232,14 @@ class UserController {
       const { email, password, country_code, phoneNumber } = req.body;
       let user = null;
       console.log(email, password, country_code, phoneNumber);
+
       if (email && password) {
         // Login with email and password
         user = await userService.getUserByEmail(email);
-
         if (!user) {
-          return res.status(401).json({ message: "Invalid credentials" });
+          return res
+            .status(401)
+            .json({ message: "Invalid email or password." });
         }
 
         const validatedUser = await userService.verifyUserPassword(
@@ -214,10 +247,10 @@ class UserController {
           password
         );
         if (!validatedUser) {
-          return res.status(401).json({ message: "Invalid credentials" });
+          return res
+            .status(401)
+            .json({ message: "Invalid email or password." });
         }
-
-        await userService.updateTokenVersion(validatedUser);
       } else if (country_code && phoneNumber) {
         // Login with country code and phone number
         user = await userService.getUserByPhoneNumber(
@@ -225,24 +258,26 @@ class UserController {
           phoneNumber
         );
         if (!user) {
-          return res.status(401).json({ message: "Invalid credentials" });
+          return res.status(401).json({ message: "Invalid phone number." });
         }
       } else {
-        return res.status(400).json({ message: "Invalid request parameters" });
+        return res.status(400).json({ message: "Invalid request parameters." });
       }
 
       await userService.updateTokenVersion(user);
-      // Generate JWT token
       const token = jwt.sign(
         { userId: user.id, tokenVersion: user.tokenVersion },
         process.env.JWT_SECRET_KEY
       );
 
-      // Respond with the token and user data
-      return res.json({ token, user });
+      return res.json({
+        message: "Login successful.",
+        token,
+        user,
+      });
     } catch (error) {
       console.error("Error during login:", error);
-      return res.status(500).json({ message: "Login failed" });
+      return res.status(500).json({ message: "Login failed." });
     }
   }
 
