@@ -7,6 +7,32 @@ const EmailService = require("../services/EmailService");
 const userService = new UserService();
 
 class UserController {
+  async googleSignIn(req, res) {
+    const { displayName, email, phoneNumber, photoURL } = req.body;
+    try {
+      const userData = {
+        username: displayName,
+        email,
+        phoneNumber,
+        photoURL,
+      };
+      const newUser = await userService.createGoogleUser(userData);
+      const token = jwt.sign(
+        { userId: newUser.id, tokenVersion: 0 },
+        process.env.JWT_SECRET_KEY
+      );
+
+      return res.json({
+        message: "Successfully created a new user with this email and number",
+        token,
+        user: newUser,
+      });
+    } catch (error) {
+      console.error("Error during sign up:", error);
+      res.status(500).json({ message: "Failed to verify sign up Data" });
+    }
+  }
+
   async signup(req, res) {
     try {
       const { phoneNumber, country_code } = req.body;
@@ -18,6 +44,62 @@ class UserController {
     } catch (error) {
       console.error("Error during sign up:", error);
       res.status(500).json({ message: "Sign up failed" });
+    }
+  }
+
+  async GoogleProfile(req, res) {
+    try {
+      const {
+        country_code,
+        phoneNumber,
+        email,
+        password,
+        username,
+        firstName,
+        lastName,
+        gender,
+        country,
+        age,
+        profilePic,
+        description,
+      } = req.body;
+
+      const userByEmail = await userService.getUserByEmail(email);
+      const userData = {
+        password,
+        phoneNumber,
+        country_code,
+        username,
+        firstName,
+        lastName,
+        gender,
+        country,
+        age,
+      };
+      if (profilePic) {
+        userData.profilePic = profilePic;
+      }
+      if (description) {
+        userData.description = description;
+      }
+
+      const updateUser = await userService.updateGoogleUser(
+        userByEmail,
+        userData
+      );
+      const token = jwt.sign(
+        { userId: updateUser.id, tokenVersion: 0 },
+        process.env.JWT_SECRET_KEY
+      );
+
+      return res.json({
+        message: "Successfully created a new user with this email and number",
+        token,
+        user: updateUser,
+      });
+    } catch (error) {
+      console.error("Error during Google profile update", error);
+      res.status(500).json({ message: "Failed to update Google profile " });
     }
   }
 
@@ -118,7 +200,7 @@ class UserController {
     try {
       const { email, password, country_code, phoneNumber } = req.body;
       let user = null;
-
+      console.log(email, password, country_code, phoneNumber);
       if (email && password) {
         // Login with email and password
         user = await userService.getUserByEmail(email);
@@ -170,6 +252,7 @@ class UserController {
 
       // Check if the user exists
       const user = await userService.getUserByEmail(email);
+      console.log("user>>", user);
       if (!user) {
         return res.status(401).json({ message: "Invalid credentials" });
       }

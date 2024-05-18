@@ -11,15 +11,15 @@ const User = sequelize.define(
     },
     firstName: {
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: true,
     },
     lastName: {
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: true,
     },
     username: {
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: true,
     },
     role: {
       type: DataTypes.STRING,
@@ -28,7 +28,7 @@ const User = sequelize.define(
     },
     country_code: {
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: true,
     },
     phoneNumber: {
       type: DataTypes.STRING,
@@ -56,7 +56,7 @@ const User = sequelize.define(
     },
     password: {
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: true,
     },
     email: {
       type: DataTypes.STRING,
@@ -119,11 +119,11 @@ const User = sequelize.define(
     },
     personalWalletBalance: {
       type: DataTypes.INTEGER,
-      defaultValue: 0,
+      defaultValue: 50000,
     },
     companyWalletBalance: {
       type: DataTypes.INTEGER,
-      defaultValue: 0,
+      defaultValue: 500000,
     },
     otp: {
       type: DataTypes.STRING,

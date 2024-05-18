@@ -7,6 +7,7 @@ const {
   forgotPasswordValidation,
   resetPasswordValidation,
   validateUpdateProfile,
+  validateGoogleSignup,
 } = require("../middlewares/userValidation");
 const decodeToken = require("../middlewares/decodeToken");
 const authenticate = require("../middlewares/authenticate");
@@ -20,6 +21,17 @@ router.post(
   validateSignup,
   userController.signup.bind(userController)
 );
+router.post(
+  "/google-signIn",
+  validateGoogleSignup,
+  userController.googleSignIn.bind(userController)
+);
+router.put(
+  "/google-profile",
+  validateVerify,
+  userController.GoogleProfile.bind(userController)
+);
+
 router.post(
   "/verify",
   validateVerify,
