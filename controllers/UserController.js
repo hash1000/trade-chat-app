@@ -16,8 +16,6 @@ class UserController {
         username: displayName,
         email,
         photoURL,
-        country_code,
-        phoneNumber,
       };
 
       // Check if the user already exists with the provided email
@@ -38,29 +36,18 @@ class UserController {
           user: userByEmail,
         });
       } else {
-        // Check if the user already exists with the provided phone number
-        const userByPhoneNumber = await userService.getUserByPhoneNumber(
-          country_code,
-          phoneNumber
+        const newUser = await userService.createGoogleUser(userData);
+        const token = jwt.sign(
+          { userId: newUser.id, tokenVersion: 0 },
+          process.env.JWT_SECRET_KEY
         );
-        if (userByPhoneNumber) {
-          return res
-            .status(409)
-            .json({ message: "A user with this phone number already exists." });
-        } else {
-          const newUser = await userService.createGoogleUser(userData);
-          const token = jwt.sign(
-            { userId: newUser.id, tokenVersion: 0 },
-            process.env.JWT_SECRET_KEY
-          );
 
-          return res.status(201).json({
-            message:
-              "A new user has been successfully created with this email and phone number.",
-            token,
-            user: newUser,
-          });
-        }
+        return res.status(201).json({
+          message:
+            "A new user has been successfully created with this email and phone number.",
+          token,
+          user: newUser,
+        });
       }
     } catch (error) {
       console.error("Error during Google sign-in:", error);
@@ -105,7 +92,6 @@ class UserController {
       if (!userByEmail) {
         return res.status(404).json({ message: "User not found" });
       }
-
       const userData = {
         password,
         phoneNumber,
@@ -117,24 +103,33 @@ class UserController {
         country,
         age,
       };
-
-      if (profilePic) userData.profilePic = profilePic;
-      if (description) userData.description = description;
-
-      const updateUser = await userService.updateGoogleUser(
-        userByEmail,
-        userData
+      const userByPhoneNumber = await userService.getUserByPhoneNumber(
+        country_code,
+        phoneNumber
       );
-      const token = jwt.sign(
-        { userId: updateUser.id, tokenVersion: 0 },
-        process.env.JWT_SECRET_KEY
-      );
+      if (userByPhoneNumber) {
+        return res
+          .status(409)
+          .json({ message: "A user with this phone number already exists." });
+      } else {
+        if (profilePic) userData.profilePic = profilePic;
+        if (description) userData.description = description;
 
-      return res.json({
-        message: "User profile updated successfully",
-        token,
-        user: updateUser,
-      });
+        const updateUser = await userService.updateGoogleUser(
+          userByEmail,
+          userData
+        );
+        const token = jwt.sign(
+          { userId: updateUser.id, tokenVersion: 0 },
+          process.env.JWT_SECRET_KEY
+        );
+
+        return res.json({
+          message: "User profile updated successfully",
+          token,
+          user: updateUser,
+        });
+      }
     } catch (error) {
       console.error("Error during Google profile update:", error);
       res.status(500).json({ message: "Failed to update Google profile" });

@@ -36,11 +36,6 @@ exports.validateVerify = [
 exports.validateGoogleSignup = [
   body("displayName").notEmpty().withMessage("Display name is required"),
   body("email").isEmail().withMessage("Invalid email"),
-  body("country_code").notEmpty().withMessage("Country code is required"),
-  body("phoneNumber")
-    .optional()
-    .isString()
-    .withMessage("Phone number must be a string"),
   body("photoURL")
     .optional()
     .isString()
