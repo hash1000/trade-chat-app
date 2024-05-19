@@ -8,6 +8,8 @@ const {
   resetPasswordValidation,
   validateUpdateProfile,
   validateGoogleSignup,
+  validateEmailOtp,
+  validateVerifyEmailOtp,
 } = require("../middlewares/userValidation");
 const decodeToken = require("../middlewares/decodeToken");
 const authenticate = require("../middlewares/authenticate");
@@ -43,11 +45,16 @@ router.post("/login", validateLogin, userController.login.bind(userController));
 
 // sendOTP_to_email
 router.post(
-  "/sendOTP_to_email",
-  validateVerify,
-  userController.verify.bind(userController)
+  "/send-otp-email",
+  validateEmailOtp,
+  userController.emailOtp.bind(userController)
 );
-
+// verifyOtp
+router.post(
+  "/verify-otp",
+  validateVerifyEmailOtp,
+  userController.verifyOtp.bind(userController)
+);
 // Forgot password route
 router.post(
   "/forgot-password",
