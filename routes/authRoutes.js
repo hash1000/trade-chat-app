@@ -10,6 +10,8 @@ const {
   validateGoogleSignup,
   validateEmailOtp,
   validateVerifyEmailOtp,
+  emialValidation,
+  userDeleteValidation,
 } = require("../middlewares/userValidation");
 const decodeToken = require("../middlewares/decodeToken");
 const authenticate = require("../middlewares/authenticate");
@@ -78,11 +80,16 @@ router.put(
   validateUpdateProfile,
   userController.updateUser.bind(userController)
 );
-
 router.get(
   "/users",
   authenticate,
   userController.getUsers.bind(userController)
+);
+//get user from email
+router.post(
+  "/users-by-email",
+  emialValidation,
+  userController.getUserByemail.bind(userController)
 );
 router.post(
   "/users",
@@ -115,5 +122,11 @@ router.post(
   authenticate,
   userController.makePrimary.bind(userController)
 );
-
+// delete user
+router.post(
+  "/delete-user",
+  authenticate,
+  userDeleteValidation,
+  userController.userDelete.bind(userController)
+);
 module.exports = router;
