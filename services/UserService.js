@@ -115,6 +115,11 @@ class UserService {
     // Call the UserRepository to get a user by email
     return userRepository.getByEmail(email);
   }
+  // delete User
+  async deleteUser(userId) {
+    // Call the UserRepository to get a user by email
+    return userRepository.delete(userId);
+  }
 
   async getUserByPhoneNumber(country_code, phoneNumber) {
     // Call the UserRepository to get a user by email

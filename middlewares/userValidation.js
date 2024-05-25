@@ -15,7 +15,11 @@ exports.validateSignup = [
   body("phoneNumber").notEmpty().withMessage("Phone number is required"),
   handleValidationErrors,
 ];
-
+// emialValidation
+exports.emialValidation = [
+  body("email").isEmail().withMessage("Invalid email"),
+  handleValidationErrors,
+];
 // Validation middleware for verify
 exports.validateVerify = [
   body("country_code").notEmpty().withMessage("Country code is required"),
@@ -97,7 +101,11 @@ exports.resetPasswordValidation = [
   body("password").notEmpty().withMessage("Password is required"),
   handleValidationErrors,
 ];
-
+// User Delete Validation
+exports.userDeleteValidation = [
+  body("userId").notEmpty().withMessage("userId is required"),
+  handleValidationErrors,
+];
 // Validation middleware for updating profile
 exports.validateUpdateProfile = [
   body("name")
