@@ -76,7 +76,7 @@ class UserController {
     }
   }
 
-  async GoogleProfile(req, res) {
+  async verify(req, res) {
     try {
       const {
         country_code,
@@ -93,6 +93,134 @@ class UserController {
         description,
       } = req.body;
 
+      const userByPhoneNumber = await userService.getUserByPhoneNumber(
+        country_code,
+        phoneNumber
+      );
+      const userByEmail = await userService.getUserByEmail(email);
+
+      if (
+        userByPhoneNumber &&
+        userByEmail &&
+        userByPhoneNumber.id === userByEmail.id
+      ) {
+        await userService.updateTokenVersion(userByPhoneNumber);
+        const token = jwt.sign(
+          {
+            userId: userByPhoneNumber.id,
+            tokenVersion: userByPhoneNumber.tokenVersion,
+          },
+          process.env.JWT_SECRET_KEY
+        );
+        return res.status(200).json({
+          message:
+            "User with this email and phone number already exists. Authentication successful.",
+          token,
+          user: userByPhoneNumber,
+        });
+      } else if (userByEmail) {
+        if (
+          (userByEmail &&
+            userByEmail.firstName === null &&
+            userByEmail.lastName === null &&
+            userByEmail.country_code === null &&
+            userByEmail.phoneNumber === null &&
+            userByEmail.gender === null &&
+            userByEmail.country === null &&
+            userByEmail.age === null &&
+            country_code,
+          phoneNumber,
+          email,
+          password,
+          firstName,
+          lastName,
+          gender,
+          country,
+          age)
+        ) {
+          let googleUser = {
+            country_code,
+            phoneNumber,
+            email,
+            password,
+            firstName,
+            lastName,
+            gender,
+            country,
+            age,
+          };
+          if (username) {
+            googleUser.username = username;
+          }
+          if (profilePic) {
+            googleUser.profilePic = profilePic;
+          }
+          if (description) {
+            googleUser.description = description;
+          }
+          req.body.googleUser = googleUser;
+          return this.GoogleProfile(req, res);
+        } else {
+          return res.status(409).json({
+            message: "User with this email already exists.",
+            User: userByEmail,
+          });
+        }
+      } else if (userByPhoneNumber) {
+        return res
+          .status(409)
+          .json({ message: "User with this phone number already exists." });
+      } else {
+        const userData = {
+          email,
+          password,
+          phoneNumber,
+          country_code,
+          username,
+          firstName,
+          lastName,
+          gender,
+          country,
+          age,
+        };
+
+        if (profilePic) userData.profilePic = profilePic;
+        if (description) userData.description = description;
+
+        const newUser = await userService.createUser(userData);
+        const token = jwt.sign(
+          { userId: newUser.id, tokenVersion: 0 },
+          process.env.JWT_SECRET_KEY
+        );
+
+        return res.status(201).json({
+          message:
+            "Successfully created a new user with this email and phone number.",
+          token,
+          user: newUser,
+        });
+      }
+    } catch (error) {
+      console.error("Error during verification:", error);
+      res.status(500).json({ message: "Failed to verify user." });
+    }
+  }
+  async GoogleProfile(req, res) {
+    try {
+      const {
+        country_code,
+        phoneNumber,
+        email,
+        password,
+        username,
+        firstName,
+        lastName,
+        gender,
+        country,
+        age,
+        profilePic,
+        description,
+      } = req.body;
       const userByEmail = await userService.getUserByEmail(email);
       if (!userByEmail) {
         return res.status(404).json({ message: "User not found" });
@@ -138,92 +266,6 @@ class UserController {
     } catch (error) {
       console.error("Error during Google profile update:", error);
       res.status(500).json({ message: "Failed to update Google profile" });
-    }
-  }
-
-  async verify(req, res) {
-    try {
-      const {
-        country_code,
-        phoneNumber,
-        email,
-        password,
-        username,
-        firstName,
-        lastName,
-        gender,
-        country,
-        age,
-        profilePic,
-        description,
-      } = req.body;
-
-      const userByPhoneNumber = await userService.getUserByPhoneNumber(
-        country_code,
-        phoneNumber
-      );
-      const userByEmail = await userService.getUserByEmail(email);
-
-      if (
-        userByPhoneNumber &&
-        userByEmail &&
-        userByPhoneNumber.id === userByEmail.id
-      ) {
-        await userService.updateTokenVersion(userByPhoneNumber);
-        const token = jwt.sign(
-          {
-            userId: userByPhoneNumber.id,
-            tokenVersion: userByPhoneNumber.tokenVersion,
-          },
-          process.env.JWT_SECRET_KEY
-        );
-        return res.status(200).json({
-          message:
-            "User with this email and phone number already exists. Authentication successful.",
-          token,
-          user: userByPhoneNumber,
-        });
-      } else if (userByEmail) {
-        return res
-          .status(409)
-          .json({ message: "User with this email already exists." });
-      } else if (userByPhoneNumber) {
-        return res
-          .status(409)
-          .json({ message: "User with this phone number already exists." });
-      } else {
-        const userData = {
-          email,
-          password,
-          phoneNumber,
-          country_code,
-          username,
-          firstName,
-          lastName,
-          gender,
-          country,
-          age,
-        };
-
-        if (profilePic) userData.profilePic = profilePic;
-        if (description) userData.description = description;
-
-        const newUser = await userService.createUser(userData);
-        const token = jwt.sign(
-          { userId: newUser.id, tokenVersion: 0 },
-          process.env.JWT_SECRET_KEY
-        );
-
-        return res.status(201).json({
-          message:
-            "Successfully created a new user with this email and phone number.",
-          token,
-          user: newUser,
-        });
-      }
-    } catch (error) {
-      console.error("Error during verification:", error);
-      res.status(500).json({ message: "Failed to verify user." });
     }
   }
 
