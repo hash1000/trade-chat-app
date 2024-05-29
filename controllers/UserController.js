@@ -538,18 +538,33 @@ class UserController {
     }
   }
 
-  async getUserByemail(req, res) {
-    const { email } = req.body;
-
-    // Check if the user exists
-    const user = await userService.getUserByEmail(email);
-    if (!user) {
-      return res.status(401).json({ message: "Invalid credentials" });
-    } else {
-      return res.status(200).json({ message: "User Exist", User: user });
+  async  getUserByEmailOrPhoneNumber(req, res) {
+    const { email, country_code, phoneNumber } = req.body;
+  
+    // Validate payload
+    if (email && (country_code || phoneNumber)) {
+      return res.status(400).json({ message: "Provide either email or phone number, not both." });
+    }
+    let user;
+    try {
+      if (country_code && phoneNumber) {
+        user = await userService.getUserByPhoneNumber(country_code, phoneNumber);
+      } else if (email) {
+        user = await userService.getUserByEmail(email);
+      }
+  
+      if (!user) {
+        return res.status(401).json({ message: "Invalid credentials." });
+      }
+  
+      return res.status(200).json({ message: "User exists.", user: user });
+    } catch (error) {
+      // Log the error and send a generic error message
+      console.error(error);
+      return res.status(500).json({ message: "An internal server error occurred." });
     }
   }
-
+  
   async changePassword(req, res) {
     try {
       const { email, password, newPassword } = req.body;

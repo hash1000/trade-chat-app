@@ -47,15 +47,15 @@ module.exports = {
             <table style="width: 100%;">
               <tbody>
                 <tr style="height: 0;">
-                  <td>
-                    <h3 style="font-size: 20px; line-height: 30px; color: #ffffff;">Trade Chat QRM</h3>
-                  </td>
-                  <td style="text-align: right;">
-                    <span
-                      style="font-size: 16px; line-height: 30px; color: #ffffff;"
-                      >${formattedDate}</span
-                    >
-                  </td>
+                <td>
+                <h3 style="font-size: 14px; line-height: 30px; color: #ffffff;">Trade Chat QRM</h3>
+              </td>
+              <td style="text-align: right;">
+                <span
+                  style="font-size: 12px; line-height: 30px; color: #ffffff;"
+                  >${formattedDate}</span
+                >
+              </td>
                 </tr>
               </tbody>
             </table>
@@ -76,7 +76,7 @@ module.exports = {
             <h1
               style="
                 margin: 0;
-                font-size: 24px;
+                font-size: 20px;
                 font-weight: 500;
                 color: #1f1f1f;
               "
@@ -101,10 +101,10 @@ module.exports = {
             <p
               style="
                 margin: 0;
-                margin-top: 60px;
-                font-size: 40px;
+                margin-top: 30px;
+                font-size: 20px;
                 font-weight: 600;
-                letter-spacing: 25px;
+                letter-spacing: 10px;
                 color: #ba3d4f;
               "
             >

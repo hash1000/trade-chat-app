@@ -16,8 +16,18 @@ exports.validateSignup = [
   handleValidationErrors,
 ];
 // emialValidation
-exports.emialValidation = [
-  body("email").isEmail().withMessage("Invalid email"),
+exports.emailPhoneNumberValidation = [
+  oneOf([
+    // Validation for email/password login
+    [
+      body("email").isEmail().withMessage("Invalid email"),
+    ],
+    // Validation for phone number login
+    [
+      body("phoneNumber").notEmpty().withMessage("Phone number is required"),
+      body("country_code").notEmpty().withMessage("Country code is required"),
+    ],
+  ]),
   handleValidationErrors,
 ];
 // Validation middleware for verify
@@ -45,7 +55,7 @@ exports.validateVerify = [
   handleValidationErrors,
 ];
 
-// Validation middleware for Google sign-in
+// Validation middeleware for Google sign-in
 exports.validateGoogleSignup = [
   body("displayName").notEmpty().withMessage("Display name is required"),
   body("email").isEmail().withMessage("Invalid email"),
