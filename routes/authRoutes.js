@@ -10,7 +10,7 @@ const {
   validateGoogleSignup,
   validateEmailOtp,
   validateVerifyEmailOtp,
-  emialValidation,
+  emailPhoneNumberValidation,
   userDeleteValidation,
 } = require("../middlewares/userValidation");
 const decodeToken = require("../middlewares/decodeToken");
@@ -87,9 +87,9 @@ router.get(
 );
 //get user from email
 router.post(
-  "/users-by-email",
-  emialValidation,
-  userController.getUserByemail.bind(userController)
+  "/get-user",
+  emailPhoneNumberValidation,
+  userController.getUserByEmailOrPhoneNumber.bind(userController)
 );
 router.post(
   "/users",
