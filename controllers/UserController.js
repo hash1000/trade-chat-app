@@ -404,7 +404,7 @@ class UserController {
       });
 
       const mailOptions = {
-        from: `"Nasko" <${process.env.EMAIL_ADDRESS}>`,
+        from: `"Trade Chat QRM" <${process.env.EMAIL_ADDRESS}>`,
         to: email,
         subject: email_subject,
         html: email_message, // Ensure the email content is sent as HTML
@@ -474,6 +474,7 @@ class UserController {
       }
 
       let decoded;
+      let user, token;
 
       //Check if verification key is altered or not and store it in variable decoded after decryption
       try {
@@ -482,7 +483,6 @@ class UserController {
         const response = { Status: "Failure", Details: "Bad Request" };
         return res.status(400).send(response);
       }
-
       var obj = JSON.parse(decoded);
       const check_obj = obj.check;
 
@@ -505,12 +505,25 @@ class UserController {
           if (dates.compare(otp_instance.expiration_time, currentdate) == 1) {
             //Check if OTP is equal to the OTP in the DB
             if (otp === otp_instance.otp) {
+              user = await userService.getUserByEmail(check);
+              if (!user) {
+                return res
+                  .status(400)
+                  .json({ message: "User with this email dose not exist" });
+              } else {
+                await userService.updateTokenVersion(user);
+                token = jwt.sign(
+                  { userId: user.id, tokenVersion: user.tokenVersion },
+                  process.env.JWT_SECRET_KEY
+                );
+              }
               otp_instance.verified = true;
               otp_instance.save();
               const response = {
                 Status: "Success",
                 Details: "OTP Matched",
                 Check: check,
+                token: token,
               };
               return res.status(200).send(response);
             } else {
@@ -538,33 +551,40 @@ class UserController {
     }
   }
 
-  async  getUserByEmailOrPhoneNumber(req, res) {
+  async getUserByEmailOrPhoneNumber(req, res) {
     const { email, country_code, phoneNumber } = req.body;
-  
+
     // Validate payload
     if (email && (country_code || phoneNumber)) {
-      return res.status(400).json({ message: "Provide either email or phone number, not both." });
+      return res
+        .status(400)
+        .json({ message: "Provide either email or phone number, not both." });
     }
     let user;
     try {
       if (country_code && phoneNumber) {
-        user = await userService.getUserByPhoneNumber(country_code, phoneNumber);
+        user = await userService.getUserByPhoneNumber(
+          country_code,
+          phoneNumber
+        );
       } else if (email) {
         user = await userService.getUserByEmail(email);
       }
-  
+
       if (!user) {
-        return res.status(401).json({ message: "Invalid credentials." });
+        return res.status(200).json({ message: "User Not Exist" });
       }
-  
+
       return res.status(200).json({ message: "User exists.", user: user });
     } catch (error) {
       // Log the error and send a generic error message
       console.error(error);
-      return res.status(500).json({ message: "An internal server error occurred." });
+      return res
+        .status(500)
+        .json({ message: "An internal server error occurred." });
     }
   }
-  
+
   async changePassword(req, res) {
     try {
       const { email, password, newPassword } = req.body;
@@ -658,7 +678,6 @@ class UserController {
       const { phoneNumbers } = req.body;
 
       const users = await userService.getUsersByPhoneNumbers(phoneNumbers);
-
       return res.json(users);
     } catch (error) {
       console.error(error);
@@ -668,7 +687,6 @@ class UserController {
 
   async forgotPassword(req, res) {
     const { email } = req.body;
-
     try {
       await userService.sendPasswordResetEmail(email);
       return res.json({ message: "Password reset email sent successfully" });

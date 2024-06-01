@@ -135,7 +135,6 @@ class UserRepository {
 
   // Delete a user
   async delete(userId) {
-    console.log("delete",userId);
     const user = await this.getById(userId);
     if (!user) {
       throw new Error("User not found");
