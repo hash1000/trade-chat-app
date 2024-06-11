@@ -49,8 +49,8 @@ class ChatRepository {
         offset,
         order: [['createdAt', 'DESC']],
         include: [
-          { model: User, as: 'user1', attributes: ['id', 'name', 'phoneNumber', 'profilePic', 'email', 'settings'] },
-          { model: User, as: 'user2', attributes: ['id', 'name', 'phoneNumber', 'profilePic', 'email', 'settings'] },
+          { model: User, as: 'user1', attributes: ['id', 'username', 'phoneNumber', 'profilePic', 'email', 'settings'] },
+          { model: User, as: 'user2', attributes: ['id', 'username', 'phoneNumber', 'profilePic', 'email', 'settings'] },
           {
               model: Message,
               as: 'message',
@@ -284,8 +284,8 @@ class ChatRepository {
       where: condition,
       order: [['createdAt', 'DESC']],
       include: [
-        { model: User, as: 'requester', attributes: ['id', 'name', 'phoneNumber', 'profilePic', 'email', 'settings'] },
-        { model: User, as: 'requestee', attributes: ['id', 'name', 'phoneNumber', 'profilePic', 'email', 'settings'] }
+        { model: User, as: 'requester', attributes: ['id', 'username', 'phoneNumber', 'profilePic', 'email', 'settings'] },
+        { model: User, as: 'requestee', attributes: ['id', 'username', 'phoneNumber', 'profilePic', 'email', 'settings'] }
       ]
     })
 
@@ -391,8 +391,8 @@ class ChatRepository {
     return await PaymentRequest.findByPk(transactionId, {
       order: [['createdAt', 'DESC']],
       include: [
-        { model: User, as: 'requester', attributes: ['id', 'name', 'phoneNumber', 'profilePic', 'email', 'settings'] },
-        { model: User, as: 'requestee', attributes: ['id', 'name', 'phoneNumber', 'profilePic', 'email', 'settings'] }
+        { model: User, as: 'requester', attributes: ['id', 'username', 'phoneNumber', 'profilePic', 'email', 'settings'] },
+        { model: User, as: 'requestee', attributes: ['id', 'username', 'phoneNumber', 'profilePic', 'email', 'settings'] }
       ]
     })
   }
