@@ -46,7 +46,7 @@ class CartService {
   }
 
   async getChats (userId, page, pageSize) {
-    return await this.chatRepository.getUserChat(userId, page, pageSize)
+     return await this.chatRepository.getUserChat(userId, page, pageSize)
   }
 
   async getMessages (chatId, page, pageSize, messageId, userId) {
@@ -81,7 +81,7 @@ class CartService {
 
     // send a notification to the requestee
     const requesteeUser = await this.userRepository.getById(requesteeId)
-    await new PaymentRequestNotification(requesteeUser.fcm, message, user).sendNotification();
+    // await new PaymentRequestNotification(requesteeUser.fcm, message, user).sendNotification();
   }
 
   async sendPayment (requesterId, requesteeId, amount, user, req) {
@@ -115,7 +115,7 @@ class CartService {
 
     // send a notification to the requestee
     const requesteeUser = await this.userRepository.getById(requesteeId)
-    await new PaymentReceivedNotification(requesteeUser.fcm, message, user).sendNotification();
+    // await new PaymentReceivedNotification(requesteeUser.fcm, message, user).sendNotification();
     const transaction = await this.chatRepository.getTransactionById(paymentRequest.id);
     return transaction;
   }
@@ -195,7 +195,7 @@ class CartService {
     })
 
     const otherUser = await User.findOne({where:{id:recipientId}})
-    await new NewMessageNotification(otherUser.fcm,messages[messages.length-1], user).sendNotification();
+    // await new NewMessageNotification(otherUser.fcm,messages[messages.length-1], user).sendNotification();
     return messages;
   }
 
