@@ -1,7 +1,6 @@
 const express = require("express");
 const UserController = require("../controllers/UserController");
 const {
-  validateSignup,
   validateVerify,
   validateLogin,
   forgotPasswordValidation,
@@ -19,12 +18,6 @@ const authenticate = require("../middlewares/authenticate");
 const router = express.Router();
 const userController = new UserController();
 
-// Signup route
-router.post(
-  "/signup",
-  validateSignup,
-  userController.signup.bind(userController)
-);
 router.post(
   "/google-signIn",
   validateGoogleSignup,

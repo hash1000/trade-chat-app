@@ -19,11 +19,11 @@ class UserService {
       throw new Error("Failed to create user");
     }
   }
-  async updateGoogleUser(user,userData) {
+  async updateGoogleUser(user, userData) {
     try {
       // Update user properties
       if (userData.password) {
-      const hashedPassword = await bcrypt.hash(userData.password, 10);
+        const hashedPassword = await bcrypt.hash(userData.password, 10);
         user.password = hashedPassword;
       }
       if (userData.phoneNumber) {
@@ -56,15 +56,15 @@ class UserService {
       if (userData.description) {
         user.description = userData.description;
       }
-      
+
       await user.save();
-  
+
       return user;
     } catch (error) {
       throw new Error(`Failed to update google user profile: ${error.message}`);
     }
   }
-  
+
   async createGoogleUser(userData) {
     try {
       const { password, ...data } = userData;
@@ -78,19 +78,44 @@ class UserService {
     }
   }
 
-
   async updateUserProfile(user, profileData) {
     try {
-      // Update user properties
-      if (profileData.name) {
-        user.name = profileData.name;
+      if (profileData.password) {
+        console.log("profileData.password",profileData.password);
+        const hashedPassword = await bcrypt.hash(profileData.password, 10);
+        user.password = hashedPassword;
+      }
+      if (profileData.phoneNumber) {
+        user.phoneNumber = profileData.phoneNumber;
+      }
+      if (profileData.country_code) {
+        user.country_code = profileData.country_code;
+      }
+      if (profileData.username) {
+        user.username = profileData.username;
+      }
+      if (profileData.firstName) {
+        user.firstName = profileData.firstName;
+      }
+      if (profileData.lastName) {
+        user.lastName = profileData.lastName;
+      }
+      if (profileData.gender) {
+        user.gender = profileData.gender;
+      }
+      if (profileData.country) {
+        user.country = profileData.country;
+      }
+      if (profileData.age) {
+        user.age = profileData.age;
       }
       if (profileData.profilePic) {
         user.profilePic = profileData.profilePic;
       }
-      // Update other properties...
+      if (profileData.description) {
+        user.description = profileData.description;
+      }
 
-      // Save the updated user
       await user.save();
 
       return user;
@@ -228,36 +253,6 @@ class UserService {
 
   async getUsersByIds(userIds) {
     return userRepository.getUsersById(userIds);
-  }
-
-  async updateUserProfile(user, profileData) {
-    if (profileData.name) {
-      user.name = profileData.name;
-    }
-    if (profileData.profilePic) {
-      user.profilePic = profileData.profilePic;
-    }
-
-    if (profileData.settings) {
-      user.settings = profileData.settings;
-    }
-
-    if (profileData.email) {
-      user.email = profileData.email;
-    }
-
-    if (profileData.phoneNumber) {
-      user.phoneNumber = profileData.phoneNumber;
-    }
-
-    if (profileData.country_code) {
-      user.country_code = profileData.country_code;
-    }
-
-    // Save the updated user
-    await user.save();
-
-    return user;
   }
 
   async updateUserProfileById(id, profileData) {

@@ -62,20 +62,6 @@ class UserController {
     }
   }
 
-  async signup(req, res) {
-    try {
-      const { phoneNumber, country_code } = req.body;
-      const user = await admin.auth().createUser({
-        phoneNumber: country_code + phoneNumber,
-      });
-
-      res.json({ message: `OTP sent to ${phoneNumber}`, user });
-    } catch (error) {
-      console.error("Error during sign up:", error);
-      res.status(500).json({ message: "Sign up failed" });
-    }
-  }
-
   async verify(req, res) {
     try {
       const {
@@ -336,7 +322,6 @@ class UserController {
           .status(400)
           .send({ Status: "Failure", Details: "Type not provided" });
       }
-
       // Generate OTP
       const otp = otpGenerator.generate(6, {
         digits: true,
@@ -740,14 +725,60 @@ class UserController {
 
   async updateUser(req, res) {
     try {
-      const { name, profilePic = null, settings = null } = req.body;
-      const user = req.user; // Assuming you have an authentication middleware to attach the user object to the request
-      const updatedUser = await userService.updateUserProfile(user, {
-        name,
+      const {
+        country_code,
+        phoneNumber,
+        username,
+        firstName,
+        country,
+        lastName,
+        gender,
+        age,
         profilePic,
-        settings,
-      });
-      res.json({ user: updatedUser });
+        description,
+        password,
+      } = req.body;
+      const user = req.user;
+      if (country_code && phoneNumber) {
+        const userByPhoneNumber = await userService.getUserByPhoneNumber(
+          country_code,
+          phoneNumber
+        );
+        if (userByPhoneNumber) {
+          return res.status(409).json({
+            message:
+              "A user with this phone number already exists. Try with another Phone Number",
+          });
+        } else {
+          const updatedUser = await userService.updateUserProfile(user, {
+            country_code,
+            phoneNumber,
+            username,
+            firstName,
+            country,
+            lastName,
+            gender,
+            age,
+            profilePic,
+            description,
+            password,
+          });
+          res.json({ user: updatedUser });
+        }
+      } else {
+        const updatedUser = await userService.updateUserProfile(user, {
+          username,
+          firstName,
+          country,
+          lastName,
+          gender,
+          age,
+          profilePic,
+          description,
+          password,
+        });
+        res.json({ user: updatedUser });
+      }
     } catch (error) {
       console.error(error);
       res.status(500).json({ message: "Internal server error" });
