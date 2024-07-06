@@ -10,18 +10,10 @@ function handleValidationErrors(req, res, next) {
   next();
 }
 
-// Validation middleware for signup
-exports.validateSignup = [
-  body("phoneNumber").notEmpty().withMessage("Phone number is required"),
-  handleValidationErrors,
-];
-// emialValidation
 exports.emailPhoneNumberValidation = [
   oneOf([
     // Validation for email/password login
-    [
-      body("email").isEmail().withMessage("Invalid email"),
-    ],
+    [body("email").isEmail().withMessage("Invalid email")],
     // Validation for phone number login
     [
       body("phoneNumber").notEmpty().withMessage("Phone number is required"),
@@ -118,8 +110,31 @@ exports.userDeleteValidation = [
 ];
 // Validation middleware for updating profile
 exports.validateUpdateProfile = [
-  body("name")
+  body("country_code")
     .optional()
-    .isLength({ min: 2 })
-    .withMessage("First name must be at least 2 characters"),
+    .notEmpty()
+    .withMessage("Country code is required"),
+  body("phoneNumber")
+    .optional()
+    .notEmpty()
+    .withMessage("Phone number is required"),
+  body("password").optional().notEmpty().withMessage("Password is required"),
+  body("username").optional().notEmpty().withMessage("Username is required"),
+  body("firstName").optional().notEmpty().withMessage("First name is required"),
+  body("lastName").optional().notEmpty().withMessage("Last name is required"),
+  body("gender")
+    .optional()
+    .isIn(["male", "female", "other"])
+    .withMessage("Invalid gender"),
+  body("country").optional().notEmpty().withMessage("Country is required"),
+  body("age").optional().isInt({ min: 2 }).withMessage("Invalid age"),
+  body("profilePic")
+    .optional()
+    .isString()
+    .withMessage("Profile picture must be a string"),
+  body("description")
+    .optional()
+    .isString()
+    .withMessage("Description must be a string"),
+  handleValidationErrors,
 ];
