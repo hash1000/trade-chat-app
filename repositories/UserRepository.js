@@ -34,7 +34,7 @@ class UserRepository {
           "is_online",
           "personalWalletBalance",
           "companyWalletBalance",
-          "expiration_time"
+          "expiration_time",
         ],
       });
       return users.map((user) => user.toJSON());
@@ -65,6 +65,8 @@ class UserRepository {
         "phoneNumber",
         "country_code",
         "gender",
+        "country",
+        "age",
         "profilePic",
         "description",
         "settings",
@@ -78,7 +80,7 @@ class UserRepository {
         "is_online",
         "personalWalletBalance",
         "companyWalletBalance",
-        "expiration_time"
+        "expiration_time",
       ],
     });
     return user ? user.toJSON() : null;
@@ -97,6 +99,8 @@ class UserRepository {
         "phoneNumber",
         "country_code",
         "gender",
+        "country",
+        "age",
         "profilePic",
         "description",
         "settings",
@@ -110,7 +114,7 @@ class UserRepository {
         "is_online",
         "personalWalletBalance",
         "companyWalletBalance",
-        "expiration_time"
+        "expiration_time",
       ],
     });
     return user ? user.toJSON() : null;

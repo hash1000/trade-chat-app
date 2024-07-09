@@ -66,6 +66,7 @@ const User = sequelize.define(
     settings: {
       type: DataTypes.JSON,
       defaultValue: {
+        paymentCode: DataTypes.STRING,
         password: "12345678",
         tags: ["tag1", "tag2"],
         emails: ["example@example.com"],
