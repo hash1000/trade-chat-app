@@ -64,9 +64,9 @@ const User = sequelize.define(
       unique: true,
     },
     settings: {
-      type: DataTypes.JSON,
+      type: DataTypes.JSONB, // Change to JSONB if your database supports it for better performance
       defaultValue: {
-        paymentCode: DataTypes.STRING,
+        paymentCode: "", // Default empty string for paymentCode
         password: "12345678",
         tags: ["tag1", "tag2"],
         emails: ["example@example.com"],
