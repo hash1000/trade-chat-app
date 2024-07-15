@@ -28,22 +28,17 @@ const s3Client = new S3Client({
   },
 });
 
-// Function to generate the file URL
-const getFileUrl = (fileName) => {
-  return `https://${process.env.SPACES_BUCKET_NAME}.${process.env.SPACES_END_POINT}/${fileName}`;
-};
 
 // Express route for file upload
-router.post("/", authMiddleware, upload.single("file"), async (req, res) => {
+router.post("/", upload.single("file"), async (req, res) => {
   try {
     const file = req.file;
-    const { id } = req.user;
     // Check if file is present
     if (!file) {
       return res.status(400).json({ error: "No file was uploaded" });
     }
     // Create a new file name with the user id, timestamp, and the original file extension
-    const fileName = `${id}-${Date.now()}${path.extname(file.originalname)}`;
+    const fileName = `${Date.now()}${path.extname(file.originalname)}`;
 
     const params = {
       Bucket: process.env.SPACES_BUCKET_NAME,
@@ -65,10 +60,9 @@ router.post("/", authMiddleware, upload.single("file"), async (req, res) => {
 });
 
 // Express route for image upload
-router.post("/image", authMiddleware, upload.single("file"), async (req, res) => {
+router.post("/image", upload.single("file"), async (req, res) => {
   try {
     const file = req.file;
-    const { id } = req.user;
     // Check if file is present
     if (!file) {
       return res.status(400).json({ error: "No image was uploaded" });
@@ -81,7 +75,7 @@ router.post("/image", authMiddleware, upload.single("file"), async (req, res) =>
     const mimeType = fileTypes.test(file.mimetype);
 
     if (mimeType && extName) {
-      const fileName = `${id}-${Date.now()}${path.extname(file.originalname)}`;
+      const fileName = `${Date.now()}${path.extname(file.originalname)}`;
 
       const params = {
         Bucket: process.env.SPACES_BUCKET_NAME,
