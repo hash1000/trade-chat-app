@@ -1,0 +1,223 @@
+const sequelize = require("../config/database");
+
+const UserRepository = require("../repositories/UserRepository"); // Replace the path with the correct location of your UserRepository.js file
+const ReactionRepository = require("../repositories/ReactionRepository"); // Replace the path with the correct location of your UserRepository.js file
+const UserFavouriteRepository = require("../repositories/UserFavouriteRepository");
+const FriendsRepository = require("../repositories/FriendsRepository");
+
+const {
+  AddRequestNotification,
+  RequestAcceptedNotification,
+} = require("../notifications");
+
+const CustomError = require("../errors/CustomError");
+
+const userRepository = new UserRepository();
+const reactionRepository = new ReactionRepository();
+const userFavouriteRepository = new UserFavouriteRepository();
+const friendsRepository = new FriendsRepository();
+
+class UserService {
+  async getUserProfileById(profileId, userId) {
+    const my_reaction = await reactionRepository.getReactions(
+      userId,
+      profileId
+    );
+    const user = await userRepository.getUserProfile(profileId);
+    const favourite = await userFavouriteRepository.get(userId, profileId);
+    const friendship = await friendsRepository.get(userId, profileId);
+
+    const favourited = favourite ? true : false;
+    const liked = my_reaction && my_reaction.type === "like" ? true : false;
+    const disliked =
+      my_reaction && my_reaction.type === "dislike" ? true : false;
+    return { ...user, friendship, liked, disliked, favourited };
+  }
+
+  async createOrUpdateReaction(userId, profileId, type) {
+    // create or update the reaction
+    // if type is like, remove the dislike if exists
+    // if type is dislike, remove the like if exists
+    // if type is like and dislike exists, decrease the dislike count in user table
+    // if type is dislike and like exists, decrease the like count in user table
+    // if type is like or dislike increase the count of like or dislike in user table
+    const transaction = await sequelize.transaction();
+    try {
+      const my_reaction = await reactionRepository.getReactions(
+        userId,
+        profileId
+      );
+      if (my_reaction) {
+        if (my_reaction.type !== type) {
+          const user = await userRepository.getUserCounts(profileId);
+          const likeCount = user.likes || 0;
+          const dislikeCount = user.dislikes || 0;
+          await reactionRepository.updateReaction(
+            userId,
+            profileId,
+            type,
+            transaction
+          );
+          if (type === "like") {
+            await userRepository.updateReactionCount(
+              profileId,
+              "dislikes",
+              dislikeCount - 1,
+              transaction
+            );
+            await userRepository.updateReactionCount(
+              profileId,
+              "likes",
+              likeCount + 1,
+              transaction
+            );
+          } else if (type === "dislike") {
+            await userRepository.updateReactionCount(
+              profileId,
+              "likes",
+              likeCount - 1,
+              transaction
+            );
+            await userRepository.updateReactionCount(
+              profileId,
+              "dislikes",
+              dislikeCount + 1,
+              transaction
+            );
+          }
+        }
+      } else {
+        const user = await userRepository.getUserCounts(profileId);
+        const reactionCount = user[`${type}s`] || 0;
+        await reactionRepository.createReaction(
+          userId,
+          profileId,
+          type,
+          transaction
+        );
+        await userRepository.updateReactionCount(
+          profileId,
+          `${type}s`,
+          reactionCount + 1,
+          transaction
+        );
+      }
+      await transaction.commit();
+    } catch (error) {
+      await transaction.rollback();
+      console.log(error);
+      throw new CustomError("Internal server error", 500);
+    }
+  }
+
+  async removeReaction(userId, profileId, type) {
+    // if type is like or dislike decrease the count of like or dislike in user table
+    // remove the reaction
+    const transaction = await sequelize.transaction();
+    try {
+      const user = await userRepository.getUserCounts(profileId);
+      const updated = await reactionRepository.removeReaction(
+        userId,
+        profileId,
+        type,
+        transaction
+      );
+      if (updated > 0) {
+        const reactionCount = user[`${type}s`] || 0;
+        await userRepository.updateReactionCount(
+          profileId,
+          `${type}s`,
+          reactionCount - 1,
+          transaction
+        );
+      }
+      await transaction.commit();
+    } catch (error) {
+      await transaction.rollback();
+      console.log(error);
+      throw new CustomError("Internal server error", 500);
+    }
+  }
+
+  async createFavourite(userId, profileId) {
+    //  create user favourite
+    return userFavouriteRepository.create(userId, profileId);
+  }
+
+  async removeFavourite(userId, profileId) {
+    // remove user favourite
+    return userFavouriteRepository.remove(userId, profileId);
+  }
+
+  async createFriendship(userId, profileId) {
+    //  create user friendship if already created then update the status to accepted
+    const friendship = await friendsRepository.get(userId, profileId);
+    if (friendship) {
+      if (friendship.type === "received") {
+        await friendsRepository.update(userId, profileId, "accepted");
+        // send request accepted notification
+        const otherUser = await userRepository.getUserTokenAndName(userId);
+        const myUser = await userRepository.getUserTokenAndName(profileId);
+        if (otherUser && otherUser.fcm && myUser && myUser.name) {
+          await new RequestAcceptedNotification(
+            otherUser.fcm,
+            {},
+            myUser
+          ).sendNotification();
+        }
+      }
+    } else {
+      await friendsRepository.create(userId, profileId);
+      // sent add request notification
+      const otherUser = await userRepository.getUserTokenAndName(profileId);
+      const myUser = await userRepository.getUserTokenAndName(userId);
+      if (otherUser && otherUser.fcm && myUser && myUser.name) {
+        await new AddRequestNotification(
+          otherUser.fcm,
+          {},
+          myUser
+        ).sendNotification();
+      }
+    }
+  }
+
+  async removeFriendship(userId, profileId) {
+    // remove user friendship
+    return friendsRepository.remove(userId, profileId);
+  }
+
+  async getUserContacts(userId) {
+    // get user contacts
+    const friends = await friendsRepository.getFriends(userId);
+    const favourites = await userFavouriteRepository.getFavourites(userId);
+    const accepted = friends.filter(
+      (friend) => friend.friendship.type === "accepted"
+    );
+    const pending = friends.filter(
+      (friend) => friend.friendship.type === "sent"
+    );
+    const received = friends.filter(
+      (friend) => friend.friendship.type === "received"
+    );
+    return { friends: accepted, sent: pending, received, favourites };
+  }
+
+  async getUserForNotification(id) {
+    return userRepository.getUserTokenAndName(id);
+  }
+
+  async getAllUsers() {
+    return userRepository.getAllprofiles();
+  }
+
+  async getAllUsersProfile() {
+    try {
+      const users = await userRepository.getAllUsers();
+      return users;
+    } catch (error) {
+      throw new Error("Error while fetching users: " + error.message);
+    }
+  }
+}
+
+module.exports = UserService;

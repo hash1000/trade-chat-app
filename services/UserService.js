@@ -1,0 +1,311 @@
+const bcrypt = require("bcryptjs");
+const crypto = require("crypto");
+const UserRepository = require("../repositories/UserRepository"); // Replace the path with the correct location of your UserRepository.js file
+const CustomError = require("../errors/CustomError");
+
+const userRepository = new UserRepository();
+
+class UserService {
+  async createUser(userData) {
+    try {
+      const { password, ...data } = userData;
+      const hashedPassword = await bcrypt.hash(password, 10);
+      const newUser = await userRepository.create({
+        password: hashedPassword,
+        ...data, // Spread the rest of the user data
+      });
+      return newUser;
+    } catch (error) {
+      throw new Error("Failed to create user");
+    }
+  }
+  async updateGoogleUser(user,userData) {
+    try {
+      // Update user properties
+      if (userData.password) {
+      const hashedPassword = await bcrypt.hash(userData.password, 10);
+        user.password = hashedPassword;
+      }
+      if (userData.phoneNumber) {
+        user.phoneNumber = userData.phoneNumber;
+      }
+      if (userData.country_code) {
+        user.country_code = userData.country_code;
+      }
+      if (userData.username) {
+        user.username = userData.username;
+      }
+      if (userData.firstName) {
+        user.firstName = userData.firstName;
+      }
+      if (userData.lastName) {
+        user.lastName = userData.lastName;
+      }
+      if (userData.gender) {
+        user.gender = userData.gender;
+      }
+      if (userData.country) {
+        user.country = userData.country;
+      }
+      if (userData.age) {
+        user.age = userData.age;
+      }
+      if (userData.profilePic) {
+        user.profilePic = userData.profilePic;
+      }
+      if (userData.description) {
+        user.description = userData.description;
+      }
+      
+      await user.save();
+  
+      return user;
+    } catch (error) {
+      throw new Error(`Failed to update google user profile: ${error.message}`);
+    }
+  }
+  
+  async createGoogleUser(userData) {
+    try {
+      const { password, ...data } = userData;
+      const newUser = await userRepository.create({
+        password: "",
+        ...data, // Spread the rest of the user data
+      });
+      return newUser;
+    } catch (error) {
+      throw new Error("Failed to create user");
+    }
+  }
+
+
+  async updateUserProfile(user, profileData) {
+    try {
+      // Update user properties
+      if (profileData.name) {
+        user.name = profileData.name;
+      }
+      if (profileData.profilePic) {
+        user.profilePic = profileData.profilePic;
+      }
+      // Update other properties...
+
+      // Save the updated user
+      await user.save();
+
+      return user;
+    } catch (error) {
+      throw new Error(`Failed to update user profile: ${error.message}`);
+    }
+  }
+
+  async updateUserStatus(userId, status) {
+    const user = await userRepository.getById(userId);
+    if (user) {
+      user.is_online = status;
+      return await user.save();
+    }
+  }
+
+  async getUserById(userId) {
+    return userRepository.getById(userId);
+  }
+
+  async getUserByEmail(email) {
+    // Call the UserRepository to get a user by email
+    return userRepository.getByEmail(email);
+  }
+  // delete User
+  async deleteUser(userId) {
+    // Call the UserRepository to get a user by email
+    return userRepository.delete(userId);
+  }
+
+  async getUserByPhoneNumber(country_code, phoneNumber) {
+    // Call the UserRepository to get a user by email
+    return userRepository.getByPhoneNumber(country_code, phoneNumber);
+  }
+
+  async getUserByResetToken(resetToken) {
+    // Call the UserRepository to get a user by reset token
+    return userRepository.getUserByResetToken(resetToken);
+  }
+
+  async verifyUserPassword(user, password) {
+    try {
+      // Compare the password
+      const isPasswordValid = await bcrypt.compare(password, user.password);
+
+      if (isPasswordValid) {
+        // Password is valid, return the user
+        return user;
+      } else {
+        throw new Error("Invalid password");
+      }
+    } catch (error) {
+      // Handle any errors
+      throw new Error("Failed to login");
+    }
+  }
+
+  async sendPasswordResetEmail(email) {
+    // Check if the email exists in the database
+    const user = await userRepository.getByEmail(email);
+    if (!user) {
+      throw new Error("User not found");
+    }
+    if (user.resetToken) {
+      throw new CustomError("Reset token already exists", 409);
+    }
+    // Generate a password reset token
+    const resetToken = crypto.randomBytes(20).toString("hex");
+
+    // Save the reset token to the user's record in the database
+    await userRepository.updateResetToken(email, resetToken);
+
+    // Send the password reset email to the user's email address
+    // TODO: send email
+  }
+
+  async updateTokenVersion(user) {
+    try {
+      user.tokenVersion += 1;
+      await user.save();
+    } catch (error) {
+      throw new Error(`Failed to update token version: ${error.message}`);
+    }
+  }
+
+  async getAllProfileUsers() {
+    try {
+      const users = await userRepository.findAll({
+        attributes: [
+          "id",
+          "firstName",
+          "lastName",
+          "username",
+          "role",
+          "email",
+          "phoneNumber",
+          "country_code",
+          "profilePic",
+          "settings",
+          "createdAt",
+          "updatedAt",
+          "likes",
+          "dislikes",
+          "last_login",
+        ],
+      });
+      return users.map((user) => user.toJSON());
+    } catch (error) {
+      throw new Error("Error while fetching users: " + error.message);
+    }
+  }
+
+  async updateUserPassword(userId, newPassword) {
+    try {
+      const user = await userRepository.getById(userId);
+      if (!user) {
+        throw new Error("User not found");
+      }
+      user.password = await bcrypt.hash(newPassword, 10);
+      user.tokenVersion += 1;
+      user.resetToken = null;
+      return await user.save();
+    } catch (error) {
+      throw new Error(`Failed to update user password: ${error.message}`);
+    }
+  }
+
+  async getPaginatedUsers(page, limit, search, userId) {
+    return userRepository.getPaginatedUsers(page, limit, search, userId);
+  }
+
+  async getUsersByPhoneNumbers(phoneNumbers) {
+    return userRepository.getUsersByPhoneNumbers(phoneNumbers);
+  }
+
+  async getUsersByIds(userIds) {
+    return userRepository.getUsersById(userIds);
+  }
+
+  async updateUserProfile(user, profileData) {
+    if (profileData.name) {
+      user.name = profileData.name;
+    }
+    if (profileData.profilePic) {
+      user.profilePic = profileData.profilePic;
+    }
+
+    if (profileData.settings) {
+      user.settings = profileData.settings;
+    }
+
+    if (profileData.email) {
+      user.email = profileData.email;
+    }
+
+    if (profileData.phoneNumber) {
+      user.phoneNumber = profileData.phoneNumber;
+    }
+
+    if (profileData.country_code) {
+      user.country_code = profileData.country_code;
+    }
+
+    // Save the updated user
+    await user.save();
+
+    return user;
+  }
+
+  async updateUserProfileById(id, profileData) {
+    const user = {};
+
+    if (profileData.name) {
+      user.name = profileData.name;
+    }
+    if (profileData.profilePic) {
+      user.profilePic = profileData.profilePic;
+    }
+
+    if (profileData.settings) {
+      user.settings = profileData.settings;
+    }
+
+    if (profileData.email) {
+      user.email = profileData.email;
+    }
+
+    if (profileData.phoneNumber) {
+      user.phoneNumber = profileData.phoneNumber;
+    }
+
+    if (profileData.country_code) {
+      user.country_code = profileData.country_code;
+    }
+
+    return userRepository.updateUserProfileById(id, user);
+  }
+
+  async updateToken(user, fcmToken) {
+    // Update the profile fields
+    user.fcm = fcmToken;
+
+    // Save the updated user
+    await user.save();
+
+    return user;
+  }
+
+  async updateUserEmailCode(id, emailCode) {
+    return userRepository.updateUserEmailCode(id, emailCode);
+  }
+
+  async getUserOTPCode(id) {
+    return userRepository.getUserOTPCode(id);
+  }
+}
+
+module.exports = UserService;
