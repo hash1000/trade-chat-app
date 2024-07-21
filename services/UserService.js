@@ -123,6 +123,35 @@ class UserService {
       throw new Error(`Failed to update user profile: ${error.message}`);
     }
   }
+  async updatePhoneNumber(user,userData) {
+    try {
+      // Update user properties
+      if (userData.phoneNumber) {
+        user.phoneNumber = userData.phoneNumber;
+      }
+      if (userData.country_code) {
+        user.country_code = userData.country_code;
+      }
+      await user.save();
+  
+      return user;
+    } catch (error) {
+      throw new Error(`Failed to update  user phoneNumber: ${error.message}`);
+    }
+  }
+  async updateEmail(user,userData) {
+    try {
+      // Update user properties
+      if (userData.email) {
+        user.email = userData.email;
+      }
+      await user.save();
+  
+      return user;
+    } catch (error) {
+      throw new Error(`Failed to update  user phoneNumber: ${error.message}`);
+    }
+  }
 
   async updateUserStatus(userId, status) {
     const user = await userRepository.getById(userId);
