@@ -536,6 +536,70 @@ class UserController {
     }
   }
 
+  async updateUserEmailOrPhoneNumber(req, res) {
+    const { email, country_code, phoneNumber } = req.body;
+    const user = req.user;
+    const { dataValues } = req.user;
+    // Validate payload
+    if (email && (country_code || phoneNumber)) {
+      return res
+        .status(400)
+        .json({ message: "Provide either email or phone number, not both." });
+    }
+    let updateData;
+    let userData;
+    let userCheck;
+    try {
+      if (country_code && phoneNumber) {
+        if (dataValues.phoneNumber === phoneNumber) {
+          return res
+            .status(200)
+            .json({ message: "You Enter previous Phone Number Exist" });
+        }
+        userCheck = await userService.getUserByPhoneNumber(
+          country_code,
+          phoneNumber
+        );
+        if (userCheck) {
+          return res
+            .status(401)
+            .json({ message: " phone number Already Exist." });
+        } else {
+          userData = {
+            country_code,
+            phoneNumber,
+          };
+          updateData = await userService.updatePhoneNumber(user, userData);
+        }
+      } else if (email) {
+        userCheck = await userService.getUserByEmail(email);
+        if (userCheck) {
+          return res
+            .status(401)
+            .json({ message: "Invalid Email Already Exist." });
+        } else {
+          userData = {
+            email,
+          };
+          updateData = await userService.updateEmail(user, userData);
+        }
+      }
+
+      if (!updateData) {
+        return res.status(200).json({ message: "User Not Exist" });
+      }
+      return res
+        .status(200)
+        .json({ message: "User exists.", updateData: updateData });
+    } catch (error) {
+      // Log the error and send a generic error message
+      console.error(error);
+      return res
+        .status(500)
+        .json({ message: "An internal server error occurred." });
+    }
+  }
+
   async getUserByEmailOrPhoneNumber(req, res) {
     const { email, country_code, phoneNumber } = req.body;
 

@@ -85,6 +85,13 @@ router.post(
   userController.getUserByEmailOrPhoneNumber.bind(userController)
 );
 router.post(
+  "/update-email-phoneNumber",
+  authenticate,
+  emailPhoneNumberValidation,
+  userController.updateUserEmailOrPhoneNumber.bind(userController)
+);
+
+router.post(
   "/users",
   authenticate,
   userController.getUsersByPhoneNumbers.bind(userController)
