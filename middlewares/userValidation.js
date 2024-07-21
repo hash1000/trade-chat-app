@@ -40,6 +40,16 @@ exports.validateVerify = [
     .optional()
     .isString()
     .withMessage("Profile picture must be a string"),
+  body("settings.paymentCode").optional()
+  .isString().withMessage("Payment code must be a string"),
+  body("settings.tags").optional()
+  .isArray().withMessage("Tags must be an array"),
+  body("settings.emails").optional()
+  .isArray().withMessage("Emails must be an array"),
+  body("settings.phoneNumbers").optional()
+  .isArray().withMessage("Phone numbers must be an array"),
+  body("settings.description").optional()
+  .isString().withMessage("Description must be a string"),  
   body("description")
     .optional()
     .isString()
@@ -132,6 +142,16 @@ exports.validateUpdateProfile = [
     .optional()
     .isString()
     .withMessage("Profile picture must be a string"),
+  body("settings.paymentCode").optional()
+    .isString().withMessage("Payment code must be a string"),
+  body("settings.tags").optional()
+    .isArray().withMessage("Tags must be an array"),
+  body("settings.emails").optional()
+    .isArray().withMessage("Emails must be an array"),
+  body("settings.phoneNumbers").optional()
+    .isArray().withMessage("Phone numbers must be an array"),
+  body("settings.description").optional()
+    .isString().withMessage("Description must be a string"),  
   body("description")
     .optional()
     .isString()

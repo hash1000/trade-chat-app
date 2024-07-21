@@ -14,7 +14,7 @@ const authMiddleware = require("../middlewares/authenticate"); // Adjust the pat
 const storage = multer.memoryStorage();
 const upload = multer({
   storage: storage,
-  limits: { fileSize: 1000000 },
+  limits: { fileSize: 25000000 },
 });
 
 // Configure AWS S3 client for DigitalOcean Spaces
@@ -145,7 +145,7 @@ router.get("/download", authMiddleware, async (req, res) => {
 router.use((err, req, res, next) => {
   if (err instanceof multer.MulterError) {
     if (err.code === "LIMIT_FILE_SIZE") {
-      return res.status(400).json({ error: "File too large. Maximum size is 1MB." });
+      return res.status(400).json({ error: "File too large. Maximum size is 25MB." });
     }
     return res.status(400).json({ error: err.message });
   }

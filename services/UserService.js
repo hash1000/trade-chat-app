@@ -44,6 +44,9 @@ class UserService {
       if (userData.gender) {
         user.gender = userData.gender;
       }
+      if(userData.settings) {
+        user.settings = userData.settings;
+      }
       if (userData.country) {
         user.country = userData.country;
       }
@@ -108,6 +111,9 @@ class UserService {
       }
       if (profileData.age) {
         user.age = profileData.age;
+      }
+      if (profileData.settings) {
+        user.settings = profileData.settings;
       }
       if (profileData.profilePic) {
         user.profilePic = profileData.profilePic;
@@ -189,7 +195,6 @@ class UserService {
     try {
       // Compare the password
       const isPasswordValid = await bcrypt.compare(password, user.password);
-
       if (isPasswordValid) {
         // Password is valid, return the user
         return user;
