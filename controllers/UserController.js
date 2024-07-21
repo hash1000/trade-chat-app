@@ -74,6 +74,7 @@ class UserController {
         lastName,
         gender,
         country,
+        settings,
         age,
         profilePic,
         description,
@@ -144,6 +145,9 @@ class UserController {
           if (description) {
             googleUser.description = description;
           }
+          if(settings){
+            googleUser.settings = settings;
+          }
           req.body.googleUser = googleUser;
           return this.GoogleProfile(req, res);
         } else {
@@ -166,12 +170,14 @@ class UserController {
           firstName,
           lastName,
           gender,
+          settings,
           country,
           age,
         };
 
         if (profilePic) userData.profilePic = profilePic;
         if (description) userData.description = description;
+        if(settings) userData.settings = settings;
 
         const newUser = await userService.createUser(userData);
         const token = jwt.sign(
@@ -202,6 +208,7 @@ class UserController {
         firstName,
         lastName,
         gender,
+        settings,
         country,
         age,
         profilePic,
@@ -233,6 +240,7 @@ class UserController {
       } else {
         if (profilePic) userData.profilePic = profilePic;
         if (description) userData.description = description;
+        if(settings) userData.settings = settings;
 
         const updateUser = await userService.updateGoogleUser(
           userByEmail,
@@ -663,8 +671,8 @@ class UserController {
       // Respond with the token and user data
       return res.json({ token, updateduser });
     } catch (error) {
-      console.error("Error during login:", error);
-      res.status(500).json({ message: "Login failed" });
+      console.error("Please Enter correct credential :", error);
+      res.status(500).json({ message: "Please Enter correct credential" });
     }
   }
 
@@ -798,6 +806,7 @@ class UserController {
         lastName,
         gender,
         age,
+        settings,
         profilePic,
         description,
         password,
@@ -824,6 +833,7 @@ class UserController {
             gender,
             age,
             profilePic,
+            settings,
             description,
             password,
           });
@@ -838,6 +848,7 @@ class UserController {
           gender,
           age,
           profilePic,
+          settings,
           description,
           password,
         });
