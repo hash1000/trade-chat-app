@@ -91,6 +91,14 @@ router.post(
   emailPhoneNumberValidation,
   userController.getUserByEmailOrPhoneNumber.bind(userController)
 );
+//update user email and phone
+router.post(
+  "/update-email-phoneNumber",
+  authenticate,
+  emailPhoneNumberValidation,
+  userController.updateUserEmailOrPhoneNumber.bind(userController)
+);
+
 router.post(
   "/users",
   authenticate,

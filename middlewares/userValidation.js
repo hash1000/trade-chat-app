@@ -19,9 +19,7 @@ exports.validateSignup = [
 exports.emailPhoneNumberValidation = [
   oneOf([
     // Validation for email/password login
-    [
-      body("email").isEmail().withMessage("Invalid email"),
-    ],
+    [body("email").isEmail().withMessage("Invalid email")],
     // Validation for phone number login
     [
       body("phoneNumber").notEmpty().withMessage("Phone number is required"),
@@ -54,7 +52,6 @@ exports.validateVerify = [
     .withMessage("Description must be a string"),
   handleValidationErrors,
 ];
-
 // Validation middeleware for Google sign-in
 exports.validateGoogleSignup = [
   body("displayName").notEmpty().withMessage("Display name is required"),
