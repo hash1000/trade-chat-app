@@ -83,11 +83,6 @@ class UserService {
 
   async updateUserProfile(user, profileData) {
     try {
-      if (profileData.password) {
-        console.log("profileData.password",profileData.password);
-        const hashedPassword = await bcrypt.hash(profileData.password, 10);
-        user.password = hashedPassword;
-      }
       if (profileData.phoneNumber) {
         user.phoneNumber = profileData.phoneNumber;
       }
