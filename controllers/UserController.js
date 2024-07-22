@@ -809,7 +809,6 @@ class UserController {
         settings,
         profilePic,
         description,
-        password,
       } = req.body;
       const user = req.user;
       if (country_code && phoneNumber) {
@@ -834,8 +833,7 @@ class UserController {
             age,
             profilePic,
             settings,
-            description,
-            password,
+            description
           });
           res.json({ user: updatedUser });
         }
@@ -849,8 +847,7 @@ class UserController {
           age,
           profilePic,
           settings,
-          description,
-          password,
+          description
         });
         res.json({ user: updatedUser });
       }
