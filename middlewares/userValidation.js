@@ -128,7 +128,6 @@ exports.validateUpdateProfile = [
     .optional()
     .notEmpty()
     .withMessage("Phone number is required"),
-  body("password").optional().notEmpty().withMessage("Password is required"),
   body("username").optional().notEmpty().withMessage("Username is required"),
   body("firstName").optional().notEmpty().withMessage("First name is required"),
   body("lastName").optional().notEmpty().withMessage("Last name is required"),

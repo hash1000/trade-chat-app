@@ -561,7 +561,7 @@ class UserController {
       if (country_code && phoneNumber) {
         if (dataValues.phoneNumber === phoneNumber) {
           return res
-            .status(200)
+            .status(500)
             .json({ message: "You Enter previous Phone Number Exist" });
         }
         userCheck = await userService.getUserByPhoneNumber(
@@ -594,7 +594,7 @@ class UserController {
       }
 
       if (!updateData) {
-        return res.status(200).json({ message: "User Not Exist" });
+        return res.status(500).json({ message: "User Not Exist" });
       }
       return res
         .status(200)
