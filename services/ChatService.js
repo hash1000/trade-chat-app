@@ -59,7 +59,7 @@ class CartService {
     let chat = await this.chatRepository.findInvite(requesterId, requesteeId)
 
     if (!chat) {
-      return res.status(404).json({ message: "User not found" });
+      return  { message: `not sent any invite to this User not found:  ${requesterId}`};
     }
     else{
       chat = await this.chatRepository.cancelInvite(requesterId, requesteeId)
