@@ -19,6 +19,17 @@ class ChatRepository {
     })
   }
 
+  async findInvite(requesterId, requesteeId) {
+    return Chat.findOne({
+      where: {
+        [Op.or]: [
+          { user1Id: requesterId, user2Id: requesteeId },
+          { user1Id: requesteeId, user2Id: requesterId }
+        ]
+      }
+    })
+  }
+
   // Create a new user
   async createChat(requesterId, requesteeId) {
     return Chat.create({
@@ -26,6 +37,13 @@ class ChatRepository {
       user2Id: requesteeId
     })
   }
+    // Create a new user
+    async createInvite(requesterId, requesteeId) {
+      return Chat.create({
+        user1Id: requesterId,
+        user2Id: requesteeId
+      })
+    }
 
   async findOrCreateChat(requesterId, requesteeId) {
     const chat = await this.findChat(requesterId, requesteeId)
@@ -206,6 +224,15 @@ class ChatRepository {
       messages: messages.rows
     }
   };
+
+  async cancelInvite (requesterId, requesteeId) {
+    let chat = await this.findInvite(requesterId, requesteeId)
+    
+    if (chat) {
+      await chat.destroy()
+    }
+    return { chatId: chat.id }
+  }
 
   async deleteChat(chatId) {
 
