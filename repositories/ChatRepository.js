@@ -227,9 +227,8 @@ class ChatRepository {
 
   async cancelInvite (requesterId, requesteeId) {
     let chat = await this.findInvite(requesterId, requesteeId)
-    
-    if (chat) {
-      await chat.destroy()
+   if (chat) {
+      await chat.destroy({where: { requesteeId }})
     }
     return { chatId: chat.id }
   }
