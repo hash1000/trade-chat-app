@@ -44,6 +44,27 @@ class CartService {
 
     return { chatId: chat.id }
   }
+  async inviteRequest (requesterId, requesteeId) {
+    // Create a new chat if it doesn't exist already
+    let chat = await this.chatRepository.findInvite(requesterId, requesteeId)
+
+    if (!chat) {
+      chat = await this.chatRepository.createInvite(requesterId, requesteeId)
+    }
+
+    return { chatId: chat.id }
+  }
+  async inviteCancel (requesterId, requesteeId) {
+    // Create a new chat if it doesn't exist already
+    let chat = await this.chatRepository.findInvite(requesterId, requesteeId)
+
+    if (!chat) {
+      chat = await this.chatRepository.cancelInvite(requesterId, requesteeId)
+    }
+
+    return { chatId: chat.id }
+  }
+  
 
   async getChats (userId, page, pageSize) {
      return await this.chatRepository.getUserChat(userId, page, pageSize)

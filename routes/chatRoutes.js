@@ -9,9 +9,11 @@ const authMiddleware = require('../middlewares/authenticate')
 const ChatController = require('../controllers/ChatController')
 const chatController = new ChatController()
 
+router.post('/invite', authMiddleware, chatController.inviteRequest.bind(chatController))
+router.post('/cancel-invite', authMiddleware, chatController.inviteCancel.bind(chatController))
 router.post('/request', authMiddleware, chatController.chatRequest.bind(chatController))
+router.get('/', authMiddleware, chatController.getChats.bind(chatController))
 router.post('/:chatId/delete', authMiddleware, chatController.deleteChat.bind(chatController))
-router.post('/', authMiddleware, chatController.getChats.bind(chatController))
 router.get('/:chatId/messages', authMiddleware, chatController.getMessages.bind(chatController))
 router.get('/transactions', authMiddleware, chatController.getUserTransactions.bind(chatController))
 

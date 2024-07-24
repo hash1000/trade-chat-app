@@ -10,6 +10,22 @@ class ChatController {
 
     res.json(chat)
   }
+  async inviteRequest (req, res) {
+    const { requesteeId } = req.body
+    const { id: userId } = req.user
+
+    const chat = await chatService.inviteRequest(userId, requesteeId)
+
+    res.json(chat)
+  }
+  async inviteCancel (req, res) {
+    const { requesteeId } = req.body
+    const { id: userId } = req.user
+
+    const chat = await chatService.inviteCancel(userId, requesteeId)
+
+    res.json(chat)
+  }
 
   async getChats (req, res) {
     const { page = 1, pageSize = 10 } = req.body
