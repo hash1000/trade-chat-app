@@ -4,6 +4,7 @@ const UserRepository = require("../repositories/UserRepository"); // Replace the
 const ReactionRepository = require("../repositories/ReactionRepository"); // Replace the path with the correct location of your UserRepository.js file
 const UserFavouriteRepository = require("../repositories/UserFavouriteRepository");
 const FriendsRepository = require("../repositories/FriendsRepository");
+const ChatRepository = require("../repositories/ChatRepository");
 
 const {
   AddRequestNotification,
@@ -16,6 +17,7 @@ const userRepository = new UserRepository();
 const reactionRepository = new ReactionRepository();
 const userFavouriteRepository = new UserFavouriteRepository();
 const friendsRepository = new FriendsRepository();
+const chatRepository = new ChatRepository();
 
 class UserService {
   async getUserProfileById(profileId, userId) {
@@ -186,20 +188,22 @@ class UserService {
     return friendsRepository.remove(userId, profileId);
   }
 
-  async getUserContacts(userId) {
+  async getUserContacts(userId, page, pageSize) {
     // get user contacts
-    const friends = await friendsRepository.getFriends(userId);
+    // const friends = await friendsRepository.getFriends(userId);
     const favourites = await userFavouriteRepository.getFavourites(userId);
-    const accepted = friends.filter(
-      (friend) => friend.friendship.type === "accepted"
-    );
-    const pending = friends.filter(
-      (friend) => friend.friendship.type === "sent"
-    );
-    const received = friends.filter(
-      (friend) => friend.friendship.type === "received"
-    );
-    return { friends: accepted, sent: pending, received, favourites };
+    const invite = await chatRepository.getUserChat(userId, page, pageSize);
+    console.log("invite", invite);
+    // const accepted = friends.filter(
+    //   (friend) => friend.friendship.type === "accepted"
+    // );
+    // const pending = friends.filter(
+    //   (friend) => friend.friendship.type === "sent"
+    // );
+    // const received = friends.filter(
+    //   (friend) => friend.friendship.type === "received"
+    // );
+    return { favourites, invite };
   }
 
   async getUserForNotification(id) {
