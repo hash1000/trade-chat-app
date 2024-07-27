@@ -73,18 +73,6 @@ class ChatRepository {
       include: [
         {
           model: User,
-          as: "user1",
-          attributes: [
-            "id",
-            "username",
-            "phoneNumber",
-            "profilePic",
-            "email",
-            "settings",
-          ],
-        },
-        {
-          model: User,
           as: "user2",
           attributes: [
             "id",

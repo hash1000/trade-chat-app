@@ -193,7 +193,6 @@ class UserService {
     // const friends = await friendsRepository.getFriends(userId);
     const favourites = await userFavouriteRepository.getFavourites(userId);
     const invite = await chatRepository.getUserChat(userId, page, pageSize);
-    console.log("invite", invite);
     // const accepted = friends.filter(
     //   (friend) => friend.friendship.type === "accepted"
     // );
