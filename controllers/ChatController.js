@@ -18,6 +18,7 @@ class ChatController {
 
     res.json(chat);
   }
+
   async inviteCancel(req, res) {
     const { requesteeId } = req.body;
     const { id: userId } = req.user;
@@ -25,6 +26,15 @@ class ChatController {
     const chat = await chatService.inviteCancel(userId, requesteeId);
 
     res.json(chat);
+  }
+  
+  async updateChats(req, res) {
+    const { requesteeId , friendName } = req.body;
+    const { id: userId } = req.user;
+  
+    const friendUpdate = await chatService.updateChats(userId, requesteeId, friendName) ;
+
+    res.json(friendUpdate);
   }
 
   async getChats(req, res) {

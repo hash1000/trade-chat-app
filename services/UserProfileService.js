@@ -202,7 +202,7 @@ class UserService {
     // const received = friends.filter(
     //   (friend) => friend.friendship.type === "received"
     // );
-    return { favourites, invite };
+    return { favourites, friends :invite };
   }
 
   async getUserForNotification(id) {
