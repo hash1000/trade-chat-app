@@ -65,6 +65,7 @@ class CartService {
     return { chatId: chat.id };
   }
   async inviteCancel(requesterId, requesteeId) {
+    console.log("requesterId, requesteeId",requesterId, requesteeId);
     // Create a new chat if it doesn't exist already
     let chat = await this.chatRepository.findInvite(requesterId, requesteeId);
 
@@ -80,6 +81,19 @@ class CartService {
 
   async getChats(userId, page, pageSize) {
     return await this.chatRepository.getUserChat(userId, page, pageSize);
+  }
+
+  async updateChats(requesterId, requesteeId, friendName) {
+    let chat = await this.chatRepository.findInvite(requesterId, requesteeId);
+    
+    if (!chat) {
+      return {
+        message: `not sent any invite to this User not found:  ${requesterId}`,
+      };
+    } else {
+      chat = await this.chatRepository.updateFriend(requesterId, requesteeId, friendName);
+    }
+    return { chatId: chat };
   }
 
   async getMessages(chatId, page, pageSize, messageId, userId) {

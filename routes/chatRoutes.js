@@ -25,6 +25,11 @@ router.post(
   authMiddleware,
   chatController.inviteCancel.bind(chatController)
 );
+router.put(
+  "/update-friend",
+  authMiddleware,
+  chatController.updateChats.bind(chatController)
+);
 router.post(
   "/request",
   authMiddleware,

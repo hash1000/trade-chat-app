@@ -52,6 +52,15 @@ class ChatRepository {
     });
   }
 
+  async cancelInvite(requesterId, requesteeId) {
+    return  Chat.destroy({  where: {
+        [Op.or]: [
+          { user1Id: requesterId, user2Id: requesteeId },
+          { user1Id: requesteeId, user2Id: requesterId },
+        ],
+      } });
+  }
+
   async findOrCreateChat(requesterId, requesteeId) {
     const chat = await this.findChat(requesterId, requesteeId);
     return chat ? chat : await this.createChat(requesterId, requesteeId);
@@ -69,6 +78,7 @@ class ChatRepository {
       },
       limit,
       offset,
+      attributes: ["id"],
       order: [["createdAt", "DESC"]],
       include: [
         {
@@ -77,74 +87,24 @@ class ChatRepository {
           attributes: [
             "id",
             "username",
-            "phoneNumber",
+            "firstName",
+            "lastName",
             "profilePic",
             "email",
+            "gender",
+            "age",
+            "phoneNumber",
+            "country",
+            "description",
             "settings",
           ],
         },
-        {
-          model: Message,
-          as: "message",
-          attributes: ["text", "createdAt"],
-          separate: true,
-          order: [["createdAt", "DESC"]],
-          limit: 1,
-        },
       ],
     });
 
-    // Construct a list of conditions for each conversation
-    const conditions = chats.rows.map((chat) => {
-      const condition = { chatId: chat.id, senderId: { [Op.ne]: userId } };
-      // if i am user1, read user1lastReadId else read user2lastReadId
-      if (chat.user1Id === userId && chat.lastReadUser1Id) {
-        condition.id = { [Op.gt]: chat.lastReadUser1Id };
-      } else if (chat.user2Id === userId && chat.lastReadUser2Id) {
-        condition.id = { [Op.gt]: chat.lastReadUser2Id };
-      }
-      return condition;
-    });
+    const user2List = chats.rows.map((chat) => chat.user2);
 
-    // Aggregate query to count new messages per conversation
-    const messageCounts = await Message.findAll({
-      where: {
-        [Op.or]: conditions,
-      },
-      attributes: [
-        "chatId",
-        [sequelize.fn("COUNT", sequelize.col("chatId")), "unreadCount"],
-      ],
-      group: ["chatId"],
-      raw: true,
-    });
-
-    // Map the counts for easy lookup
-    const unreadCountsMap = messageCounts.reduce((acc, count) => {
-      acc[count.chatId] = parseInt(count.unreadCount);
-      return acc;
-    }, {});
-
-    // Assign unread counts to chats
-    chats.rows.forEach((chat) => {
-      chat.dataValues.unreadCount = unreadCountsMap[chat.id] || 0;
-      if (chat.dataValues.message[0]) {
-        chat.dataValues.message = chat.dataValues.message[0];
-      } else {
-        chat.dataValues.message = null;
-      }
-      chat.dataValues.type = 1;
-    });
-
-    // Process each chat
-    // ... rest of the code for processing chats
-
-    return {
-      total: chats.count,
-      totalPages: Math.ceil(chats.count / limit),
-      currentPage: page,
-      chats: chats.rows,
-    };
+    return user2List;
   }
 
   async getMessages(chatId, page, pageSize, messageId, userId) {
@@ -242,12 +202,20 @@ class ChatRepository {
     };
   }
 
-  async cancelInvite(requesterId, requesteeId) {
-    let chat = await this.findInvite(requesterId, requesteeId);
-    if (chat) {
-      await chat.destroy({ where: { requesteeId } });
-    }
-    return { chatId: chat.id };
+  async updateFriend(requesterId, requesteeId, friendName) {
+
+    let updateFriend = await Chat.update(
+      { friendName: friendName },
+      {
+        where: {
+          [Op.or]: [
+            { user1Id: requesterId, user2Id: requesteeId },
+            { user1Id: requesteeId, user2Id: requesterId },
+          ],
+        },
+      }
+    );
+    return updateFriend;
   }
 
   async deleteChat(chatId) {
