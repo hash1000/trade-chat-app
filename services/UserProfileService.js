@@ -202,7 +202,7 @@ class UserService {
     // const received = friends.filter(
     //   (friend) => friend.friendship.type === "received"
     // );
-    return { favourites, friends :invite };
+    return { favourites, friends: invite };
   }
 
   async getUserForNotification(id) {
@@ -216,7 +216,20 @@ class UserService {
   async getAllUsersProfile() {
     try {
       const users = await userRepository.getAllUsers();
-      return users;
+  
+      // Filter users to only include those with non-null values for the specified keys
+      const filteredUsers = users.filter((user) => {
+        const { firstName, lastName, phoneNumber, country_code, gender } = user;
+        return (
+          firstName !== null &&
+          lastName !== null &&
+          phoneNumber !== null &&
+          country_code !== null &&
+          gender !== null
+        );
+      });
+  
+      return filteredUsers;
     } catch (error) {
       throw new Error("Error while fetching users: " + error.message);
     }
