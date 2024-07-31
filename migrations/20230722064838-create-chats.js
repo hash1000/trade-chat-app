@@ -25,6 +25,10 @@ module.exports = {
         },
         allowNull: false
       },
+      friendName: {
+        type: Sequelize.STRING,
+        allowNull: true
+      },
       createdAt: {
         allowNull: false,
         type: Sequelize.DATE

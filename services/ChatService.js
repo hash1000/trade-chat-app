@@ -85,7 +85,6 @@ class CartService {
 
   async updateChats(requesterId, requesteeId, friendName) {
     let chat = await this.chatRepository.findInvite(requesterId, requesteeId);
-    
     if (!chat) {
       return {
         message: `not sent any invite to this User not found:  ${requesterId}`,
@@ -93,7 +92,7 @@ class CartService {
     } else {
       chat = await this.chatRepository.updateFriend(requesterId, requesteeId, friendName);
     }
-    return { chatId: chat };
+    return { message: `friend Name ${friendName} successfully updated`,chatId: chat };
   }
 
   async getMessages(chatId, page, pageSize, messageId, userId) {

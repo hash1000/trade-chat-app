@@ -25,6 +25,10 @@ const Chat = sequelize.define('Chat', {
       key: 'id'
     }
   },
+  friendName: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
   lastReadUser1Id: {
     type: DataTypes.INTEGER,
     allowNull: false,
