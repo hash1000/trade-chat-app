@@ -203,16 +203,10 @@ class ChatRepository {
   }
 
   async updateFriend(requesterId, requesteeId, friendName) {
-
     let updateFriend = await Chat.update(
       { friendName: friendName },
       {
-        where: {
-          [Op.or]: [
-            { user1Id: requesterId, user2Id: requesteeId },
-            { user1Id: requesteeId, user2Id: requesterId },
-          ],
-        },
+        where: { user1Id: requesterId, user2Id: requesteeId }
       }
     );
     return updateFriend;
