@@ -1,4 +1,4 @@
-'use strict'
+'use strict';
 
 module.exports = {
   up: async (queryInterface, Sequelize) => {
@@ -12,7 +12,7 @@ module.exports = {
       user1Id: {
         type: Sequelize.INTEGER,
         references: {
-          model: 'users', // name of the table
+          model: 'users', // Ensure this matches the table name
           key: 'id'
         },
         allowNull: false
@@ -25,11 +25,33 @@ module.exports = {
         },
         allowNull: false
       },
-      friendName: {
+      userName: {
         type: Sequelize.STRING,
         allowNull: true
       },
-      createdAt: {
+      profilePic: {
+        type: Sequelize.STRING,
+        allowNull: true
+      },
+      description: {
+        type: Sequelize.STRING,
+        allowNull: true
+      },
+      tags: {
+        type: Sequelize.JSON,
+        defaultValue: []
+      },
+      lastReadUser1Id: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
+        defaultValue: 0
+      },
+      lastReadUser2Id: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
+        defaultValue: 0
+      },
+      createdAt: {  
         allowNull: false,
         type: Sequelize.DATE
       },
@@ -37,10 +59,10 @@ module.exports = {
         allowNull: false,
         type: Sequelize.DATE
       }
-    })
+    });
   },
 
   down: async (queryInterface, Sequelize) => {
-    await queryInterface.dropTable('chats')
+    await queryInterface.dropTable('chats');
   }
-}
+};

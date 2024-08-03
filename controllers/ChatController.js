@@ -11,13 +11,35 @@ class ChatController {
     res.json(chat);
   }
   async inviteRequest(req, res) {
-    const { requesteeId } = req.body;
-    const { id: userId } = req.user;
-
-    const chat = await chatService.inviteRequest(userId, requesteeId);
-
-    res.json(chat);
+    try {
+      const { requesteeId } = req.body;
+      const { id: userId } = req.user;
+  
+      // Convert both IDs to numbers (or strings, depending on your needs)
+      const requesteeIdNumber = Number(requesteeId);
+      const userIdNumber = Number(userId);
+  
+      // Check if the user is trying to send an invite to themselves
+      if (requesteeIdNumber !== userIdNumber) {
+        console.log("if");
+        const chat = await chatService.inviteRequest(userIdNumber, requesteeIdNumber);
+        return res.status(200).json(chat);
+      } else {
+        console.log("else");
+        return res
+          .status(400)
+          .json({ error: "You cannot send an invite to yourself." });
+      }
+    } catch (error) {
+      // Handle any unexpected errors
+      console.error("Error in inviteRequest:", error);
+      return res
+        .status(500)
+        .json({ error: "An error occurred while sending the invite." });
+    }
   }
+  
+  
 
   async inviteCancel(req, res) {
     const { requesteeId } = req.body;
@@ -27,12 +49,19 @@ class ChatController {
 
     res.json(chat);
   }
-  
+
   async updateChats(req, res) {
-    const { requesteeId , friendName } = req.body;
+    const { requesteeId, userName, profilePic, description, tags } = req.body;
     const { id: userId } = req.user;
-  
-    const friendUpdate = await chatService.updateChats(userId, requesteeId, friendName) ;
+
+    const friendUpdate = await chatService.updateChats(
+      userId,
+      requesteeId,
+      userName,
+      profilePic,
+      description,
+      tags
+    );
 
     res.json(friendUpdate);
   }

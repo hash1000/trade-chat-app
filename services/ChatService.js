@@ -56,8 +56,7 @@ class CartService {
   }
   async inviteRequest(requesterId, requesteeId) {
     // Create a new chat if it doesn't exist already
-    let chat = await this.chatRepository.findInvite(requesterId, requesteeId);
-
+    let chat = await this.chatRepository.findExistingChat(requesterId, requesteeId);
     if (!chat) {
       chat = await this.chatRepository.createInvite(requesterId, requesteeId);
     }
@@ -65,9 +64,8 @@ class CartService {
     return { chatId: chat.id };
   }
   async inviteCancel(requesterId, requesteeId) {
-    console.log("requesterId, requesteeId",requesterId, requesteeId);
-    // Create a new chat if it doesn't exist already
-    let chat = await this.chatRepository.findInvite(requesterId, requesteeId);
+     // Create a new chat if it doesn't exist already
+    let chat = await this.chatRepository.findExistingChat(requesterId, requesteeId);
 
     if (!chat) {
       return {
@@ -83,16 +81,16 @@ class CartService {
     return await this.chatRepository.getUserChat(userId, page, pageSize);
   }
 
-  async updateChats(requesterId, requesteeId, friendName) {
+  async updateChats(requesterId, requesteeId, userName , profilePic , description , tags ) {
     let chat = await this.chatRepository.findInvite(requesterId, requesteeId);
     if (!chat) {
       return {
         message: `not sent any invite to this User not found:  ${requesterId}`,
       };
     } else {
-      chat = await this.chatRepository.updateFriend(requesterId, requesteeId, friendName);
+      chat = await this.chatRepository.updateFriend(requesterId, requesteeId, userName , profilePic , description , tags );
     }
-    return { message: `friend Name ${friendName} successfully updated`,chatId: chat };
+    return { message: `friend Name ${userName} successfully updated`,chatId: chat };
   }
 
   async getMessages(chatId, page, pageSize, messageId, userId) {

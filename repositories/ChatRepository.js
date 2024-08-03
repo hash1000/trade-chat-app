@@ -36,7 +36,13 @@ class ChatRepository {
       },
     });
   }
-
+  async findExistingChat(requesterId, requesteeId) {
+    return Chat.findOne({
+      where: {
+          user1Id: requesterId, user2Id: requesteeId 
+      },
+    });
+  }
   // Create a new user
   async createChat(requesterId, requesteeId) {
     return Chat.create({
@@ -45,12 +51,12 @@ class ChatRepository {
     });
   }
   // Create a new user
-  async createInvite(requesterId, requesteeId) {
-    return Chat.create({
-      user1Id: requesterId,
-      user2Id: requesteeId,
-    });
-  }
+    async createInvite(requesterId, requesteeId) {
+      return Chat.create({
+        user1Id: requesterId,
+        user2Id: requesteeId,
+      });
+    }
 
   async cancelInvite(requesterId, requesteeId) {
     return  Chat.destroy({  where: {
@@ -74,7 +80,7 @@ class ChatRepository {
     // Fetch chats with the latest message
     const chats = await Chat.findAndCountAll({
       where: {
-        [Op.or]: [{ user1Id: userId }],
+        [Op.or]: [{ user1Id: userId }, { user2Id: userId }],
       },
       limit,
       offset,
@@ -202,9 +208,13 @@ class ChatRepository {
     };
   }
 
-  async updateFriend(requesterId, requesteeId, friendName) {
+  async updateFriend(requesterId, requesteeId, userName , profilePic , description , tags ) {
     let updateFriend = await Chat.update(
-      { friendName: friendName },
+      { userName: userName,
+        profilePic: profilePic,
+        description: description,
+        tags: tags
+       },
       {
         where: { user1Id: requesterId, user2Id: requesteeId }
       }
