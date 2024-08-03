@@ -80,7 +80,7 @@ class ChatRepository {
     // Fetch chats with the latest message
     const chats = await Chat.findAndCountAll({
       where: {
-        [Op.or]: [{ user1Id: userId }, { user2Id: userId }],
+        [Op.or]: [{ user1Id: userId }],
       },
       limit,
       offset,
