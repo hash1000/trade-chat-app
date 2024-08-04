@@ -4,6 +4,7 @@ const multer = require("multer");
 // Configure multer storage
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
+const { validateUpdateContact } = require("../middlewares/userValidation");
 
 const authMiddleware = require("../middlewares/authenticate");
 const ChatController = require("../controllers/ChatController");
@@ -28,6 +29,7 @@ router.post(
 router.put(
   "/update-friend",
   authMiddleware,
+  validateUpdateContact,
   chatController.updateChats.bind(chatController)
 );
 router.post(

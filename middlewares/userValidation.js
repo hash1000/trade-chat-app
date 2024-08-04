@@ -101,6 +101,26 @@ exports.validateVerifyEmailOtp = [
   body("check").notEmpty().withMessage("Check value is required"),
   handleValidationErrors,
 ];
+exports.validateUpdateContact = [
+  body("userName")
+    .optional()
+    .isString()
+    .withMessage("User name must be a string"),
+  body("description")
+    .optional()
+    .isString()
+    .withMessage("Description must be a string"),
+  body("profilePic")
+    .optional()
+    .isString()
+    .withMessage("Profile picture must be a string"),
+  body("tags")
+    .optional()
+    .isArray()
+    .withMessage("Tags must be an array"),
+  handleValidationErrors,
+];
+
 
 // Validation middleware for forgot-password
 exports.forgotPasswordValidation = [
