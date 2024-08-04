@@ -76,7 +76,7 @@ class ChatRepository {
     const limit = parseInt(pageSize);
     const offset = (page - 1) * limit;
     const { Op } = require("sequelize");
-
+  
     // Fetch chats with the latest message
     const chats = await Chat.findAndCountAll({
       where: {
@@ -84,34 +84,30 @@ class ChatRepository {
       },
       limit,
       offset,
-      attributes: ["id"],
-      order: [["createdAt", "DESC"]],
       include: [
         {
           model: User,
           as: "user2",
-          attributes: [
-            "id",
-            "username",
-            "firstName",
-            "lastName",
-            "profilePic",
-            "email",
-            "gender",
-            "age",
-            "phoneNumber",
-            "country",
-            "description",
-            "settings",
-          ],
+          attributes: ["phoneNumber"],
         },
       ],
     });
-
-    const user2List = chats.rows.map((chat) => chat.user2);
-
-    return user2List;
+  
+    // Map the results to the desired format
+    const friends = chats.rows.map(chat => ({
+      id: chat.id,
+      userName: chat.userName,
+      profilePic: chat.profilePic,
+      description: chat.description,
+      tags: chat.tags,
+      createdAt: chat.createdAt,
+      updatedAt: chat.updatedAt,
+      phoneNumber: chat.user2.phoneNumber,
+    }));
+  
+    return friends;
   }
+  
 
   async getMessages(chatId, page, pageSize, messageId, userId) {
     const chat = await Chat.findByPk(chatId);
@@ -219,7 +215,7 @@ class ChatRepository {
         where: { user1Id: requesterId, user2Id: requesteeId }
       }
     );
-    return updateFriend;
+    return [updateFriend];
   }
 
   async deleteChat(chatId) {

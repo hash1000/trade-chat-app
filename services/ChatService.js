@@ -90,7 +90,7 @@ class CartService {
     } else {
       chat = await this.chatRepository.updateFriend(requesterId, requesteeId, userName , profilePic , description , tags );
     }
-    return { message: `friend Name ${userName} successfully updated`,chatId: chat };
+    return { message: chat > 0 ? `friend Name ${userName} successfully updated` :  `you cannot invite with this id: ${requesteeId} ` ,chatId: chat };
   }
 
   async getMessages(chatId, page, pageSize, messageId, userId) {
