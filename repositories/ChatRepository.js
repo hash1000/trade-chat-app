@@ -88,7 +88,13 @@ class ChatRepository {
         {
           model: User,
           as: "user2",
-          attributes: ["phoneNumber"],
+          attributes: [
+            "username", 
+            "profilePic", 
+            "description", 
+            [sequelize.json('settings.tags'), 'tags'],
+            "phoneNumber"
+          ],
         },
       ],
     });
@@ -96,17 +102,18 @@ class ChatRepository {
     // Map the results to the desired format
     const friends = chats.rows.map(chat => ({
       id: chat.id,
-      userName: chat.userName,
-      profilePic: chat.profilePic,
-      description: chat.description,
-      tags: chat.tags,
+      username: chat.userName || chat.user2.username,
+      profilePic: chat.profilePic || chat.user2.profilePic,
+      description: chat.description || chat.user2.description,
+      tags: chat.tags || chat.user2.tags,  // Adjusted to handle JSON extraction
       createdAt: chat.createdAt,
       updatedAt: chat.updatedAt,
-      phoneNumber: chat.user2.phoneNumber,
+      phoneNumber: chat.phoneNumber || chat.user2.phoneNumber,
     }));
   
     return friends;
   }
+  
   
 
   async getMessages(chatId, page, pageSize, messageId, userId) {
