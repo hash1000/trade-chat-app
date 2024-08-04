@@ -100,8 +100,7 @@ class ChatRepository {
     });
     // Map the results to the desired format
     const friends = chats.rows.map(chat => ({
-      id: chat.id,
-      friendId: chat.user2Id,
+      id: chat.user2Id, 
       username: chat.userName || chat.user2.username,
       profilePic: chat.profilePic || chat.user2.profilePic,
       description: chat.description || chat.user2.description,
