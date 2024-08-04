@@ -89,7 +89,12 @@ class ChatRepository {
           model: User,
           as: "user2",
           attributes: [
+            "firstName",
+            "lastName",
             "username", 
+            "country",
+            "gender",
+            "age",
             "profilePic", 
             "description", 
             [sequelize.json('settings.tags'), 'tags'],
@@ -102,6 +107,11 @@ class ChatRepository {
     const friends = chats.rows.map(chat => ({
       id: chat.user2Id, 
       username: chat.userName || chat.user2.username,
+      firstName: chat.user2.firstName,
+      lastName: chat.user2.lastName,
+      country: chat.user2.country,
+      gender: chat.user2.gender,
+      age: chat.user2.age,
       profilePic: chat.profilePic || chat.user2.profilePic,
       description: chat.description || chat.user2.description,
       tags: chat.tags || chat.user2.tags,  // Adjusted to handle JSON extraction
