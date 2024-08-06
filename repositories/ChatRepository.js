@@ -6,6 +6,7 @@ const User = require("../models/user");
 const Message = require("../models/message");
 const PaymentRequest = require("../models/payment_request");
 const FavouritePayment = require("../models/favourite_payments");
+const UserFavourite = require("../models/user_favourites");
 
 class ChatRepository {
   async findChat(requesterId, requesteeId) {
@@ -18,12 +19,19 @@ class ChatRepository {
       },
     });
   }
+
   async findSingleChat(requesterId, requesteeId) {
-    return Chat.findOne({
+    const favourite = await UserFavourite.findOne({
+      where: { profileId: requesteeId },
+    });
+
+    const chat = await Chat.findOne({
       where: {
-        [Op.and]: [{ user2Id: requesteeId, user1Id: { [Op.eq]: requesterId } }],
+        [Op.and]: [{ user2Id: requesteeId }, { user1Id: requesterId }],
       },
     });
+
+    return { favourite, chat };
   }
 
   async findInvite(requesterId, requesteeId) {
@@ -39,7 +47,8 @@ class ChatRepository {
   async findExistingChat(requesterId, requesteeId) {
     return Chat.findOne({
       where: {
-          user1Id: requesterId, user2Id: requesteeId 
+        user1Id: requesterId,
+        user2Id: requesteeId,
       },
     });
   }
@@ -51,20 +60,22 @@ class ChatRepository {
     });
   }
   // Create a new user
-    async createInvite(requesterId, requesteeId) {
-      return Chat.create({
-        user1Id: requesterId,
-        user2Id: requesteeId,
-      });
-    }
+  async createInvite(requesterId, requesteeId) {
+    return Chat.create({
+      user1Id: requesterId,
+      user2Id: requesteeId,
+    });
+  }
 
   async cancelInvite(requesterId, requesteeId) {
-    return  Chat.destroy({  where: {
+    return Chat.destroy({
+      where: {
         [Op.or]: [
           { user1Id: requesterId, user2Id: requesteeId },
           { user1Id: requesteeId, user2Id: requesterId },
         ],
-      } });
+      },
+    });
   }
 
   async findOrCreateChat(requesterId, requesteeId) {
@@ -76,7 +87,7 @@ class ChatRepository {
     const limit = parseInt(pageSize);
     const offset = (page - 1) * limit;
     const { Op } = require("sequelize");
-  
+
     // Fetch chats with the latest message
     const chats = await Chat.findAndCountAll({
       where: {
@@ -91,21 +102,21 @@ class ChatRepository {
           attributes: [
             "firstName",
             "lastName",
-            "username", 
+            "username",
             "country",
             "gender",
             "age",
-            "profilePic", 
-            "description", 
-            [sequelize.json('settings.tags'), 'tags'],
-            "phoneNumber"
+            "profilePic",
+            "description",
+            [sequelize.json("settings.tags"), "tags"],
+            "phoneNumber",
           ],
         },
       ],
     });
     // Map the results to the desired format
-    const friends = chats.rows.map(chat => ({
-      id: chat.user2Id, 
+    const friends = chats.rows.map((chat) => ({
+      id: chat.user2Id,
       username: chat.userName || chat.user2.username,
       firstName: chat.user2.firstName,
       lastName: chat.user2.lastName,
@@ -114,16 +125,14 @@ class ChatRepository {
       age: chat.user2.age,
       profilePic: chat.profilePic || chat.user2.profilePic,
       description: chat.description || chat.user2.description,
-      tags: chat.tags || chat.user2.tags,  // Adjusted to handle JSON extraction
+      tags: chat.tags || chat.user2.tags, // Adjusted to handle JSON extraction
       createdAt: chat.createdAt,
       updatedAt: chat.updatedAt,
       phoneNumber: chat.phoneNumber || chat.user2.phoneNumber,
     }));
-  
+
     return friends;
   }
-  
-  
 
   async getMessages(chatId, page, pageSize, messageId, userId) {
     const chat = await Chat.findByPk(chatId);
@@ -220,15 +229,23 @@ class ChatRepository {
     };
   }
 
-  async updateFriend(requesterId, requesteeId, userName , profilePic , description , tags ) {
+  async updateFriend(
+    requesterId,
+    requesteeId,
+    userName,
+    profilePic,
+    description,
+    tags
+  ) {
     let updateFriend = await Chat.update(
-      { userName: userName,
+      {
+        userName: userName,
         profilePic: profilePic,
         description: description,
-        tags: tags
-       },
+        tags: tags,
+      },
       {
-        where: { user1Id: requesterId, user2Id: requesteeId }
+        where: { user1Id: requesterId, user2Id: requesteeId },
       }
     );
     return [updateFriend];

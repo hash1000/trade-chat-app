@@ -77,11 +77,25 @@ class ChatController {
     }
   }
   async getSingleChat(req, res) {
-    const { requesteeId } = req.body;
-    const { id: userId } = req.user;
-    const chat = await chatService.getSingleChat(userId, requesteeId);
-    res.json(chat);
-  }
+    try {
+        const { requesteeId } = req.body;
+        const { id: userId } = req.user;
+
+        const chatResponse = await chatService.getSingleChat(userId, requesteeId);
+
+        return res.status(200).json({
+            status: "success",
+            data: chatResponse,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            status: "error",
+            message: "An error occurred while retrieving the chat.",
+        });
+    }
+}
+
 
   async getMessages(req, res) {
     const { chatId } = req.params;
