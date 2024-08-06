@@ -108,19 +108,15 @@ class CartService {
   }
 
   async getSingleChat(requesterId, requesteeId) {
-    let chat = await this.chatRepository.findSingleChat(
-      requesterId,
-      requesteeId
-    );
+    const user = await this.chatRepository.findSingleChat(requesterId, requesteeId);
+    const { favourite, chat } = user;
+
     return {
-      status: chat === null ? "Not Friend" : "Friend",
-      message:
-        chat === null
-          ? `No ${requesteeId} is not a friend of user ${requesterId}`
-          : `${chat.user2Id} is a friend of user ${chat.user1Id}`,
-      chatId: chat,
+        isFriend: chat !== null ? true : false,
+        isFavourite: favourite !== null ? true : false
     };
-  }
+}
+
 
   async getUserTransactions(userId, specificUserId, from, to) {
     return await this.chatRepository.getUserTransactions(
