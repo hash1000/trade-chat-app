@@ -21,19 +21,25 @@ class ChatRepository {
   }
 
   async findSingleChat(requesterId, requesteeId) {
-    const favourite = await UserFavourite.findOne({
-      where: { profileId: requesteeId },
-    });
-
-    const chat = await Chat.findOne({
-      where: {
-        [Op.and]: [{ user2Id: requesteeId }, { user1Id: requesterId }],
-      },
-    });
-
-    return { favourite, chat };
+    try {
+      // Update the column names to match your database schema
+      const favourite = await UserFavourite.findOne({
+        where: { userId: requesterId, profileId: requesteeId },
+      });
+  
+      const chat = await Chat.findOne({
+        where: {
+          [Op.and]: [{ user2Id: requesteeId }, { user1Id: requesterId }],
+        },
+      });
+  
+      return { favourite, chat };
+    } catch (error) {
+      console.error("Error in findSingleChat:", error);
+      throw error;
+    }
   }
-
+  
   async findInvite(requesterId, requesteeId) {
     return Chat.findOne({
       where: {
