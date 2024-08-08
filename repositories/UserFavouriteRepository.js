@@ -3,6 +3,7 @@ const UserFavourite = require('../models/user_favourites')
 const Friends = require('../models/friends')
 const User = require('../models/user')
 const Chat = require('../models/chat')
+const sequelize = require("../config/database");
 
 class UserFavouriteRepository {
   async create (userId, profileId) {
@@ -50,7 +51,19 @@ class UserFavouriteRepository {
           [Op.in]: favouriteIds
         }
       },
-      attributes: ['id', 'role', 'country_code', 'email', 'phoneNumber', 'profilePic'],
+      attributes: [
+        "id",             
+        "firstName",
+        "lastName",
+        "username",
+        "country",
+        "gender",
+        "age",
+        "profilePic",
+        "description",
+        [sequelize.json('settings.tags'), 'tags'],
+        "phoneNumber"
+      ],
       raw: true
     })
     const friendship = await Friends.findAll({
