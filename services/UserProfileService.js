@@ -189,21 +189,31 @@ class UserService {
   }
 
   async getUserContacts(userId, page, pageSize) {
-    // get user contacts
-    // const friends = await friendsRepository.getFriends(userId);
     const favourites = await userFavouriteRepository.getFavourites(userId);
     const invite = await chatRepository.getUserChat(userId, page, pageSize);
-    // const accepted = friends.filter(
-    //   (friend) => friend.friendship.type === "accepted"
-    // );
-    // const pending = friends.filter(
-    //   (friend) => friend.friendship.type === "sent"
-    // );
-    // const received = friends.filter(
-    //   (friend) => friend.friendship.type === "received"
-    // );
+
+    // Iterate through the favourites array
+    for (let i = 0; i < favourites.length; i++) {
+        const fav = favourites[i];
+        const inv = invite.find(inviteUser => inviteUser.id === fav.id);
+
+        // If a corresponding invite is found, update the favourite
+        if (inv && fav) {
+            favourites[i] = {
+                ...fav,                 // Keep existing fields from favourites
+                username: inv.username, // Update/replace with values from invite
+                profilePic: inv.profilePic,
+                tags: inv.tags,
+                createdAt: inv.createdAt,
+                updatedAt: inv.updatedAt,
+                phoneNumber: inv.phoneNumber
+            };
+        }
+    }
     return { favourites, friends: invite };
-  }
+}
+
+
 
   async getUserForNotification(id) {
     return userRepository.getUserTokenAndName(id);

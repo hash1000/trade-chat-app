@@ -26,20 +26,20 @@ class ChatRepository {
       const favourite = await UserFavourite.findOne({
         where: { userId: requesterId, profileId: requesteeId },
       });
-  
+
       const chat = await Chat.findOne({
         where: {
           [Op.and]: [{ user2Id: requesteeId }, { user1Id: requesterId }],
         },
       });
-  
+
       return { favourite, chat };
     } catch (error) {
       console.error("Error in findSingleChat:", error);
       throw error;
     }
   }
-  
+
   async findInvite(requesterId, requesteeId) {
     return Chat.findOne({
       where: {
@@ -75,12 +75,7 @@ class ChatRepository {
 
   async cancelInvite(requesterId, requesteeId) {
     return Chat.destroy({
-      where: {
-        [Op.or]: [
-          { user1Id: requesterId, user2Id: requesteeId },
-          { user1Id: requesteeId, user2Id: requesterId },
-        ],
-      },
+      where: { user1Id: requesterId, user2Id: requesteeId },
     });
   }
 
