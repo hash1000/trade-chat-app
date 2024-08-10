@@ -81,13 +81,13 @@ class UserProfileController {
   }
   async createFavourite(req, res) {
     try {
-      let fav;
+      
       const { userId: profileId, status } = req.params;
       const userId = req.user.id;
       if (status === "add") {
-        fav=await userProfileService.createFavourite(userId, profileId);
+        await userProfileService.createFavourite(userId, profileId);
       } else {
-        fav = await userProfileService.removeFavourite(userId, profileId);
+        await userProfileService.removeFavourite(userId, profileId);
       }
       const user = await userProfileService.getUserProfileById(
         profileId,
@@ -96,7 +96,7 @@ class UserProfileController {
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
-      res.json({ user, fav });
+      res.json({ user });
     } catch (error) {
       console.error(error);
       res.status(500).json({ message: "Internal server error" });

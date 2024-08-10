@@ -66,31 +66,32 @@ class UserFavouriteRepository {
       ],
       raw: true
     })
-    const friendship = await Friends.findAll({
-      where: {
-        [Op.or]: [
-          { userId, },
-          { profileId: userId }
-        ]
-      },
-      attributes: ['type', 'userId', 'profileId']
-    })
-    const friendsMap = friendship.reduce((acc, curr) => {
-      if (curr.userId === userId) {
-        acc[curr.profileId] = curr
-      } else {
-        acc[curr.userId] = curr
-      }
-      return acc
-    }, {})
+    return users;
+    // const friendship = await Friends.findAll({
+    //   where: {
+    //     [Op.or]: [
+    //       { userId, },
+    //       { profileId: userId }
+    //     ]
+    //   },
+    //   attributes: ['type', 'userId', 'profileId']
+    // })
+    // const friendsMap = friendship.reduce((acc, curr) => {
+    //   if (curr.userId === userId) {
+    //     acc[curr.profileId] = curr
+    //   } else {
+    //     acc[curr.userId] = curr
+    //   }
+    //   return acc
+    // }, {})
 
-    return users.map(user => {
-      user.friendship = friendsMap[user.id] || null
-      if (user.friendship && user.friendship.type === 'sent' && user.friendship.profileId === userId) {
-        user.friendship.type = 'received'
-      }
-      return user
-    })
+    // return users.map(user => {
+    //   user.friendship = friendsMap[user.id] || null
+    //   if (user.friendship && user.friendship.type === 'sent' && user.friendship.profileId === userId) {
+    //     user.friendship.type = 'received'
+    //   }
+    //   return user
+    // })
   }
 }
 
