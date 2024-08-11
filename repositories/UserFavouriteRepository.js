@@ -61,7 +61,7 @@ class UserFavouriteRepository {
         "age",
         "profilePic",
         "description",
-        [sequelize.json('settings.tags'), 'tags'],
+        "settings",
         "phoneNumber"
       ],
       raw: true

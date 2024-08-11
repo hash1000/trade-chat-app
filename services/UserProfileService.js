@@ -193,23 +193,25 @@ class UserService {
     const invite = await chatRepository.getUserChat(userId, page, pageSize);
 
     // Iterate through the favourites array
-    // for (let i = 0; i < favourites.length; i++) {
-    //     const fav = favourites[i];
-    //     const inv = invite.find(inviteUser => inviteUser.id === fav.id);
-
-    //     // If a corresponding invite is found, update the favourite
-    //     if (inv && fav) {
-    //         favourites[i] = {
-    //             ...fav,                 // Keep existing fields from favourites
-    //             username: inv.username, // Update/replace with values from invite
-    //             profilePic: inv.profilePic,
-    //             tags: inv.tags,
-    //             createdAt: inv.createdAt,
-    //             updatedAt: inv.updatedAt,
-    //             phoneNumber: inv.phoneNumber
-    //         };
-    //     }
-    // }
+    for (let i = 0; i < favourites.length; i++) {
+        const fav = favourites[i];
+        const inv = invite.find(inviteUser => inviteUser.id === fav.id);
+        
+        // If a corresponding invite is found, update the favourite
+        if (inv && fav) {
+            favourites[i] = {
+                ...fav,                 // Keep existing fields from favourites
+                username: inv.username, // Update/replace with values from invite
+                profilePic: inv.profilePic,
+                settings:{
+                  tags: inv.settings.tags, 
+                },
+                createdAt: inv.createdAt,
+                updatedAt: inv.updatedAt,
+                phoneNumber: inv.phoneNumber
+            };
+        }
+    }
     return { favourites, friends: invite };
 }
 
