@@ -109,7 +109,7 @@ class ChatRepository {
             "age",
             "profilePic",
             "description",
-            [sequelize.json("settings.tags"), "tags"],
+            "settings",
             "phoneNumber",
           ],
         },
@@ -126,7 +126,9 @@ class ChatRepository {
       age: chat.user2.age,
       profilePic: chat.profilePic || chat.user2.profilePic,
       description: chat.description || chat.user2.description,
-      tags: chat.tags || chat.user2.tags, // Adjusted to handle JSON extraction
+      settings:{
+        tags: chat.tags || chat.user2.tags, 
+      },
       createdAt: chat.createdAt,
       updatedAt: chat.updatedAt,
       phoneNumber: chat.phoneNumber || chat.user2.phoneNumber,
