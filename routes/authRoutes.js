@@ -6,6 +6,7 @@ const {
   forgotPasswordValidation,
   resetPasswordValidation,
   validateUpdateProfile,
+  userRoleUpdateValidation,
   validateGoogleSignup,
   validateEmailOtp,
   validateVerifyEmailOtp,
@@ -44,6 +45,7 @@ router.post(
   validateEmailOtp,
   userController.emailOtp.bind(userController)
 );
+
 // verifyOtp
 router.post(
   "/verify-otp",
@@ -73,6 +75,14 @@ router.put(
   validateUpdateProfile,
   userController.updateUser.bind(userController)
 );
+//update  role 
+router.patch(
+  "/update-role",
+  authenticate,
+  userRoleUpdateValidation,
+  userController.updateUserRole.bind(userController)
+);
+
 router.get(
   "/users",
   authenticate,
