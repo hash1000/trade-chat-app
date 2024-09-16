@@ -107,6 +107,9 @@ class UserService {
       if (profileData.age) {
         user.age = profileData.age;
       }
+      if (profileData.role) {
+        user.role = profileData.role;
+      }
       if (profileData.settings) {
         user.settings = profileData.settings;
       }

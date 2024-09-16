@@ -857,6 +857,19 @@ class UserController {
     }
   }
 
+  async updateUserRole(req, res){
+    try {
+      const { role } = req.body;
+      const user = req.user;
+      const updatedUser = await userService.updateUserProfile(user, {
+        role,
+      });
+      res.json({ user: updatedUser });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  }
   async updateFCM(req, res) {
     try {
       const { fcmToken } = req.body;
