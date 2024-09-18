@@ -119,11 +119,11 @@ module.exports = {
       },
       personalWalletBalance: {
         type: Sequelize.INTEGER,
-        defaultValue: 50000,
+        defaultValue: 0,
       },
       companyWalletBalance: {
         type: Sequelize.INTEGER,
-        defaultValue: 500000,
+        defaultValue: 0,
       },
       otp: {
         type: Sequelize.STRING,

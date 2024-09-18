@@ -82,6 +82,7 @@ class UserService {
   }
 
   async updateUserProfile(user, profileData) {
+    let amount = 0;
     try {
       if (profileData.phoneNumber) {
         user.phoneNumber = profileData.phoneNumber;
@@ -119,7 +120,10 @@ class UserService {
       if (profileData.description) {
         user.description = profileData.description;
       }
-
+      if (profileData.amount) {
+        amount = user.personalWalletBalance + Number(profileData.amount);
+        user.personalWalletBalance = amount;
+      }
       await user.save();
 
       return user;

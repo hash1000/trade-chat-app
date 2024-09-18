@@ -178,8 +178,8 @@ class ChatController {
   }
 
   async sendPayment(req, res) {
-    const { amount, requesterId } = req.body;
-    const { id: requesteeId } = req.user;
+    const { amount, requesteeId } = req.body;
+    const { id: requesterId } = req.user;
     const payment = await chatService.sendPayment(
       Number(requesterId),
       Number(requesteeId),
