@@ -23,12 +23,14 @@ const s3Client = new S3Client({
     secretAccessKey: process.env.SPACES_SECRET, // Secret access key defined through an environment variable.
   },
 });
+const UserService = require("./UserService");
 const {
   PaymentReceivedNotification,
   PaymentRequestNotification,
   NewMessageNotification,
 } = require("../notifications");
 const { message } = require("../templates/email/email_verification");
+const userService = new UserService();
 
 class CartService {
   constructor() {
@@ -56,7 +58,10 @@ class CartService {
   }
   async inviteRequest(requesterId, requesteeId) {
     // Create a new chat if it doesn't exist already
-    let chat = await this.chatRepository.findExistingChat(requesterId, requesteeId);
+    let chat = await this.chatRepository.findExistingChat(
+      requesterId,
+      requesteeId
+    );
     if (!chat) {
       chat = await this.chatRepository.createInvite(requesterId, requesteeId);
     }
@@ -64,8 +69,11 @@ class CartService {
     return { chatId: chat.id };
   }
   async inviteCancel(requesterId, requesteeId) {
-     // Create a new chat if it doesn't exist already
-    let chat = await this.chatRepository.findExistingChat(requesterId, requesteeId);
+    // Create a new chat if it doesn't exist already
+    let chat = await this.chatRepository.findExistingChat(
+      requesterId,
+      requesteeId
+    );
 
     if (!chat) {
       return {
@@ -81,16 +89,36 @@ class CartService {
     return await this.chatRepository.getUserChat(userId, page, pageSize);
   }
 
-  async updateChats(requesterId, requesteeId, userName , profilePic , description , tags ) {
+  async updateChats(
+    requesterId,
+    requesteeId,
+    userName,
+    profilePic,
+    description,
+    tags
+  ) {
     let chat = await this.chatRepository.findInvite(requesterId, requesteeId);
     if (!chat) {
       return {
         message: `not sent any invite to this User not found:  ${requesterId}`,
       };
     } else {
-      chat = await this.chatRepository.updateFriend(requesterId, requesteeId, userName , profilePic , description , tags );
+      chat = await this.chatRepository.updateFriend(
+        requesterId,
+        requesteeId,
+        userName,
+        profilePic,
+        description,
+        tags
+      );
     }
-    return { message: chat > 0 ? `friend Name ${userName} successfully updated` :  `you cannot invite with this id: ${requesteeId} ` ,chatId: chat };
+    return {
+      message:
+        chat > 0
+          ? `friend Name ${userName} successfully updated`
+          : `you cannot invite with this id: ${requesteeId} `,
+      chatId: chat,
+    };
   }
 
   async getMessages(chatId, page, pageSize, messageId, userId) {
@@ -108,15 +136,17 @@ class CartService {
   }
 
   async getSingleChat(requesterId, requesteeId) {
-    const user = await this.chatRepository.findSingleChat(requesterId, requesteeId);
+    const user = await this.chatRepository.findSingleChat(
+      requesterId,
+      requesteeId
+    );
     const { favourite, chat } = user;
 
     return {
-        isFriend: chat !== null ? true : false,
-        isFavourite: favourite !== null ? true : false
+      isFriend: chat !== null ? true : false,
+      isFavourite: favourite !== null ? true : false,
     };
-}
-
+  }
 
   async getUserTransactions(userId, specificUserId, from, to) {
     return await this.chatRepository.getUserTransactions(
@@ -127,90 +157,44 @@ class CartService {
     );
   }
 
-  async sendPaymentRequest(requesterId, requesteeId, amount, user, req) {
+  async sendPaymentRequest (requesterId, requesteeId, amount, user, req) {
     // get chat id if chat exists else create chat
-    let chat = await this.chatRepository.findOrCreateChat(
-      requesterId,
-      requesteeId
-    );
+    let chat = await this.chatRepository.findOrCreateChat(requesterId, requesteeId)
     const { id: chatId } = chat;
 
     // create a payment request
+    const paymentRequest = await this.paymentRepository.createPaymentRequest(requesterId, requesteeId, amount)
+
+    // create a message
+    const message = await this.chatRepository.createMessage(chatId, requesterId, `Payment request of ${amount}`, paymentRequest.id)
+
+    // add the payment request to the message
+    message.dataValues.PaymentRequest = paymentRequest
+
+    // get the socket.io instance and emit the payment request to the chat room
+    const io = await req.app.get("io");
+    io.to(`chat-${chatId}`).emit('payment request', message)
+
+    // send a notification to the requestee
+    const requesteeUser = await this.userRepository.getById(requesteeId)
+    // await new PaymentRequestNotification(requesteeUser.fcm, message, user).sendNotification();
+  }
+
+  async sendPayment(requesterId, requesteeId, amount) {
+    console.log("requesterId, requesteeId, amount",requesterId, requesteeId, amount);
+    const users  = await userService.getUsersByIds(requesteeId);
+    const user = users[0];
     const paymentRequest = await this.paymentRepository.createPaymentRequest(
       requesterId,
       requesteeId,
       amount
     );
 
-    // create a message
-    const message = await this.chatRepository.createMessage(
-      chatId,
-      requesterId,
-      `Payment request of ${amount}`,
-      paymentRequest.id
+    const userUpdate = await userService.updateUserProfile(
+      user,
+      paymentRequest
     );
-
-    // add the payment request to the message
-    message.dataValues.PaymentRequest = paymentRequest;
-
-    // get the socket.io instance and emit the payment request to the chat room
-    const io = await req.app.get("io");
-    io.to(`chat-${chatId}`).emit("payment request", message);
-
-    // send a notification to the requestee
-    const requesteeUser = await this.userRepository.getById(requesteeId);
-    // await new PaymentRequestNotification(requesteeUser.fcm, message, user).sendNotification();
-  }
-
-  async sendPayment(requesterId, requesteeId, amount, user, req) {
-    // get chat id if chat exists else create chat
-    let chat = await this.chatRepository.findOrCreateChat(
-      requesterId,
-      requesteeId
-    );
-    const { id: chatId } = chat;
-
-    // create a payment request with status 'paid'
-    const paymentRequest = await this.paymentRepository.createPaymentRequest(
-      requesterId,
-      requesteeId,
-      amount,
-      "accepted"
-    );
-
-    // create a message
-    const message = await this.chatRepository.createMessage(
-      chatId,
-      requesterId,
-      `Payment of ${amount}`,
-      paymentRequest.id
-    );
-
-    // add the payment request to the message
-    message.dataValues.PaymentRequest = paymentRequest;
-
-    // transfer the amount from the requester to the requestee
-    this.transferBalance(requesteeId, requesterId, amount)
-      .then(() => {
-        // Handle success
-      })
-      .catch((error) => {
-        if (error instanceof InSufficientBalance) {
-          return socket.emit("error", "Not enough balance");
-        }
-      });
-
-    // get the socket.io instance and emit the payment request to the chat room
-    const io = await req.app.get("io");
-    io.to(`chat-${chatId}`).emit("payment", message);
-
-    // send a notification to the requestee
-    const requesteeUser = await this.userRepository.getById(requesteeId);
-    // await new PaymentReceivedNotification(requesteeUser.fcm, message, user).sendNotification();
-    const transaction = await this.chatRepository.getTransactionById(
-      paymentRequest.id
-    );
-    return transaction;
+    return userUpdate;
   }
 
   async transferBalance(fromUserId, toUserId, amount) {

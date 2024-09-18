@@ -856,7 +856,6 @@ class UserController {
       res.status(500).json({ message: "Internal server error" });
     }
   }
-
   async updateUserRole(req, res){
     try {
       const { role } = req.body;
