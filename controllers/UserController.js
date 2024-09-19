@@ -860,10 +860,15 @@ class UserController {
     try {
       const { role , requesteeId } = req.body;
       const requesteeUser = await userService.getUserById(requesteeId);
-      const updatedUser = await userService.updateUserProfile(requesteeUser, {
-        role,
-      });
-      res.json({ user: updatedUser });
+      if(requesteeUser){
+        const updatedUser = await userService.updateUserProfile(requesteeUser, {
+          role,
+        });
+        res.json({ user: updatedUser });
+      }
+      else{
+        return res.status(404).json({ message: "User not found" });
+      }
     } catch (error) {
       console.error(error);
       res.status(500).json({ message: "Internal server error" });
