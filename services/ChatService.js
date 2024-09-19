@@ -181,20 +181,41 @@ class CartService {
   }
 
   async sendPayment(requesterId, requesteeId, amount) {
-    console.log("requesterId, requesteeId, amount",requesterId, requesteeId, amount);
-    const users  = await userService.getUsersByIds(requesteeId);
-    const user = users[0];
-    const paymentRequest = await this.paymentRepository.createPaymentRequest(
-      requesterId,
-      requesteeId,
-      amount
-    );
+     if(requesterId === requesteeId){
+      const users  = await userService.getUsersByIds(requesteeId);
+      const user = users[0];
+      const paymentRequest = await this.paymentRepository.createPaymentRequest(
+        requesterId,
+        requesteeId,
+        amount
+      );
 
-    const userUpdate = await userService.updateUserProfile(
-      user,
-      paymentRequest
-    );
-    return userUpdate;
+      const userUpdate = await userService.updateUserProfile(
+        user,
+        paymentRequest
+      );
+      return userUpdate;  
+    } else {
+      const requesterUsers  = await userService.getUsersByIds(requesterId);
+      const requesterUser = requesterUsers[0];
+      
+      const requesteeUsers  = await userService.getUsersByIds(requesteeId);
+      const requesteeUser = requesteeUsers[0];
+
+      const paymentRequest = await this.paymentRepository.createPaymentRequest(
+        requesterId,
+        requesteeId,
+        amount,
+        'deduction'
+      );
+      const userUpdate = await userService.updateUserProfile(
+        requesterUser,
+        paymentRequest,
+        requesteeUser
+      );
+      return userUpdate;  
+    }
+   
   }
 
   async transferBalance(fromUserId, toUserId, amount) {

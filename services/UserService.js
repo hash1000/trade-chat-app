@@ -81,8 +81,7 @@ class UserService {
     }
   }
 
-  async updateUserProfile(user, profileData) {
-    let amount = 0;
+  async updateUserProfile(user, profileData, requesteeUser) {
     try {
       if (profileData.phoneNumber) {
         user.phoneNumber = profileData.phoneNumber;
@@ -121,11 +120,18 @@ class UserService {
         user.description = profileData.description;
       }
       if (profileData.amount) {
-        amount = user.personalWalletBalance + Number(profileData.amount);
-        user.personalWalletBalance = amount;
+        if(profileData.status === 'deduction'){
+          user.personalWalletBalance -= Number(profileData.amount);  
+          requesteeUser.personalWalletBalance += Number(profileData.amount);
+          await requesteeUser.save();
+        }else{
+          user.personalWalletBalance += Number(profileData.amount);
+        }
       }
-      await user.save();
 
+   // Save both user and requesteeUser
+   await user.save(); // Save the main user
+ 
       return user;
     } catch (error) {
       throw new Error(`Failed to update user profile: ${error.message}`);

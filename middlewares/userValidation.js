@@ -141,6 +141,7 @@ exports.userDeleteValidation = [
 // User Role Update
 exports.userRoleUpdateValidation = [
   body("role").notEmpty().withMessage("Role is required"),
+  body("requesteeId").notEmpty().withMessage("id is required"),
   handleValidationErrors,
 ];
 // Validation middleware for updating profile

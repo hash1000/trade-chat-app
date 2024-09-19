@@ -858,9 +858,9 @@ class UserController {
   }
   async updateUserRole(req, res){
     try {
-      const { role } = req.body;
-      const user = req.user;
-      const updatedUser = await userService.updateUserProfile(user, {
+      const { role , requesteeId } = req.body;
+      const requesteeUser = await userService.getUserById(requesteeId);
+      const updatedUser = await userService.updateUserProfile(requesteeUser, {
         role,
       });
       res.json({ user: updatedUser });
