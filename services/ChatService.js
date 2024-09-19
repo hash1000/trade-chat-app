@@ -200,20 +200,25 @@ class CartService {
       const requesterUser = requesterUsers[0];
       
       const requesteeUsers  = await userService.getUsersByIds(requesteeId);
-      const requesteeUser = requesteeUsers[0];
+      if(requesteeUsers.length > 0){
+        const requesteeUser = requesteeUsers[0];
 
-      const paymentRequest = await this.paymentRepository.createPaymentRequest(
-        requesterId,
-        requesteeId,
-        amount,
-        'deduction'
-      );
-      const userUpdate = await userService.updateUserProfile(
-        requesterUser,
-        paymentRequest,
-        requesteeUser
-      );
-      return userUpdate;  
+        const paymentRequest = await this.paymentRepository.createPaymentRequest(
+          requesterId,
+          requesteeId,
+          amount,
+          'deduction'
+        );
+        const userUpdate = await userService.updateUserProfile(
+          requesterUser,
+          paymentRequest,
+          requesteeUser
+        );
+        return userUpdate;  
+      }else{
+        return { message: `User with ID ${requesteeId} not found` }; 
+      }
+
     }
    
   }
