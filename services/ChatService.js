@@ -194,7 +194,10 @@ class CartService {
         user,
         paymentRequest
       );
-      return userUpdate;  
+      if(userUpdate){
+
+        return paymentRequest;  
+      }
     } else {
       const requesterUsers  = await userService.getUsersByIds(requesterId);
       const requesterUser = requesterUsers[0];
@@ -214,7 +217,10 @@ class CartService {
           paymentRequest,
           requesteeUser
         );
-        return userUpdate;  
+        if(userUpdate){
+
+          return paymentRequest;  
+        } 
       }else{
         return { message: `User with ID ${requesteeId} not found` }; 
       }
