@@ -206,6 +206,7 @@ class UserService {
                 settings:{
                   tags: inv.settings.tags, 
                 },
+                role: inv.profilePic,
                 createdAt: inv.createdAt,
                 updatedAt: inv.updatedAt,
                 phoneNumber: inv.phoneNumber
