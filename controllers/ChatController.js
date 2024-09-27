@@ -178,17 +178,23 @@ class ChatController {
   }
 
   async sendPayment(req, res) {
-    const { amount, requesteeId } = req.body;
-    const { id: requesterId } = req.user;
-    const payment = await chatService.sendPayment(
-      Number(requesterId),
-      Number(requesteeId),
-      amount,
-      req.user,
-      req
-    );
-    res.json(payment);
+    try {
+      const { amount, requesteeId } = req.body;
+      const { id: requesterId } = req.user;
+  
+      // Call the payment service to handle the payment
+      const payment = await chatService.sendPayment(
+        Number(requesterId),
+        Number(requesteeId),
+        amount
+      );
+  
+      res.status(200).json(payment);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
   }
+  
 
   async bulkForwardMessages(req, res) {
     const {

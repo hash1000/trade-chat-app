@@ -181,53 +181,68 @@ class CartService {
   }
 
   async sendPayment(requesterId, requesteeId, amount) {
-     if(requesterId === requesteeId){
-      const users  = await userService.getUsersByIds(requesteeId);
-      const user = users[0];
-      const paymentRequest = await this.paymentRepository.createPaymentRequest(
-        requesterId,
-        requesteeId,
-        amount
-      );
-
-      const userUpdate = await userService.updateUserProfile(
-        user,
-        paymentRequest
-      );
-      if(userUpdate){
-
-        return paymentRequest;  
-      }
-    } else {
-      const requesterUsers  = await userService.getUsersByIds(requesterId);
-      const requesterUser = requesterUsers[0];
-      
-      const requesteeUsers  = await userService.getUsersByIds(requesteeId);
-      if(requesteeUsers.length > 0){
-        const requesteeUser = requesteeUsers[0];
-
+    // Prevent self-payment
+    if (requesterId === requesteeId) {
+      try {
+        // Get user details for the requestee
+        const users = await userService.getUsersByIds(requesteeId);
+        const user = users[0];
+  
+        // Create a payment request
         const paymentRequest = await this.paymentRepository.createPaymentRequest(
           requesterId,
           requesteeId,
-          amount,
-          'deduction'
+          amount
         );
-        const userUpdate = await userService.updateUserProfile(
-          requesterUser,
-          paymentRequest,
-          requesteeUser
-        );
-        if(userUpdate){
-
-          return paymentRequest;  
-        } 
-      }else{
-        return { message: `User with ID ${requesteeId} not found` }; 
+  
+        // Update the user's profile after the payment request
+        const userUpdate = await userService.updateUserProfile(user, paymentRequest);
+        if (userUpdate) {
+          console.log("user",user);
+          return { paymentRequest, user };
+        }
+      } catch (error) {
+        throw new Error(`Failed to process payment: ${error.message}`);
       }
-
+    } else {
+      try {
+        // Get details for both requester and requestee
+        const requesterUsers = await userService.getUsersByIds(requesterId);
+        const requesterUser = requesterUsers[0];
+  
+        const requesteeUsers = await userService.getUsersByIds(requesteeId);
+        if (requesteeUsers.length > 0) {
+          const requesteeUser = requesteeUsers[0];
+  
+          // Create a payment request
+          const paymentRequest = await this.paymentRepository.createPaymentRequest(
+            requesterId,
+            requesteeId,
+            amount,
+            'deduction' // Adding payment type as 'deduction'
+          );
+  
+          // Update both the requester and requestee profiles
+          const userUpdate = await userService.updateUserProfile(
+            requesterUser,
+            paymentRequest,
+            requesteeUser
+          );
+  
+          if (userUpdate) {
+            
+          console.log("requesterUsers, requesteeUsers",requesterUsers, requesteeUsers);
+            return { paymentRequest, requesterUsers, requesteeUsers };
+          }
+        } else {
+          return { message: `User with ID ${requesteeId} not found` };
+        }
+      } catch (error) {
+        throw new Error(`Failed to process payment: ${error.message}`);
+      }
     }
-   
   }
+  
 
   async transferBalance(fromUserId, toUserId, amount) {
     const t = await sequelize.transaction();
