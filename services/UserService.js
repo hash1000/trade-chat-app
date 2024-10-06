@@ -284,7 +284,6 @@ class UserService {
   }
 
   async getUsersByIds(userIds) {
-    console.log("fghj");
     return userRepository.getUsersById(userIds);
   }
 

@@ -159,16 +159,37 @@ class CartService {
   }
 
   async sendPaymentRequest(requesterId, requesteeId, amount) {
-    // create a payment request
-    const paymentRequest = await this.paymentRepository.createPaymentRequest(
-      requesterId,
-      requesteeId,
-      amount
-    );
-    
-    return paymentRequest;
+    try {
+      // Fetch the requestee's user details
+      const users = await userService.getUsersByIds(requesteeId);
+      const user = users[0];
+      
+      // Check if the requestee exists
+      if (!user) {
+        return { message: `User with ID ${requesteeId} not found` };
+      }
+  
+      // Proceed to create the payment request
+      const paymentRequest = await this.paymentRepository.createPaymentRequest(
+        requesterId,
+        requesteeId,
+        amount
+      );
+  
+      // Handle case where payment request creation fails
+      if (!paymentRequest) {
+        throw new Error("Failed to create payment request.");
+      }
+  
+      // Return the successfully created payment request
+      return paymentRequest;
+    } catch (error) {
+      // Log and throw the error for further handling
+      console.error("Error in sendPaymentRequest:", error.message);
+      throw new Error(`Payment request failed: ${error.message}`);
+    }
   }
-
+  
   async sendPayment(requesterId, requesteeId, amount) {
     const paymentRequest = await this.paymentRepository.createPaymentRequest(
       requesterId,
