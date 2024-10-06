@@ -170,9 +170,7 @@ class ChatController {
     const paymentRequest = await chatService.sendPaymentRequest(
       Number(requesterId),
       Number(requesteeId),
-      amount,
-      req.user,
-      req
+      amount
     );
     res.json(paymentRequest);
   }
