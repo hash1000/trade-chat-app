@@ -30,6 +30,7 @@ const {
   NewMessageNotification,
 } = require("../notifications");
 const { message } = require("../templates/email/email_verification");
+const { mainModule } = require("process");
 const userService = new UserService();
 
 class CartService {
@@ -157,92 +158,39 @@ class CartService {
     );
   }
 
-  async sendPaymentRequest (requesterId, requesteeId, amount, user, req) {
-    // get chat id if chat exists else create chat
-    let chat = await this.chatRepository.findOrCreateChat(requesterId, requesteeId)
-    const { id: chatId } = chat;
-
+  async sendPaymentRequest(requesterId, requesteeId, amount) {
     // create a payment request
-    const paymentRequest = await this.paymentRepository.createPaymentRequest(requesterId, requesteeId, amount)
-
-    // create a message
-    const message = await this.chatRepository.createMessage(chatId, requesterId, `Payment request of ${amount}`, paymentRequest.id)
-
-    // add the payment request to the message
-    message.dataValues.PaymentRequest = paymentRequest
-
-    // get the socket.io instance and emit the payment request to the chat room
-    const io = await req.app.get("io");
-    io.to(`chat-${chatId}`).emit('payment request', message)
-
-    // send a notification to the requestee
-    const requesteeUser = await this.userRepository.getById(requesteeId)
-    // await new PaymentRequestNotification(requesteeUser.fcm, message, user).sendNotification();
+    const paymentRequest = await this.paymentRepository.createPaymentRequest(
+      requesterId,
+      requesteeId,
+      amount
+    );
+    
+    return paymentRequest;
   }
 
   async sendPayment(requesterId, requesteeId, amount) {
-    // Prevent self-payment
-    if (requesterId === requesteeId) {
-      try {
-        // Get user details for the requestee
-        const users = await userService.getUsersByIds(requesteeId);
-        const user = users[0];
-  
-        // Create a payment request
-        const paymentRequest = await this.paymentRepository.createPaymentRequest(
-          requesterId,
-          requesteeId,
-          amount
-        );
-  
-        // Update the user's profile after the payment request
-        const userUpdate = await userService.updateUserProfile(user, paymentRequest);
-        if (userUpdate) {
-          console.log("user",user);
-          return { paymentRequest, user };
+    const paymentRequest = await this.paymentRepository.createPaymentRequest(
+      requesterId,
+      requesteeId,
+      amount,
+      "accepted"
+    );
+
+    this.transferBalance(requesteeId, requesterId, amount)
+      .then(() => {
+        // Handle success
+      })
+      .catch((error) => {
+        if (error instanceof InSufficientBalance) {
+          return socket.emit("error", "Not enough balance");
         }
-      } catch (error) {
-        throw new Error(`Failed to process payment: ${error.message}`);
-      }
-    } else {
-      try {
-        // Get details for both requester and requestee
-        const requesterUsers = await userService.getUsersByIds(requesterId);
-        const requesterUser = requesterUsers[0];
-  
-        const requesteeUsers = await userService.getUsersByIds(requesteeId);
-        if (requesteeUsers.length > 0) {
-          const requesteeUser = requesteeUsers[0];
-  
-          // Create a payment request
-          const paymentRequest = await this.paymentRepository.createPaymentRequest(
-            requesterId,
-            requesteeId,
-            amount,
-            'deduction' // Adding payment type as 'deduction'
-          );
-  
-          // Update both the requester and requestee profiles
-          const userUpdate = await userService.updateUserProfile(
-            requesterUser,
-            paymentRequest,
-            requesteeUser
-          );
-  
-          if (userUpdate) {
-            
-          console.log("requesterUsers, requesteeUsers",requesterUsers, requesteeUsers);
-            return { paymentRequest, requesterUsers, requesteeUsers };
-          }
-        } else {
-          return { message: `User with ID ${requesteeId} not found` };
-        }
-      } catch (error) {
-        throw new Error(`Failed to process payment: ${error.message}`);
-      }
-    }
+      });
+    const transaction = await this.chatRepository.getTransactionById(
+      paymentRequest.id
+    );
+    return transaction;
   }
-  
 
   async transferBalance(fromUserId, toUserId, amount) {
     const t = await sequelize.transaction();

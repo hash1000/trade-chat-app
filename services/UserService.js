@@ -119,16 +119,6 @@ class UserService {
       if (profileData.description) {
         user.description = profileData.description;
       }
-      if (profileData.amount) {
-        if(profileData.status === 'deduction'){
-          user.personalWalletBalance -= Number(profileData.amount);  
-          requesteeUser.personalWalletBalance += Number(profileData.amount);
-          await requesteeUser.save();
-        }else{
-          user.personalWalletBalance += Number(profileData.amount);
-        }
-      }
-
    // Save both user and requesteeUser
    await user.save(); // Save the main user
  
