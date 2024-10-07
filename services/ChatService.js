@@ -217,6 +217,14 @@ class CartService {
 
     try {
       const sender = await User.findByPk(fromUserId);
+      
+      if (fromUserId === toUserId) {
+        sender.personalWalletBalance += amount;
+        await sender.save();
+        console.log(`Added ${amount} units to user's own wallet.`);
+        return;
+      }
+
       if (sender.personalWalletBalance >= amount) {
         sender.personalWalletBalance -= amount;
         await sender.save();
