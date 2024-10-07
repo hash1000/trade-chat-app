@@ -198,7 +198,7 @@ class CartService {
       "accepted"
     );
 
-    this.transferBalance(requesteeId, requesterId, amount)
+    this.transferBalance(requesterId, requesteeId, amount)
       .then(() => {
         // Handle success
       })
@@ -214,34 +214,20 @@ class CartService {
   }
 
   async transferBalance(fromUserId, toUserId, amount) {
-    const t = await sequelize.transaction();
 
     try {
-      // Deduct balance from the sender
-      const sender = await User.findByPk(fromUserId, { transaction: t });
+      const sender = await User.findByPk(fromUserId);
       if (sender.personalWalletBalance >= amount) {
         sender.personalWalletBalance -= amount;
-        await sender.save({ transaction: t });
+        await sender.save();
 
         // Add balance to the receiver
-        const receiver = await User.findByPk(toUserId, { transaction: t });
+        const receiver = await User.findByPk(toUserId);
         receiver.personalWalletBalance += amount;
-        await receiver.save({ transaction: t });
-
-        // Commit the transaction
-        await t.commit();
-
+        await receiver.save();
         console.log(`Successfully transferred ${amount} units.`);
-      } else {
-        await t.rollback();
-        throw new InSufficientBalance(
-          "Insufficient balance for the transfer.",
-          400
-        );
-      }
+      } 
     } catch (error) {
-      // If any error occurs, roll back the transaction
-      await t.rollback();
       console.error("Error transferring balance:", error);
       throw error;
     }
