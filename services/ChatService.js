@@ -163,24 +163,24 @@ class CartService {
       // Fetch the requestee's user details
       const users = await userService.getUsersByIds(requesteeId);
       const user = users[0];
-      
+
       // Check if the requestee exists
       if (!user) {
         return { message: `User with ID ${requesteeId} not found` };
       }
-  
+
       // Proceed to create the payment request
       const paymentRequest = await this.paymentRepository.createPaymentRequest(
         requesterId,
         requesteeId,
         amount
       );
-  
+
       // Handle case where payment request creation fails
       if (!paymentRequest) {
         throw new Error("Failed to create payment request.");
       }
-  
+
       // Return the successfully created payment request
       return paymentRequest;
     } catch (error) {
@@ -189,8 +189,22 @@ class CartService {
       throw new Error(`Payment request failed: ${error.message}`);
     }
   }
-  
+
   async sendPayment(requesterId, requesteeId, amount) {
+    const users = await userService.getUsersByIds(requesteeId);
+    const user = users[0];
+    const { role } = user;
+    // Check if the requestee exists
+    if (!user) {
+      return { message: `User with ID ${requesteeId} not found` };
+    }
+    if (requesterId === requesteeId && role !== "admin") {
+      return {
+        message: "Regular users cannot transfer balance to themselves.",
+        success: false,
+      };
+    }
+
     const paymentRequest = await this.paymentRepository.createPaymentRequest(
       requesterId,
       requesteeId,
@@ -214,11 +228,10 @@ class CartService {
   }
 
   async transferBalance(fromUserId, toUserId, amount) {
-
     try {
       const sender = await User.findByPk(fromUserId);
-      
-      if (fromUserId === toUserId) {
+      const { role } = sender;
+      if (fromUserId === toUserId && role === "admin") {
         sender.personalWalletBalance += amount;
         await sender.save();
         console.log(`Added ${amount} units to user's own wallet.`);
@@ -234,7 +247,7 @@ class CartService {
         receiver.personalWalletBalance += amount;
         await receiver.save();
         console.log(`Successfully transferred ${amount} units.`);
-      } 
+      }
     } catch (error) {
       console.error("Error transferring balance:", error);
       throw error;
