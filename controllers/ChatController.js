@@ -184,7 +184,7 @@ class ChatController {
       const payment = await chatService.sendPayment(
         Number(requesterId),
         Number(requesteeId),
-        amount
+        Number(amount)
       );
   
       res.status(200).json(payment);
