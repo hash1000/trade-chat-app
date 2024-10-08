@@ -198,7 +198,7 @@ class CartService {
     if (!user) {
       return { message: `User with ID ${requesteeId} not found` };
     }
-    if (requesterId === requesteeId && role !== "admin") {
+    if (requesterId === requesteeId && role.toLowerCase() !== "admin") {
       return {
         message: "Regular users cannot transfer balance to themselves.",
         success: false,
@@ -231,7 +231,7 @@ class CartService {
     try {
       const sender = await User.findByPk(fromUserId);
       const { role } = sender;
-      if (fromUserId === toUserId && role === "admin") {
+      if (fromUserId === toUserId && role.toLowerCase() === "admin") {
         sender.personalWalletBalance += amount;
         await sender.save();
         console.log(`Added ${amount} units to user's own wallet.`);
