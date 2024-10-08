@@ -363,17 +363,17 @@ class ChatRepository {
     // count total transactions, total outgoing transactions, total incoming transactions, total amount sent, total amount received
     const totalTransactions = transactions.count;
     const totalOutgoingTransactions = transactions.rows.filter(
-      (transaction) => transaction.requesteeId === userId
-    ).length;
-    const totalIncomingTransactions = transactions.rows.filter(
       (transaction) => transaction.requesterId === userId
     ).length;
+    const totalIncomingTransactions = transactions.rows.filter(
+      (transaction) => transaction.requesteeId === userId
+    ).length;
     const totalAmountSent = transactions.rows
-      .filter((transaction) => transaction.requesteeId === userId)
-      .reduce((acc, transaction) => acc + Number(transaction.amount), 0);
-    const totalAmountReceived = transactions.rows
       .filter((transaction) => transaction.requesterId === userId)
       .reduce((acc, transaction) => acc + Number(transaction.amount), 0);
+    const totalAmountReceived = transactions.rows
+      .filter((transaction) => transaction.requesteeId === userId)
+      .reduce((acc, transaction) => acc - Number(transaction.amount), 0);
     const transactionBalance = totalAmountReceived - totalAmountSent;
 
     // get transactions by month
