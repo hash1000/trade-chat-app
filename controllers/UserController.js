@@ -145,7 +145,7 @@ class UserController {
           if (description) {
             googleUser.description = description;
           }
-          if(settings){
+          if (settings) {
             googleUser.settings = settings;
           }
           req.body.googleUser = googleUser;
@@ -177,7 +177,7 @@ class UserController {
 
         if (profilePic) userData.profilePic = profilePic;
         if (description) userData.description = description;
-        if(settings) userData.settings = settings;
+        if (settings) userData.settings = settings;
 
         const newUser = await userService.createUser(userData);
         const token = jwt.sign(
@@ -240,7 +240,7 @@ class UserController {
       } else {
         if (profilePic) userData.profilePic = profilePic;
         if (description) userData.description = description;
-        if(settings) userData.settings = settings;
+        if (settings) userData.settings = settings;
 
         const updateUser = await userService.updateGoogleUser(
           userByEmail,
@@ -833,7 +833,7 @@ class UserController {
             age,
             profilePic,
             settings,
-            description
+            description,
           });
           res.json({ user: updatedUser });
         }
@@ -847,7 +847,7 @@ class UserController {
           age,
           profilePic,
           settings,
-          description
+          description,
         });
         res.json({ user: updatedUser });
       }
@@ -856,17 +856,18 @@ class UserController {
       res.status(500).json({ message: "Internal server error" });
     }
   }
-  async updateUserRole(req, res){
+  async updateUserRole(req, res) {
     try {
-      const { role , requesteeId } = req.body;
+      const { role, requesteeId } = req.body;
+      const lowerCaseRole = role.toLowerCase();
+      console.log(lowerCaseRole);
       const requesteeUser = await userService.getUserById(requesteeId);
-      if(requesteeUser){
+      if (requesteeUser) {
         const updatedUser = await userService.updateUserProfile(requesteeUser, {
-          role,
+          lowerCaseRole,
         });
         res.json({ user: updatedUser });
-      }
-      else{
+      } else {
         return res.status(404).json({ message: "User not found" });
       }
     } catch (error) {
