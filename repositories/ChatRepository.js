@@ -128,8 +128,8 @@ class ChatRepository {
       role: chat.user2.role,
       profilePic: chat.profilePic || chat.user2.profilePic,
       description: chat.description || chat.user2.description,
-      settings:{
-        tags: chat.tags || chat.user2.tags, 
+      settings: {
+        tags: chat.tags || chat.user2.tags,
       },
       createdAt: chat.createdAt,
       updatedAt: chat.updatedAt,
@@ -374,7 +374,12 @@ class ChatRepository {
     const totalAmountReceived = transactions.rows
       .filter((transaction) => transaction.requesteeId === userId)
       .reduce((acc, transaction) => acc - Number(transaction.amount), 0);
-    const transactionBalance = totalAmountReceived - totalAmountSent;
+    let transactionBalance;
+    if (totalAmountReceived > totalAmountSent) {
+      transactionBalance = totalAmountReceived - totalAmountSent;
+    } else {
+      transactionBalance = totalAmountSent - totalAmountReceived;
+    }
 
     // get transactions by month
     const transactionsByMonth = Object.values(
