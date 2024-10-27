@@ -58,33 +58,58 @@ class CartService {
     return { chatId: chat.id };
   }
   async inviteRequest(requesterId, requesteeId) {
-    // Create a new chat if it doesn't exist already
-    let chat = await this.chatRepository.findExistingChat(
-      requesterId,
-      requesteeId
-    );
-    if (!chat) {
-      chat = await this.chatRepository.createInvite(requesterId, requesteeId);
-    }
-
-    return { chatId: chat.id };
-  }
-  async inviteCancel(requesterId, requesteeId) {
-    // Create a new chat if it doesn't exist already
-    let chat = await this.chatRepository.findExistingChat(
-      requesterId,
-      requesteeId
-    );
-
-    if (!chat) {
+    try {
+      // Check if a chat already exists between the two users
+      let chat = await this.chatRepository.findExistingChat(requesterId, requesteeId);
+  
+      if (!chat) {
+        // If no chat exists, create a new invite
+        chat = await this.chatRepository.createInvite(requesterId, requesteeId);
+        return {
+          message: 'Successfully sent friend request.',
+          chatId: chat.id,
+        };
+      }
+  
       return {
-        message: `not sent any invite to this User not found:  ${requesterId}`,
+        message: 'Friend request already sent.',
+        chatId: chat.id,
       };
-    } else {
-      chat = await this.chatRepository.cancelInvite(requesterId, requesteeId);
+    } catch (error) {
+      console.error('Error in inviteRequest:', error);
+      return {
+        message: 'Failed to send friend request. Please try again later.',
+        error: error.message || 'Unknown error',
+      };
     }
-    return { chatId: chat };
   }
+  
+  async inviteCancel(requesterId, requesteeId) {
+    try {
+      // Check if a chat already exists between the two users
+      let chat = await this.chatRepository.findExistingChat(requesterId, requesteeId);
+  
+      if (!chat) {
+        // If no chat exists, return a not found message
+        return {
+          message: 'No friend request found to cancel.',
+        };
+      }
+  
+      // Cancel the invite
+      await this.chatRepository.cancelInvite(requesterId, requesteeId);
+      return {
+        message: 'Successfully canceled friend request.',
+      };
+    } catch (error) {
+      console.error('Error in inviteCancel:', error);
+      return {
+        message: 'Failed to cancel friend request. Please try again later.',
+        error: error.message || 'Unknown error',
+      };
+    }
+  }
+  
 
   async getChats(userId, page, pageSize) {
     return await this.chatRepository.getUserChat(userId, page, pageSize);

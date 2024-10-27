@@ -14,18 +14,19 @@ class ChatController {
     try {
       const { requesteeId } = req.body;
       const { id: userId } = req.user;
-  
+
       // Convert both IDs to numbers (or strings, depending on your needs)
       const requesteeIdNumber = Number(requesteeId);
       const userIdNumber = Number(userId);
-  
+
       // Check if the user is trying to send an invite to themselves
       if (requesteeIdNumber !== userIdNumber) {
-        console.log("if");
-        const chat = await chatService.inviteRequest(userIdNumber, requesteeIdNumber);
+        const chat = await chatService.inviteRequest(
+          userIdNumber,
+          requesteeIdNumber
+        );
         return res.status(200).json(chat);
       } else {
-        console.log("else");
         return res
           .status(400)
           .json({ error: "You cannot send an invite to yourself." });
@@ -38,16 +39,34 @@ class ChatController {
         .json({ error: "An error occurred while sending the invite." });
     }
   }
-  
-  
 
   async inviteCancel(req, res) {
-    const { requesteeId } = req.body;
-    const { id: userId } = req.user;
+    try {
+      const { requesteeId } = req.body;
+      const { id: userId } = req.user;
 
-    const chat = await chatService.inviteCancel(userId, requesteeId);
+      // Convert both IDs to numbers (or strings, depending on your needs)
+      const requesteeIdNumber = Number(requesteeId);
+      const userIdNumber = Number(userId);
 
-    res.json(chat);
+      //check itself
+      if (requesteeIdNumber !== userIdNumber) {
+        const chat = await chatService.inviteCancel(
+          userIdNumber,
+          requesteeIdNumber
+        );
+        return res.status(200).json(chat);
+      } else {
+        return res
+          .status(400)
+          .json({ error: "You cannot send an invite to yourself." });
+      }
+    } catch (error) {
+      console.error("Error in request:", error);
+      return res
+        .status(500)
+        .json({ error: "An error occurred while sending the invite." });
+    }
   }
 
   async updateChats(req, res) {
@@ -78,24 +97,23 @@ class ChatController {
   }
   async getSingleChat(req, res) {
     try {
-        const { requesteeId } = req.body;
-        const { id: userId } = req.user;
+      const { requesteeId } = req.body;
+      const { id: userId } = req.user;
 
-        const chatResponse = await chatService.getSingleChat(userId, requesteeId);
+      const chatResponse = await chatService.getSingleChat(userId, requesteeId);
 
-        return res.status(200).json({
-            status: "success",
-            data: chatResponse,
-        });
+      return res.status(200).json({
+        status: "success",
+        data: chatResponse,
+      });
     } catch (error) {
-        console.error(error);
-        return res.status(500).json({
-            status: "error",
-            message: "An error occurred while retrieving the chat.",
-        });
+      console.error(error);
+      return res.status(500).json({
+        status: "error",
+        message: "An error occurred while retrieving the chat.",
+      });
     }
-}
-
+  }
 
   async getMessages(req, res) {
     const { chatId } = req.params;
@@ -179,20 +197,19 @@ class ChatController {
     try {
       const { amount, requesteeId } = req.body;
       const { id: requesterId } = req.user;
-  
+
       // Call the payment service to handle the payment
       const payment = await chatService.sendPayment(
         Number(requesterId),
         Number(requesteeId),
         Number(amount)
       );
-  
+
       res.status(200).json(payment);
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
   }
-  
 
   async bulkForwardMessages(req, res) {
     const {
