@@ -28,6 +28,17 @@ class UserFavouriteRepository {
     })
   }
 
+  async cancelUserFavourite(requesterId, requesteeId) {
+    return  await UserFavourite.destroy({
+      where: {
+        [Op.or]: [
+          { userId: requesterId },
+          { profileId: requesteeId },
+        ],
+      }
+    });
+  }
+
   async get (userId, profileId) {
     const favourite = await UserFavourite.findOne({
       where: {

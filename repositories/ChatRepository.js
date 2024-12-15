@@ -75,7 +75,12 @@ class ChatRepository {
 
   async cancelInvite(requesterId, requesteeId) {
     return Chat.destroy({
-      where: { user1Id: requesterId, user2Id: requesteeId },
+      where: {
+        [Op.or]: [
+          { user1Id: requesterId },
+          { user2Id: requesteeId },
+        ],
+      }
     });
   }
 
@@ -138,6 +143,28 @@ class ChatRepository {
 
     return friends;
   }
+
+  async getBinaryUserChat(userId, page, pageSize) {
+    const limit = parseInt(pageSize, 10);
+    const offset = (page - 1) * limit;
+    const { Op } = require("sequelize");
+  
+    // Fetch chats where userId is either user1Id or user2Id
+    const chats = await Chat.findAndCountAll({
+      where: {
+        [Op.or]: [
+          { user1Id: userId },
+          { user2Id: userId },
+        ],
+      },
+      limit, // Paginate the results
+      offset,
+      order: [["updatedAt", "DESC"]], // Optional: Order by latest updated chats
+    });
+  
+    return chats;
+  }
+  
 
   async getMessages(chatId, page, pageSize, messageId, userId) {
     const chat = await Chat.findByPk(chatId);
