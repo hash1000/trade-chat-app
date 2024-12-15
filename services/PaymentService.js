@@ -1,10 +1,11 @@
 const PaymentRepository = require('../repositories/PaymentRepository')
+const PaymentRequest = require('../models/payment_request');
+const { Op } = require("sequelize");
 
 class PaymentService {
   constructor () {
     this.paymentRepository = new PaymentRepository()
   }
-
   async createPayment (paymentData) {
     // Perform any necessary validation or business logic checks here
     // Example: Check if the account type is valid, validate the payment amount, etc.
@@ -20,6 +21,18 @@ class PaymentService {
   async deletePayment (paymentId) {
     // Add any additional business logic or validation before deleting the payment
     return this.paymentRepository.delete(paymentId)
+  }
+
+  
+  async cancelPaymentRelation(requesterId, requesteeId) {
+    return PaymentRequest.destroy({
+      where: {
+        [Op.or]: [
+          { requesterId: requesterId },
+          { requesteeId: requesteeId }
+        ],
+      }
+    });
   }
 
   async getUserPayments (userId) {

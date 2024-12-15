@@ -132,9 +132,7 @@ router.post(
   authenticate,
   userController.makePrimary.bind(userController)
 );
-// delete user
-router.post(
-  "/delete-user",
+router.delete('/delete-user/:userId', 
   authenticate,
   userDeleteValidation,
   userController.userDelete.bind(userController)

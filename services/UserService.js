@@ -2,8 +2,14 @@ const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 const UserRepository = require("../repositories/UserRepository"); // Replace the path with the correct location of your UserRepository.js file
 const CustomError = require("../errors/CustomError");
+const ChatRepository = require("../repositories/ChatRepository");
+const PaymentService = require("./PaymentService");
+const UserFavouriteRepository = require("../repositories/UserFavouriteRepository");
 
 const userRepository = new UserRepository();
+const chat = new ChatRepository()
+const payment = new PaymentService()
+const UserFavourite = new UserFavouriteRepository()
 
 class UserService {
   async createUser(userData) {
@@ -176,6 +182,9 @@ class UserService {
   // delete User
   async deleteUser(userId) {
     // Call the UserRepository to get a user by email
+    await payment.cancelPaymentRelation(userId,userId);
+    await UserFavourite.cancelUserFavourite(userId,userId);
+    await chat.cancelInvite(userId,userId);
     return userRepository.delete(userId);
   }
 
