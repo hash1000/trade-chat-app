@@ -52,6 +52,14 @@ router.post(
   validateVerifyEmailOtp,
   userController.verifyOtp.bind(userController)
 );
+
+// twilio-otp
+router.post(
+  "/sms-otp-send",
+  userController.sendOtp.bind(userController)
+);
+
+
 // Forgot password route
 router.post(
   "/forgot-password",

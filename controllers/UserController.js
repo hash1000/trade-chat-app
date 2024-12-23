@@ -543,6 +543,23 @@ class UserController {
     }
   }
 
+  async sendOtp(req, res) {
+    try {
+      const { country_code, phoneNumber } = req.body;
+      // const otpResponse = await userService.createOtp(
+      //   country_code,
+      //   phoneNumber
+      // );
+      const otpResponse = await userService.createValidationRequest()
+      otpResponse
+        .status(200)
+        .send(`OTP send successfully ${JSON.stringify(otpResponse)}`);
+    } catch (error) {
+      const response = { status: "Failure", Details: error.message };
+      return res.status(402).send(response || "something wrong");
+    }
+  }
+
   async updateUserEmailOrPhoneNumber(req, res) {
     const { email, country_code, phoneNumber } = req.body;
     const user = req.user;
