@@ -17,6 +17,7 @@ router.get(
 );
 router.get(
   "/allTags",
+  authenticate,
   userProfileController.getAllTags.bind(userProfileController)
 );
 router.get(
