@@ -247,6 +247,11 @@ class UserService {
       throw new Error("Error while fetching users: " + error.message);
     }
   }
+
+  async getAllTags() {
+    return userRepository.getAllTags();
+  }
+  
 }
 
 module.exports = UserService;
