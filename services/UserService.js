@@ -5,6 +5,7 @@ const CustomError = require("../errors/CustomError");
 const ChatRepository = require("../repositories/ChatRepository");
 const PaymentService = require("./PaymentService");
 const UserFavouriteRepository = require("../repositories/UserFavouriteRepository");
+const UserTags = require("../models/userTags");
 
 const userRepository = new UserRepository();
 const chat = new ChatRepository()
@@ -117,8 +118,57 @@ class UserService {
         user.role = profileData.role;
       }
       if (profileData.settings) {
-        user.settings = profileData.settings;
+        // Check if tags exist in the incoming data or user settings
+        if (profileData.settings.tags || user.settings?.tags?.length > 0) {
+          // Fetch the existing UserTags entry
+          let userTag = await UserTags.findOne({
+            where: { userId: user.id },
+          });
+      
+          let tagArr = []; // Array to hold all tags
+      
+          // Combine tags from profileData and existing user settings
+          const incomingTags = profileData.settings.tags || [];
+          const existingTags = user.settings?.tags || [];
+          tagArr.push(...incomingTags, ...existingTags);
+      
+          // Fetch all available tags from the repository (e.g., Tags table)
+          const allTags = await userRepository.getAllTags();
+      
+          // Add tag names from the repository to the array
+          allTags.forEach(tag => tagArr.push(tag.name));
+      
+          // Remove duplicates
+          tagArr = [...new Set(tagArr)];
+      
+          // Save or update the UserTags table
+          if (userTag) {
+            await userTag.update({
+              tags: tagArr,
+              updatedAt: new Date(),
+            });
+          } else {
+            await UserTags.create({
+              userId: user.id,
+              tags: tagArr,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            });
+          }
+      
+          // Update user settings with merged tags
+          user.settings = {
+            ...user.settings, // Keep existing settings
+            ...profileData.settings, // Update with profileData settings
+            tags: tagArr, // Set updated tags
+          };
+      
+          // Save the updated user object (ensure you have a save method for the user entity)
+          await user.save();
+        }
       }
+      
+      
       if (profileData.profilePic) {
         user.profilePic = profileData.profilePic;
       }

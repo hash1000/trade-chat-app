@@ -52,6 +52,7 @@ router.post(
   validateVerifyEmailOtp,
   userController.verifyOtp.bind(userController)
 );
+
 // Forgot password route
 router.post(
   "/forgot-password",

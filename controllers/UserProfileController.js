@@ -151,6 +151,16 @@ class UserProfileController {
       res.status(500).json({ message: "Login getting users" });
     }
   }
+
+  async getAllTags(req, res) {
+    try {
+      const tags = await userProfileService.getAllTags();
+      return res.json({ defaultTags: tags });
+    } catch (error) {
+      console.error("Error during getting tags:", error);
+      res.status(500).json({ message: "Login getting users" });
+    }
+  }
 }
 
 module.exports = UserProfileController;

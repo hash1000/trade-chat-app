@@ -1,5 +1,5 @@
 const { Sequelize } = require('sequelize')
-const fs = require('fs')
+const fs = require('fs');
 
 const sequelize = new Sequelize({
   username: process.env.MYSQL_USER,
@@ -16,12 +16,21 @@ const sequelize = new Sequelize({
   //   }
   // }
 })
-sequelize.authenticate()
-  .then(() => {
-    console.log('Connection to the database has been established successfully.')
-  })
-  .catch(err => {
-    console.error('Unable to connect to the database:', err)
-  })
+
+// Async function to handle database connection and default tags insertion
+const initializeDatabase = async () => {
+  try {
+    // Authenticate the database connection
+    await sequelize.authenticate();
+    console.log('Connection to the database has been established successfully.');
+    
+  } catch (error) {
+    console.error('Error occurred:', error);
+  }
+};
+
+// Call the initialization function
+initializeDatabase();
+  
 
 module.exports = sequelize
