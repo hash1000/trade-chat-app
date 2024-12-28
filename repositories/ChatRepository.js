@@ -7,6 +7,7 @@ const Message = require("../models/message");
 const PaymentRequest = require("../models/payment_request");
 const FavouritePayment = require("../models/favourite_payments");
 const UserFavourite = require("../models/user_favourites");
+const UserTags = require("../models/userTags");
 
 class ChatRepository {
   async findChat(requesterId, requesteeId) {
@@ -261,7 +262,7 @@ class ChatRepository {
     };
   }
 
-  async updateFriend(
+  async updateFriend( 
     requesterId,
     requesteeId,
     userName,
@@ -280,6 +281,21 @@ class ChatRepository {
         where: { user1Id: requesterId, user2Id: requesteeId },
       }
     );
+    let newTag=[];
+    let userTag = await UserTags.findOne({
+      where: { userId: requesterId },
+    });
+    newTag.push(...userTag.tags,...tags)
+    newTag=[...new Set(newTag)]
+    // userTag.tags
+    let updateUserList = await userTag.update({
+      tags: newTag,
+      updatedAt: new Date(),
+    },{
+      where: {
+        userId: requesterId
+      },
+    });
     return [updateFriend];
   }
 

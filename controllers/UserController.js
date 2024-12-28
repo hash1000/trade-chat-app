@@ -472,7 +472,7 @@ class UserController {
       try {
         decoded = await decode(verification_key);
       } catch (err) {
-        const response = { Status: "Failure", Details: "Bad Request" };
+        const response = { Status: "Failure", Details: "verification Failed" };
         return res.status(400).send(response);
       }
       var obj = JSON.parse(decoded);

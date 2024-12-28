@@ -1,8 +1,8 @@
 const Chat = require("../models/chat");
 const Friends = require("../models/friends");
-const Tags = require("../models/tags");
 const User = require("../models/user");
 const { Op } = require("sequelize");
+const UserTags = require("../models/userTags");
 
 class UserRepository {
   // Create a new user
@@ -305,10 +305,12 @@ class UserRepository {
     return User.update(profileData, { where: { id } });
   }
 
-  async getAllTags() {
+  async getUserTags(user) {
     try {
-      const tags = await Tags.findAll(); // Fetch all tags directly
-      return tags; // Returns all tags as an array
+      let userTag = await UserTags.findOne({
+        where: { userId: user.id },
+      }); // Fetch all user tags directly
+      return userTag;
     } catch (error) {
       console.error("Error fetching tags:", error);
       throw new Error("Error while fetching tags: " + error.message);
