@@ -132,12 +132,6 @@ class UserService {
           const existingTags = user.settings?.tags || [];
           tagArr.push(...incomingTags, ...existingTags);
       
-          // Fetch all available tags from the repository (e.g., Tags table)
-          const allTags = await userRepository.getAllTags();
-      
-          // Add tag names from the repository to the array
-          allTags.forEach(tag => tagArr.push(tag.name));
-      
           // Remove duplicates
           tagArr = [...new Set(tagArr)];
       
@@ -146,6 +140,10 @@ class UserService {
             await userTag.update({
               tags: tagArr,
               updatedAt: new Date(),
+            },{
+              where: {
+                userId: user.id
+              },
             });
           } else {
             await UserTags.create({
@@ -157,6 +155,7 @@ class UserService {
           }
       
           // Update user settings with merged tags
+          //dectructure only which has more key value in object
           user.settings = {
             ...user.settings, // Keep existing settings
             ...profileData.settings, // Update with profileData settings

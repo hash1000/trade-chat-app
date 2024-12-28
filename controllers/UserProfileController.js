@@ -81,7 +81,7 @@ class UserProfileController {
   }
   async createFavourite(req, res) {
     try {
-      
+
       const { userId: profileId, status } = req.params;
       const userId = req.user.id;
       if (status === "add") {
@@ -142,6 +142,7 @@ class UserProfileController {
       res.status(500).json({ message: "Internal server error" });
     }
   }
+
   async getAllUsers(req, res) {
     try {
       const users = await userProfileService.getAllUsersProfile();
@@ -152,10 +153,11 @@ class UserProfileController {
     }
   }
 
-  async getAllTags(req, res) {
+  async getUserTags(req, res) {
     try {
-      const tags = await userProfileService.getAllTags();
-      return res.json({ defaultTags: tags });
+      const user = req.user;
+      const tags = await userProfileService.getUserTags(user);
+      return res.json({ message:"updated userTage list with friend tags", userTags: tags });
     } catch (error) {
       console.error("Error during getting tags:", error);
       res.status(500).json({ message: "Login getting users" });

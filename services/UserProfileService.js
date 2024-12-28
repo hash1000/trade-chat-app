@@ -248,8 +248,8 @@ class UserService {
     }
   }
 
-  async getAllTags() {
-    return userRepository.getAllTags();
+  async getUserTags(user) {
+    return userRepository.getUserTags(user);
   }
   
 }

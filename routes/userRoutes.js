@@ -16,9 +16,9 @@ router.get(
   userProfileController.getAllUsers.bind(userProfileController)
 );
 router.get(
-  "/allTags",
+  "/userTags",
   authenticate,
-  userProfileController.getAllTags.bind(userProfileController)
+  userProfileController.getUserTags.bind(userProfileController)
 );
 router.get(
   "/:userId/like/:status",
