@@ -115,38 +115,35 @@ class CartService {
     return await this.chatRepository.getUserChat(userId, page, pageSize);
   }
 
-  async updateChats(
-    requesterId,
-    requesteeId,
-    userName,
-    profilePic,
-    description,
-    tags
-  ) {
-    let chat = await this.chatRepository.findInvite(requesterId, requesteeId);
+  async updateChats(requesterId, requesteeId, userName, profilePic, description, tags) {
+    // Check if an invite exists between requester and requestee
+    const chat = await this.chatRepository.findInvite(requesterId, requesteeId);
+    
     if (!chat) {
       return {
-        message: `not sent any invite to this User not found:  ${requesterId}`,
+        message: `Invite not found between requester ID: ${requesterId} and requestee ID: ${requesteeId}`,
       };
-    } else {
-      chat = await this.chatRepository.updateFriend(
-        requesterId,
-        requesteeId,
-        userName,
-        profilePic,
-        description,
-        tags
-      );
     }
+  
+    // Update friend details
+    const updatedChat = await this.chatRepository.updateFriend(
+      requesterId,
+      requesteeId,
+      userName,
+      profilePic,
+      description,
+      tags
+    );
+  
     return {
       message:
-        chat > 0
-          ? `friend Name ${userName} successfully updated`
-          : `you cannot invite with this id: ${requesteeId} `,
-      chatId: chat,
+        updatedChat > 0
+          ? `Friend with name ${userName} successfully updated`
+          : `Failed to update friend details for requestee ID: ${requesteeId}`,
+      chatId: updatedChat,
     };
   }
-
+  
   async getMessages(chatId, page, pageSize, messageId, userId) {
     return await this.chatRepository.getMessages(
       chatId,
