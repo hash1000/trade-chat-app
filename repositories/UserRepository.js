@@ -307,19 +307,27 @@ class UserRepository {
 
   async getUserTags(user) {
     try {
-      let userTag = await UserTags.findOne({
+      // Fetch user tags from the database
+      const userTag = await UserTags.findOne({
         where: { userId: user.id },
-      }); // Fetch all user tags directly
-      // Check if userTags exist; return an appropriate message or fallback value
+      });
+  
+      // Check if user tags exist; return default values if not found
       if (!userTag) {
-        return { message: "No tags found for this user", tags: [] };
+        return {
+          message: "No tags found for this user",
+          tags: [],
+        };
       }
+  
+      // Return found tags
       return userTag;
     } catch (error) {
       console.error("Error fetching tags:", error);
       throw new Error("Error while fetching tags: " + error.message);
     }
   }
+  
 }
 
 module.exports = UserRepository;

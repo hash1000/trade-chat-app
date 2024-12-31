@@ -155,14 +155,19 @@ class UserProfileController {
 
   async getUserTags(req, res) {
     try {
-      const user = req.user;
+      const user = req.user; // Extract user from request
       const tags = await userProfileService.getUserTags(user);
-      return res.json({ message:"updated userTage list with friend tags", userTags: tags });
+  
+      return res.status(200).json({
+        message: "Updated user tag list with friend tags",
+        userTags: tags,
+      });
     } catch (error) {
-      console.error("Error during getting tags:", error);
-      res.status(500).json({ message: "Login getting users" });
+      console.error("Error during fetching tags:", error);
+      res.status(500).json({ message: "Error while getting user tags" });
     }
   }
+  
 }
 
 module.exports = UserProfileController;
