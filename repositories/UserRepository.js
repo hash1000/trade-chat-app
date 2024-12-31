@@ -171,8 +171,8 @@ class UserRepository {
     }
     await Chat.destroy({
       where: {
-        user2Id: userId
-      }
+        user2Id: userId,
+      },
     });
     return user.destroy();
   }
@@ -310,6 +310,10 @@ class UserRepository {
       let userTag = await UserTags.findOne({
         where: { userId: user.id },
       }); // Fetch all user tags directly
+      // Check if userTags exist; return an appropriate message or fallback value
+      if (!userTag) {
+        return { message: "No tags found for this user", tags: [] };
+      }
       return userTag;
     } catch (error) {
       console.error("Error fetching tags:", error);
