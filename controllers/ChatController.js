@@ -70,20 +70,27 @@ class ChatController {
   }
 
   async updateChats(req, res) {
-    const { requesteeId, userName, profilePic, description, tags } = req.body;
-    const { id: userId } = req.user;
-
-    const friendUpdate = await chatService.updateChats(
-      userId,
-      requesteeId,
-      userName,
-      profilePic,
-      description,
-      tags
-    );
-
-    res.json(friendUpdate);
+    try {
+      const { requesteeId, userName, profilePic, description, tags } = req.body;
+      const { id: userId } = req.user;
+  
+      const friendUpdate = await chatService.updateChats(
+        userId,
+        requesteeId,
+        userName,
+        profilePic,
+        description,
+        tags
+      );
+  
+      return res.status(200).json(friendUpdate);
+    } catch (error) {
+      console.error("Error updating chat:", error);
+      return res.status(500).json({ message: "Internal server error" });
+    }
   }
+  
+  
 
   async getChats(req, res) {
     const { page = 1, pageSize = 10 } = req.body;
