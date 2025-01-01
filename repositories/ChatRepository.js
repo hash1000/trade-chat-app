@@ -285,17 +285,28 @@ class ChatRepository {
     let userTag = await UserTags.findOne({
       where: { userId: requesterId },
     });
-    newTag.push(...userTag.tags,...tags)
-    newTag=[...new Set(newTag)]
-    // userTag.tags
-    let updateUserList = await userTag.update({
-      tags: newTag,
-      updatedAt: new Date(),
-    },{
-      where: {
-        userId: requesterId
-      },
-    });
+    if(userTag){
+      newTag.push(...userTag.tags,...tags)
+      newTag=[...new Set(newTag)]
+      // userTag.tags
+      await UserTags.update({
+        tags: newTag,
+        updatedAt: new Date(),
+      },{
+        where: {
+          userId: requesterId
+        },
+      });
+    }else {
+      newTag.push(...tags)
+      newTag=[...new Set(newTag)]
+      await UserTags.create({
+        userId: requesterId,
+        tags: newTag,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    }
     return [updateFriend];
   }
 
