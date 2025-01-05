@@ -422,6 +422,7 @@ class UserController {
       return res.status(400).send({ Status: "Failure", Details: err.message });
     }
   }
+
   async userDelete(req, res) {
     const { userId } = req.params;
     try {
@@ -444,6 +445,7 @@ class UserController {
         .json({ message: "An error occurred", error: error.message });
     }
   }
+  
   async verifyOtp(req, res) {
     try {
       var currentdate = new Date();
@@ -858,12 +860,10 @@ class UserController {
   async updateUserRole(req, res) {
     try {
       const { role, requesteeId } = req.body;
-      const lowerCaseRole = role.toLowerCase();
-      console.log(lowerCaseRole);
       const requesteeUser = await userService.getUserById(requesteeId);
       if (requesteeUser) {
         const updatedUser = await userService.updateUserProfile(requesteeUser, {
-          lowerCaseRole,
+          role: role.toLowerCase(),
         });
         res.json({ user: updatedUser });
       } else {
