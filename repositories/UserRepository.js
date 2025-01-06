@@ -22,6 +22,7 @@ class UserRepository {
           "email",
           "phoneNumber",
           "country_code",
+          "country",
           "gender",
           "profilePic",
           "description",
