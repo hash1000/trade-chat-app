@@ -92,7 +92,46 @@ exports.validateEmailOtp = [
   handleValidationErrors,
 ];
 
-// Validation middleware for verifying email OTP
+exports.validatePhoneOtp = [
+  body("country_code")
+    .notEmpty()
+    .withMessage("Country code is required")
+    .matches(/^\+\d{1,4}$/)
+    .withMessage("Invalid country code format. Use a format like +1, +91, etc."),
+  body("phoneNumber")
+    .notEmpty()
+    .withMessage("Phone number is required")
+    .isNumeric()
+    .withMessage("Phone number must be numeric")
+    .isLength({ min: 6, max: 15 })
+    .withMessage("Phone number must be between 6 to 15 digits"),
+  body("type").notEmpty().withMessage("Type is required"),
+  handleValidationErrors,
+];
+
+exports.validateVerifySmsOtp = [
+  body("otp")
+    .notEmpty()
+    .withMessage("OTP is required")
+    .isNumeric()
+    .withMessage("OTP must be a numeric value")
+    .isLength({ min: 6, max: 6 })
+    .withMessage("OTP must be 6 digits"),
+    body("country_code")
+    .notEmpty()
+    .withMessage("Country code is required")
+    .matches(/^\+\d{1,4}$/)
+    .withMessage("Invalid country code format. Use a format like +1, +91, etc."),
+    body("phoneNumber")
+    .notEmpty()
+    .withMessage("Phone number is required")
+    .matches(/^\+?[1-9]\d{1,14}$/)
+    .withMessage(
+      "Phone number must be in valid E.164 format (e.g., +1234567890)"
+    ),
+  handleValidationErrors,
+];
+
 exports.validateVerifyEmailOtp = [
   body("verification_key")
     .notEmpty()
@@ -101,6 +140,7 @@ exports.validateVerifyEmailOtp = [
   body("check").notEmpty().withMessage("Check value is required"),
   handleValidationErrors,
 ];
+
 exports.validateUpdateContact = [
   body("userName")
     .optional()

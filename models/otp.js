@@ -1,4 +1,3 @@
-// models/OTP.js
 const { DataTypes } = require("sequelize");
 const sequelize = require("../config/database");
 
@@ -22,6 +21,14 @@ const OTP = sequelize.define(
       type: DataTypes.BOOLEAN,
       defaultValue: false,
       allowNull: true,
+    },
+    contact: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+    contact_type: {
+      type: DataTypes.ENUM("email", "phoneNumber"),
+      allowNull: false,
     },
     created_at: {
       type: DataTypes.DATE,

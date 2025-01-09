@@ -1,13 +1,12 @@
 "use strict";
 
 module.exports = {
-  async up(queryInterface, Sequelize) {
+  up: async (queryInterface, Sequelize) => {
     await queryInterface.createTable("OTP", {
       id: {
         type: Sequelize.UUID,
         primaryKey: true,
         defaultValue: Sequelize.UUIDV4,
-        allowNull: false,
       },
       otp: {
         type: Sequelize.STRING,
@@ -22,20 +21,28 @@ module.exports = {
         defaultValue: false,
         allowNull: true,
       },
+      contact: {
+        type: Sequelize.STRING,
+        allowNull: false,
+      },
+      contact_type: {
+        type: Sequelize.ENUM("email", "phoneNumber"),
+        allowNull: false,
+      },
       created_at: {
         type: Sequelize.DATE,
         allowNull: false,
-        defaultValue: Sequelize.fn("now"),
+        defaultValue: Sequelize.fn("NOW"),
       },
       updated_at: {
         type: Sequelize.DATE,
         allowNull: false,
-        defaultValue: Sequelize.fn("now"),
+        defaultValue: Sequelize.fn("NOW"),
       },
     });
   },
 
-  async down(queryInterface, Sequelize) {
+  down: async (queryInterface, Sequelize) => {
     await queryInterface.dropTable("OTP");
   },
 };

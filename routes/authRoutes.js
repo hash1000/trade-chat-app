@@ -12,6 +12,8 @@ const {
   validateVerifyEmailOtp,
   emailPhoneNumberValidation,
   userDeleteValidation,
+  validateVerifySmsOtp,
+  validatePhoneOtp,
 } = require("../middlewares/userValidation");
 const decodeToken = require("../middlewares/decodeToken");
 const authenticate = require("../middlewares/authenticate");
@@ -46,12 +48,31 @@ router.post(
   userController.emailOtp.bind(userController)
 );
 
+// sendOTP_via_twilio
+router.post(
+  "/send-otp-sms",
+  authenticate,
+  validatePhoneOtp,
+  userController.smsOtp.bind(userController)
+);
+
 // verifyOtp
 router.post(
   "/verify-otp",
+  authenticate,
   validateVerifyEmailOtp,
   userController.verifyOtp.bind(userController)
 );
+
+
+// verifyOtp
+router.post(
+  "/verify-otp-sms",
+  authenticate,
+  validateVerifySmsOtp,
+  userController.verifySmsOtp.bind(userController)
+);
+
 
 // Forgot password route
 router.post(
