@@ -351,20 +351,22 @@ class ChatRepository {
     }
   }
 
-   async getUserTransactions(userId, specificUserId, from, to) {
-    // Define the base condition
+  async getUserTransactions(userId, specificUserId, from, to) {
+    // if specificUserId is provided, get transactions between the two users
     let condition = {
       status: "accepted",
       createdAt: {
         [Op.between]: [from, to],
       },
       [Op.or]: [
-        { requesteeId: userId },
-        { requesterId: userId },
+        {
+          requesteeId: userId,
+        },
+        {
+          requesterId: userId,
+        },
       ],
     };
-  
-    // If specificUserId is provided, refine the condition
     if (specificUserId) {
       condition = {
         status: "accepted",
@@ -383,8 +385,6 @@ class ChatRepository {
         ],
       };
     }
-  
-    // Fetch transactions with associated requester and requestee
     const transactions = await PaymentRequest.findAndCountAll({
       where: condition,
       order: [["createdAt", "DESC"]],
@@ -415,92 +415,94 @@ class ChatRepository {
         },
       ],
     });
-  
-    // Calculate total transactions
+
+    // count total transactions, total outgoing transactions, total incoming transactions, total amount sent, total amount received
     const totalTransactions = transactions.count;
-  
-    // Calculate total outgoing transactions (sent by user)
-    const outgoingTransactions = transactions.rows.filter(
+    const totalOutgoingTransactions = transactions.rows.filter(
       (transaction) => transaction.requesterId === userId
-    );
-    const totalOutgoingTransactions = outgoingTransactions.length;
-  
-    // Calculate total incoming transactions (received by user)
-    const incomingTransactions = transactions.rows.filter(
+    ).length;
+    const totalIncomingTransactions = transactions.rows.filter(
       (transaction) => transaction.requesteeId === userId
+    ).length;
+    const totalAmountSent = transactions.rows
+      .filter((transaction) => transaction.requesterId === userId)
+      .reduce((acc, transaction) => acc + Number(transaction.amount), 0);
+    const totalAmountReceived = transactions.rows
+      .filter((transaction) => transaction.requesteeId === userId)
+      .reduce((acc, transaction) => acc - Number(transaction.amount), 0);
+    let transactionBalance;
+    if (totalAmountReceived > totalAmountSent) {
+      transactionBalance = totalAmountReceived - totalAmountSent;
+    } else {
+      transactionBalance = totalAmountSent - totalAmountReceived;
+    }
+
+    // get transactions by month
+    const transactionsByMonth = Object.values(
+      transactions.rows.reduce((acc, transaction) => {
+        const month = transaction.createdAt.getMonth();
+        if (!acc[month]) {
+          acc[month] = { month, transactions: [] };
+        }
+        acc[month].transactions.push(transaction);
+        return acc;
+      }, {})
     );
-    const totalIncomingTransactions = incomingTransactions.length;
-  
-    // Calculate total amount sent
-    const totalAmountSent = outgoingTransactions.reduce(
-      (acc, transaction) => acc + Number(transaction.amount),
-      0
-    );
-  
-    // Calculate total amount received
-    const totalAmountReceived = incomingTransactions.reduce(
-      (acc, transaction) => acc + Number(transaction.amount),
-      0
-    );
-  
-    // Calculate transaction balance
-    const transactionBalance = totalAmountReceived - totalAmountSent;
-  
-    console.log("Transaction Balance:", transactionBalance);
-    console.log("Total Amount Sent:", totalAmountSent, "Total Amount Received:", totalAmountReceived);
-  
-    // Group transactions by month
-    const transactionsByMonth = transactions.rows.reduce((acc, transaction) => {
-      const month = transaction.createdAt.toLocaleString('default', { month: 'long' });
-      if (!acc[month]) {
-        acc[month] = { month, transactions: [] };
-      }
-      acc[month].transactions.push(transaction);
-      return acc;
-    }, {});
-  
-    const transactionsByMonthArray = Object.values(transactionsByMonth);
-  
-    // Fetch favourite payments for the user
+
+    // get favourite payments for the user and add to the response
     const favouritePayments = await FavouritePayment.findAll({
-      where: { userId },
-      order: [["createdAt", "DESC"]],
+      where: {
+        userId,
+      },
     });
-  
-    // Group favourite payments by month
-    const favouritePaymentsByMonth = favouritePayments.reduce((acc, payment) => {
-      const month = payment.createdAt.toLocaleString('default', { month: 'long' });
-      if (!acc[month]) {
-        acc[month] = { month, transactions: [] };
-      }
-      acc[month].transactions.push(payment);
-      return acc;
-    }, {});
-  
-    const favouritePaymentsByMonthArray = Object.values(favouritePaymentsByMonth);
-  
-    // Calculate percentages
-    const percentageOutgoingTransactions = totalTransactions
-      ? ((totalOutgoingTransactions / totalTransactions) * 100).toFixed(2)
-      : 0;
-  
-    const percentageIncomingTransactions = totalTransactions
-      ? ((totalIncomingTransactions / totalTransactions) * 100).toFixed(2)
-      : 0;
-  
+
+    // group the favourite payments by month
+    // put them as objects in an array with month key and its value
+    // and then transactions key and its value
+    const favouritePaymentsByMonth = Object.values(
+      favouritePayments.reduce((acc, payment) => {
+        const month = payment.createdAt.getMonth();
+        if (!acc[month]) {
+          acc[month] = {
+            month,
+            transactions: [],
+          };
+        }
+        acc[month].transactions.push(payment);
+        return acc;
+      }, {})
+    );
+
+    // count percentage of outgoing and incoming transactions
+    // get the percentage of outgoing transactions and parse in int
+
+    let percentageOutgoingTransactions =
+      (totalOutgoingTransactions / totalTransactions) * 100;
+    // get the percentage of incoming transactions and parse in int
+    let percentageIncomingTransactions =
+      (totalIncomingTransactions / totalTransactions) * 100;
+
+    // minus the greater percentage from 100 to get the lesser percentage to get a fixed number of 0 decimal places
+    if (percentageOutgoingTransactions > percentageIncomingTransactions) {
+      percentageOutgoingTransactions = 100 - percentageIncomingTransactions;
+    } else {
+      percentageIncomingTransactions = 100 - percentageOutgoingTransactions;
+    }
+
     return {
-      transactions: transactionsByMonthArray || [],
-      favouriteTransactions: favouritePaymentsByMonthArray || [],
+      transactions: transactionsByMonth || [],
+      favouriteTransactions: favouritePaymentsByMonth || [],
       totalTransactions: totalTransactions || 0,
       totalOutgoingTransactions: totalOutgoingTransactions || 0,
       totalIncomingTransactions: totalIncomingTransactions || 0,
       totalAmountSent: totalAmountSent || 0,
       totalAmountReceived: totalAmountReceived || 0,
       transactionBalance: transactionBalance || 0,
-      percentageOutgoingTransactions: Number(percentageOutgoingTransactions) || 0,
-      percentageIncomingTransactions: Number(percentageIncomingTransactions) || 0,
+      percentageOutgoingTransactions: percentageOutgoingTransactions || 0,
+      percentageIncomingTransactions: percentageIncomingTransactions || 0,
     };
   }
+
   async createMessage(
     chatId,
     userId,
