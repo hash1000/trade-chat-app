@@ -59,7 +59,6 @@ router.post(
 // verifyOtp
 router.post(
   "/verify-otp",
-  authenticate,
   validateVerifyEmailOtp,
   userController.verifyOtp.bind(userController)
 );
@@ -68,7 +67,6 @@ router.post(
 // verifyOtp
 router.post(
   "/verify-otp-sms",
-  authenticate,
   validateVerifySmsOtp,
   userController.verifySmsOtp.bind(userController)
 );
