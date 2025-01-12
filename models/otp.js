@@ -11,7 +11,7 @@ const OTP = sequelize.define(
     },
     otp: {
       type: DataTypes.JSON, 
-      allowNull: true,
+      allowNull: false,
     },
     expiration_time: {
       type: DataTypes.DATE,
