@@ -5,13 +5,13 @@ const OTP = sequelize.define(
   "OTP",
   {
     id: {
-      type: DataTypes.UUID,
+      type: DataTypes.INTEGER,
       primaryKey: true,
-      defaultValue: DataTypes.UUIDV4,
+      autoIncrement: true
     },
     otp: {
-      type: DataTypes.STRING,
-      allowNull: false,
+      type: DataTypes.JSON, 
+      allowNull: true,
     },
     expiration_time: {
       type: DataTypes.DATE,
@@ -48,3 +48,4 @@ const OTP = sequelize.define(
 );
 
 module.exports = OTP;
+

@@ -430,176 +430,161 @@ class UserController {
     }
   }
 
-  // smsOtp function
-  
-  async smsOtp(req, res) {
-    try {
-      const { country_code, phoneNumber, type } = req.body;
-      const user = req.user; // Assuming user is authenticated and available in req.user
-      console.log("user", user?.phoneNumber);
+ // Send OTP function
+async smsOtp(req, res) {
+  try {
+    const { country_code, phoneNumber, type } = req.body;
 
-      if (!country_code) {
-        return res
-          .status(400)
-          .send({ Status: "Failure", Details: "Country code not provided" });
-      }
-
-      if (!phoneNumber) {
-        return res
-          .status(400)
-          .send({ Status: "Failure", Details: "Phone number not provided" });
-      }
-
-      if (!type) {
-        return res
-          .status(400)
-          .send({ Status: "Failure", Details: "Type not provided" });
-      }
-
-      // Combine country code and phone number
-      const fullPhoneNumber = `${country_code}${phoneNumber}`;
-
-      // Generate OTP
-      const otp = otpGenerator.generate(6, {
-        digits: true,
-        lowerCaseAlphabets: false,
-        upperCaseAlphabets: false,
-        specialChars: false,
-      });
-
-      const now = new Date();
-      const expiration_time = AddMinutesToDate(now, 10); // OTP expires in 10 minutes
-
-      // Create OTP record in the database
-      await OTP.create({
-        contact: fullPhoneNumber,
-        otp: otp,
-        contact_type: "phoneNumber",
-        expiration_time: expiration_time,
-        verified: false,
-      });
-
-      // Determine message template based on type
-      let sms_message;
-      switch (type) {
-        case "VERIFICATION":
-          sms_message = `Your verification code is ${otp}. It will expire in 10 minutes.`;
-          break;
-        case "FORGET":
-          sms_message = `Your password reset code is ${otp}. It will expire in 10 minutes.`;
-          break;
-        case "2FA":
-          sms_message = `Your 2FA code is ${otp}. It will expire in 10 minutes.`;
-          break;
-        default:
-          return res
-            .status(400)
-            .send({ Status: "Failure", Details: "Incorrect Type Provided" });
-      }
-
-      // Uncomment to integrate SMS service like Twilio
-      await client.messages.create({
-        body: sms_message,
-        from: process.env.TWILIO_PHONE_NUMBER, // Twilio verified number
-        to: fullPhoneNumber,
-      });
-
-      console.log("SMS sent successfully:", sms_message);
-
-      return res.send({
-        Status: "Success",
-        Details: "OTP sent successfully",
-      });
-    } catch (err) {
-      console.error("Error in smsOtp function:", err);
-      return res.status(400).send({ Status: "Failure", Details: err.message });
-    }
-  }
-
-  /**
-   * Verify SMS OTP
-   */
-  async verifySmsOtp(req, res) {
-    try {
-      const { country_code, phoneNumber, otp } = req.body;
-
-
-      if (!phoneNumber) {
-        return res.status(400).send({
-          Status: "Failure",
-          Details: "Phone number not provided",
-        });
-      }
-
-      if (!otp) {
-        return res.status(400).send({
-          Status: "Failure",
-          Details: "OTP not provided",
-        });
-      }
-
-      const fullPhoneNumber = `${country_code}${phoneNumber}`;
-
-      // Retrieve OTP record from the database
-      const otpInstance = await OTP.findOne({
-        where: {
-          contact: fullPhoneNumber,
-          verified: false,
-        },
-      });
-
-      if (!otpInstance) {
-        return res.status(400).send({
-          Status: "Failure",
-          Details: "OTP not found or already used",
-        });
-      }
-
-      // Check if the OTP matches
-      if (otp !== otpInstance.otp) {
-        return res.status(400).send({
-          Status: "Failure",
-          Details: "OTP did not match",
-        });
-      }
-
-      // OTP verification successful, mark OTP as verified
-      otpInstance.verified = true;
-      await otpInstance.save();
-
-            
-      const userByPhoneNumber = await userService.getUserByPhoneNumber(
-        country_code,
-        phoneNumber
-      );
-
-      if (userByPhoneNumber) {
-        // user opt match
-        return res.status(200).send({
-          user: userByPhoneNumber,
-          Status: "Success",
-          Details: "OTP verified successfully",
-        });
-      }
-        else{
-        // signUp
-          return res.status(200).send({
-            user: null,
-            Status: "Success",
-            Details: "OTP verified successfully",
-          });
-        }
-
-   
-    
-    } catch (err) {
-      console.error("Error in verifySmsOtp function:", err);
+    if (!country_code || !phoneNumber || !type) {
       return res.status(400).send({
         Status: "Failure",
-        Details: err.message,
+        Details: "Country code, phone number, or type not provided",
       });
     }
+
+    const fullPhoneNumber = `${country_code}${phoneNumber}`;
+    const otp = otpGenerator.generate(6, {
+      digits: true,
+      lowerCaseAlphabets: false,
+      upperCaseAlphabets: false,
+      specialChars: false,
+    });
+    const expiration_time = AddMinutesToDate(new Date(), 10);
+
+    let otpInstance = await OTP.findOne({
+      where: { contact: fullPhoneNumber },
+    });
+    if (!otpInstance) {
+      otpInstance = await OTP.create({
+        contact: fullPhoneNumber,
+        otp: [otp], // Store as stringified array
+        expiration_time,
+        contact_type: "phoneNumber",
+        verified: false,
+      });
+    } else {
+      
+      if(!otpInstance.otp && otp){
+        await OTP.update(
+          { otp: [otp] },
+          { where: { id: otpInstance.id } }
+        )
+      }
+      else{
+        const otpArray = JSON.parse(otpInstance.otp);
+        otpArray.push(otp); // Add new OTP
+        otpInstance.otp = otpArray; // Convert array back to string
+        otpInstance.expiration_time = expiration_time;
+        await otpInstance.save();
+      } 
+    }
+
+    let sms_message;
+    switch (type) {
+      case "VERIFICATION":
+        sms_message = `Your verification code is ${otp}.please dont share this code Nasko.China`;
+        break;
+      case "FORGET":
+        sms_message = `Your password reset code is ${otp}. It will expire in 10 minutes.`;
+        break;
+      case "2FA":
+        sms_message = `Your 2FA code is ${otp}. It will expire in 10 minutes.`;
+        break;
+      default:
+        return res
+          .status(400)
+          .send({ Status: "Failure", Details: "Incorrect Type Provided" });
+    }
+
+
+    // Uncomment to send SMS via Twilio or another service
+    await client.messages.create({
+      body: sms_message,
+      from: process.env.TWILIO_PHONE_NUMBER,
+      to: fullPhoneNumber,
+    });
+
+    return res.send({
+      Status: "Success",
+      Details: "OTP sent successfully",
+    });
+  } catch (err) {
+    console.error("Error in sendOtp function:", err);
+    return res.status(400).send({ Status: "Failure", Details: err.message });
   }
+}
+
+// Verify SMS OTP
+async verifySmsOtp(req, res) {
+  try {
+    const { country_code, phoneNumber, otp } = req.body;
+
+    if (!country_code || !phoneNumber || !otp) {
+      return res.status(400).send({
+        Status: "Failure",
+        Details: "Country code, phone number, or OTP not provided",
+      });
+    }
+
+    const fullPhoneNumber = `${country_code}${phoneNumber}`;
+
+    const otpInstance = await OTP.findOne({
+      where: { contact: fullPhoneNumber },
+    });
+
+    if (!otpInstance) {
+      return res.status(400).send({
+        Status: "Failure",
+        Details: "OTP not found",
+      });
+    }
+
+    if(!otpInstance.otp && otp){
+      return res.status(400).send({
+        Status: "Failure",
+        Details: "OTP is already in used",
+      });
+    }
+    const otpArray = JSON.parse(otpInstance.otp); // Parse the OTP field
+
+    if (otpArray.length === 0) {
+      return res.status(400).send({
+        Status: "Failure",
+        Details: "No OTP available for verification",
+      });
+    }
+
+    const latestOtp = otpArray[otpArray.length - 1]; // Get the latest OTP
+
+    if (otp !== latestOtp) {
+      return res.status(400).send({
+        Status: "Failure",
+        Details: "OTP did not match",
+      });
+    }
+
+    if (new Date() > new Date(otpInstance.expiration_time)) {
+      return res.status(400).send({
+        Status: "Failure",
+        Details: "OTP has expired",
+      });
+    }
+
+    // Mark as verified and clear OTPs
+    otpInstance.verified = true;
+    otpInstance.otp = null; // Clear the OTP array
+    await otpInstance.save(); // Persist changes
+
+    return res.status(200).send({
+      Status: "Success",
+      Details: "OTP verified successfully",
+    });
+  } catch (err) {
+    console.error("Error in verifySmsOtp function:", err);
+    return res.status(400).send({ Status: "Failure", Details: err.message });
+  }
+}
+
 
   async userDelete(req, res) {
     const { userId } = req.params;
@@ -1090,7 +1075,6 @@ class UserController {
             brand: "QRM Trade Chat",
           })
           .then(async (resp) => {
-            console.log(resp.request_id);
             // Respond with the token and user data
             await userService.updateUserEmailCode(user.id, resp.request_id);
             res.json({ message: "SMS OTP Sent.", request_id: resp.request_id });
