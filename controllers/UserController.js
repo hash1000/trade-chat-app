@@ -523,17 +523,6 @@ class UserController {
     try {
       const { country_code, phoneNumber, otp } = req.body;
 
-      
-      const userByPhoneNumber = await userService.getUserByPhoneNumber(
-        country_code,
-        phoneNumber
-      );
-      if (!userByPhoneNumber) {
-        return res
-          .status(409)
-          .json({ message: "A user with this phone number not exists." });
-      }
-
 
       if (!phoneNumber) {
         return res.status(400).send({
@@ -578,10 +567,31 @@ class UserController {
       otpInstance.verified = true;
       await otpInstance.save();
 
-      return res.status(200).send({
-        Status: "Success",
-        Details: "OTP verified successfully",
-      });
+            
+      const userByPhoneNumber = await userService.getUserByPhoneNumber(
+        country_code,
+        phoneNumber
+      );
+
+      if (userByPhoneNumber) {
+        // user opt match
+        return res.status(200).send({
+          user: userByPhoneNumber,
+          Status: "Success",
+          Details: "OTP verified successfully",
+        });
+      }
+        else{
+        // signUp
+          return res.status(200).send({
+            user: null,
+            Status: "Success",
+            Details: "OTP verified successfully",
+          });
+        }
+
+   
+    
     } catch (err) {
       console.error("Error in verifySmsOtp function:", err);
       return res.status(400).send({

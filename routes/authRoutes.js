@@ -51,7 +51,6 @@ router.post(
 // sendOTP_via_twilio
 router.post(
   "/send-otp-sms",
-  authenticate,
   validatePhoneOtp,
   userController.smsOtp.bind(userController)
 );
@@ -59,6 +58,7 @@ router.post(
 // verifyOtp
 router.post(
   "/verify-otp",
+  authenticate,
   validateVerifyEmailOtp,
   userController.verifyOtp.bind(userController)
 );
