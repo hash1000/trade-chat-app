@@ -2,7 +2,7 @@ const { DataTypes } = require("sequelize");
 const sequelize = require("../config/database");
 
 const OTP = sequelize.define(
-  "OTP",
+  "otp",
   {
     id: {
       type: DataTypes.INTEGER,
@@ -11,7 +11,7 @@ const OTP = sequelize.define(
     },
     otp: {
       type: DataTypes.JSON, 
-      allowNull: false,
+      allowNull: true,
     },
     expiration_time: {
       type: DataTypes.DATE,
@@ -42,7 +42,7 @@ const OTP = sequelize.define(
     },
   },
   {
-    tableName: "OTP",
+    tableName: "otp",
     timestamps: false,
   }
 );
