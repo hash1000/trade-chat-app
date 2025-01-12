@@ -456,15 +456,6 @@ class UserController {
           .send({ Status: "Failure", Details: "Type not provided" });
       }
 
-      const userByPhoneNumber = await userService.getUserByPhoneNumber(
-        country_code,
-        phoneNumber
-      );
-      if (userByPhoneNumber) {
-        return res
-          .status(409)
-          .json({ message: "A user with this phone number already exists." });
-      }
       // Combine country code and phone number
       const fullPhoneNumber = `${country_code}${phoneNumber}`;
 
@@ -531,6 +522,18 @@ class UserController {
   async verifySmsOtp(req, res) {
     try {
       const { country_code, phoneNumber, otp } = req.body;
+
+      
+      const userByPhoneNumber = await userService.getUserByPhoneNumber(
+        country_code,
+        phoneNumber
+      );
+      if (!userByPhoneNumber) {
+        return res
+          .status(409)
+          .json({ message: "A user with this phone number not exists." });
+      }
+
 
       if (!phoneNumber) {
         return res.status(400).send({
