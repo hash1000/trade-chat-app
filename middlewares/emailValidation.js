@@ -44,7 +44,6 @@ async function decode(string) {
   var decrypted = decipher.update(string, "base64", "utf8");
   decrypted += decipher.final();
   const parsedData = JSON.parse(decrypted);
-
   // Check if the token is still valid (1 minute = 60,000 milliseconds)
   const currentTime = Date.now();
   if (currentTime - parsedData.timestamp > 80000) {

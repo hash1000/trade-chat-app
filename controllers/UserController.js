@@ -6,6 +6,7 @@ const CustomError = require("../errors/CustomError");
 const UnauthorizedError = require("../errors/UnauthorizedError");
 const EmailService = require("../services/EmailService");
 const OTP = require("../models/otp.js");
+const EmailOtp = require("../models/email_otp.js");
 var otpGenerator = require("otp-generator");
 const AddMinutesToDate = require("../utilities/addMinutesToDate");
 const nodemailer = require("nodemailer");
@@ -346,13 +347,11 @@ class UserController {
       const expiration_time = AddMinutesToDate(now, 10);
 
       // Create OTP instance in DB
-      const otp_instance = await OTP.create({
-        contact: email,
+      const otp_instance = await EmailOtp.create({
         otp: otp,
-        contact_type: "email",
         expiration_time: expiration_time,
-        verified: false,
       });
+
       // Create details object containing the email and otp id
       const details = {
         timestamp: now,
@@ -429,7 +428,106 @@ class UserController {
       return res.status(400).send({ Status: "Failure", Details: err.message });
     }
   }
+  
+  
+  async verifyEmailOtp(req, res) {
+    try {
+      var currentdate = new Date();
+      const { verification_key, otp, check } = req.body;
 
+      if (!verification_key) {
+        const response = {
+          Status: "Failure",
+          Details: "Verification Key not provided",
+        };
+        return res.status(400).send(response);
+      }
+      if (!otp) {
+        const response = { Status: "Failure", Details: "OTP not Provided" };
+        return res.status(400).send(response);
+      }
+      if (!check) {
+        const response = { Status: "Failure", Details: "Check not Provided" };
+        return res.status(400).send(response);
+      }
+
+      let decoded;
+      let user, token;
+
+      //Check if verification key is altered or not and store it in variable decoded after decryption
+      try {
+        decoded = await decode(verification_key);
+      } catch (err) {
+        const response = { Status: "Failure", Details: "verification Failed" };
+        return res.status(400).send(response);
+      }
+      var obj = JSON.parse(decoded);
+      const check_obj = obj.check;
+
+      // Check if the OTP was meant for the same email or phone number for which it is being verified
+      if (check_obj != check) {
+        const response = {
+          Status: "Failure",
+          Details: "OTP was not sent to this particular email or phone number",
+        };
+        return res.status(400).send(response);
+      }
+
+      const otp_instance = await EmailOtp.findOne({ where: { id: obj.otp_id } });
+      //Check if OTP is available in the DB
+      if (otp_instance != null) {
+        //Check if OTP is already used or not
+        if (otp_instance.verified != true) {
+          //Check if OTP is expired or not
+          if (dates.compare(otp_instance.expiration_time, currentdate) == 1) {
+            //Check if OTP is equal to the OTP in the DB
+            if (otp === otp_instance.otp) {
+              user = await userService.getUserByEmail(check);
+              if (!user) {
+                return res
+                  .status(400)
+                  .json({ message: "User with this email dose not exist" });
+              } else {
+                await userService.updateTokenVersion(user);
+                token = jwt.sign(
+                  { userId: user.id, tokenVersion: user.tokenVersion },
+                  process.env.JWT_SECRET_KEY
+                );
+              }
+              otp_instance.verified = true;
+              otp_instance.save();
+              const response = {
+                Status: "Success",
+                Details: "OTP Matched",
+                Check: check,
+                token: token,
+              };
+              return res.status(200).send(response);
+            } else {
+              const response = {
+                Status: "Failure",
+                Details: "OTP NOT Matched",
+              };
+              return res.status(400).send(response);
+            }
+          } else {
+            const response = { Status: "Failure", Details: "OTP Expired" };
+            return res.status(400).send(response);
+          }
+        } else {
+          const response = { Status: "Failure", Details: "OTP Already Used" };
+          return res.status(400).send(response);
+        }
+      } else {
+        const response = { Status: "Failure", Details: "Bad Request" };
+        return res.status(400).send(response);
+      }
+    } catch (err) {
+      console.log(err)
+      const response = { Status: "Failure", Details: err.message };
+      return res.status(400).send(response);
+    }
+  }
   // Send OTP function
   async smsOtp(req, res) {
     try {
@@ -602,104 +700,6 @@ class UserController {
     }
   }
 
-  async verifyOtp(req, res) {
-    try {
-      var currentdate = new Date();
-      const { verification_key, otp, check } = req.body;
-
-      if (!verification_key) {
-        const response = {
-          Status: "Failure",
-          Details: "Verification Key not provided",
-        };
-        return res.status(400).send(response);
-      }
-      if (!otp) {
-        const response = { Status: "Failure", Details: "OTP not Provided" };
-        return res.status(400).send(response);
-      }
-      if (!check) {
-        const response = { Status: "Failure", Details: "Check not Provided" };
-        return res.status(400).send(response);
-      }
-
-      let decoded;
-      let user, token;
-
-      //Check if verification key is altered or not and store it in variable decoded after decryption
-      try {
-        decoded = await decode(verification_key);
-      } catch (err) {
-        const response = { Status: "Failure", Details: "verification Failed" };
-        return res.status(400).send(response);
-      }
-      var obj = JSON.parse(decoded);
-      const check_obj = obj.check;
-
-      // Check if the OTP was meant for the same email or phone number for which it is being verified
-      if (check_obj != check) {
-        const response = {
-          Status: "Failure",
-          Details: "OTP was not sent to this particular email or phone number",
-        };
-        return res.status(400).send(response);
-      }
-
-      const otp_instance = await OTP.findOne({ where: { id: obj.otp_id } });
-
-      //Check if OTP is available in the DB
-      if (otp_instance != null) {
-        //Check if OTP is already used or not
-        if (otp_instance.verified != true) {
-          //Check if OTP is expired or not
-          if (dates.compare(otp_instance.expiration_time, currentdate) == 1) {
-            //Check if OTP is equal to the OTP in the DB
-            if (otp === otp_instance.otp) {
-              user = await userService.getUserByEmail(check);
-              if (!user) {
-                return res
-                  .status(400)
-                  .json({ message: "User with this email dose not exist" });
-              } else {
-                await userService.updateTokenVersion(user);
-                token = jwt.sign(
-                  { userId: user.id, tokenVersion: user.tokenVersion },
-                  process.env.JWT_SECRET_KEY
-                );
-              }
-              otp_instance.verified = true;
-              otp_instance.save();
-              const response = {
-                Status: "Success",
-                Details: "OTP Matched",
-                Check: check,
-                token: token,
-              };
-              return res.status(200).send(response);
-            } else {
-              const response = {
-                Status: "Failure",
-                Details: "OTP NOT Matched",
-              };
-              return res.status(400).send(response);
-            }
-          } else {
-            const response = { Status: "Failure", Details: "OTP Expired" };
-            return res.status(400).send(response);
-          }
-        } else {
-          const response = { Status: "Failure", Details: "OTP Already Used" };
-          return res.status(400).send(response);
-        }
-      } else {
-        const response = { Status: "Failure", Details: "Bad Request" };
-        return res.status(400).send(response);
-      }
-    } catch (err) {
-      const response = { Status: "Failure", Details: err.message };
-      return res.status(400).send(response);
-    }
-  }
 
   async updateUserEmailOrPhoneNumber(req, res) {
     const { email, country_code, phoneNumber } = req.body;
