@@ -48,21 +48,20 @@ router.post(
   userController.emailOtp.bind(userController)
 );
 
+// verifyOtp
+router.post(
+  "/verify-otp-email",
+  authenticate,
+  validateVerifyEmailOtp,
+  userController.verifyEmailOtp.bind(userController)
+);
+
 // sendOTP_via_twilio
 router.post(
   "/send-otp-sms",
   validatePhoneOtp,
   userController.smsOtp.bind(userController)
 );
-
-// verifyOtp
-router.post(
-  "/verify-otp",
-  authenticate,
-  validateVerifyEmailOtp,
-  userController.verifyOtp.bind(userController)
-);
-
 
 // verifyOtp
 router.post(
