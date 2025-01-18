@@ -51,7 +51,6 @@ router.post(
 // verifyOtp
 router.post(
   "/verify-otp-email",
-  authenticate,
   validateVerifyEmailOtp,
   userController.verifyEmailOtp.bind(userController)
 );
