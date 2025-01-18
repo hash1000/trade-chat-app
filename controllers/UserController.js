@@ -403,7 +403,7 @@ class UserController {
       });
 
       const mailOptions = {
-        from: `"Trade Chat QRM" <${process.env.EMAIL_ADDRESS}>`,
+        from: `"Nasko China" <${process.env.EMAIL_ADDRESS}>`,
         to: email,
         subject: email_subject,
         html: email_message, // Ensure the email content is sent as HTML
