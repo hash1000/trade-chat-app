@@ -5,8 +5,12 @@ class AddressService {
     this.addressRepository = new AddressRepository();
   }
 
-  async getCartByUserId(userId) {
-    return await this.addressRepository.getCartByUserId(userId);
+  async getaddressByUserId(userId) {
+    return await this.addressRepository.getaddressByUserId(userId);
+  }
+  
+  async getaddressByType(userId,type) {
+    return await this.addressRepository.getaddressByType(userId,type);
   }
 
   async addItemToCart(userId, productId, quantity) {
@@ -68,6 +72,7 @@ class AddressService {
     }
   }
   
+
   
   async updatePinAddress(userId,addressId,type) {
     return await this.addressRepository.pinAddress(userId,addressId,type);

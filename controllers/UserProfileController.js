@@ -171,6 +171,28 @@ class UserProfileController {
       res.status(500).json({ message: "Error while getting user tags" });
     }
   }
+  
+  async getaddress(req, res) {
+    try {
+      const user = req.user; // Extract user from request
+      const { type } = req.query;
+      
+      let address;
+      if (type) {
+        address = await addressService.getaddressByType(user.id, type);
+      } else {
+        address = await addressService.getaddressByUserId(user.id);
+      }
+  
+      return res.status(200).json({
+        message: "User addresses",
+        address,
+      });
+    } catch (error) {
+      console.error("Error fetching addresses:", error);
+      res.status(500).json({ message: "Error while getting user addresses" });
+    }
+  }
 
   async addAddress(req, res) {
     try {
