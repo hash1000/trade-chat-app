@@ -1,5 +1,5 @@
+const sequelize = require('../config/database');
 const Address = require("../models/address");
-const sequelize = require('../config/database'); // Import Sequelize instance
 
 
 class AddressRepository {
