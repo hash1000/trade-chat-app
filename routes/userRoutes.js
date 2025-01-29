@@ -45,5 +45,16 @@ router.get(
   authenticate,
   userProfileController.getContacts.bind(userProfileController)
 );
+router.post(
+  "/address",
+  authenticate,
+  userProfileController.addAddress.bind(userProfileController)
+);
+router.post(
+  "/address-pin",
+  authenticate,
+  userProfileController.updatePinAddress.bind(userProfileController)
+);
+
 
 module.exports = router;

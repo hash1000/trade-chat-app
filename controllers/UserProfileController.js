@@ -1,6 +1,11 @@
+const Address = require("../models/address");
+const AddressService = require("../services/addressService");
 const UserProfileService = require("../services/UserProfileService"); // Replace the path with the correct location of your UserService.js file
 
 const userProfileService = new UserProfileService();
+
+
+const addressService = new AddressService();
 
 class UserProfileController {
   async getUserProfile(req, res) {
@@ -165,6 +170,40 @@ class UserProfileController {
     } catch (error) {
       console.error("Error during fetching tags:", error);
       res.status(500).json({ message: "Error while getting user tags" });
+    }
+  }
+
+  async addAddress(req, res) {
+    try {
+      const user = req.user; // Extract user from request
+      const addressDetails = req.body;
+      if (!addressDetails || Object.keys(addressDetails).length === 0) {
+        return res.status(400).json({ error: "Address details are required." });
+      }
+  
+      const address = await addressService.addAddress(user, addressDetails);
+  
+      return res.status(200).json({
+        message: "Address added successfully.",
+        address,
+      });
+    } catch (error) {
+      return res.status(400).json({ error: error.message });
+    }
+  }
+
+  async updatePinAddress(req, res) {
+    try {
+      const user = req.user; // Extract user from request
+      const {addressId, type} = req.body;
+
+      const address = await addressService.updatePinAddress(user.id, addressId,type);
+  
+      return res.status(200).json({
+        address
+      });
+    } catch (error) {
+      return res.status(400).json({ error: error.message });
     }
   }
   

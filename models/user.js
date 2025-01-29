@@ -149,4 +149,5 @@ User.prototype.toJSON = function () {
   return values;
 };
 
+
 module.exports = User;
