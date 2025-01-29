@@ -20,7 +20,6 @@ class AddressService {
   async addAddress(user, addressDetails) {
     const { type, ...address } = addressDetails;
     const { id } = user;
-  console.log("type.toLowerCase()",type.toLowerCase());
     if (type.toLowerCase() === "delivery") {
       const requiredFields = ["firstName","middleName", "lastName", "country", "city", "postalCode", "street", "streetNumber", "deliveryNote"];
       for (const field of requiredFields) {
