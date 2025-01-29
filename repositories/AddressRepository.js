@@ -34,7 +34,6 @@ class AddressRepository {
       });
   
       if (hasPinnedAddress) {
-        console.log("hasPinnedAddress:", hasPinnedAddress);
   
         // If the already pinned address is the same as the one being pinned, unpin it
         if (hasPinnedAddress.id === addressId) {
