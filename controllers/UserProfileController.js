@@ -1,5 +1,5 @@
-const AddressService = require("../services/addressService");
-const UserProfileService = require("../services/UserProfileService"); // Replace the path with the correct location of your UserService.js file
+const UserProfileService = require('../services/UserProfileService'); // Replace the path with the correct location of your UserService.js file
+const AddressService = require("../services/AddressService");
 
 const userProfileService = new UserProfileService();
 
