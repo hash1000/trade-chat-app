@@ -45,6 +45,13 @@ router.get(
   authenticate,
   userProfileController.getContacts.bind(userProfileController)
 );
+
+router.get(
+  "/get-address",
+  authenticate,
+  userProfileController.getaddress.bind(userProfileController)
+);
+
 router.post(
   "/address",
   authenticate,
