@@ -63,5 +63,22 @@ router.post(
   userProfileController.updatePinAddress.bind(userProfileController)
 );
 
+router.post(
+  "/delete:addressId",
+  authenticate,
+  userProfileController.deleteAddress.bind(userProfileController)
+);
+router.put(
+  "/address/:addressId",
+  authenticate,
+  userProfileController.updateAddress.bind(userProfileController)
+);
+router.delete(
+  "/address/:addressId",
+  authenticate,
+  userProfileController.deleteAddress.bind(userProfileController)
+);
+
+
 
 module.exports = router;
