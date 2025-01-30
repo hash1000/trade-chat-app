@@ -161,7 +161,7 @@ class UserProfileController {
     try {
       const user = req.user; // Extract user from request
       const tags = await userProfileService.getUserTags(user);
-  
+
       return res.status(200).json({
         message: "Updated user tag list with friend tags",
         userTags: tags,
@@ -171,19 +171,48 @@ class UserProfileController {
       res.status(500).json({ message: "Error while getting user tags" });
     }
   }
-  
+  async deleteAddress(req, res) {
+    try {
+      const user = req.user; // Extract user from request
+      const address = await addressService.deleteAddress(id);
+
+      return res.status(200).json({
+        message: "Delete data",
+        userTags: address,
+      });
+    } catch (error) {
+      console.error("Error during Delete data:", error);
+      res.status(500).json({ message: "Error while Delete data" });
+    }
+  }
+  async getAddressById(req, res) {
+    try {
+      const user = req.user; // Extract user from request
+      const { addressId } = req.params; // Address ID to retrieve
+
+      // Fetch the address
+      const address = await addressService.getAddressById(user.id, addressId);
+
+      return res.status(200).json({
+        message: "Address retrieved successfully.",
+        address,
+      });
+    } catch (error) {
+      return res.status(400).json({ error: error.message });
+    }
+  }
   async getaddress(req, res) {
     try {
       const user = req.user; // Extract user from request
       const { type } = req.query;
-      
+
       let address;
       if (type) {
         address = await addressService.getaddressByType(user.id, type);
       } else {
         address = await addressService.getaddressByUserId(user.id);
       }
-  
+
       return res.status(200).json({
         message: "User addresses",
         address,
@@ -201,9 +230,9 @@ class UserProfileController {
       if (!addressDetails || Object.keys(addressDetails).length === 0) {
         return res.status(400).json({ error: "Address details are required." });
       }
-  
+
       const address = await addressService.addAddress(user, addressDetails);
-  
+
       return res.status(200).json({
         message: "Address added successfully.",
         address,
@@ -216,10 +245,9 @@ class UserProfileController {
   async updatePinAddress(req, res) {
     try {
       const user = req.user; // Extract user from request
-      const {addressId, type} = req.body;
+      const { addressId, type } = req.body;
+      const address = await addressService.updatePinAddress(user.id, addressId, type);
 
-      const address = await addressService.updatePinAddress(user.id, addressId,type);
-  
       return res.status(200).json({
         address
       });
@@ -227,7 +255,43 @@ class UserProfileController {
       return res.status(400).json({ error: error.message });
     }
   }
-  
+  async updateAddress(req, res) {
+    try {
+      const user = req.user; // Extract user from request
+      const { addressId } = req.params; // Address ID to update
+      const { pin, type, ...updateFields } = req.body; 
+      if (!updateFields || Object.keys(updateFields).length === 0) {
+        return res.status(400).json({ error: "No fields provided for update." });
+      }
+
+      // Update the address
+      const updatedAddress = await addressService.updateAddress(user.id, addressId, updateFields);
+
+      return res.status(200).json({
+        message: "Address updated successfully.",
+        address: updatedAddress,
+      });
+    } catch (error) {
+      return res.status(400).json({ error: error.message });
+    }
+  }
+
+  async deleteAddress(req, res) {
+    try {
+      const user = req.user; // Extract user from request
+      const { addressId } = req.params; // Address ID to delete
+
+      // Delete the address
+      const deleteAddress = await addressService.deleteAddress(user.id, addressId);
+
+      return res.status(200).json({
+        address :deleteAddress
+        
+      });
+    } catch (error) {
+      return res.status(400).json({ error: error.message });
+    }
+  }
 }
 
 module.exports = UserProfileController;
