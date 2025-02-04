@@ -78,6 +78,11 @@ router.delete(
   authenticate,
   userProfileController.deleteAddress.bind(userProfileController)
 );
+router.get(
+  "/address/:addressId",
+  authenticate,
+  userProfileController.getAddressById.bind(userProfileController)
+);
 
 
 

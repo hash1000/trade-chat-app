@@ -25,6 +25,10 @@ const Address = sequelize.define('Address', {
     allowNull: true,
     type: DataTypes.STRING
   },
+  title: {
+    allowNull: true,
+    type: DataTypes.STRING
+  },
   contactPerson: {
     allowNull: true,
     type: DataTypes.STRING

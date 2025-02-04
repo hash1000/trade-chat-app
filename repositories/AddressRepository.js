@@ -20,7 +20,7 @@ class AddressRepository {
         data: data,
       };
     }
-    return  {
+    return {
       message: "This address has pined",
       data: data,
     };
@@ -82,17 +82,26 @@ class AddressRepository {
       transaction = await sequelize.transaction();
 
       // Unpin any previously pinned addresses for this user
-      await Address.update({ pin: 0 }, { where: { userId }, transaction });
+
+      const falsePin = await Address.update(
+        { pin: 0 },
+        { where: { userId: userId, type: type.toLowerCase() }, transaction }
+      );
 
       // Pin the new address
       const [affectedRows] = await Address.update(
         { pin: 1 },
-        { where: { id: addressId, userId }, transaction }
+        {
+          where: { id: addressId, userId: userId, type: type.toLowerCase() },
+          transaction,
+        }
       );
 
       // Check if the row was updated successfully
       if (affectedRows === 0) {
-        throw new Error("No address found to update.");
+        throw new Error(
+          `No address found to update. with this type ${type.toLowerCase()}`
+        );
       }
 
       // Commit the transaction
@@ -121,7 +130,6 @@ class AddressRepository {
     const updatedAddress = await Address.findOne({ where: { id: addressId } });
     return updatedAddress;
   }
-
 }
 
 module.exports = AddressRepository;

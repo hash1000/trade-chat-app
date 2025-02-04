@@ -44,6 +44,7 @@ class AddressService {
         "firstName",
         "middleName",
         "lastName",
+        "title",
         "country",
         "city",
         "postalCode",
@@ -63,6 +64,7 @@ class AddressService {
         lastName: address.lastName,
         country: address.country,
         city: address.city,
+        title: address.title,
         postalCode: address.postalCode,
         street: address.street,
         pin: existingAddress.length === 0, // Set pin to true if no existing address of this type
@@ -79,6 +81,7 @@ class AddressService {
         "lastName",
         "country",
         "city",
+        "title",
         "postalCode",
         "street",
         "streetNumber",
@@ -101,6 +104,7 @@ class AddressService {
         lastName: address.lastName,
         country: address.country,
         city: address.city,
+        title: address.title,
         postalCode: address.postalCode,
         street: address.street,
         pin: existingAddress.length === 0, // Set pin to true if no existing address of this type
@@ -132,6 +136,7 @@ class AddressService {
 
     return updatedAddress;
   }
+  
   async updatePinAddress(userId, addressId, type) {
     return await this.addressRepository.pinAddress(userId, addressId, type);
   }
