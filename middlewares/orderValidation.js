@@ -3,6 +3,9 @@ const { body, validationResult } = require('express-validator')
 exports.createOrderValidator = [
   body('name').notEmpty().withMessage('Name is required.'),
   body('image').notEmpty().withMessage('Image is required.'),
+  body('orderNo').notEmpty().withMessage('orderNo is required.'),
+  body('price').notEmpty().withMessage('price is required.'),
+  body('status').notEmpty().withMessage('status is required.'),
   handleValidationErrors
 ]
 

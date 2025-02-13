@@ -4,9 +4,9 @@ const orderService = new OrderService()
 class OrderController {
   async createOrder (req, res) {
     try {
-      const { name, image, products } = req.body
+      const { name, image, orderNo, price, status } = req.body
 
-      const createdOrder = await orderService.createOrder(name, image, products, req.user)
+      const createdOrder = await orderService.createOrder(name, image, orderNo, price, status, req.user)
 
       res.status(201).json(createdOrder)
     } catch (error) {
