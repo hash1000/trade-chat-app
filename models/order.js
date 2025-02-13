@@ -22,7 +22,7 @@ const Order = db.define('Order', {
     allowNull: false
   },
   status: {
-    type: DataTypes.INTEGER,
+    type: DataTypes.ENUM('WAITING', 'PAYED', 'SHIPPED'),
     allowNull: false,
     defaultValue: 1
   },
@@ -30,8 +30,16 @@ const Order = db.define('Order', {
     type: DataTypes.STRING,
     allowNull: false
   },
-  documents: {
-    type: DataTypes.JSON,
+  address: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  price: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  orderNo: {
+    type: DataTypes.STRING,
     allowNull: true
   },
   createdAt: {
@@ -44,10 +52,10 @@ const Order = db.define('Order', {
   }
 }, { tableName: 'orders' })
 
-Order.hasMany(OrderProduct, {
-  foreignKey: 'orderId',
-  as: 'orderProducts'
-})
+// Order.hasMany(OrderProduct, {
+//   foreignKey: 'orderId',
+//   as: 'orderProducts'
+// })
 // Order.belongsToMany(Product, {
 //     through: OrderProduct,
 //     as: 'products',

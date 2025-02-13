@@ -11,7 +11,7 @@ class OrderRepository {
   }
 
   async createOrder (orderData, userId) {
-    const { name, image, products } = orderData
+    const { name, image, orderNo, price ,status } = orderData
 
     let transaction
     try {
@@ -20,44 +20,47 @@ class OrderRepository {
       // Create the order within the transaction
       const createdOrder = await Order.create(
         {
-          name,
-          image,
+          name, 
+          image, 
+          orderNo, 
+          price,
+          status, 
           userId
         },
         { transaction }
       )
 
       // Fetch the associated products in a single query
-      const productIds = products.map(({ productId }) => productId)
-      const productInstances = await Product.findAll({
-        where: { id: productIds },
-        transaction
-      })
+      // const productIds = products.map(({ productId }) => productId)
+      // const productInstances = await Product.findAll({
+      //   where: { id: productIds },
+      //   transaction
+      // })
 
       // Check if all products were found in the database
-      const foundProductIds = productInstances.map((product) => product.id)
-      const missingProductIds = productIds.filter(
-        (productId) => !foundProductIds.includes(productId)
-      )
-      if (missingProductIds.length > 0) {
-        throw new Error(`Invalid Product IDs: ${missingProductIds.join(', ')}`)
-      }
+      // const foundProductIds = productInstances.map((product) => product.id)
+      // const missingProductIds = productIds.filter(
+      //   (productId) => !foundProductIds.includes(productId)
+      // )
+      // if (missingProductIds.length > 0) {
+      //   throw new Error(`Invalid Product IDs: ${missingProductIds.join(', ')}`)
+      // }
 
-      // Create the order products within the transaction
-      const orderProducts = productInstances.map((productInstance, index) => {
-        const { quantity } = products[index]
-        return {
-          orderId: createdOrder.id,
-          productId: productInstance.id,
-          quantity
-        }
-      })
+      // // Create the order products within the transaction
+      // const orderProducts = productInstances.map((productInstance, index) => {
+      //   const { quantity } = products[index]
+      //   return {
+      //     orderId: createdOrder.id,
+      //     productId: productInstance.id,
+      //     quantity
+      //   }
+      // })
 
-      await OrderProduct.bulkCreate(orderProducts, { transaction })
+      // await OrderProduct.bulkCreate(orderProducts, { transaction })
 
       await transaction.commit()
 
-      return createdOrder
+      return createdOrder;
     } catch (error) {
       if (transaction) await transaction.rollback()
       throw error
@@ -177,18 +180,18 @@ class OrderRepository {
   async getUserOrders (userId) {
     // Retrieve the user's orders from the database
     return await Order.findAll({
-      where: { userId },
-      include: [
-        {
-          model: OrderProduct,
-          as: 'orderProducts', // Update the alias to match the association alias
-          include: [
-            {
-              model: Product
-            }
-          ]
-        }
-      ]
+      where: { userId }
+      // include: [
+      //   {
+      //     model: OrderProduct,
+      //     as: 'orderProducts', // Update the alias to match the association alias
+      //     include: [
+      //       {
+      //         model: Product
+      //       }
+      //     ]
+      //   }
+      // ]
     })
   }
 

@@ -5,17 +5,19 @@ class OrderService {
     this.orderRepository = new OrderRepository()
   }
 
-  async createOrder (name, image, products = [], user) {
+  async createOrder (name, image, orderNo, price, status, user) {
     const { id: userId } = user
     const orderData = {
       name,
-      image,
-      products: []
+      image, 
+      orderNo, 
+      price,
+      status
     }
 
-    for (const { productId, quantity } of products) {
-      orderData.products.push({ productId, quantity })
-    }
+    // for (const { productId, quantity } of products) {
+    //   orderData.products.push({ productId, quantity })
+    // }
 
     return await this.orderRepository.createOrder(orderData, userId)
   }
