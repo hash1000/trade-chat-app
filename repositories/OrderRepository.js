@@ -3,15 +3,16 @@ const OrderProduct = require('../models/order_products')
 const Product = require('../models/product')
 const sequelize = require('../config/database')
 const ProductService = require('../services/ProductService')
-const {OrderUpdateNotification} = require("../notifications");
+const { OrderUpdateNotification } = require("../notifications");
+const Document = require('../models/document')
 
 class OrderRepository {
-  async getOrderById (orderId) {
+  async getOrderById(orderId) {
     return await Order.findByPk(orderId)
   }
 
-  async createOrder (orderData, userId) {
-    const { name, image, orderNo, price ,status } = orderData
+  async createOrder(orderData, userId) {
+    const { name, image, orderNo, price, status } = orderData
 
     let transaction
     try {
@@ -20,11 +21,11 @@ class OrderRepository {
       // Create the order within the transaction
       const createdOrder = await Order.create(
         {
-          name, 
-          image, 
-          orderNo, 
+          name,
+          image,
+          orderNo,
           price,
-          status, 
+          status,
           userId
         },
         { transaction }
@@ -67,7 +68,23 @@ class OrderRepository {
     }
   }
 
-  async updateOrder (orderId, name, image, updatedProducts, documents) {
+  async UploadDocument(orderNo, documents) {
+    let transaction
+    try {
+      transaction = await sequelize.transaction()
+      const document = await Document.create(
+        { orderNo, documents },
+        transaction
+      )
+      return document;
+    } catch (error) {
+      console.error(error)
+      if (transaction) await transaction.rollback()
+      throw error
+    }
+  }
+
+  async updateOrder( name, image, orderNo, price, status, documents) {
     let transaction
     try {
       transaction = await sequelize.transaction()
@@ -83,11 +100,162 @@ class OrderRepository {
       if (image) {
         order.image = image
       }
+      if (price) {
+        order.price = price
+      }
+      if (status) {
+        order.status = status
+      }
+      if (documents && documents.length > 0) {
+        // Get the current products of the order
+        const currentDocuments = await Document.findAll({
+          where: { orderNo },
+          transaction
+        })
+
+        // Get the IDs of the products to be removed
+        const documentsIdsToRemove = currentDocuments
+          .filter((documents) => !updatedDocuments.some((d) => d.documentsId === document.documentId))
+          .map((product) => product.productId)
+
+        // Remove the products not included in the update data
+        await Documents.destroy({
+          where: {
+            orderId,
+            orderNo: documentsIdsToRemove
+          },
+          transaction
+        })
+
+        // Update or create the remaining products
+        for (const updateDocument of updateDocuments) {
+          const { productId, quantity } = updateDocument
+          const productService = new ProductService()
+          await productService.getProductById(productId)
+
+          // Find the order product to update or create
+          const orderProduct = await OrderProduct.findOne({
+            where: { orderId, productId },
+            transaction
+          })
+
+          if (orderProduct) {
+            // Update the quantity of the existing order product
+            orderProduct.quantity = quantity
+            await orderProduct.save({ transaction })
+          } else {
+            // Create a new order product
+            await OrderProduct.create(
+              {
+                orderId,
+                productId,
+                quantity
+              },
+              { transaction }
+            )
+          }
+        }
+      }
+      await order.save({ transaction })
+      await transaction.commit()
+      // await new OrderUpdateNotification(order).sendNotification();
+
+      return order
+    } catch (error) {
+      console.error(error)
+      if (transaction) await transaction.rollback()
+      throw error
+    }
+  }
+  async updateOrderDocument(orderNo, documents) {
+    let transaction
+    try {
+      transaction = await sequelize.transaction()
+
+      // Check if the order exists
+      const order = await this.getOrderById(orderId)
+      if (!order) {
+        throw new Error('Order not found')
+      }
+      if (documents) {
+        order.documents = documents
+      }
+      if (updateDocuments && updateDocuments.length > 0) {
+        // Get the current products of the order
+        const currentProducts = await OrderProduct.findAll({
+          where: { orderId },
+          transaction
+        })
+
+        // Get the IDs of the products to be removed
+        const productIdsToRemove = currentProducts
+          .filter((product) => !updateDocuments.some((p) => p.productId === product.productId))
+          .map((product) => product.productId)
+
+        // Remove the products not included in the update data
+        await OrderProduct.destroy({
+          where: {
+            orderId,
+            productId: productIdsToRemove
+          },
+          transaction
+        })
+
+        // Update or create the remaining products
+        for (const updateDocument of updateDocuments) {
+          const { productId, quantity } = updateDocument
+          const productService = new ProductService()
+          await productService.getProductById(productId)
+
+          // Find the order product to update or create
+          const orderProduct = await OrderProduct.findOne({
+            where: { orderId, productId },
+            transaction
+          })
+
+          if (orderProduct) {
+            // Update the quantity of the existing order product
+            orderProduct.quantity = quantity
+            await orderProduct.save({ transaction })
+          } else {
+            // Create a new order product
+            await OrderProduct.create(
+              {
+                orderId,
+                productId,
+                quantity
+              },
+              { transaction }
+            )
+          }
+        }
+      }
+      await order.save({ transaction })
+      await transaction.commit()
+      // await new OrderUpdateNotification(order).sendNotification();
+
+      return order
+    } catch (error) {
+      console.error(error)
+      if (transaction) await transaction.rollback()
+      throw error
+    }
+  }
+  async updateOrderDocument(orderNo, documents) {
+    let transaction
+    try {
+      transaction = await sequelize.transaction()
+
+      // Check if the order exists
+      const order = await this.getOrderById(orderId)
+      if (!order) {
+        throw new Error('Order not found')
+      }
       if (documents) {
         order.documents = documents
       }
       if (updatedProducts && updatedProducts.length > 0) {
-      // Get the current products of the order
+        // Get the current products of the order
         const currentProducts = await OrderProduct.findAll({
           where: { orderId },
           transaction
@@ -120,11 +288,11 @@ class OrderRepository {
           })
 
           if (orderProduct) {
-          // Update the quantity of the existing order product
+            // Update the quantity of the existing order product
             orderProduct.quantity = quantity
             await orderProduct.save({ transaction })
           } else {
-          // Create a new order product
+            // Create a new order product
             await OrderProduct.create(
               {
                 orderId,
@@ -148,7 +316,7 @@ class OrderRepository {
     }
   }
 
-  async deleteOrder (orderId) {
+  async deleteOrder(orderId) {
     let transaction
     try {
       transaction = await sequelize.transaction()
@@ -177,7 +345,7 @@ class OrderRepository {
     }
   }
 
-  async getUserOrders (userId) {
+  async getUserOrders(userId) {
     // Retrieve the user's orders from the database
     return await Order.findAll({
       where: { userId }
@@ -195,7 +363,7 @@ class OrderRepository {
     })
   }
 
-  async getOrderProductById (orderId) {
+  async getOrderProductById(orderId) {
     // Retrieve the user's orders from the database
     return await Order.findOne({
       where: { id: orderId },

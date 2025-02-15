@@ -1,5 +1,3 @@
-'use strict';
-
 module.exports = {
   up: async (queryInterface, Sequelize) => {
     await queryInterface.createTable('orders', {
@@ -13,7 +11,7 @@ module.exports = {
         type: Sequelize.INTEGER,
         allowNull: false,
         references: {
-          model: 'users',
+          model: 'users', 
           key: 'id'
         },
         onUpdate: 'CASCADE',
@@ -37,22 +35,23 @@ module.exports = {
         allowNull: true
       },
       price: {
-        type: Sequelize.STRING,
+        type: Sequelize.DECIMAL(10,2),
         allowNull: false
       },
       orderNo: {
         type: Sequelize.STRING,
-        allowNull: true
+        allowNull: false,
+        unique: true // ✅ Make orderNo unique
       },
       createdAt: {
-        type: Sequelize.DATE,
         allowNull: false,
-        defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
+        type: Sequelize.DATE,
+        defaultValue: Sequelize.NOW
       },
       updatedAt: {
-        type: Sequelize.DATE,
         allowNull: false,
-        defaultValue: Sequelize.literal('CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP')
+        type: Sequelize.DATE,
+        defaultValue: Sequelize.NOW
       }
     });
   },

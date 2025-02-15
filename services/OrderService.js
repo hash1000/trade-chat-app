@@ -1,44 +1,55 @@
-const OrderRepository = require('../repositories/OrderRepository')
+const OrderRepository = require("../repositories/OrderRepository");
 
 class OrderService {
-  constructor () {
-    this.orderRepository = new OrderRepository()
+  constructor() {
+    this.orderRepository = new OrderRepository();
   }
 
-  async createOrder (name, image, orderNo, price, status, user) {
-    const { id: userId } = user
+  async createOrder(name, image, orderNo, price, status, user) {
+    const { id: userId } = user;
     const orderData = {
       name,
-      image, 
-      orderNo, 
+      image,
+      orderNo,
       price,
-      status
-    }
+      status,
+    };
 
     // for (const { productId, quantity } of products) {
     //   orderData.products.push({ productId, quantity })
     // }
 
-    return await this.orderRepository.createOrder(orderData, userId)
+    return await this.orderRepository.createOrder(orderData, userId);
   }
 
-  async updateOrder (orderId, name, image, products = [], documents) {
-    return this.orderRepository.updateOrder(orderId, name, image, products, documents)
+  async updateOrder(name, image, orderNo, price, status, documents = []) {
+    return this.orderRepository.updateOrder(
+      name,
+      image,
+      orderNo,
+      price,
+      status,
+      documents
+    );
   }
 
-  async deleteOrder (orderId) {
-    await this.orderRepository.deleteOrder(orderId)
+  async UploadDocument(orderNo, documents) {
+    return this.orderRepository.UploadDocument(orderNo, documents);
   }
 
-  async getUserOrders (userId) {
+  async deleteOrder(orderId) {
+    await this.orderRepository.deleteOrder(orderId);
+  }
+
+  async getUserOrders(userId) {
     // Retrieve the user's orders from the repository
-    return await this.orderRepository.getUserOrders(userId)
+    return await this.orderRepository.getUserOrders(userId);
   }
 
-  async getOrderById (userId) {
+  async getOrderById(userId) {
     // Retrieve the user's orders from the repository
-    return await this.orderRepository.getOrderProductById(userId)
+    return await this.orderRepository.getOrderProductById(userId);
   }
 }
 
-module.exports = OrderService
+module.exports = OrderService;

@@ -22,7 +22,10 @@ class AddressService {
   }
 
   async getAddressById(userId, addressId) {
-    const address = await this.addressRepository.getAddressById(userId, addressId);
+    const address = await this.addressRepository.getAddressById(
+      userId,
+      addressId
+    );
 
     if (!address) {
       throw new Error("Address not found or does not belong to the user.");
@@ -35,9 +38,9 @@ class AddressService {
     const { id } = user;
 
     // Fetch existing addresses of the specified type for the user
-    const existingAddress = await this.addressRepository.getaddressByType(user.id, type);
-
-    console.log("existingAddress", existingAddress.length);
+    const existingAddress = await this.addressRepository.getaddressByUserId(
+      user.id
+    );
 
     if (type.toLowerCase() === "delivery") {
       const requiredFields = [
@@ -95,8 +98,6 @@ class AddressService {
         }
       }
 
-      console.log("address", address);
-
       const companyObj = {
         contactPerson: address.companyName,
         companyName: address.companyName,
@@ -114,7 +115,6 @@ class AddressService {
         deliveryNote: address.deliveryNote,
       };
 
-      console.log("companyObj", companyObj);
       return await this.addressRepository.addAddress(id, type, companyObj);
     } else {
       throw new Error(
@@ -125,20 +125,26 @@ class AddressService {
 
   async updateAddress(userId, addressId, updateFields) {
     // Fetch the address to ensure it belongs to the user
-    const address = await this.addressRepository.getAddressById(userId, addressId);
+    const address = await this.addressRepository.getAddressById(
+      userId,
+      addressId
+    );
 
     if (!address) {
       throw new Error("Address not found or does not belong to the user.");
     }
 
     // Update the address fields
-    const updatedAddress = await this.addressRepository.updateAddress(addressId, updateFields);
+    const updatedAddress = await this.addressRepository.updateAddress(
+      addressId,
+      updateFields
+    );
 
     return updatedAddress;
   }
-  
-  async updatePinAddress(userId, addressId, type) {
-    return await this.addressRepository.pinAddress(userId, addressId, type);
+
+  async updatePinAddress(userId, addressId) {
+    return await this.addressRepository.pinAddress(userId, addressId);
   }
 
   async removeItemFromCart(userId, productId) {
@@ -147,8 +153,10 @@ class AddressService {
 
   async deleteAddress(userId, addressId) {
     // Fetch the address to ensure it belongs to the user
-    console.log("userId, addressId",userId, addressId);
-    const address = await this.addressRepository.getAddressById(userId, addressId);
+    const address = await this.addressRepository.getAddressById(
+      userId,
+      addressId
+    );
 
     if (!address) {
       throw new Error("Address not found or does not belong to the user.");

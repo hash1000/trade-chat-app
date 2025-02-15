@@ -1,7 +1,6 @@
-const { DataTypes } = require('sequelize')
-const db = require('../config/database')
-const User = require('./user')
-const OrderProduct = require('./order_products')
+const { DataTypes } = require('sequelize');
+const db = require('../config/database');
+const User = require('./user');
 
 const Order = db.define('Order', {
   id: {
@@ -24,7 +23,7 @@ const Order = db.define('Order', {
   status: {
     type: DataTypes.ENUM('WAITING', 'PAYED', 'SHIPPED'),
     allowNull: false,
-    defaultValue: 1
+    defaultValue: 'WAITING'
   },
   image: {
     type: DataTypes.STRING,
@@ -35,31 +34,24 @@ const Order = db.define('Order', {
     allowNull: true
   },
   price: {
-    type: DataTypes.STRING,
+    type: DataTypes.DECIMAL(10,2),
     allowNull: false
   },
   orderNo: {
     type: DataTypes.STRING,
-    allowNull: true
+    allowNull: false,
+    unique: true
   },
   createdAt: {
     allowNull: false,
-    type: DataTypes.DATE
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
   },
   updatedAt: {
     allowNull: false,
-    type: DataTypes.DATE
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
   }
-}, { tableName: 'orders' })
+}, { tableName: 'orders' });
 
-// Order.hasMany(OrderProduct, {
-//   foreignKey: 'orderId',
-//   as: 'orderProducts'
-// })
-// Order.belongsToMany(Product, {
-//     through: OrderProduct,
-//     as: 'products',
-//     foreignKey: 'orderId'
-// });
-
-module.exports = Order
+module.exports = Order;
