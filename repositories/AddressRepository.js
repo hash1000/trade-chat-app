@@ -54,54 +54,46 @@ class AddressRepository {
     });
   }
 
-  async pinAddress(userId, addressId, type) {
+  async pinAddress(userId, addressId) {
     let transaction;
     try {
-      // Check if there is a currently pinned address for the user and type
+      // Check if there is a currently pinned address for the user
       const hasPinnedAddress = await Address.findOne({
-        where: { id: addressId, type: type.toLowerCase(), pin: 1 },
+        where: { id: addressId, userId: userId, pin: 1 }, // Ensure userId matches
       });
-      if (hasPinnedAddress) {
-        // If the already pinned address is the same as the one being pinned, unpin it
-        if (hasPinnedAddress.id === addressId) {
-          await Address.update(
-            { pin: 0 },
-            { where: { id: addressId, userId } }
-          );
-          return { success: true, message: "Address unpinned successfully." };
-        }
 
-        // If another address is already pinned, disallow pinning a new one
-        return {
-          success: false,
-          message: "An address is already pinned. Update not allowed.",
-        };
+      if (hasPinnedAddress) {
+        // If the already pinned address is the same as the one being pinned, return an error
+        if (hasPinnedAddress.id === addressId) {
+          console.log("condition true");
+          return {
+            success: false,
+            message: "This address is already pinned.",
+          };
+        }
       }
 
       // Start a transaction
       transaction = await sequelize.transaction();
 
       // Unpin any previously pinned addresses for this user
-
-      const falsePin = await Address.update(
+      await Address.update(
         { pin: 0 },
-        { where: { userId: userId, type: type.toLowerCase() }, transaction }
+        { where: { userId: userId }, transaction }
       );
 
       // Pin the new address
       const [affectedRows] = await Address.update(
         { pin: 1 },
         {
-          where: { id: addressId, userId: userId, type: type.toLowerCase() },
+          where: { id: addressId, userId: userId },
           transaction,
         }
       );
 
       // Check if the row was updated successfully
       if (affectedRows === 0) {
-        throw new Error(
-          `No address found to update. with this type ${type.toLowerCase()}`
-        );
+        throw new Error(`No address found to update.`);
       }
 
       // Commit the transaction
@@ -117,6 +109,7 @@ class AddressRepository {
       };
     }
   }
+
   async updateAddress(addressId, updateFields) {
     const [affectedRows] = await Address.update(updateFields, {
       where: { id: addressId },

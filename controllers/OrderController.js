@@ -1,86 +1,128 @@
-const OrderService = require('../services/OrderService')
-const orderService = new OrderService()
+const OrderService = require("../services/OrderService");
+const orderService = new OrderService();
 
 class OrderController {
-  async createOrder (req, res) {
+  async createOrder(req, res) {
     try {
-      const { name, image, orderNo, price, status } = req.body
+      const { name, image, orderNo, price, status } = req.body;
 
-      const createdOrder = await orderService.createOrder(name, image, orderNo, price, status, req.user)
+      const createdOrder = await orderService.createOrder(
+        name,
+        image,
+        orderNo,
+        price,
+        status,
+        req.user
+      );
 
-      res.status(201).json(createdOrder)
+      res.status(201).json(createdOrder);
     } catch (error) {
-      console.error('Error creating order:', error)
-      if (error.message.startsWith('Invalid Product IDs:')) {
-        res.status(400).json({ error: error.message })
+      console.error("Error creating order:", error);
+      if (error.message.startsWith("Invalid Product IDs:")) {
+        res.status(400).json({ error: error.message });
       } else {
-        res.status(500).json({ error: 'Internal server error' })
+        res.status(500).json({ error: "Internal server error" });
       }
     }
   }
 
-  async updateOrder (req, res) {
+  async updateOrder(req, res) {
     try {
-      const orderId = req.params.orderId
-      const { products, name, image, documents } = req.body
+      const orderId = req.params.orderId;
+      const { name, image, orderNo, price, status, documents } = req.body;
 
       // Update the order
-      const updatedOrder = await orderService.updateOrder(orderId, name, image, products, documents)
+      const updatedOrder = await orderService.updateOrder(
+        name,
+        image,
+        orderNo,
+        price,
+        status,
+        documents
+      );
 
-      res.json(updatedOrder)
+      res.json(updatedOrder);
     } catch (error) {
-      console.error('Error updating order:', error)
-      if (error.message.startsWith('Invalid Product IDs:') || error.message.startsWith('Product not found')) {
-        res.status(400).json({ error: error.message })
+      console.error("Error updating order:", error);
+      if (
+        error.message.startsWith("Invalid Product IDs:") ||
+        error.message.startsWith("Product not found")
+      ) {
+        res.status(400).json({ error: error.message });
       } else {
-        res.status(500).json({ error: 'Order not found' })
+        res.status(500).json({ error: "Order not found" });
       }
     }
   }
 
-  async deleteOrder (req, res) {
+  async UploadDocument(req, res) {
     try {
-      const orderId = req.params.orderId
+      const orderNo = req.params.orderNo;
+      const { documents } = req.body;
+
+      // Update the order
+      const updatedOrder = await orderService.UploadDocument(
+        orderNo,
+        documents
+      );
+
+      res.json(updatedOrder);
+    } catch (error) {
+      console.error("Error updating order:", error);
+      if (
+        error.message.startsWith("Invalid Product IDs:") ||
+        error.message.startsWith("Product not found")
+      ) {
+        res.status(400).json({ error: error.message });
+      } else {
+        res.status(500).json({ error: "Order not found" });
+      }
+    }
+  }
+
+  async deleteOrder(req, res) {
+    try {
+      const orderId = req.params.orderId;
 
       // Delete the order
-      await orderService.deleteOrder(orderId)
-      res.json({ message: 'Order deleted successfully' })
+      await orderService.deleteOrder(orderId);
+      res.json({ message: "Order deleted successfully" });
     } catch (error) {
-      console.error('Error deleting order:', error)
-      res.status(500).json({ error: 'Internal server error' })
+      console.error("Error deleting order:", error);
+      res.status(500).json({ error: "Internal server error" });
     }
   }
 
-  async getUserOrders (req, res) {
+  async getUserOrders(req, res) {
     try {
-      const { id: userId } = req.user
+      const { id: userId } = req.user;
 
       // Get the user's orders
-      const userOrders = await orderService.getUserOrders(userId)
+      const userOrders = await orderService.getUserOrders(userId);
 
-      res.json(userOrders)
+      res.json(userOrders);
     } catch (error) {
-      console.error('Error fetching user order:', error)
-      res.status(500).json({ error: 'Internal server error' })
+      console.error("Error fetching user order:", error);
+      res.status(500).json({ error: "Internal server error" });
     }
   }
 
-  async getOrderById (req, res) {
+  async getOrderById(req, res) {
     try {
-      const orderId = req.params.orderId
+      const orderId = req.params.orderId;
 
       // Get the user's orders
-      const order = await orderService.getOrderById(orderId)
+      const order = await orderService.getOrderById(orderId);
       if (order) {
-        res.json(order)
+        res.json(order);
       } else {
-        res.status(404).json({ error: 'Order not found' })
+        res.status(404).json({ error: "Order not found" });
       }
     } catch (error) {
-      console.error('Error fetching user order:', error)
-      res.status(500).json({ error: 'Internal server error' })
+      console.error("Error fetching user order:", error);
+      res.status(500).json({ error: "Internal server error" });
     }
   }
 }
 
-module.exports = OrderController
+module.exports = OrderController;
