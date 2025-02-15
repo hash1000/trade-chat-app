@@ -188,11 +188,9 @@ class UserProfileController {
   async getAddressById(req, res) {
     try {
       const user = req.user; // Extract user from request
+      const { addressId } = req.parsedParams;
       // Fetch the address
-      const address = await addressService.getAddressById(
-        user.id,
-        req.parsedParam
-      );
+      const address = await addressService.getAddressById(user.id, addressId);
 
       return res.status(200).json({
         message: "Address retrieved successfully.",
@@ -200,6 +198,33 @@ class UserProfileController {
       });
     } catch (error) {
       return res.status(400).json({ error: error.message });
+    }
+  }
+
+  async getAddressByUserId(req, res) {
+    try {
+      const { userId } = req.parsedParams;
+
+      const address = await addressService.getAddressByUserId(userId);
+
+      if (address.length === 0) {
+        return res.status(404).json({
+          message: "Address not found.",
+          addressStatus: "not_found",
+          address,
+        });
+      }
+
+      return res.status(200).json({
+        message: "Address retrieved successfully.",
+        addressStatus: "found",
+        address,
+      });
+    } catch (error) {
+      return res.status(500).json({
+        message: "Internal server error.",
+        error: error.message,
+      });
     }
   }
 
@@ -247,10 +272,8 @@ class UserProfileController {
   async updatePinAddress(req, res) {
     try {
       const user = req.user;
-      const address = await addressService.updatePinAddress(
-        user.id,
-        req.parsedParam
-      );
+      const { addressId } = req.parsedParams;
+      const address = await addressService.updatePinAddress(user.id, addressId);
 
       return res.status(200).json({
         address,
@@ -263,6 +286,7 @@ class UserProfileController {
   async updateAddress(req, res) {
     try {
       const user = req.user; // Extract user from request
+      const { addressId } = req.parsedParams;
       const { pin, type, ...updateFields } = req.body;
       if (!updateFields || Object.keys(updateFields).length === 0) {
         return res
@@ -272,7 +296,7 @@ class UserProfileController {
       // Update the address
       const updatedAddress = await addressService.updateAddress(
         user.id,
-        req.parsedParam,
+        addressId,
         updateFields
       );
 
@@ -288,10 +312,11 @@ class UserProfileController {
   async deleteAddress(req, res) {
     try {
       const user = req.user; // Extract user from request
+      const { addressId } = req.parsedParams;
       // Delete the address
       const deleteAddress = await addressService.deleteAddress(
         user.id,
-        req.parsedParam
+        addressId
       );
 
       return res.status(200).json({

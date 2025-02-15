@@ -2,6 +2,7 @@ const express = require("express");
 const UserProfileController = require("../controllers/UserProfileController");
 const authenticate = require("../middlewares/authenticate");
 const checkIntegerParam = require("../middlewares/paramIntegerValidation");
+const adminAuthenticate = require("../middlewares/authorization");
 
 const router = express.Router();
 const userProfileController = new UserProfileController();
@@ -71,6 +72,22 @@ router.get(
   userProfileController.getaddress.bind(userProfileController)
 );
 
+// Get address by ID
+router.get(
+  "/get-address/:addressId",
+  authenticate,
+  checkIntegerParam("addressId"),
+  userProfileController.getAddressById.bind(userProfileController)
+);
+
+// Get address by userID
+router.get(
+  "/get-user-address/:userId",
+  adminAuthenticate,
+  checkIntegerParam("userId"),
+  userProfileController.getAddressByUserId.bind(userProfileController)
+);
+
 // Add a new address
 router.post(
   "/address",
@@ -82,7 +99,7 @@ router.post(
 router.patch(
   "/address-pin/:addressId",
   authenticate,
-  checkIntegerParam,
+  checkIntegerParam("addressId"),
   userProfileController.updatePinAddress.bind(userProfileController)
 );
 
@@ -90,7 +107,7 @@ router.patch(
 router.patch(
   "/address/:addressId",
   authenticate,
-  checkIntegerParam,
+  checkIntegerParam("addressId"),
   userProfileController.updateAddress.bind(userProfileController)
 );
 
@@ -98,16 +115,9 @@ router.patch(
 router.delete(
   "/address/:addressId",
   authenticate,
-  checkIntegerParam,
+  checkIntegerParam("addressId"),
   userProfileController.deleteAddress.bind(userProfileController)
 );
 
-// Get address by ID
-router.get(
-  "/get-address/:addressId",
-  authenticate,
-  checkIntegerParam,
-  userProfileController.getAddressById.bind(userProfileController)
-);
 
 module.exports = router;
