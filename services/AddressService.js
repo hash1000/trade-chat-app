@@ -6,7 +6,7 @@ class AddressService {
   }
 
   async getaddressByUserId(userId) {
-    return await this.addressRepository.getaddressByUserId(userId);
+    return await this.addressRepository.getAddressByUserId(userId);
   }
 
   async getaddressByType(userId, type) {
@@ -30,9 +30,18 @@ class AddressService {
     if (!address) {
       throw new Error("Address not found or does not belong to the user.");
     }
-
     return address;
   }
+
+  async getAddressByUserId(userId) {
+    const address =  await this.addressRepository.getaddressByUserId(userId);
+
+    if (!address) {
+      throw new Error("Address not found or does not belong to the user.");
+    }
+    return address;
+  }
+  
   async addAddress(user, addressDetails) {
     const { type, ...address } = addressDetails;
     const { id } = user;

@@ -2,8 +2,9 @@ const sequelize = require("../config/database");
 const Address = require("../models/address");
 
 class AddressRepository {
+
   async getaddressByUserId(userId) {
-    return await Address.findAll({ where: { userId } });
+      return await Address.findAll({ where: { userId } });
   }
 
   async deleteAddress(id) {
@@ -31,6 +32,7 @@ class AddressRepository {
       where: { userId, type: type.toLowerCase() },
     });
   }
+
   async getAddressById(userId, addressId) {
     const address = await Address.findOne({
       where: { id: addressId, userId },
@@ -42,6 +44,7 @@ class AddressRepository {
   async addItemToCart(userId, productId, quantity) {
     return await Address.create({ userId, productId, quantity });
   }
+
   async removeItemFromCart(userId, productId) {
     return await Address.destroy({ where: { userId, productId } });
   }
@@ -123,6 +126,7 @@ class AddressRepository {
     const updatedAddress = await Address.findOne({ where: { id: addressId } });
     return updatedAddress;
   }
+
 }
 
 module.exports = AddressRepository;
