@@ -382,10 +382,6 @@ class OrderRepository {
         {
           model: Document,
           as: 'documents'
-        },
-        {
-          model: User,
-          as: 'user'
         }
       ]
     });
