@@ -1,4 +1,4 @@
-const { Order } = require('../models')
+const { Order, User } = require('../models')
 const OrderProduct = require('../models/order_products')
 const Product = require('../models/product')
 const sequelize = require('../config/database')
@@ -48,7 +48,6 @@ class OrderRepository {
       const hasFavOrder = await Order.findOne({
         where: { id: orderId, isFavorite: 1 },
       });
-console.log("hasFavOrder",hasFavOrder);
       if (hasFavOrder) {
         // If the already pinned Order is the same as the one being pinned, return an error
         if (hasFavOrder.id === orderId) {
@@ -379,6 +378,21 @@ console.log("hasFavOrder",hasFavOrder);
   async getUserOrders(userId) {
     return await Order.findAll({
       where: { userId },
+      include: [
+        {
+          model: Document,
+          as: 'documents'
+        },
+        {
+          model: User,
+          as: 'user'
+        }
+      ]
+    });
+  }
+
+  async getAllUserOrders(userId) {
+    return await Order.findAll({
       include: [
         {
           model: Document,

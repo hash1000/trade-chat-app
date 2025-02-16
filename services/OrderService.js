@@ -72,6 +72,10 @@ class OrderService {
     return await this.orderRepository.getUserOrders(userId);
   }
 
+  async getAllUserOrders(){
+    return await this.orderRepository.getAllUserOrders();  
+  }
+
   async getOrderById(orderId) {
     return await this.orderRepository.getOrderByOrderId(orderId);
   }

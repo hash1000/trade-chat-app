@@ -136,6 +136,33 @@ class OrderController {
     }
   }
 
+async getAllUserOrders(req, res) {
+  try {
+    // const { userId } = req.parsedParams;
+
+    const userAllOrders = await orderService.getAllUserOrders();
+
+    if (userAllOrders.length === 0) {
+      return res
+        .status(404)
+        .json({ message: "No orders found for this user" });
+    }
+
+    res.status(200).json({
+      message: "Orders retrieved successfully",
+      orders: userAllOrders,
+    });
+  } catch (error) {
+    console.error("Error fetching user orders:", error);
+
+    res.status(500).json({
+      error: "Internal server error",
+      details:
+        process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+}
+
   async getOrderById(req, res) {
     try {
       const { orderId } = req.parsedParams;

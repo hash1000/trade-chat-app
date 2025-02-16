@@ -17,6 +17,8 @@ const upload = multer({ storage: multer.memoryStorage() });
 // Define the route handlers
 router.post('/:userId', adminAuthenticate,checkIntegerParam("userId"), createOrderValidator, orderController.createOrder.bind(orderController))
 router.get('/user-orders/:userId', adminAuthenticate, checkIntegerParam("userId"), orderController.getUserOrders.bind(orderController))
+// admin get all orders
+router.get('/all-orders', adminAuthenticate, orderController.getAllUserOrders.bind(orderController))
 
 // Upload document route
 router.get(
