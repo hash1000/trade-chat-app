@@ -43,7 +43,6 @@ class OrderController {
     try {
       const { name, image, price, status, documents } = req.body;
       const { orderId } = req.parsedParams;
-      console.log("name, image, price, status, documents",name, image, price, status, documents, orderId);
       // Update the order
       const updatedOrder = await orderService.updateOrder(
         name,
@@ -71,26 +70,21 @@ class OrderController {
   async uploadDocument(req, res) {
     try {
       const orderNo = req.params.orderNo;
-      // Use middleware like multer to handle file uploads
       if (!req.files || req.files.length === 0) {
         return res.status(400).json({ error: "No files uploaded" });
       }
-  
-      const result = await orderService.uploadDocument(orderNo, req.files);
-  
+      const result = await orderService.uploadDocument(orderNo,req.files);
       res.json({
         message: "Documents uploaded successfully",
         count: result.length,
         documents: result
       });
     } catch (error) {
-      console.error("Error uploading documents:", error);
-      let statusCode = 500;
-      if (error instanceof HostNotFoundError) statusCode = 404;
-      else if (error instanceof ValidationError) statusCode = 400;
-      res.status(statusCode).json({ error: error.message });
+      console.error("Error uploading order:", error);
+      return res.status(500).json({ message: "Internal server error" });
     }
   }
+  
 
   async deleteOrder(req, res) {
     try {

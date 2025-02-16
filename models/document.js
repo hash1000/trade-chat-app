@@ -15,6 +15,10 @@ const Document = db.define('Document', {
       key: 'orderNo'
     }
   },
+  title: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
   document: {
     type: DataTypes.STRING,
     allowNull: false

@@ -19,14 +19,14 @@ router.post('/:userId', adminAuthenticate,checkIntegerParam("userId"), createOrd
 router.get('/user-orders/:userId', adminAuthenticate, checkIntegerParam("userId"), orderController.getUserOrders.bind(orderController))
 
 // Upload document route
-router.post(
+router.get(
   '/upload-documents/:orderNo',
-  adminAuthenticate, 
+  authMiddleware,
   upload.array('documents', 5), // Allow up to 5 files
   orderController.uploadDocument.bind(orderController)
 );
 
-router.patch('/:orderId', authMiddleware,adminAuthenticate,checkIntegerParam("orderId"), orderController.updateOrder.bind(orderController))
+router.patch('/:orderId',adminAuthenticate,checkIntegerParam("orderId"), orderController.updateOrder.bind(orderController))
 router.get('/single-order/:orderId', checkIntegerParam("orderId"), authMiddleware, orderController.getOrderById.bind(orderController))
 router.delete('/:orderNo', authMiddleware, orderController.deleteOrder.bind(orderController))
 

@@ -28,8 +28,7 @@ const uploadFileToS3 = async (file, bucketName) => {
   if (!file) {
     throw new Error("No file provided");
   }
-
-  const fileName = `${Date.now()}${path.extname(file.originalname)}`;
+  const fileName = `${Date.now()}_${file.originalname}`;
   const params = {
     Bucket: bucketName,
     Key: fileName,
@@ -37,9 +36,11 @@ const uploadFileToS3 = async (file, bucketName) => {
     ContentType: file.mimetype,
     ACL: "public-read",
   };
-
   await s3Client.send(new PutObjectCommand(params));
-  return `${process.env.IMAGE_END_POINT}/${fileName}`;
+  return {
+    title: file.originalname,
+    url: `${process.env.IMAGE_END_POINT}/${fileName}`
+  };
 };
 
 /**
