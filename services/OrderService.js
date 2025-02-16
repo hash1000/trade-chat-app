@@ -12,8 +12,9 @@ class OrderService {
   
 
   async createOrder(name, image, userId, orderNo, price, status, user) {
-    const orderData = { name, image, userId, orderNo, price, status };
+    const existingOrder = await this.orderRepository.getUserOrders(userId);
     const address = await this.addressService.getPinAddressByUserId(userId);
+    const orderData = { name, image, userId, isFavorite: existingOrder.length === 0, orderNo, price, status };
     
     if (address) {
       return await this.orderRepository.createOrder(orderData);
@@ -23,6 +24,10 @@ class OrderService {
 
   async updateOrder(name, image, orderId, price, status, documents) {
     return this.orderRepository.updateOrder(name, image, orderId, price, status, documents);
+  }
+
+  async isFavoriteOrder(orderId) {
+    return this.orderRepository.isFavoriteOrder(orderId);
   }
 
   async uploadDocument(orderNo,documents) {
