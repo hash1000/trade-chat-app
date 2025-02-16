@@ -33,12 +33,8 @@ class AddressService {
     return address;
   }
 
-  async getAddressByUserId(userId) {
-    const address =  await this.addressRepository.getaddressByUserId(userId);
-
-    if (!address) {
-      throw new Error("Address not found or does not belong to the user.");
-    }
+  async getPinAddressByUserId(userId) {
+    const address =  await this.addressRepository.getPinaddressByUserId(userId);
     return address;
   }
   

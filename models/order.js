@@ -29,10 +29,6 @@ const Order = db.define('Order', {
     type: DataTypes.STRING,
     allowNull: false
   },
-  address: {
-    type: DataTypes.STRING,
-    allowNull: true
-  },
   price: {
     type: DataTypes.DECIMAL(10,2),
     allowNull: false
@@ -53,5 +49,6 @@ const Order = db.define('Order', {
     defaultValue: DataTypes.NOW
   }
 }, { tableName: 'orders' });
+
 
 module.exports = Order;
