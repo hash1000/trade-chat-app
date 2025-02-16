@@ -93,9 +93,10 @@ class OrderRepository {
   
         // Create new documents
         await Document.bulkCreate(
-          documents.map(url => ({
+          documents.map(doc => ({
             orderNo: order.orderNo,
-            document: url // Make sure this matches your model field name
+            title: doc.title,
+            document: doc.document // Make sure this matches your model field name
           })),
           { transaction }
         );
@@ -297,27 +298,24 @@ class OrderRepository {
     }
   }
 
-  async uploadDocument(orderNo, documentUrls, transaction) {
+  async uploadDocument(orderNo,documentObj,transaction) {
     try {
-      const createdDocuments = [];
-      console.log("documentUrls", documentUrls);
+      const documents = [];
 
-      for (const url of documentUrls) {
-        const doc = await Document.create(
-          {
-            orderNo,
-            document: url
-          },
-          { transaction }
-        );
+      for (const document of documentObj) {
+        const doc = await Document.create({
+          orderNo: orderNo,
+          title: document.title,
+          document: document.url
+        },{transaction});
+        documents.push(doc);
       }
-
-      return createdDocuments;
-    } catch (error) {
-      throw new Error(`Database insert failed: ${error.message}`);
+  
+      return documents;
+    }  catch (error) {
+      throw error;
     }
   }
-
 
   async getUserOrders(userId) {
     return await Order.findAll({

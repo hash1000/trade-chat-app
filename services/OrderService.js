@@ -25,44 +25,36 @@ class OrderService {
     return this.orderRepository.updateOrder(name, image, orderId, price, status, documents);
   }
 
-  async uploadDocument(orderNo, documents) {
+  async uploadDocument(orderNo,documents) {
+    const documentObj = [];
     let transaction;
-    const uploadedFiles = [];
-  
     try {
-      // Validate input
+      transaction = await sequelize.transaction();
       if (!documents || documents.length === 0) {
         throw new Error("No documents provided");
       }
   
-      // Start transaction
-      transaction = await sequelize.transaction();
-  
-      // Upload files to S3
       for (const file of documents) {
         const fileUrl = await uploadFileToS3(file, process.env.SPACES_BUCKET_NAME);
-        uploadedFiles.push(fileUrl);
+        documentObj.push(fileUrl);
       }
   
-      // Create database records
-      const result = await this.orderRepository.uploadDocument(
-        orderNo,
-        uploadedFiles,
-        transaction
-      );
-  
-      // Commit transaction
-      await transaction.commit();
-      return result;
-    } catch (error) {
-      // Rollback transaction if exists
-      if (transaction) await transaction.rollback();
+      return await this.orderRepository.uploadDocument(orderNo,documentObj,transaction );
       
-      // Clean up uploaded files if any
-      if (uploadedFiles.length > 0) {
-        await Promise.all(uploadedFiles.map(url => deleteFileFromS3(url)));
+      await transaction.commit();
+      return createdDocs;
+    } catch (error) {
+      await transaction.rollback();
+      
+      // Delete uploaded files from S3 on error
+      for (const file of uploadedFiles) {
+        try {
+          await deleteFileFromS3(file.url, process.env.SPACES_BUCKET_NAME);
+        } catch (err) {
+          console.error("Failed to delete file:", err);
+        }
       }
-  
+      
       throw error;
     }
   }
