@@ -204,30 +204,31 @@ class UserProfileController {
   async getAddressByUserId(req, res) {
     try {
       const { userId } = req.parsedParams;
-
-      const address = await addressService.getAddressByUserId(userId);
-
-      if (address.length === 0) {
+      const address = await addressService.getPinAddressByUserId(userId);
+  
+      if (!address) {
         return res.status(404).json({
-          message: "Address not found.",
+          message: "No address found for the given user ID.",
           addressStatus: "not_found",
-          address,
         });
       }
-
+  
       return res.status(200).json({
         message: "Address retrieved successfully.",
         addressStatus: "found",
         address,
       });
+  
     } catch (error) {
+      console.error("Error retrieving address:", error);
+  
       return res.status(500).json({
         message: "Internal server error.",
-        error: error.message,
+        error: error.message || "An unexpected error occurred.",
       });
     }
   }
-
+  
   async getaddress(req, res) {
     try {
       const user = req.user; // Extract user from request

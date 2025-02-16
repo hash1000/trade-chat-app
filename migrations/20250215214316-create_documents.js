@@ -18,7 +18,7 @@ module.exports = {
         onDelete: 'CASCADE'
       },
       document: {
-        type: Sequelize.JSON,
+        type: Sequelize.STRING,
         allowNull: false
       },
       createdAt: {

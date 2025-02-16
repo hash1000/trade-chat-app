@@ -1,54 +1,82 @@
+const sequelize = require("../config/database");
 const OrderRepository = require("../repositories/OrderRepository");
+const { uploadFileToS3, deleteFileFromS3 } = require("../utilities/s3Utils");
+const AddressService = require("./addressService");
+const multer = require("multer");
 
 class OrderService {
   constructor() {
     this.orderRepository = new OrderRepository();
+    this.addressService = new AddressService();
+  }
+  
+
+  async createOrder(name, image, userId, orderNo, price, status, user) {
+    const orderData = { name, image, userId, orderNo, price, status };
+    const address = await this.addressService.getPinAddressByUserId(userId);
+    
+    if (address) {
+      return await this.orderRepository.createOrder(orderData);
+    }
+    return null;
   }
 
-  async createOrder(name, image, orderNo, price, status, user) {
-    const { id: userId } = user;
-    const orderData = {
-      name,
-      image,
-      orderNo,
-      price,
-      status,
-    };
-
-    // for (const { productId, quantity } of products) {
-    //   orderData.products.push({ productId, quantity })
-    // }
-
-    return await this.orderRepository.createOrder(orderData, userId);
+  async updateOrder(name, image, orderId, price, status, documents) {
+    return this.orderRepository.updateOrder(name, image, orderId, price, status, documents);
   }
 
-  async updateOrder(name, image, orderNo, price, status, documents = []) {
-    return this.orderRepository.updateOrder(
-      name,
-      image,
-      orderNo,
-      price,
-      status,
-      documents
-    );
+  async uploadDocument(orderNo, documents) {
+    let transaction;
+    const uploadedFiles = [];
+  
+    try {
+      // Validate input
+      if (!documents || documents.length === 0) {
+        throw new Error("No documents provided");
+      }
+  
+      // Start transaction
+      transaction = await sequelize.transaction();
+  
+      // Upload files to S3
+      for (const file of documents) {
+        const fileUrl = await uploadFileToS3(file, process.env.SPACES_BUCKET_NAME);
+        uploadedFiles.push(fileUrl);
+      }
+  
+      // Create database records
+      const result = await this.orderRepository.uploadDocument(
+        orderNo,
+        uploadedFiles,
+        transaction
+      );
+  
+      // Commit transaction
+      await transaction.commit();
+      return result;
+    } catch (error) {
+      // Rollback transaction if exists
+      if (transaction) await transaction.rollback();
+      
+      // Clean up uploaded files if any
+      if (uploadedFiles.length > 0) {
+        await Promise.all(uploadedFiles.map(url => deleteFileFromS3(url)));
+      }
+  
+      throw error;
+    }
   }
 
-  async UploadDocument(orderNo, documents) {
-    return this.orderRepository.UploadDocument(orderNo, documents);
-  }
-
-  async deleteOrder(orderId) {
-    await this.orderRepository.deleteOrder(orderId);
+  async deleteOrder(orderNo) {
+    return await this.orderRepository.deleteOrder(orderNo);
   }
 
   async getUserOrders(userId) {
-    // Retrieve the user's orders from the repository
     return await this.orderRepository.getUserOrders(userId);
   }
 
-  async getOrderById(userId) {
-    // Retrieve the user's orders from the repository
-    return await this.orderRepository.getOrderProductById(userId);
+  async getOrderById(orderId) {
+    return await this.orderRepository.getOrderByOrderId(orderId);
   }
 }
 

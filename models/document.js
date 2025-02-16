@@ -8,11 +8,15 @@ const Document = db.define('Document', {
     autoIncrement: true
   },
   orderNo: {
-    type: DataTypes.INTEGER,
-    allowNull: false
+    type: DataTypes.STRING, // Must match Order model's orderNo type
+    allowNull: false,
+    references: {
+      model: 'Order',
+      key: 'orderNo'
+    }
   },
   document: {
-    type: DataTypes.JSON,
+    type: DataTypes.STRING,
     allowNull: false
   },
   createdAt: {

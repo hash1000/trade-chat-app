@@ -1,24 +1,24 @@
-const Order = require('../models/order')
+const { Order } = require('../models')
 const OrderProduct = require('../models/order_products')
 const Product = require('../models/product')
 const sequelize = require('../config/database')
 const ProductService = require('../services/ProductService')
 const { OrderUpdateNotification } = require("../notifications");
-const Document = require('../models/document')
+const { Document } = require('../models');
+const multer = require("multer");
 
 class OrderRepository {
+
   async getOrderById(orderId) {
     return await Order.findByPk(orderId)
   }
 
-  async createOrder(orderData, userId) {
-    const { name, image, orderNo, price, status } = orderData
+  async createOrder(orderData) {
+    const { name, image, userId, orderNo, price, status } = orderData
 
     let transaction
     try {
       transaction = await sequelize.transaction()
-
-      // Create the order within the transaction
       const createdOrder = await Order.create(
         {
           name,
@@ -30,34 +30,6 @@ class OrderRepository {
         },
         { transaction }
       )
-
-      // Fetch the associated products in a single query
-      // const productIds = products.map(({ productId }) => productId)
-      // const productInstances = await Product.findAll({
-      //   where: { id: productIds },
-      //   transaction
-      // })
-
-      // Check if all products were found in the database
-      // const foundProductIds = productInstances.map((product) => product.id)
-      // const missingProductIds = productIds.filter(
-      //   (productId) => !foundProductIds.includes(productId)
-      // )
-      // if (missingProductIds.length > 0) {
-      //   throw new Error(`Invalid Product IDs: ${missingProductIds.join(', ')}`)
-      // }
-
-      // // Create the order products within the transaction
-      // const orderProducts = productInstances.map((productInstance, index) => {
-      //   const { quantity } = products[index]
-      //   return {
-      //     orderId: createdOrder.id,
-      //     productId: productInstance.id,
-      //     quantity
-      //   }
-      // })
-
-      // await OrderProduct.bulkCreate(orderProducts, { transaction })
 
       await transaction.commit()
 
@@ -84,89 +56,69 @@ class OrderRepository {
     }
   }
 
-  async updateOrder( name, image, orderNo, price, status, documents) {
-    let transaction
+  async updateOrder(name, image, orderId, price, status, documents) {
+    let transaction;
     try {
-      transaction = await sequelize.transaction()
-
-      // Check if the order exists
-      const order = await this.getOrderById(orderId)
+      transaction = await sequelize.transaction();
+  
+      // 1. Get the order with existing documents
+      const order = await Order.findByPk(orderId, {
+        include: [{
+          model: Document,
+          as: 'documents' // Match your association alias
+        }],
+        transaction
+      });
+  
       if (!order) {
-        throw new Error('Order not found')
+        throw new Error('Order not found');
       }
-      if (name) {
-        order.name = name
-      }
-      if (image) {
-        order.image = image
-      }
-      if (price) {
-        order.price = price
-      }
-      if (status) {
-        order.status = status
-      }
+  
+      // 2. Update order fields
+      const updateFields = {};
+      if (name) updateFields.name = name;
+      if (image) updateFields.image = image;
+      if (price) updateFields.price = price;
+      if (status) updateFields.status = status;
+  
+      await order.update(updateFields, { transaction });
+  
+      // 3. Handle documents update
       if (documents && documents.length > 0) {
-        // Get the current products of the order
-        const currentDocuments = await Document.findAll({
-          where: { orderNo },
-          transaction
-        })
-
-        // Get the IDs of the products to be removed
-        const documentsIdsToRemove = currentDocuments
-          .filter((documents) => !updatedDocuments.some((d) => d.documentsId === document.documentId))
-          .map((product) => product.productId)
-
-        // Remove the products not included in the update data
-        await Documents.destroy({
-          where: {
-            orderId,
-            orderNo: documentsIdsToRemove
-          },
-          transaction
-        })
-
-        // Update or create the remaining products
-        for (const updateDocument of updateDocuments) {
-          const { productId, quantity } = updateDocument
-          const productService = new ProductService()
-          await productService.getProductById(productId)
-
-          // Find the order product to update or create
-          const orderProduct = await OrderProduct.findOne({
-            where: { orderId, productId },
-            transaction
-          })
-
-          if (orderProduct) {
-            // Update the quantity of the existing order product
-            orderProduct.quantity = quantity
-            await orderProduct.save({ transaction })
-          } else {
-            // Create a new order product
-            await OrderProduct.create(
-              {
-                orderId,
-                productId,
-                quantity
-              },
-              { transaction }
-            )
-          }
-        }
+        // Destroy existing documents
+        await Document.destroy({ 
+          where: { orderNo: order.orderNo }, 
+          transaction 
+        });
+  
+        // Create new documents
+        await Document.bulkCreate(
+          documents.map(url => ({
+            orderNo: order.orderNo,
+            document: url // Make sure this matches your model field name
+          })),
+          { transaction }
+        );
       }
-      await order.save({ transaction })
-      await transaction.commit()
-      // await new OrderUpdateNotification(order).sendNotification();
-
-      return order
+  
+      // 4. Get the updated order with fresh documents
+      const updatedOrder = await Order.findByPk(orderId, {
+        include: [{
+          model: Document,
+          as: 'documents',
+        }],
+        transaction
+      });
+  
+      await transaction.commit();
+      return updatedOrder;
     } catch (error) {
-      console.error(error)
-      if (transaction) await transaction.rollback()
-      throw error
+      console.error(error);
+      if (transaction) await transaction.rollback();
+      throw new Error(`Order update failed: ${error.message}`);
     }
   }
+
   async updateOrderDocument(orderNo, documents) {
     let transaction
     try {
@@ -178,7 +130,8 @@ class OrderRepository {
         throw new Error('Order not found')
       }
       if (documents) {
-        order.documents = documents
+        const fileUrl = await uploadFileToS3(documents, process.env.SPACES_BUCKET_NAME);
+        order.documents = fileUrl
       }
       if (updateDocuments && updateDocuments.length > 0) {
         // Get the current products of the order
@@ -241,6 +194,7 @@ class OrderRepository {
       throw error
     }
   }
+
   async updateOrderDocument(orderNo, documents) {
     let transaction
     try {
@@ -316,70 +270,79 @@ class OrderRepository {
     }
   }
 
-  async deleteOrder(orderId) {
-    let transaction
+  async deleteOrder(orderNo) {
+    let transaction;
     try {
-      transaction = await sequelize.transaction()
+      transaction = await sequelize.transaction();
+
       // Check if the order exists
-      const order = await this.getOrderById(orderId)
+      const order = await Order.findOne({ where: { id: orderNo }, transaction });
       if (!order) {
-        throw new Error('Order not found')
+        await transaction.rollback();
+        return { status: 404, message: "Order not found" };
       }
 
-      // Delete the order products associated with the order
-      await OrderProduct.destroy({
-        where: { orderId },
-        transaction
-      })
+      // Delete related documents
+      await Document.destroy({ where: { orderNo: order.orderNo }, transaction });
 
       // Delete the order
-      await Order.destroy({
-        where: { id: orderId },
-        transaction
-      })
+      await Order.destroy({ where: { orderNo: order.orderNo }, transaction });
 
-      await transaction.commit()
+      await transaction.commit();
+      return { status: 200, message: "Order deleted successfully" };
     } catch (error) {
-      if (transaction) await transaction.rollback()
-      throw error
+      if (transaction) await transaction.rollback();
+      console.error("Error deleting order:", error);
+      return { status: 500, message: `Failed to delete order: ${error.message}` };
     }
   }
 
-  async getUserOrders(userId) {
-    // Retrieve the user's orders from the database
-    return await Order.findAll({
-      where: { userId }
-      // include: [
-      //   {
-      //     model: OrderProduct,
-      //     as: 'orderProducts', // Update the alias to match the association alias
-      //     include: [
-      //       {
-      //         model: Product
-      //       }
-      //     ]
-      //   }
-      // ]
-    })
+  async uploadDocument(orderNo, documentUrls, transaction) {
+    try {
+      const createdDocuments = [];
+      console.log("documentUrls", documentUrls);
+
+      for (const url of documentUrls) {
+        const doc = await Document.create(
+          {
+            orderNo,
+            document: url
+          },
+          { transaction }
+        );
+      }
+
+      return createdDocuments;
+    } catch (error) {
+      throw new Error(`Database insert failed: ${error.message}`);
+    }
   }
 
-  async getOrderProductById(orderId) {
-    // Retrieve the user's orders from the database
+
+  async getUserOrders(userId) {
+    return await Order.findAll({
+      where: { userId },
+      include: [
+        {
+          model: Document,
+          as: 'documents'
+        }
+      ]
+    });
+  }
+
+  async getOrderByOrderId(orderId) {
     return await Order.findOne({
       where: { id: orderId },
       include: [
         {
-          model: OrderProduct,
-          as: 'orderProducts', // Update the alias to match the association alias
-          include: [
-            {
-              model: Product
-            }
-          ]
+          model: Document,
+          as: 'documents'
         }
       ]
     })
   }
+
 }
 
 module.exports = OrderRepository
