@@ -1,7 +1,7 @@
 const sequelize = require("../config/database");
 const OrderRepository = require("../repositories/OrderRepository");
 const { uploadFileToS3, deleteFileFromS3 } = require("../utilities/s3Utils");
-const AddressService = require("./addressService");
+const AddressService = require("./AddressService");
 const multer = require("multer");
 
 class OrderService {
