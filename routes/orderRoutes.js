@@ -25,6 +25,7 @@ router.get(
   upload.array('documents', 5), // Allow up to 5 files
   orderController.uploadDocument.bind(orderController)
 );
+router.patch('/favorite/:orderId',adminAuthenticate,checkIntegerParam("orderId"), orderController.isFavoriteOrder.bind(orderController))
 
 router.patch('/:orderId',adminAuthenticate,checkIntegerParam("orderId"), orderController.updateOrder.bind(orderController))
 router.get('/single-order/:orderId', checkIntegerParam("orderId"), authMiddleware, orderController.getOrderById.bind(orderController))

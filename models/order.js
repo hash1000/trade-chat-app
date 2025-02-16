@@ -25,6 +25,10 @@ const Order = db.define('Order', {
     allowNull: false,
     defaultValue: 'WAITING'
   },
+  isFavorite: {
+    type: DataTypes.BOOLEAN,
+    allowNull: true
+  },
   image: {
     type: DataTypes.STRING,
     allowNull: false

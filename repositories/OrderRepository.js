@@ -14,7 +14,7 @@ class OrderRepository {
   }
 
   async createOrder(orderData) {
-    const { name, image, userId, orderNo, price, status } = orderData
+    const { name, image, userId, isFavorite, orderNo, price, status } = orderData
 
     let transaction
     try {
@@ -24,6 +24,7 @@ class OrderRepository {
           name,
           image,
           orderNo,
+          isFavorite,
           price,
           status,
           userId
@@ -37,6 +38,64 @@ class OrderRepository {
     } catch (error) {
       if (transaction) await transaction.rollback()
       throw error
+    }
+  }
+
+  async isFavoriteOrder(orderId) {
+    let transaction;
+    try {
+      // Check if there is a currently pinned Order for the user
+      const hasFavOrder = await Order.findOne({
+        where: { id: orderId, isFavorite: 1 },
+      });
+console.log("hasFavOrder",hasFavOrder);
+      if (hasFavOrder) {
+        // If the already pinned Order is the same as the one being pinned, return an error
+        if (hasFavOrder.id === orderId) {
+          console.log("condition true");
+          return {
+            success: false,
+            message: "This order is already favorite.",
+          };
+        }
+      }
+
+      // Start a transaction
+      transaction = await sequelize.transaction();
+
+      const order = await Order.findOne({
+        where: { id: orderId},
+      });
+      // Unpin any previously pinned Orderes for this user
+      await Order.update(
+        { isFavorite: 0 },
+        { where: { userId: order.userId }, transaction }
+      );
+      // Pin the new Order
+      const [affectedRows] = await Order.update(
+        { isFavorite: 1 },
+        {
+          where: { id: orderId, userId: order.userId },
+          transaction,
+        }
+      );
+
+      // Check if the row was updated successfully
+      if (affectedRows === 0) {
+        throw new Error(`No order found to update.`);
+      }
+
+      // Commit the transaction
+      await transaction.commit();
+      return { success: true, message: "Order is Favorite successfully!" };
+    } catch (error) {
+      if (transaction) await transaction.rollback(); // Rollback in case of error
+      console.error("Error Favorite order:", error.message || error);
+      return {
+        success: false,
+        message: "Failed to Favorite order",
+        error: error.message || error,
+      };
     }
   }
 
