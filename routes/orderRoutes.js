@@ -21,7 +21,7 @@ router.get('/user-orders/:userId', adminAuthenticate, checkIntegerParam("userId"
 router.get('/all-orders', adminAuthenticate, orderController.getAllUserOrders.bind(orderController))
 
 // Upload document route
-router.get(
+router.post(
   '/upload-documents/:orderNo',
   authMiddleware,
   upload.array('documents', 5), // Allow up to 5 files
