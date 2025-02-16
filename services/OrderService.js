@@ -32,9 +32,9 @@ class OrderService {
 
   async uploadDocument(orderNo,documents) {
     const documentObj = [];
-    let transaction;
+    // let transaction;
     try {
-      transaction = await sequelize.transaction();
+      // transaction = await sequelize.transaction();
       if (!documents || documents.length === 0) {
         throw new Error("No documents provided");
       }
@@ -44,12 +44,12 @@ class OrderService {
         documentObj.push(fileUrl);
       }
   
-      return await this.orderRepository.uploadDocument(orderNo,documentObj,transaction );
+      return await this.orderRepository.uploadDocument(orderNo,documentObj);
       
-      await transaction.commit();
+      // await transaction.commit();
       return createdDocs;
     } catch (error) {
-      await transaction.rollback();
+      // await transaction.rollback();
       
       // Delete uploaded files from S3 on error
       for (const file of uploadedFiles) {

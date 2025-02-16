@@ -356,7 +356,7 @@ class OrderRepository {
     }
   }
 
-  async uploadDocument(orderNo,documentObj,transaction) {
+  async uploadDocument(orderNo,documentObj) {
     try {
       const documents = [];
 
@@ -365,7 +365,8 @@ class OrderRepository {
           orderNo: orderNo,
           title: document.title,
           document: document.url
-        },{transaction});
+        },
+      );
         documents.push(doc);
       }
   
