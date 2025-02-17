@@ -12,9 +12,9 @@ class OrderService {
   
 
   async createOrder(name, image, userId, orderNo, price, status, user) {
-    const existingOrder = await this.orderRepository.getUserOrders(userId);
+    // const existingOrder = await this.orderRepository.getUserOrders(userId);
     const address = await this.addressService.getPinAddressByUserId(userId);
-    const orderData = { name, image, userId, isFavorite: existingOrder.length === 0, orderNo, price, status };
+    const orderData = { name, image, userId, isFavorite: false, orderNo, price, status };
     
     if (address) {
       return await this.orderRepository.createOrder(orderData);
@@ -27,7 +27,11 @@ class OrderService {
   }
 
   async isFavoriteOrder(orderId) {
-    return this.orderRepository.isFavoriteOrder(orderId);
+    const order = await this.orderRepository.getOrderByOrderId(orderId);
+    if(order){
+      return this.orderRepository.isFavoriteOrder(orderId);
+    }
+    return { success: false, message: "This Order is does not exist" };
   }
 
   async uploadDocument(orderNo,documents) {
