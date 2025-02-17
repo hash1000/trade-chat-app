@@ -69,16 +69,14 @@ class OrderController {
   async isFavoriteOrder(req, res) {
     try {
       const { orderId } = req.parsedParams;
-
+  
       const result = await orderService.isFavoriteOrder(orderId);
-      return res.status(200).json({
-        result
-      });
+      return res.status(200).json(result);
     } catch (error) {
       return res.status(400).json({ error: error.message });
     }
   }
-
+  
   async uploadDocument(req, res) {
     try {
       const orderNo = req.params.orderNo;

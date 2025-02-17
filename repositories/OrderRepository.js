@@ -1,24 +1,24 @@
-const { Order, User } = require('../models')
-const OrderProduct = require('../models/order_products')
-const Product = require('../models/product')
-const sequelize = require('../config/database')
-const ProductService = require('../services/ProductService')
+const { Order, User } = require("../models");
+const OrderProduct = require("../models/order_products");
+const Product = require("../models/product");
+const sequelize = require("../config/database");
+const ProductService = require("../services/ProductService");
 const { OrderUpdateNotification } = require("../notifications");
-const { Document } = require('../models');
+const { Document } = require("../models");
 const multer = require("multer");
 
 class OrderRepository {
-
   async getOrderById(orderId) {
-    return await Order.findByPk(orderId)
+    return await Order.findByPk(orderId);
   }
 
   async createOrder(orderData) {
-    const { name, image, userId, isFavorite, orderNo, price, status } = orderData
+    const { name, image, userId, isFavorite, orderNo, price, status } =
+      orderData;
 
-    let transaction
+    let transaction;
     try {
-      transaction = await sequelize.transaction()
+      transaction = await sequelize.transaction();
       const createdOrder = await Order.create(
         {
           name,
@@ -27,49 +27,43 @@ class OrderRepository {
           isFavorite,
           price,
           status,
-          userId
+          userId,
         },
         { transaction }
-      )
+      );
 
-      await transaction.commit()
+      await transaction.commit();
 
       return createdOrder;
     } catch (error) {
-      if (transaction) await transaction.rollback()
-      throw error
+      if (transaction) await transaction.rollback();
+      throw error;
     }
   }
 
   async isFavoriteOrder(orderId) {
     let transaction;
     try {
-      // Check if there is a currently pinned Order for the user
+      // Check if the order is already marked as favorite
       const hasFavOrder = await Order.findOne({
         where: { id: orderId, isFavorite: 1 },
       });
+
+      // Toggle favorite status
       if (hasFavOrder) {
-        // If the already pinned Order is the same as the one being pinned, return an error
         if (hasFavOrder.id === orderId) {
-          console.log("condition true");
-          return {
-            success: false,
-            message: "This order is already favorite.",
-          };
+          await Order.update({ isFavorite: 0 }, { where: { id: orderId } });
+          return { success: true, message: "Order is now unfavorite." };
         }
       }
 
-      // Start a transaction
+      // Start transaction for setting as favorite
       transaction = await sequelize.transaction();
 
       const order = await Order.findOne({
-        where: { id: orderId},
+        where: { id: orderId },
       });
-      // Unpin any previously pinned Orderes for this user
-      await Order.update(
-        { isFavorite: 0 },
-        { where: { userId: order.userId }, transaction }
-      );
+
       // Pin the new Order
       const [affectedRows] = await Order.update(
         { isFavorite: 1 },
@@ -79,38 +73,37 @@ class OrderRepository {
         }
       );
 
-      // Check if the row was updated successfully
       if (affectedRows === 0) {
-        throw new Error(`No order found to update.`);
+        throw new Error("No order found to update.");
       }
 
-      // Commit the transaction
+      // Commit transaction
       await transaction.commit();
-      return { success: true, message: "Order is Favorite successfully!" };
+      return { success: true, message: "Order is marked as favorite." };
     } catch (error) {
-      if (transaction) await transaction.rollback(); // Rollback in case of error
-      console.error("Error Favorite order:", error.message || error);
+      if (transaction) await transaction.rollback();
+      console.error("Error updating favorite status:", error.message || error);
       return {
         success: false,
-        message: "Failed to Favorite order",
+        message: "Failed to update favorite status.",
         error: error.message || error,
       };
     }
   }
 
   async UploadDocument(orderNo, documents) {
-    let transaction
+    let transaction;
     try {
-      transaction = await sequelize.transaction()
+      transaction = await sequelize.transaction();
       const document = await Document.create(
         { orderNo, documents },
         transaction
-      )
+      );
       return document;
     } catch (error) {
-      console.error(error)
-      if (transaction) await transaction.rollback()
-      throw error
+      console.error(error);
+      if (transaction) await transaction.rollback();
+      throw error;
     }
   }
 
@@ -118,57 +111,61 @@ class OrderRepository {
     let transaction;
     try {
       transaction = await sequelize.transaction();
-  
+
       // 1. Get the order with existing documents
       const order = await Order.findByPk(orderId, {
-        include: [{
-          model: Document,
-          as: 'documents' // Match your association alias
-        }],
-        transaction
+        include: [
+          {
+            model: Document,
+            as: "documents", // Match your association alias
+          },
+        ],
+        transaction,
       });
-  
+
       if (!order) {
-        throw new Error('Order not found');
+        throw new Error("Order not found");
       }
-  
+
       // 2. Update order fields
       const updateFields = {};
       if (name) updateFields.name = name;
       if (image) updateFields.image = image;
       if (price) updateFields.price = price;
       if (status) updateFields.status = status;
-  
+
       await order.update(updateFields, { transaction });
-  
+
       // 3. Handle documents update
       if (documents && documents.length > 0) {
         // Destroy existing documents
-        await Document.destroy({ 
-          where: { orderNo: order.orderNo }, 
-          transaction 
+        await Document.destroy({
+          where: { orderNo: order.orderNo },
+          transaction,
         });
-  
+
         // Create new documents
         await Document.bulkCreate(
-          documents.map(doc => ({
+          documents.map((doc) => ({
             orderNo: order.orderNo,
             title: doc.title,
-            document: doc.document // Make sure this matches your model field name
+            document: doc.document, // Make sure this matches your model field name
           })),
           { transaction }
         );
       }
-  
+
       // 4. Get the updated order with fresh documents
       const updatedOrder = await Order.findByPk(orderId, {
-        include: [{
-          model: Document,
-          as: 'documents',
-        }],
-        transaction
+        include: [
+          {
+            model: Document,
+            as: "documents",
+          },
+        ],
+        transaction,
       });
-  
+
       await transaction.commit();
       return updatedOrder;
     } catch (error) {
@@ -179,153 +176,162 @@ class OrderRepository {
   }
 
   async updateOrderDocument(orderNo, documents) {
-    let transaction
+    let transaction;
     try {
-      transaction = await sequelize.transaction()
+      transaction = await sequelize.transaction();
 
       // Check if the order exists
-      const order = await this.getOrderById(orderId)
+      const order = await this.getOrderById(orderId);
       if (!order) {
-        throw new Error('Order not found')
+        throw new Error("Order not found");
       }
       if (documents) {
-        const fileUrl = await uploadFileToS3(documents, process.env.SPACES_BUCKET_NAME);
-        order.documents = fileUrl
+        const fileUrl = await uploadFileToS3(
+          documents,
+          process.env.SPACES_BUCKET_NAME
+        );
+        order.documents = fileUrl;
       }
       if (updateDocuments && updateDocuments.length > 0) {
         // Get the current products of the order
         const currentProducts = await OrderProduct.findAll({
           where: { orderId },
-          transaction
-        })
+          transaction,
+        });
 
         // Get the IDs of the products to be removed
         const productIdsToRemove = currentProducts
-          .filter((product) => !updateDocuments.some((p) => p.productId === product.productId))
-          .map((product) => product.productId)
+          .filter(
+            (product) =>
+              !updateDocuments.some((p) => p.productId === product.productId)
+          )
+          .map((product) => product.productId);
 
         // Remove the products not included in the update data
         await OrderProduct.destroy({
           where: {
             orderId,
-            productId: productIdsToRemove
+            productId: productIdsToRemove,
           },
-          transaction
-        })
+          transaction,
+        });
 
         // Update or create the remaining products
         for (const updateDocument of updateDocuments) {
-          const { productId, quantity } = updateDocument
-          const productService = new ProductService()
-          await productService.getProductById(productId)
+          const { productId, quantity } = updateDocument;
+          const productService = new ProductService();
+          await productService.getProductById(productId);
 
           // Find the order product to update or create
           const orderProduct = await OrderProduct.findOne({
             where: { orderId, productId },
-            transaction
-          })
+            transaction,
+          });
 
           if (orderProduct) {
             // Update the quantity of the existing order product
-            orderProduct.quantity = quantity
-            await orderProduct.save({ transaction })
+            orderProduct.quantity = quantity;
+            await orderProduct.save({ transaction });
           } else {
             // Create a new order product
             await OrderProduct.create(
               {
                 orderId,
                 productId,
-                quantity
+                quantity,
               },
               { transaction }
-            )
+            );
           }
         }
       }
-      await order.save({ transaction })
-      await transaction.commit()
+      await order.save({ transaction });
+      await transaction.commit();
       // await new OrderUpdateNotification(order).sendNotification();
 
-      return order
+      return order;
     } catch (error) {
-      console.error(error)
-      if (transaction) await transaction.rollback()
-      throw error
+      console.error(error);
+      if (transaction) await transaction.rollback();
+      throw error;
     }
   }
 
   async updateOrderDocument(orderNo, documents) {
-    let transaction
+    let transaction;
     try {
-      transaction = await sequelize.transaction()
+      transaction = await sequelize.transaction();
 
       // Check if the order exists
-      const order = await this.getOrderById(orderId)
+      const order = await this.getOrderById(orderId);
       if (!order) {
-        throw new Error('Order not found')
+        throw new Error("Order not found");
       }
       if (documents) {
-        order.documents = documents
+        order.documents = documents;
       }
       if (updatedProducts && updatedProducts.length > 0) {
         // Get the current products of the order
         const currentProducts = await OrderProduct.findAll({
           where: { orderId },
-          transaction
-        })
+          transaction,
+        });
 
         // Get the IDs of the products to be removed
         const productIdsToRemove = currentProducts
-          .filter((product) => !updatedProducts.some((p) => p.productId === product.productId))
-          .map((product) => product.productId)
+          .filter(
+            (product) =>
+              !updatedProducts.some((p) => p.productId === product.productId)
+          )
+          .map((product) => product.productId);
 
         // Remove the products not included in the update data
         await OrderProduct.destroy({
           where: {
             orderId,
-            productId: productIdsToRemove
+            productId: productIdsToRemove,
           },
-          transaction
-        })
+          transaction,
+        });
 
         // Update or create the remaining products
         for (const updatedProduct of updatedProducts) {
-          const { productId, quantity } = updatedProduct
-          const productService = new ProductService()
-          await productService.getProductById(productId)
+          const { productId, quantity } = updatedProduct;
+          const productService = new ProductService();
+          await productService.getProductById(productId);
 
           // Find the order product to update or create
           const orderProduct = await OrderProduct.findOne({
             where: { orderId, productId },
-            transaction
-          })
+            transaction,
+          });
 
           if (orderProduct) {
             // Update the quantity of the existing order product
-            orderProduct.quantity = quantity
-            await orderProduct.save({ transaction })
+            orderProduct.quantity = quantity;
+            await orderProduct.save({ transaction });
           } else {
             // Create a new order product
             await OrderProduct.create(
               {
                 orderId,
                 productId,
-                quantity
+                quantity,
               },
               { transaction }
-            )
+            );
           }
         }
       }
-      await order.save({ transaction })
-      await transaction.commit()
+      await order.save({ transaction });
+      await transaction.commit();
       // await new OrderUpdateNotification(order).sendNotification();
 
-      return order
+      return order;
     } catch (error) {
-      console.error(error)
-      if (transaction) await transaction.rollback()
-      throw error
+      console.error(error);
+      if (transaction) await transaction.rollback();
+      throw error;
     }
   }
 
@@ -335,14 +341,20 @@ class OrderRepository {
       transaction = await sequelize.transaction();
 
       // Check if the order exists
-      const order = await Order.findOne({ where: { id: orderNo }, transaction });
+      const order = await Order.findOne({
+        where: { id: orderNo },
+        transaction,
+      });
       if (!order) {
         await transaction.rollback();
         return { status: 404, message: "Order not found" };
       }
 
       // Delete related documents
-      await Document.destroy({ where: { orderNo: order.orderNo }, transaction });
+      await Document.destroy({
+        where: { orderNo: order.orderNo },
+        transaction,
+      });
 
       // Delete the order
       await Order.destroy({ where: { orderNo: order.orderNo }, transaction });
@@ -352,11 +364,14 @@ class OrderRepository {
     } catch (error) {
       if (transaction) await transaction.rollback();
       console.error("Error deleting order:", error);
-      return { status: 500, message: `Failed to delete order: ${error.message}` };
+      return {
+        status: 500,
+        message: `Failed to delete order: ${error.message}`,
+      };
     }
   }
 
-  async uploadDocument(orderNo,documentObj) {
+  async uploadDocument(orderNo, documentObj) {
     try {
       const documents = [];
 
@@ -364,14 +379,13 @@ class OrderRepository {
         const doc = await Document.create({
           orderNo: orderNo,
           title: document.title,
-          document: document.url
-        },
-      );
+          document: document.url,
+        });
         documents.push(doc);
       }
-  
+
       return documents;
-    }  catch (error) {
+    } catch (error) {
       throw error;
     }
   }
@@ -382,9 +396,9 @@ class OrderRepository {
       include: [
         {
           model: Document,
-          as: 'documents'
-        }
-      ]
+          as: "documents",
+        },
+      ],
     });
   }
 
@@ -393,9 +407,9 @@ class OrderRepository {
       include: [
         {
           model: Document,
-          as: 'documents'
-        }
-      ]
+          as: "documents",
+        },
+      ],
     });
   }
 
@@ -405,12 +419,11 @@ class OrderRepository {
       include: [
         {
           model: Document,
-          as: 'documents'
-        }
-      ]
-    })
+          as: "documents",
+        },
+      ],
+    });
   }
-
 }
 
-module.exports = OrderRepository
+module.exports = OrderRepository;
