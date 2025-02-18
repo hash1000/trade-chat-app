@@ -1,6 +1,7 @@
 const { DataTypes } = require('sequelize');
 const db = require('../config/database');
 const User = require('./user');
+const Address = require('./address');
 
 const Order = db.define('Order', {
   id: {
@@ -9,10 +10,18 @@ const Order = db.define('Order', {
     autoIncrement: true
   },
   userId: {
-    allowNull: false,
     type: DataTypes.INTEGER,
+    allowNull: false,
     references: {
       model: User,
+      key: 'id'
+    }
+  },
+  addressId: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: Address,
       key: 'id'
     }
   },

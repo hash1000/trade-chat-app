@@ -6,6 +6,7 @@ const ProductService = require("../services/ProductService");
 const { OrderUpdateNotification } = require("../notifications");
 const { Document } = require("../models");
 const multer = require("multer");
+const Address = require("../models/address");
 
 class OrderRepository {
   async getOrderById(orderId) {
@@ -13,18 +14,20 @@ class OrderRepository {
   }
 
   async createOrder(orderData) {
-    const { name, image, userId, isFavorite, orderNo, price, status } =
+    const { name, image, userId, addressId, isFavorite, orderNo, price, status } =
       orderData;
-
+      
     let transaction;
     try {
       transaction = await sequelize.transaction();
+     
       const createdOrder = await Order.create(
         {
           name,
           image,
           orderNo,
           isFavorite,
+          addressId,
           price,
           status,
           userId,
@@ -398,6 +401,14 @@ class OrderRepository {
           model: Document,
           as: "documents",
         },
+        {
+          model: User,
+          as: "users",
+        },
+        {
+          model: Address,
+          as: "address",
+        }
       ],
     });
   }
@@ -409,6 +420,14 @@ class OrderRepository {
           model: Document,
           as: "documents",
         },
+        {
+          model: User,
+          as: "users",
+        },
+        {
+          model: Address,
+          as: "address",
+        }
       ],
     });
   }
@@ -421,6 +440,14 @@ class OrderRepository {
           model: Document,
           as: "documents",
         },
+        {
+          model: User,
+          as: "users",
+        },
+        {
+          model: Address,
+          as: "address",
+        }
       ],
     });
   }

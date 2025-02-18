@@ -14,9 +14,9 @@ class OrderService {
   async createOrder(name, image, userId, orderNo, price, status, user) {
     // const existingOrder = await this.orderRepository.getUserOrders(userId);
     const address = await this.addressService.getPinAddressByUserId(userId);
-    const orderData = { name, image, userId, isFavorite: false, orderNo, price, status };
     
     if (address) {
+      const orderData = { name, image, userId, addressId: address.id, isFavorite: false, orderNo, price, status };
       return await this.orderRepository.createOrder(orderData);
     }
     return null;
