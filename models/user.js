@@ -1,5 +1,6 @@
 const { DataTypes } = require("sequelize");
 const sequelize = require("../config/database");
+const Order = require("./order");
 
 const User = sequelize.define(
   "User",
@@ -82,6 +83,10 @@ const User = sequelize.define(
         profileId: 0,
       },
     },
+    orderId: {
+      type: DataTypes.INTEGER,
+      allowNull: true, // Allow null because the order might not be created yet
+    },    
     createdAt: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW,
@@ -148,6 +153,5 @@ User.prototype.toJSON = function () {
   delete values.otp;
   return values;
 };
-
 
 module.exports = User;

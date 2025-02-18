@@ -93,8 +93,5 @@ const Address = sequelize.define('Address', {
   tableName: 'address' // Specify the table name
 })
 
-// Define associations
-User.hasMany(Address, { foreignKey: "userId", as: "address" });
-Address.belongsTo(User, { foreignKey: "userId", as: "users" });
 
 module.exports = Address
