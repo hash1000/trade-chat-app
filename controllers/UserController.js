@@ -203,6 +203,7 @@ class UserController {
       res.status(500).json({ message: "Failed to verify user." });
     }
   }
+  
   async GoogleProfile(req, res) {
     try {
       const {

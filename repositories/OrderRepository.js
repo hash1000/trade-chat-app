@@ -14,23 +14,23 @@ class OrderRepository {
   }
 
   async createOrder(orderData) {
-    const { name, image, userId, addressId, isFavorite, orderNo, price, status } =
+    const { name, image, userId, adminId, addressId, isFavorite, orderNo, price, status } =
       orderData;
       
     let transaction;
     try {
       transaction = await sequelize.transaction();
-     
       const createdOrder = await Order.create(
         {
           name,
           image,
           orderNo,
           isFavorite,
+          userId,
+          adminId,
           addressId,
           price,
           status,
-          userId,
         },
         { transaction }
       );
@@ -405,6 +405,10 @@ class OrderRepository {
           model: User,
           as: "users",
         },
+        { 
+          model: User,
+          as: "admin" // Correct alias for adminId association
+        },
         {
           model: Address,
           as: "address",
@@ -413,7 +417,7 @@ class OrderRepository {
     });
   }
 
-  async getAllUserOrders(userId) {
+  async getAllUserOrders() {
     return await Order.findAll({
       include: [
         {
@@ -422,35 +426,17 @@ class OrderRepository {
         },
         {
           model: User,
-          as: "users",
+          as: "users", // Fetch the user who placed the order
         },
-        {
-          model: Address,
-          as: "address",
-        }
+        { 
+          model: User,
+          as: "admin" // Correct alias for adminId association
+        },
+        { model: Address, as: "address" }
       ],
     });
   }
 
-  async getOrderByOrderId(orderId) {
-    return await Order.findOne({
-      where: { id: orderId },
-      include: [
-        {
-          model: Document,
-          as: "documents",
-        },
-        {
-          model: User,
-          as: "users",
-        },
-        {
-          model: Address,
-          as: "address",
-        }
-      ],
-    });
-  }
 }
 
 module.exports = OrderRepository;
