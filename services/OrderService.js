@@ -11,12 +11,11 @@ class OrderService {
   }
   
 
-  async createOrder(name, image, userId, orderNo, price, status, user) {
-    // const existingOrder = await this.orderRepository.getUserOrders(userId);
+  async createOrder(name, image, userId, adminId, orderNo, price, status) {
+
     const address = await this.addressService.getPinAddressByUserId(userId);
-    
     if (address) {
-      const orderData = { name, image, userId, addressId: address.id, isFavorite: false, orderNo, price, status };
+      const orderData = { name, image, userId, adminId, addressId: address.id, isFavorite: false, orderNo, price, status };
       return await this.orderRepository.createOrder(orderData);
     }
     return null;

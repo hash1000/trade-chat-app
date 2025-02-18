@@ -57,6 +57,7 @@ class AddressRepository {
   async addAddress(id, type, address) {
     return await Address.create({
       userId: id,
+      adminId: id,
       type,
       ...address,
     });

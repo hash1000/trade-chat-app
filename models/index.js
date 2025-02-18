@@ -35,6 +35,33 @@ Address.belongsTo(User, { foreignKey: "userId", as: "users" });
 Address.hasOne(Order, { foreignKey: "addressId", as: "orders" });
 Order.belongsTo(Address, { foreignKey: "addressId", as: "address" });
 
+// In your associations setup (e.g., in a separate file or where you define relationships)
+
+// User has many Orders as a regular user (userId)
+User.hasMany(Order, {
+  foreignKey: "userId",
+  as: "userOrders"
+});
+
+// Order belongs to User (userId) as 'user'
+Order.belongsTo(User, {
+  foreignKey: "userId",
+  as: "user"
+});
+
+// User has many Orders as an admin (adminId)
+User.hasMany(Order, {
+  foreignKey: "adminId",
+  as: "adminOrders"
+});
+
+// Order belongs to User (adminId) as 'hashir'
+Order.belongsTo(User, {
+  foreignKey: "adminId",
+  as: "admin"
+});
+
+
 module.exports = {
   db,
   User,

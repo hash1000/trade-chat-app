@@ -73,6 +73,14 @@ const Address = sequelize.define('Address', {
       key: 'id'
     }
   },
+  adminId: {
+    allowNull: false,
+    type: DataTypes.INTEGER,
+    references: {
+      model: User,
+      key: 'id'
+    }
+  },
   type: {
     type: DataTypes.ENUM('company', 'delivery'),
     allowNull: false
