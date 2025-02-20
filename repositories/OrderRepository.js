@@ -437,6 +437,28 @@ class OrderRepository {
     });
   }
 
+  async getOrderByOrderId(orderId) {
+    return await Order.findOne({
+      where: { id: orderId },
+      include: [
+        {
+          model: Document,
+          as: "documents",
+        },
+        {
+          model: User,
+          as: "users", // Fetch the user who placed the order
+        },
+        { 
+          model: User,
+          as: "admin" // Correct alias for adminId association
+        },
+        { model: Address, as: "address" }
+      ],
+    });
+}
+
+
 }
 
 module.exports = OrderRepository;
