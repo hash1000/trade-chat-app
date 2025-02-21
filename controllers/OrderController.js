@@ -41,6 +41,32 @@ class OrderController {
     }
   }
 
+  async updateOrderAddress(req, res){
+    try {
+      const user = req.user; // Extract user from request
+      const { orderId } = req.parsedParams;
+      const { pin, type, ...updateFields } = req.body;
+      if (!updateFields || Object.keys(updateFields).length === 0) {
+        return res
+          .status(400)
+          .json({ error: "No fields provided for update." });
+      }
+      // Update the address
+      const updatedAddress = await orderService.updateOrderAddress(
+        user.id,
+        orderId,
+        updateFields
+      );
+
+      return res.status(200).json({
+        message: "Address updated successfully.",
+        address: updatedAddress,
+      });
+    } catch (error) {
+      return res.status(400).json({ error: error.message });
+    }
+  }
+
   async updateOrder(req, res) {
     try {
       const { name, image, price, status, documents } = req.body;
