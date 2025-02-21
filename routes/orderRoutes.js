@@ -5,7 +5,8 @@ const multer = require("multer");
 const OrderController = require('../controllers/OrderController')
 const authMiddleware = require('../middlewares/authenticate')
 const {
-  createOrderValidator
+  createOrderValidator,
+  updateOrderAddressValidator
 } = require('../middlewares/orderValidation')
 const adminAuthenticate = require('../middlewares/authorization')
 const checkIntegerParam = require('../middlewares/paramIntegerValidation')
@@ -27,10 +28,15 @@ router.post(
   upload.array('documents', 5), // Allow up to 5 files
   orderController.uploadDocument.bind(orderController)
 );
+
 router.patch('/favorite/:orderId',adminAuthenticate,checkIntegerParam("orderId"), orderController.isFavoriteOrder.bind(orderController))
 
-router.patch('/:orderId',adminAuthenticate,checkIntegerParam("orderId"), orderController.updateOrder.bind(orderController))
-router.get('/single-order/:orderId', checkIntegerParam("orderId"), authMiddleware, orderController.getOrderById.bind(orderController))
-router.delete('/:orderNo', authMiddleware, orderController.deleteOrder.bind(orderController))
+router.patch('/order-address/:orderId',adminAuthenticate,checkIntegerParam("orderId"), updateOrderAddressValidator, orderController.updateOrderAddress.bind(orderController));
+
+router.patch('/:orderId',adminAuthenticate,checkIntegerParam("orderId"), orderController.updateOrder.bind(orderController));
+
+router.get('/single-order/:orderId', checkIntegerParam("orderId"), authMiddleware, orderController.getOrderById.bind(orderController));
+
+router.delete('/:orderNo', authMiddleware, orderController.deleteOrder.bind(orderController));
 
 module.exports = router

@@ -1,4 +1,5 @@
 const sequelize = require("../config/database");
+const AddressRepository = require("../repositories/AddressRepository");
 const OrderRepository = require("../repositories/OrderRepository");
 const { uploadFileToS3, deleteFileFromS3 } = require("../utilities/s3Utils");
 const AddressService = require("./AddressService");
@@ -8,8 +9,9 @@ class OrderService {
   constructor() {
     this.orderRepository = new OrderRepository();
     this.addressService = new AddressService();
+    this.addressRepository = new AddressRepository();
   }
-  
+
 
   async createOrder(name, image, userId, adminId, orderNo, price, status) {
 
@@ -25,15 +27,40 @@ class OrderService {
     return this.orderRepository.updateOrder(name, image, orderId, price, status, documents);
   }
 
+  async updateOrderAddress(userId, orderId, updateFields) {
+    const order = await this.orderRepository.getOrderByOrderId(orderId);
+    if (order) {
+      // Fetch the address to ensure it belongs to the user
+      const address = await this.addressRepository.getAddressById(
+        updateFields.addressId,
+        order.userId
+      );
+
+      if (!address) {
+        throw new Error("Address not found or does not belong to the user.");
+      }
+
+      // Update the address fields
+      const updatedAddress = await this.addressRepository.updateAddress(
+        updateFields.addressId,
+        updateFields
+      );
+
+      const updatedOrder = await this.orderRepository.getOrderByOrderId(orderId);
+      return updatedOrder;
+    }
+    return { success: false, message: "This Order is does not exist" };
+  }
+
   async isFavoriteOrder(orderId) {
     const order = await this.orderRepository.getOrderByOrderId(orderId);
-    if(order){
+    if (order) {
       return this.orderRepository.isFavoriteOrder(orderId);
     }
     return { success: false, message: "This Order is does not exist" };
   }
 
-  async uploadDocument(orderNo,documents) {
+  async uploadDocument(orderNo, documents) {
     const documentObj = [];
     // let transaction;
     try {
@@ -41,19 +68,19 @@ class OrderService {
       if (!documents || documents.length === 0) {
         throw new Error("No documents provided");
       }
-  
+
       for (const file of documents) {
         const fileUrl = await uploadFileToS3(file, process.env.SPACES_BUCKET_NAME);
         documentObj.push(fileUrl);
       }
-  
-      return await this.orderRepository.uploadDocument(orderNo,documentObj);
-      
+
+      return await this.orderRepository.uploadDocument(orderNo, documentObj);
+
       // await transaction.commit();
       return createdDocs;
     } catch (error) {
       // await transaction.rollback();
-      
+
       // Delete uploaded files from S3 on error
       for (const file of uploadedFiles) {
         try {
@@ -62,7 +89,7 @@ class OrderService {
           console.error("Failed to delete file:", err);
         }
       }
-      
+
       throw error;
     }
   }
@@ -75,8 +102,8 @@ class OrderService {
     return await this.orderRepository.getUserOrders(userId);
   }
 
-  async getAllUserOrders(){
-    return await this.orderRepository.getAllUserOrders();  
+  async getAllUserOrders() {
+    return await this.orderRepository.getAllUserOrders();
   }
 
   async getOrderById(orderId) {
