@@ -12,44 +12,60 @@ class OrderService {
     this.addressRepository = new AddressRepository();
   }
 
-
   async createOrder(name, image, userId, adminId, orderNo, price, status) {
-
     const address = await this.addressService.getPinAddressByUserId(userId);
     if (address) {
-      const orderData = { name, image, userId, adminId, addressId: address.id, isFavorite: false, orderNo, price, status };
+      const orderData = {
+        name,
+        image,
+        userId,
+        adminId,
+        addressId: address.id,
+        isFavorite: false,
+        orderNo,
+        price,
+        status,
+      };
       return await this.orderRepository.createOrder(orderData);
     }
     return null;
   }
 
   async updateOrder(name, image, orderId, price, status, documents) {
-    return this.orderRepository.updateOrder(name, image, orderId, price, status, documents);
+    return this.orderRepository.updateOrder(
+      name,
+      image,
+      orderId,
+      price,
+      status,
+      documents
+    );
   }
 
   async updateOrderAddress(userId, orderId, updateFields) {
-    const order = await this.orderRepository.getOrderByOrderId(orderId);
+    const order = await this.orderRepository.getOrderById(orderId);
     if (order) {
       // Fetch the address to ensure it belongs to the user
       const address = await this.addressRepository.getAddressById(
         updateFields.addressId,
         order.userId
-      );
+      ); 
 
       if (!address) {
         throw new Error("Address not found or does not belong to the user.");
       }
-
       // Update the address fields
       const updatedAddress = await this.addressRepository.updateAddress(
         updateFields.addressId,
         updateFields
       );
 
-      const updatedOrder = await this.orderRepository.getOrderByOrderId(orderId);
+      const updatedOrder = await this.orderRepository.getOrderByOrderId(
+        orderId
+      );
       return updatedOrder;
     }
-    return { success: false, message: "This Order is does not exist" };
+    throw new Error("Order not found.");
   }
 
   async isFavoriteOrder(orderId) {
@@ -70,7 +86,10 @@ class OrderService {
       }
 
       for (const file of documents) {
-        const fileUrl = await uploadFileToS3(file, process.env.SPACES_BUCKET_NAME);
+        const fileUrl = await uploadFileToS3(
+          file,
+          process.env.SPACES_BUCKET_NAME
+        );
         documentObj.push(fileUrl);
       }
 
