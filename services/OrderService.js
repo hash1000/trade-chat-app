@@ -46,12 +46,10 @@ class OrderService {
     const order = await this.orderRepository.getOrderById(orderId);
     if (order) {
       // Fetch the address to ensure it belongs to the user
-      console.log("order",order);
       const address = await this.addressRepository.getAddressById(
         order.userId,
         updateFields.addressId
-      ); 
-console.log("address",address);
+      );
       if (!address) {
         throw new Error("Address not found or does not belong to the user.");
       }
