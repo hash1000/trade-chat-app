@@ -138,7 +138,7 @@ class OrderController {
 
   async getUserOrders(req, res) {
     try {
-      const { userId } = req.parsedParams;
+      const { userId } = req.params;
 
       const userOrders = await orderService.getUserOrders(userId);
 
