@@ -35,4 +35,5 @@ const Document = db.define('Document', {
   }
 }, { tableName: 'documents' });
 
+
 module.exports = Document;
