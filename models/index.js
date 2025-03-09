@@ -9,8 +9,8 @@ const Document = require("./document");
 User.hasMany(Address, { foreignKey: "userId", as: "addresses" });
 Address.belongsTo(User, { foreignKey: "userId", as: "user" });
 
-User.hasMany(Order, { foreignKey: "userId", as: "userOrders" });
-Order.belongsTo(User, { foreignKey: "userId", as: "user" });
+User.hasMany(Order, { foreignKey: "userId", as: "order" });
+Order.belongsTo(User, { foreignKey: "userId", as: "users" });
 
 User.hasMany(Order, { foreignKey: "adminId", as: "adminOrders" });
 Order.belongsTo(User, { foreignKey: "adminId", as: "admin" });
