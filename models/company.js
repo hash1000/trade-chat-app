@@ -1,83 +1,86 @@
-const { DataTypes } = require('sequelize')
-const sequelize = require('../config/database')
-const User = require('./user')
+const { DataTypes } = require("sequelize");
 
-const Company = sequelize.define('Company', {
-  id: {
-    allowNull: false,
-    autoIncrement: true,
-    primaryKey: true,
-    type: DataTypes.INTEGER
-  },
-  companyName: {
-    allowNull: true,
-    type: DataTypes.STRING
-  },
-  managerFirstName: {
-    allowNull: true,
-    type: DataTypes.STRING
-  },
-  managerLastName: {
-    allowNull: true,
-    type: DataTypes.STRING
-  },
-  companyPhone: {
-    allowNull: true,
-    type: DataTypes.STRING
-  },
-  companyAddress: {
-    allowNull: true,
-    type: DataTypes.STRING
-  },
-  companyCountry: {
-    allowNull: true,
-    type: DataTypes.STRING
-  },
-  companyCity: {
-    allowNull: true,
-    type: DataTypes.STRING
-  },
-  companyZip: {
-    allowNull: true,
-    type: DataTypes.STRING
-  },
-  deliveryAddress: {
-    type: DataTypes.STRING,
-    allowNull: true
-  },
-  deliveryCountry: {
-    type: DataTypes.STRING,
-    allowNull: true
-  },
-  deliveryCity: {
-    type: DataTypes.STRING,
-    allowNull: true
-  },
-  deliveryZip: {
-    type: DataTypes.STRING,
-    allowNull: true
-  },
-  userId: {
-    allowNull: false,
-    type: DataTypes.INTEGER,
-    references: {
-      model: User,
-      key: 'id'
+module.exports = (sequelize) => {
+  const Company = sequelize.define(
+    "Company",
+    {
+      id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+      },
+      companyName: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      managerFirstName: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      managerLastName: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      companyPhone: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      companyAddress: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      companyCountry: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      companyCity: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      companyZip: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      deliveryAddress: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      deliveryCountry: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      deliveryCity: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      deliveryZip: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      userId: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+      },
+      createdAt: {
+        type: DataTypes.DATE,
+        defaultValue: DataTypes.NOW,
+      },
+      updatedAt: {
+        type: DataTypes.DATE,
+        defaultValue: DataTypes.NOW,
+      },
+    },
+    {
+      tableName: "companies",
     }
-  },
-  createdAt: {
-    allowNull: false,
-    type: DataTypes.DATE
-  },
-  updatedAt: {
-    allowNull: false,
-    type: DataTypes.DATE
-  }
-}, {
-  tableName: 'companies' // Specify the table name
-})
+  );
 
-// Define the association with User
-Company.belongsTo(User, { foreignKey: 'userId' })
+  Company.associate = function (models) {
+    Company.belongsTo(models.User, {
+      foreignKey: "userId",
+      as: "user",
+    });
+  };
 
-module.exports = Company
+  return Company;
+};

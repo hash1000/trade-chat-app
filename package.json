@@ -6,7 +6,8 @@
     "start": "nodemon ./bin/app.js",
     "migrate": "npx sequelize-cli db:migrate",
     "seed": "npx sequelize-cli db:seed:all",
-    "rollback": "npx sequelize-cli db:migrate:undo"
+    "rollback": "npx sequelize-cli db:migrate:undo",
+    "check:deps": "madge --circular --extensions js ./"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.614.0",
