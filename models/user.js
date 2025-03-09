@@ -34,25 +34,93 @@ const User = sequelize.define(
       type: DataTypes.STRING,
       allowNull: true,
     },
-    email: {
+    gender: {
       type: DataTypes.STRING,
-      allowNull: false,
-      unique: true,
+      allowNull: true,
+    },
+    country: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    age: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    profilePic: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    description: {
+      type: DataTypes.STRING,
+      allowNull: true,
     },
     password: {
       type: DataTypes.STRING,
       allowNull: true,
     },
+    email: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      unique: true,
+    },
     settings: {
-      type: DataTypes.JSONB,
+      type: DataTypes.JSONB, // Change to JSONB if your database supports it for better performance
       defaultValue: {
-        paymentCode: "",
+        paymentCode: "", // Default empty string for paymentCode
         password: "12345678",
         tags: [],
         emails: ["example@example.com"],
         phoneNumbers: ["1234567890"],
         description: "Default description",
       },
+    },
+    friendShip: {
+      type: DataTypes.JSON,
+      defaultValue: {
+        type: "defaultType",
+        userId: 0,
+        profileId: 0,
+      },
+    },
+    orderId: {
+      type: DataTypes.INTEGER,
+      allowNull: true, // Allow null because the order might not be created yet
+    },    
+    createdAt: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
+    },
+    updatedAt: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
+    },
+    resetToken: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    fcm: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    tokenVersion: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+    },
+    likes: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+    },
+    dislikes: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+    },
+    is_online: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+    },
+    last_login: {
+      type: DataTypes.BIGINT,
+      defaultValue: 0,
     },
     personalWalletBalance: {
       type: DataTypes.INTEGER,
@@ -62,24 +130,26 @@ const User = sequelize.define(
       type: DataTypes.INTEGER,
       defaultValue: 0,
     },
-    createdAt: {
-      type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW,
+    otp: {
+      type: DataTypes.STRING,
+      allowNull: true,
     },
-    updatedAt: {
+    expiration_time: {
       type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW,
+      allowNull: true,
     },
   },
   {
-    tableName: "users",
+    tableName: "users", // Specify the table name
   }
 );
 
-// Remove sensitive data when converting to JSON
 User.prototype.toJSON = function () {
   const values = { ...this.get() };
   delete values.password;
+  delete values.resetToken;
+  delete values.tokenVersion;
+  delete values.otp;
   return values;
 };
 
