@@ -1,6 +1,7 @@
 const { DataTypes } = require("sequelize");
 const sequelize = require("../config/database");
 const Order = require("./order");
+const { Role } = require(".");
 
 const User = sequelize.define(
   "User",
@@ -153,5 +154,16 @@ User.prototype.toJSON = function () {
   delete values.otp;
   return values;
 };
+
+User.afterCreate(async (user, options) => {
+  try {
+    const role = await Role.findOne({ where: { name: 'user' } });
+    if (role) {
+      await user.addRole(role);
+    }
+  } catch (error) {
+    console.error('Error assigning default role:', error);
+  }
+});
 
 module.exports = User;

@@ -62,6 +62,13 @@ router.post(
   userController.smsOtp.bind(userController)
 );
 
+// sendOTP_via_twilio
+router.post(
+  "/send-otp-china",
+  validatePhoneOtp,
+  userController.smsOtp.bind(userController)
+);
+
 // verifyOtp
 router.post(
   "/verify-otp-sms",
@@ -93,10 +100,12 @@ router.put(
   validateUpdateProfile,
   userController.updateUser.bind(userController)
 );
+
 //update  role 
 router.patch(
   "/update-role",
   authenticate,
+  // authorize(['admin']), // Add authorization middleware
   userRoleUpdateValidation,
   userController.updateUserRole.bind(userController)
 );

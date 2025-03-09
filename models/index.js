@@ -3,6 +3,7 @@ const User = require("./user");
 const Order = require("./order");
 const Document = require("./document");
 const Address = require("./address");
+const Role = require("./role");
 
 // Define associations here
 Order.hasMany(Document, {
@@ -17,8 +18,8 @@ Document.belongsTo(Order, {
 });
 
 User.hasMany(Order, {
-  foreignKey: "id",
-  as: "order"
+  foreignKey: "userId",
+  as: "orders"
 });
 
 Order.belongsTo(User, {
@@ -62,9 +63,15 @@ Order.belongsTo(User, {
 });
 
 
+// many to many user::role
+User.belongsToMany(Role, { through: 'User_Roles' });
+Role.belongsToMany(User, { through: 'User_Roles' });
+
+
 module.exports = {
   db,
   User,
+  Role,
   Order,
   Document,
 };

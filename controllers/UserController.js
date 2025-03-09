@@ -1014,23 +1014,34 @@ class UserController {
       res.status(500).json({ message: "Internal server error" });
     }
   }
+
   async updateUserRole(req, res) {
     try {
-      const { role, requesteeId } = req.body;
-      const requesteeUser = await userService.getUserById(requesteeId);
-      if (requesteeUser) {
-        const updatedUser = await userService.updateUserProfile(requesteeUser, {
-          role: role.toLowerCase(),
-        });
-        res.json({ user: updatedUser });
-      } else {
-        return res.status(404).json({ message: "User not found" });
-      }
+      const { userId, roleName } = req.body;
+      
+      // Get user and role
+      const user = await userService.getUserById(userId);
+      const role = await roleService.getRoleByName(roleName.toUpperCase());
+  
+      if (!user) return res.status(404).json({ message: "User not found" });
+      if (!role) return res.status(404).json({ message: "Role not found" });
+  
+      // Update roles
+      await userService.updateUserRole(user, role);
+      
+      // Get updated user with roles
+      const updatedUser = await userService.getUserWithRoles(userId);
+      
+      res.json({ 
+        message: `Role '${role.name}' added successfully`,
+        user: updatedUser 
+      });
     } catch (error) {
       console.error(error);
       res.status(500).json({ message: "Internal server error" });
     }
   }
+
   async updateFCM(req, res) {
     try {
       const { fcmToken } = req.body;

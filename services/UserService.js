@@ -182,6 +182,31 @@ class UserService {
       throw new Error(`Failed to update user profile: ${error.message}`);
     }
   }
+
+  async updateUserRole(user, role) {
+    try {
+      // Add role to user (many-to-many)
+      // await user.addRole(role);
+      
+      // Optional: If you want to replace all roles instead of adding
+      await user.setRoles([role]);
+      
+      return user;
+    } catch (error) {
+      throw new Error(`Error updating roles: ${error.message}`);
+    }
+  }
+  
+  async getUserWithRoles(userId) {
+    return User.findByPk(userId, {
+      include: [{
+        model: Role,
+        through: { attributes: [] },
+        attributes: ['name']
+      }]
+    });
+  }
+
   async updatePhoneNumber(user,userData) {
     try {
       // Update user properties
