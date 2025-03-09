@@ -1,6 +1,8 @@
-const { DataTypes } = require("sequelize");
+  const sequelize = require("../config/database");
+  const { DataTypes } = require("sequelize");
+  const User = require("./user");
+  const Message = require("./message");
 
-module.exports = (sequelize) => {
   const Chat = sequelize.define(
     "Chat",
     {
@@ -51,25 +53,16 @@ module.exports = (sequelize) => {
         allowNull: false,
         defaultValue: 0,
       },
-      createdAt: {
-        type: DataTypes.DATE,
-        defaultValue: DataTypes.NOW,
-      },
-      updatedAt: {
-        type: DataTypes.DATE,
-        defaultValue: DataTypes.NOW,
-      },
     },
     {
       tableName: "chats",
+      timestamps: true,
     }
   );
+  
+  //
+  Chat.belongsTo(User, { as: "user1", foreignKey: "user1Id" });
+  Chat.belongsTo(User, { as: "user2", foreignKey: "user2Id" });
+  Chat.hasMany(Message, { as: "message", foreignKey: "chatId" });
 
-  Chat.associate = function (models) {
-    Chat.belongsTo(models.User, { as: "user1", foreignKey: "user1Id", constraints: false });
-    Chat.belongsTo(models.User, { as: "user2", foreignKey: "user2Id", constraints: false });
-    Chat.hasMany(models.Message, { as: "messages", foreignKey: "chatId", constraints: false });
-  };
-
-  return Chat;
-};
+  module.exports = Chat;
