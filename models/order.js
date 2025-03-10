@@ -56,6 +56,11 @@ const Order = db.define(
       type: DataTypes.DECIMAL(10, 2),
       allowNull: false,
     },
+    isLock: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      allowNull: true,
+    },
     orderNo: {
       type: DataTypes.STRING,
       allowNull: false,
