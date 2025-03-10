@@ -16,10 +16,10 @@ const orderController = new OrderController()
 const upload = multer({ storage: multer.memoryStorage() });
 
 // Define the route handlers
-router.post('/:userId', authorize(['admin']),checkIntegerParam("userId"), createOrderValidator, orderController.createOrder.bind(orderController))
+router.post('/:userId',authMiddleware, authorize(['admin']),checkIntegerParam("userId"), createOrderValidator, orderController.createOrder.bind(orderController))
 router.get('/user-orders/:userId', authMiddleware, checkIntegerParam("userId"), orderController.getUserOrders.bind(orderController))
 // admin get all orders
-router.get('/all-orders', authorize(['admin']), orderController.getAllUserOrders.bind(orderController))
+router.get('/all-orders',authMiddleware,authorize(['admin']), orderController.getAllUserOrders.bind(orderController))
 
 // Upload document route
 router.post(
@@ -29,11 +29,11 @@ router.post(
   orderController.uploadDocument.bind(orderController)
 );
 
-router.patch('/favorite/:orderId', authorize(['admin']),checkIntegerParam("orderId"), orderController.isFavoriteOrder.bind(orderController))
+router.patch('/favorite/:orderId',authMiddleware, authorize(['admin']),checkIntegerParam("orderId"), orderController.isFavoriteOrder.bind(orderController))
 
-router.patch('/order-address/:orderId', authorize(['admin']),checkIntegerParam("orderId"), updateOrderAddressValidator, orderController.updateOrderAddress.bind(orderController));
+router.patch('/order-address/:orderId',authMiddleware, authorize(['admin']),checkIntegerParam("orderId"), updateOrderAddressValidator, orderController.updateOrderAddress.bind(orderController));
 
-router.patch('/:orderId', authorize(['admin']),checkIntegerParam("orderId"), orderController.updateOrder.bind(orderController));
+router.patch('/:orderId',authMiddleware, authorize(['admin']),checkIntegerParam("orderId"), orderController.updateOrder.bind(orderController));
 
 router.get('/single-order/:orderId', checkIntegerParam("orderId"), authMiddleware, orderController.getOrderById.bind(orderController));
 
