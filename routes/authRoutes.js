@@ -17,6 +17,7 @@ const {
 } = require("../middlewares/userValidation");
 const decodeToken = require("../middlewares/decodeToken");
 const authenticate = require("../middlewares/authenticate");
+const authorize = require("../middlewares/authorization");
 
 const router = express.Router();
 const userController = new UserController();
@@ -105,7 +106,7 @@ router.put(
 router.patch(
   "/update-role",
   authenticate,
-  // authorize(['admin']), // Add authorization middleware
+  authorize(['admin']),
   userRoleUpdateValidation,
   userController.updateUserRole.bind(userController)
 );

@@ -1,41 +1,44 @@
-const jwt = require('jsonwebtoken')
-const UserService = require('../services/UserService') // Replace the path with the correct location of your UserService.js file
+const { User, Role } = require("../models");
 
-// Authentication middleware
-const adminAuthenticate = async (req, res, next) => {
-  const authHeader = req.headers.authorization
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ message: 'Missing or invalid token' })
-  }
-  const token = authHeader.substring(7)
-  // Verify the token
-  if (token) {
+const authorize = (allowedRoles = []) => {
+  return async (req, res, next) => {
     try {
-      const decoded =  jwt.verify(token, process.env.JWT_SECRET_KEY)
-      const { userId, tokenVersion } = decoded
-      // Check if the user exists
-      const userService = new UserService()
-      const user = await userService.getUserById(userId)
-      if (!user) {
-        return res.status(401).json({ message: 'Invalid or expired token' })
+      const userId = req.user.id; // Ensure req.user is set by the authenticate middleware
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
       }
-      if (user.tokenVersion !== tokenVersion) {
-        return res.status(401).json({ message: 'Unauthorized' })
-      }
-      if (user.role !== "admin") {
-        return res.status(401).json({ message: 'Unauthorized' })
-      }
-      // Token is valid, attach the decoded user information to the request object
-      req.user = user
-      next()
-    } catch (error) {
-      // Token is invalid or expired
-      return res.status(401).json({ message: 'Invalid or expired token' })
-    }
-  } else {
-    // Token is missing
-    return res.status(401).json({ message: 'Missing token' })
-  }
-}
 
-module.exports = adminAuthenticate
+      // Fetch user along with their roles through the User_Roles junction table
+      const user = await User.findByPk(userId, {
+        include: [
+            {
+                model: Role,
+                as: "roles",
+            },
+        ],
+    });
+    console.log("user",user);
+    
+      if (!user || !user.roles.length) {
+        return res.status(403).json({ message: "Forbidden: No roles assigned" });
+      }
+
+      // Extract role names
+      const userRoles = user.roles.map((role) => role.name);
+
+      // Check if the user has an allowed role
+      const hasPermission = allowedRoles.some((role) => userRoles.includes(role));
+
+      if (!hasPermission) {
+        return res.status(403).json({ message: "Forbidden: Access denied" });
+      }
+
+      next();
+    } catch (error) {
+      console.error("Authorization error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  };
+};
+
+module.exports = authorize;

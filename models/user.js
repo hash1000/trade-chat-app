@@ -1,7 +1,5 @@
 const { DataTypes } = require("sequelize");
 const sequelize = require("../config/database");
-const Order = require("./order");
-const { Role } = require(".");
 
 const User = sequelize.define(
   "User",
@@ -22,11 +20,6 @@ const User = sequelize.define(
     username: {
       type: DataTypes.STRING,
       allowNull: true,
-    },
-    role: {
-      type: DataTypes.STRING,
-      allowNull: true,
-      defaultValue: "user",
     },
     country_code: {
       type: DataTypes.STRING,
@@ -154,16 +147,12 @@ User.prototype.toJSON = function () {
   delete values.otp;
   return values;
 };
-
-User.afterCreate(async (user, options) => {
-  try {
-    const role = await Role.findOne({ where: { name: 'user' } });
-    if (role) {
-      await user.addRole(role);
-    }
-  } catch (error) {
-    console.error('Error assigning default role:', error);
-  }
-});
+User.associate = function(models) {
+  User.belongsToMany(models.Role, { 
+    through: models.UserRole,
+    foreignKey: 'userId',
+    as: 'roles'
+  });
+};
 
 module.exports = User;

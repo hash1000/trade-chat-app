@@ -1,77 +1,46 @@
 const db = require("../config/database");
+
 const User = require("./user");
 const Order = require("./order");
-const Document = require("./document");
 const Address = require("./address");
+const Document = require("./document");
 const Role = require("./role");
+const UserRole = require("./userRole");
 
 // Define associations here
+User.hasMany(Address, { foreignKey: "userId", as: "addresses" });
+Address.belongsTo(User, { foreignKey: "userId", as: "user" });
+
+User.hasMany(Order, { foreignKey: "userId", as: "order" });
+Order.belongsTo(User, { foreignKey: "userId", as: "users" });
+
+User.hasMany(Order, { foreignKey: "adminId", as: "adminOrders" });
+Order.belongsTo(User, { foreignKey: "adminId", as: "admin" });
+
 Order.hasMany(Document, {
-  foreignKey: "orderNo", // Foreign key in Document
-  sourceKey: "orderNo", // Matching field in Order
-  as: "documents", //
+  foreignKey: "orderNo",
+  sourceKey: "orderNo",
+  as: "documents",
 });
 Document.belongsTo(Order, {
-  foreignKey: "orderNo", // Foreign key in Document
-  targetKey: "orderNo", // Matching field in Order
+  foreignKey: "orderNo",
+  targetKey: "orderNo",
   as: "order",
 });
 
-User.hasMany(Order, {
-  foreignKey: "userId",
-  as: "orders"
-});
-
-Order.belongsTo(User, {
-  foreignKey: "userId",
-  targetKey: "id",
-  as: "users"
-});
-
-// Define associations
-User.hasMany(Address, { foreignKey: "userId", as: "address" });
-Address.belongsTo(User, { foreignKey: "userId", as: "users" });
-
-
-Address.hasOne(Order, { foreignKey: "addressId", as: "orders" });
+Address.hasOne(Order, { foreignKey: "addressId", as: "order" });
 Order.belongsTo(Address, { foreignKey: "addressId", as: "address" });
 
-// In your associations setup (e.g., in a separate file or where you define relationships)
-
-// User has many Orders as a regular user (userId)
-User.hasMany(Order, {
+User.belongsToMany(Role, {
+  through: UserRole,
   foreignKey: "userId",
-  as: "userOrders"
+  as: "roles",
+});
+Role.belongsToMany(User, {
+  through: UserRole,
+  foreignKey: "roleId",
+  as: "users",
 });
 
-// Order belongs to User (userId) as 'user'
-Order.belongsTo(User, {
-  foreignKey: "userId",
-  as: "user"
-});
-
-// User has many Orders as an admin (adminId)
-User.hasMany(Order, {
-  foreignKey: "adminId",
-  as: "adminOrders"
-});
-
-// Order belongs to User (adminId) as 'hashir'
-Order.belongsTo(User, {
-  foreignKey: "adminId",
-  as: "admin"
-});
-
-
-// many to many user::role
-User.belongsToMany(Role, { through: 'User_Roles' });
-Role.belongsToMany(User, { through: 'User_Roles' });
-
-
-module.exports = {
-  db,
-  User,
-  Role,
-  Order,
-  Document,
-};
+// Export models
+module.exports = { db, User, Role, Order, Address, Document };

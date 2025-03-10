@@ -1,7 +1,9 @@
-const { DataTypes } = require('sequelize')
-const db = require('../config/database')
+const { DataTypes } = require("sequelize");
+const db = require("../config/database");
 
-const Role = db.define('Role', {
+const Role = db.define(
+  "Role",
+  {
     id: {
       type: DataTypes.INTEGER,
       primaryKey: true,
@@ -14,7 +16,7 @@ const Role = db.define('Role', {
     },
   },
   {
-    tableName: "roles",
+    timestamps: true, // Enables createdAt & updatedAt automatically
   }
 );
 

@@ -6,11 +6,13 @@ const ChatRepository = require("../repositories/ChatRepository");
 const PaymentService = require("./PaymentService");
 const UserFavouriteRepository = require("../repositories/UserFavouriteRepository");
 const UserTags = require("../models/userTags");
+const UserRole = require("../models/userRole");
+const { Role } = require("../models");
 
 const userRepository = new UserRepository();
-const chat = new ChatRepository()
-const payment = new PaymentService()
-const UserFavourite = new UserFavouriteRepository()
+const chat = new ChatRepository();
+const payment = new PaymentService();
+const UserFavourite = new UserFavouriteRepository();
 
 class UserService {
   async createUser(userData) {
@@ -51,7 +53,7 @@ class UserService {
       if (userData.gender) {
         user.gender = userData.gender;
       }
-      if(userData.settings) {
+      if (userData.settings) {
         user.settings = userData.settings;
       }
       if (userData.country) {
@@ -124,27 +126,30 @@ class UserService {
           let userTag = await UserTags.findOne({
             where: { userId: user.id },
           });
-      
+
           let tagArr = []; // Array to hold all tags
-      
+
           // Combine tags from profileData and existing user settings
           const incomingTags = profileData.settings.tags || [];
           const existingTags = user.settings?.tags || [];
           tagArr.push(...incomingTags, ...existingTags);
-      
+
           // Remove duplicates
           tagArr = [...new Set(tagArr)];
-      
+
           // Save or update the UserTags table
           if (userTag) {
-            await userTag.update({
-              tags: tagArr,
-              updatedAt: new Date(),
-            },{
-              where: {
-                userId: user.id
+            await userTag.update(
+              {
+                tags: tagArr,
+                updatedAt: new Date(),
               },
-            });
+              {
+                where: {
+                  userId: user.id,
+                },
+              }
+            );
           } else {
             await UserTags.create({
               userId: user.id,
@@ -153,7 +158,7 @@ class UserService {
               updatedAt: new Date(),
             });
           }
-      
+
           // Update user settings with merged tags
           //dectructure only which has more key value in object
           user.settings = {
@@ -161,37 +166,49 @@ class UserService {
             ...profileData.settings, // Update with profileData settings
             tags: tagArr, // Set updated tags
           };
-      
+
           // Save the updated user object (ensure you have a save method for the user entity)
           await user.save();
         }
       }
-      
-      
+
       if (profileData.profilePic) {
         user.profilePic = profileData.profilePic;
       }
       if (profileData.description) {
         user.description = profileData.description;
       }
-   // Save both user and requesteeUser
-   await user.save(); // Save the main user
- 
+      // Save both user and requesteeUser
+      await user.save(); // Save the main user
+
       return user;
     } catch (error) {
       throw new Error(`Failed to update user profile: ${error.message}`);
     }
   }
 
-  async updateUserRole(user, role) {
+  async updateUserRole(user, roleName) {
     try {
-      // Add role to user (many-to-many)
-      // await user.addRole(role);
-      
-      // Optional: If you want to replace all roles instead of adding
-      await user.setRoles([role]);
-      
-      return user;
+  
+      // Check if the role exists
+      const role = await Role.findOne({ where: { name: roleName } });
+      if (!role) {
+        throw new Error("Role not found");
+      }
+  
+      // Check if the user already has this role
+      const existingUserRole = await UserRole.findOne({
+        where: { userId: user.id, roleId: role.id }
+      });
+  
+      if (existingUserRole) {
+        return { message: "User already has this role" };
+      }
+  
+      // If not, create the relationship
+      await UserRole.create({ userId: user.id, roleId: role.id });
+  
+      return { message: "Role assigned successfully", user };
     } catch (error) {
       throw new Error(`Error updating roles: ${error.message}`);
     }
@@ -199,15 +216,17 @@ class UserService {
   
   async getUserWithRoles(userId) {
     return User.findByPk(userId, {
-      include: [{
-        model: Role,
-        through: { attributes: [] },
-        attributes: ['name']
-      }]
+      include: [
+        {
+          model: Role,
+          through: { attributes: [] },
+          attributes: ["name"],
+        },
+      ],
     });
   }
 
-  async updatePhoneNumber(user,userData) {
+  async updatePhoneNumber(user, userData) {
     try {
       // Update user properties
       if (userData.phoneNumber) {
@@ -217,20 +236,20 @@ class UserService {
         user.country_code = userData.country_code;
       }
       await user.save();
-  
+
       return user;
     } catch (error) {
       throw new Error(`Failed to update  user phoneNumber: ${error.message}`);
     }
   }
-  async updateEmail(user,userData) {
+  async updateEmail(user, userData) {
     try {
       // Update user properties
       if (userData.email) {
         user.email = userData.email;
       }
       await user.save();
-  
+
       return user;
     } catch (error) {
       throw new Error(`Failed to update  user phoneNumber: ${error.message}`);
@@ -256,9 +275,9 @@ class UserService {
   // delete User
   async deleteUser(userId) {
     // Call the UserRepository to get a user by email
-    await payment.cancelPaymentRelation(userId,userId);
-    await UserFavourite.cancelUserFavourite(userId,userId);
-    await chat.cancelInvite(userId,userId);
+    await payment.cancelPaymentRelation(userId, userId);
+    await UserFavourite.cancelUserFavourite(userId, userId);
+    await chat.cancelInvite(userId, userId);
     return userRepository.delete(userId);
   }
 
