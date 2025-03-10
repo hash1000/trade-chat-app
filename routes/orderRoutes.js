@@ -8,7 +8,7 @@ const {
   createOrderValidator,
   updateOrderAddressValidator
 } = require('../middlewares/orderValidation')
-const adminAuthenticate = require('../middlewares/authorization')
+const authorize = require('../middlewares/authorization')
 const checkIntegerParam = require('../middlewares/paramIntegerValidation')
 const orderController = new OrderController()
 
@@ -16,10 +16,10 @@ const orderController = new OrderController()
 const upload = multer({ storage: multer.memoryStorage() });
 
 // Define the route handlers
-router.post('/:userId', adminAuthenticate,checkIntegerParam("userId"), createOrderValidator, orderController.createOrder.bind(orderController))
+router.post('/:userId', authorize(['admin']),checkIntegerParam("userId"), createOrderValidator, orderController.createOrder.bind(orderController))
 router.get('/user-orders/:userId', authMiddleware, checkIntegerParam("userId"), orderController.getUserOrders.bind(orderController))
 // admin get all orders
-router.get('/all-orders', adminAuthenticate, orderController.getAllUserOrders.bind(orderController))
+router.get('/all-orders', authorize(['admin']), orderController.getAllUserOrders.bind(orderController))
 
 // Upload document route
 router.post(
@@ -29,11 +29,11 @@ router.post(
   orderController.uploadDocument.bind(orderController)
 );
 
-router.patch('/favorite/:orderId',adminAuthenticate,checkIntegerParam("orderId"), orderController.isFavoriteOrder.bind(orderController))
+router.patch('/favorite/:orderId', authorize(['admin']),checkIntegerParam("orderId"), orderController.isFavoriteOrder.bind(orderController))
 
-router.patch('/order-address/:orderId',adminAuthenticate,checkIntegerParam("orderId"), updateOrderAddressValidator, orderController.updateOrderAddress.bind(orderController));
+router.patch('/order-address/:orderId', authorize(['admin']),checkIntegerParam("orderId"), updateOrderAddressValidator, orderController.updateOrderAddress.bind(orderController));
 
-router.patch('/:orderId',adminAuthenticate,checkIntegerParam("orderId"), orderController.updateOrder.bind(orderController));
+router.patch('/:orderId', authorize(['admin']),checkIntegerParam("orderId"), orderController.updateOrder.bind(orderController));
 
 router.get('/single-order/:orderId', checkIntegerParam("orderId"), authMiddleware, orderController.getOrderById.bind(orderController));
 

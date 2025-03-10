@@ -1,20 +1,28 @@
 'use strict';
 
 module.exports = {
-  async up(queryInterface, Sequelize) {
+  up: async (queryInterface, Sequelize) => {
     await queryInterface.createTable('User_Roles', {
+      id: {
+        type: Sequelize.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+        allowNull: false
+      },
       userId: {
         type: Sequelize.INTEGER,
+        allowNull: false,
         references: {
-          model: 'users',
+          model: 'users', // Must match the table name in User model
           key: 'id'
         },
         onDelete: 'CASCADE'
       },
       roleId: {
         type: Sequelize.INTEGER,
+        allowNull: false,
         references: {
-          model: 'roles',
+          model: 'roles', // Must match the table name in Role model
           key: 'id'
         },
         onDelete: 'CASCADE'
@@ -22,23 +30,18 @@ module.exports = {
       createdAt: {
         type: Sequelize.DATE,
         allowNull: false,
-        defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
+        defaultValue: Sequelize.NOW,
       },
       updatedAt: {
         type: Sequelize.DATE,
         allowNull: false,
-        defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
-      }
-    });
-
-    // Add composite primary key
-    await queryInterface.addConstraint('User_Roles', {
-      fields: ['userId', 'roleId'],
-      type: 'primary key'
+        defaultValue: Sequelize.NOW,
+      },
     });
   },
 
-  async down(queryInterface, Sequelize) {
+  down: async (queryInterface, Sequelize) => {
     await queryInterface.dropTable('User_Roles');
   }
 };
+
