@@ -24,6 +24,7 @@ class OrderService {
         creatorRole,
         addressId: address.id,
         isFavorite: false,
+        isLock: false,
         orderNo,
         price,
         status,
@@ -58,7 +59,6 @@ class OrderService {
   async updateOperatorOrder(name, image, orderId, price, status, documents) {
     try {
       const order = await this.orderRepository.getOrderById(orderId);
-console.log("order",order);
       if (!order) {
         throw new Error("Order not found");
       }
@@ -117,7 +117,15 @@ console.log("order",order);
     }
     return { success: false, message: "This Order is does not exist" };
   }
-
+  
+  async isLockOrder(orderId) {
+    const order = await this.orderRepository.getOrderByOrderId(orderId);
+    if (order) {
+      return this.orderRepository.isLockOrder(orderId);
+    }
+    return { success: false, message: "This Order is does not exist" };
+  }
+  
   async uploadDocument(orderNo, documents) {
     const documentObj = [];
     // let transaction;

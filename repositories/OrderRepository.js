@@ -22,6 +22,7 @@ class OrderRepository {
       creatorRole,
       addressId,
       isFavorite,
+      isLock,
       orderNo,
       price,
       status,
@@ -36,6 +37,7 @@ class OrderRepository {
           image,
           orderNo,
           isFavorite,
+          isLock,
           userId,
           creatorId,
           creatorRole,
@@ -104,7 +106,57 @@ class OrderRepository {
       };
     }
   }
+  
+  async isLockOrder(orderId) {
+    let transaction;
+    try {
+      // Check if the order is already marked as favorite
+      const hasFavOrder = await Order.findOne({
+        where: { id: orderId, isLock: 1 },
+      });
 
+      // Toggle favorite status
+      if (hasFavOrder) {
+        if (hasFavOrder.id === orderId) {
+          await Order.update({ isLock: 0 }, { where: { id: orderId } });
+          return { success: true, message: "Order is now unLock" };
+        }
+      }
+
+      // Start transaction for setting as favorite
+      transaction = await sequelize.transaction();
+
+      const order = await Order.findOne({
+        where: { id: orderId },
+      });
+
+      // Pin the new Order
+      const [affectedRows] = await Order.update(
+        { isLock: 1 },
+        {
+          where: { id: orderId, userId: order.userId },
+          transaction,
+        }
+      );
+
+      if (affectedRows === 0) {
+        throw new Error("No order found to update.");
+      }
+
+      // Commit transaction
+      await transaction.commit();
+      return { success: true, message: "Order is marked as lock." };
+    } catch (error) {
+      if (transaction) await transaction.rollback();
+      console.error("Error updating lock status:", error.message || error);
+      return {
+        success: false,
+        message: "Failed to update lock status.",
+        error: error.message || error,
+      };
+    }
+  }
+  
   async UploadDocument(orderNo, documents) {
     let transaction;
     try {
