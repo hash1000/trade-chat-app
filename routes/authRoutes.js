@@ -152,7 +152,6 @@ router.post(
 );
 router.delete('/delete-user/:userId', 
   authenticate,
-  // userDeleteValidation,
   userController.userDelete.bind(userController)
 );
 module.exports = router;
