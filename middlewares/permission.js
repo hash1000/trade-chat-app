@@ -7,13 +7,11 @@ const checkPermission = (action, resource) => {
       const roleIds = userRoles.map((role) => role.id);
       const roleNames = userRoles.map((role) => role.name);
 
-      console.log("Checking permissions for:", roleNames, "Resource:", resource, "Action:", action);
-
       // Fetch permissions for the given roles
       const permissions = await Permission.findAll({
         where: { roleId: roleIds, resource },
       });
-
+// console.log("permissions",permissions);
       if (!permissions || permissions.length === 0) {
         return res.status(403).json({ message: "Forbidden: No permissions assigned" });
       }
@@ -23,14 +21,6 @@ const checkPermission = (action, resource) => {
       if (!hasPermission) {
         return res.status(403).json({ message: `Forbidden: No ${action} permission` });
       }
-
-      // Extract ownData and allData flags
-      const ownData = permissions.some((perm) => perm.ownData);
-      const allData = permissions.some((perm) => perm.allData);
-      const readAll = permissions.some((perm) => perm.readAll);
-
-      // Attach permissions to request object
-      req.permissions = { hasPermission, ownData, allData, readAll };
       req.userRoles = { ids: roleIds, names: roleNames };
 
       next();

@@ -24,6 +24,7 @@ module.exports = {
       return;
     }
 
+    console.log("roleId",roleId);
     // Prepare user-role mappings
     const userRoles = users.map(user => ({
       userId: user.id,

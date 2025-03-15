@@ -265,7 +265,7 @@ class UserService {
   }
 
   async getUserById(userId) {
-    return userRepository.getById(userId);
+    return await userRepository.getById(userId);
   }
 
   async getUserByEmail(email) {

@@ -5,34 +5,28 @@ module.exports = {
         roleId: 1, // Admin
         resource: "orders",
         create: true,
-        readAll: true,  // ✅ Admins see all data
+        readAll: true,  // Admins can read all orders
         readSingle: true,
         canUpdate: true,
-        canDelete: true,
-        ownData: true,
-        allData: true,  // ✅ Admins see all orders
+        canDelete: true
       },
       {
         roleId: 2, // Operator
         resource: "orders",
         create: true,
-        readAll: true,  // ✅ Operators see all operators' orders
+        readAll: true,  // Operators can read all operators' orders
         readSingle: true,
         canUpdate: true,
-        canDelete: true,
-        ownData: true,
-        allData: false, // ❌ Operators should not see user orders
+        canDelete: true
       },
       {
         roleId: 3, // User
         resource: "orders",
         create: false,
-        readAll: false, // ❌ Users cannot see other users' orders
+        readAll: true,
         readSingle: true,
         canUpdate: false,
         canDelete: false,
-        ownData: true,  // ✅ Users see only their own orders
-        allData: false,
       },
     ]);
   },

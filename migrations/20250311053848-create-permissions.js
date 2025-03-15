@@ -36,15 +36,7 @@ module.exports = {
       canDelete: {
         type: Sequelize.BOOLEAN,
         defaultValue: false,
-      },
-      ownData: {
-        type: Sequelize.BOOLEAN,
-        defaultValue: false,
-      },
-      allData: {
-        type: Sequelize.BOOLEAN,
-        defaultValue: false,
-      },
+      }
     });
   },
 

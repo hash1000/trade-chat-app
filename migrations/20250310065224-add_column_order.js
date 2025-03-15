@@ -5,7 +5,7 @@ module.exports = {
   async up (queryInterface, Sequelize) {
     // Step 1: Add the column first
     await queryInterface.addColumn('orders', 'isLock', {
-      type: DataTypes.BOOLEAN,
+      type: Sequelize.BOOLEAN,
       defaultValue: false,
       allowNull: true,
     });

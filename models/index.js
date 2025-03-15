@@ -6,6 +6,7 @@ const Address = require("./address");
 const Document = require("./document");
 const Role = require("./role");
 const UserRole = require("./userRole");
+const Permission = require("./permission"); // Add this line
 
 // Define associations here
 User.hasMany(Address, { foreignKey: "userId", as: "addresses" });
@@ -14,8 +15,8 @@ Address.belongsTo(User, { foreignKey: "userId", as: "user" });
 User.hasMany(Order, { foreignKey: "userId", as: "order" });
 Order.belongsTo(User, { foreignKey: "userId", as: "users" });
 
-User.hasMany(Order, { foreignKey: "adminId", as: "adminOrders" });
-Order.belongsTo(User, { foreignKey: "adminId", as: "admin" });
+User.hasMany(Order, { foreignKey: "creatorId", as: "creatorOrders" });
+Order.belongsTo(User, { foreignKey: "creatorId", as: "creator" });
 
 Order.hasMany(Document, {
   foreignKey: "orderNo",
@@ -43,4 +44,4 @@ Role.belongsToMany(User, {
 });
 
 // Export models
-module.exports = { db, User, Role, Order, Address, Document };
+module.exports = { db, User, Role, Order, Address, Document, Permission };
