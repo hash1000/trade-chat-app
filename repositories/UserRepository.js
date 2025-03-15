@@ -3,6 +3,7 @@ const Friends = require("../models/friends");
 const User = require("../models/user");
 const { Op } = require("sequelize");
 const UserTags = require("../models/userTags");
+const { Role } = require("../models");
 
 class UserRepository {
   // Create a new user
@@ -18,7 +19,6 @@ class UserRepository {
           "firstName",
           "lastName",
           "username",
-          "role",
           "email",
           "phoneNumber",
           "country_code",
@@ -48,11 +48,25 @@ class UserRepository {
 
   // Get a user by ID
   async getById(userId) {
-    return User.findByPk(userId);
+    return await User.findByPk(userId, {
+      include: [
+          {
+              model: Role,
+              as: "roles",
+          },
+      ]
+  })
   }
 
   async getUserTokenAndName(userId) {
-    return User.findByPk(userId, { attributes: ["id", "name", "fcm"] });
+    return User.findByPk(userId, {
+      include: [
+          {
+              model: Role,
+              as: "roles",
+          },
+      ],
+  }, { attributes: ["id", "name", "fcm"] });
   }
 
   async getUserProfile(id) {
@@ -63,7 +77,6 @@ class UserRepository {
         "firstName",
         "lastName",
         "username",
-        "role",
         "email",
         "phoneNumber",
         "country_code",
@@ -97,7 +110,6 @@ class UserRepository {
         "firstName",
         "lastName",
         "username",
-        "role",
         "email",
         "phoneNumber",
         "country_code",
@@ -269,7 +281,6 @@ class UserRepository {
       attributes: [
         "id",
         "name",
-        "role",
         "country_code",
         "email",
         "phoneNumber",

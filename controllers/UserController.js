@@ -88,7 +88,10 @@ class UserController {
 
       const userByPhoneNumber = await userService.getUserByPhoneNumber(
         country_code,
-        phoneNumber
+        phoneNumber,
+        {
+          include: ["roles"],
+        }
       );
       const userByEmail = await userService.getUserByEmail(email);
 
@@ -203,7 +206,7 @@ class UserController {
       res.status(500).json({ message: "Failed to verify user." });
     }
   }
-  
+
   async GoogleProfile(req, res) {
     try {
       const {
@@ -429,8 +432,7 @@ class UserController {
       return res.status(400).send({ Status: "Failure", Details: err.message });
     }
   }
-  
-  
+
   async verifyEmailOtp(req, res) {
     try {
       var currentdate = new Date();
@@ -474,7 +476,9 @@ class UserController {
         return res.status(400).send(response);
       }
 
-      const otp_instance = await EmailOtp.findOne({ where: { id: obj.otp_id } });
+      const otp_instance = await EmailOtp.findOne({
+        where: { id: obj.otp_id },
+      });
       //Check if OTP is available in the DB
       if (otp_instance != null) {
         //Check if OTP is already used or not
@@ -524,7 +528,7 @@ class UserController {
         return res.status(400).send(response);
       }
     } catch (err) {
-      console.log(err)
+      console.log(err);
       const response = { Status: "Failure", Details: err.message };
       return res.status(400).send(response);
     }
@@ -700,7 +704,6 @@ class UserController {
         .json({ message: "An error occurred", error: error.message });
     }
   }
-
 
   async updateUserEmailOrPhoneNumber(req, res) {
     const { email, country_code, phoneNumber } = req.body;
@@ -1014,15 +1017,15 @@ class UserController {
       res.status(500).json({ message: "Internal server error" });
     }
   }
+
   async updateUserRole(req, res) {
     try {
       const { role, requesteeId } = req.body;
       const requesteeUser = await userService.getUserById(requesteeId);
+  
       if (requesteeUser) {
-        const updatedUser = await userService.updateUserProfile(requesteeUser, {
-          role: role.toLowerCase(),
-        });
-        res.json({ user: updatedUser });
+        const updatedUser = await userService.updateUserRole(requesteeUser, role.toLowerCase());
+        res.json(updatedUser);
       } else {
         return res.status(404).json({ message: "User not found" });
       }
@@ -1031,6 +1034,8 @@ class UserController {
       res.status(500).json({ message: "Internal server error" });
     }
   }
+  
+
   async updateFCM(req, res) {
     try {
       const { fcmToken } = req.body;

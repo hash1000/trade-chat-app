@@ -1,4 +1,5 @@
 const sequelize = require("../config/database");
+const { Order } = require("../models");
 const AddressRepository = require("../repositories/AddressRepository");
 const OrderRepository = require("../repositories/OrderRepository");
 const { uploadFileToS3, deleteFileFromS3 } = require("../utilities/s3Utils");
@@ -12,14 +13,15 @@ class OrderService {
     this.addressRepository = new AddressRepository();
   }
 
-  async createOrder(name, image, userId, adminId, orderNo, price, status) {
+  async createOrder(name, image, userId, creatorId, creatorRole, orderNo, price, status) {
     const address = await this.addressService.getPinAddressByUserId(userId);
     if (address) {
       const orderData = {
         name,
         image,
         userId,
-        adminId,
+        creatorId,
+        creatorRole,
         addressId: address.id,
         isFavorite: false,
         orderNo,
@@ -32,14 +34,55 @@ class OrderService {
   }
 
   async updateOrder(name, image, orderId, price, status, documents) {
-    return this.orderRepository.updateOrder(
-      name,
-      image,
-      orderId,
-      price,
-      status,
-      documents
-    );
+    try {
+      const updatedOrder = await this.orderRepository.updateOrder(
+        name,
+        image,
+        orderId,
+        price,
+        status,
+        documents
+      );
+
+      if (!updatedOrder) {
+        throw new Error("Order not found");
+      }
+
+      return updatedOrder;
+    } catch (error) {
+      console.error("Error in updateOrder:", error);
+      throw error; // Re-throw the error for centralized handling
+    }
+  }
+
+  async updateOperatorOrder(name, image, orderId, price, status, documents) {
+    try {
+      const order = await this.orderRepository.getOrderById(orderId);
+console.log("order",order);
+      if (!order) {
+        throw new Error("Order not found");
+      }
+
+      if (order.creatorRole !== "operator") {
+        throw new Error(
+          "Unauthorized: Only the creator operator can update this order"
+        );
+      }
+
+      const updatedOrder = await this.orderRepository.updateOrder(
+        name,
+        image,
+        orderId,
+        price,
+        status,
+        documents
+      );
+
+      return updatedOrder;
+    } catch (error) {
+      console.error("Error in updateOperatorOrder:", error);
+      throw error;
+    }
   }
 
   async updateOrderAddress(userId, orderId, updateFields) {
@@ -112,16 +155,17 @@ class OrderService {
     }
   }
 
-  async deleteOrder(orderNo) {
-    return await this.orderRepository.deleteOrder(orderNo);
+  async deleteOrder(orderNo, creatorRole) {
+    return await this.orderRepository.deleteOrder(orderNo, creatorRole);
   }
 
-  async getUserOrders(userId) {
-    return await this.orderRepository.getUserOrders(userId);
+
+  async getUserOrders(userId, creatorRole = null) {
+    return await this.orderRepository.getUserOrders(userId,creatorRole);
   }
 
-  async getAllUserOrders() {
-    return await this.orderRepository.getAllUserOrders();
+  async getAllUserOrders(creatorRole = null) {
+    return await this.orderRepository.getAllUserOrders(creatorRole);
   }
 
   async getOrderById(orderId) {

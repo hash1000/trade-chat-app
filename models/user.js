@@ -21,11 +21,6 @@ const User = sequelize.define(
       type: DataTypes.STRING,
       allowNull: true,
     },
-    role: {
-      type: DataTypes.STRING,
-      allowNull: true,
-      defaultValue: "user",
-    },
     country_code: {
       type: DataTypes.STRING,
       allowNull: true,
@@ -151,6 +146,13 @@ User.prototype.toJSON = function () {
   delete values.tokenVersion;
   delete values.otp;
   return values;
+};
+User.associate = function(models) {
+  User.belongsToMany(models.Role, { 
+    through: models.UserRole,
+    foreignKey: 'userId',
+    as: 'roles'
+  });
 };
 
 module.exports = User;

@@ -27,13 +27,17 @@ const Order = db.define(
         key: "id",
       },
     },
-    adminId: {
+    creatorId: {
       type: DataTypes.INTEGER,
       allowNull: false,
       references: {
         model: User,
         key: "id",
       },
+    },
+    creatorRole: {
+      type: DataTypes.STRING,
+      allowNull: false,
     },
     name: {
       type: DataTypes.STRING,
@@ -55,6 +59,11 @@ const Order = db.define(
     price: {
       type: DataTypes.DECIMAL(10, 2),
       allowNull: false,
+    },
+    isLock: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      allowNull: true,
     },
     orderNo: {
       type: DataTypes.STRING,

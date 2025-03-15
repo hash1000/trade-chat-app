@@ -17,6 +17,7 @@ const {
 } = require("../middlewares/userValidation");
 const decodeToken = require("../middlewares/decodeToken");
 const authenticate = require("../middlewares/authenticate");
+const authorize = require("../middlewares/authorization");
 
 const router = express.Router();
 const userController = new UserController();
@@ -62,6 +63,13 @@ router.post(
   userController.smsOtp.bind(userController)
 );
 
+// sendOTP_via_twilio
+router.post(
+  "/send-otp-china",
+  validatePhoneOtp,
+  userController.smsOtp.bind(userController)
+);
+
 // verifyOtp
 router.post(
   "/verify-otp-sms",
@@ -93,10 +101,12 @@ router.put(
   validateUpdateProfile,
   userController.updateUser.bind(userController)
 );
+
 //update  role 
 router.patch(
   "/update-role",
   authenticate,
+  authorize(['admin']),
   userRoleUpdateValidation,
   userController.updateUserRole.bind(userController)
 );

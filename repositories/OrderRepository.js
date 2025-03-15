@@ -14,9 +14,19 @@ class OrderRepository {
   }
 
   async createOrder(orderData) {
-    const { name, image, userId, adminId, addressId, isFavorite, orderNo, price, status } =
-      orderData;
-      
+    const {
+      name,
+      image,
+      userId,
+      creatorId,
+      creatorRole,
+      addressId,
+      isFavorite,
+      orderNo,
+      price,
+      status,
+    } = orderData;
+
     let transaction;
     try {
       transaction = await sequelize.transaction();
@@ -27,7 +37,8 @@ class OrderRepository {
           orderNo,
           isFavorite,
           userId,
-          adminId,
+          creatorId,
+          creatorRole,
           addressId,
           price,
           status,
@@ -338,7 +349,7 @@ class OrderRepository {
     }
   }
 
-  async deleteOrder(orderNo) {
+  async deleteOrder(orderNo, creatorRole) {
     let transaction;
     try {
       transaction = await sequelize.transaction();
@@ -348,9 +359,19 @@ class OrderRepository {
         where: { id: orderNo },
         transaction,
       });
+
       if (!order) {
         await transaction.rollback();
         return { status: 404, message: "Order not found" };
+      }
+
+      // Check permissions
+      if (creatorRole !== "admin" && creatorRole !== order.creatorRole) {
+        await transaction.rollback();
+        return {
+          status: 403,
+          message: "Unauthorized: Insufficient permissions",
+        };
       }
 
       // Delete related documents
@@ -393,46 +414,111 @@ class OrderRepository {
     }
   }
 
-  async getUserOrders(userId) {
-    return await Order.findAll({
-      where: { userId },
-      include: [
-        {
-          model: Document,
-          as: "documents",
-        },
-        {
-          model: User,
-          as: "users",
-        },
-        { 
-          model: User,
-          as: "admin" // Correct alias for adminId association
-        },
-        {
-          model: Address,
-          as: "address",
-        }
-      ],
-    });
+  async getUserOrders(userId, creatorRole = null) {
+    try {
+      const whereClause = { userId };
+
+      // Add creatorRole to the query if provided
+      if (creatorRole) {
+        whereClause.creatorRole = creatorRole;
+      }
+
+      const userOrders = await Order.findAll({
+        where: whereClause,
+        include: [
+          {
+            model: Document,
+            as: "documents",
+          },
+          {
+            model: User,
+            as: "users",
+          },
+          {
+            model: User,
+            as: "creator", // Correct alias for creatorId association
+          },
+          {
+            model: Address,
+            as: "address",
+          },
+        ],
+      });
+
+      if (!userOrders || userOrders.length === 0) {
+        throw new Error("No orders found for this user");
+      }
+
+      return userOrders;
+    } catch (error) {
+      console.error("Error fetching user orders:", error);
+      throw new Error(`Failed to fetch user orders: ${error.message}`);
+    }
   }
 
-  async getAllUserOrders() {
+  async getAllUserOrders(creatorRole = null) {
+    try {
+      const whereClause = {};
+
+      // Add creatorRole to the query if provided
+      if (creatorRole) {
+        whereClause.creatorRole = creatorRole;
+      }
+
+      const userAllOrders = await Order.findAll({
+        where: whereClause,
+        include: [
+          {
+            model: Document,
+            as: "documents",
+          },
+          {
+            model: User,
+            as: "users",
+          },
+          {
+            model: User,
+            as: "creator",
+          },
+          {
+            model: Address,
+            as: "address",
+          },
+        ],
+      });
+
+      if (!userAllOrders || userAllOrders.length === 0) {
+        throw new Error("No orders found");
+      }
+
+      return userAllOrders;
+    } catch (error) {
+      console.error("Error fetching all user orders:", error);
+      throw new Error(`Failed to fetch all user orders: ${error.message}`);
+    }
+  }
+
+
+  async getOrdersByRole(operatorId) {
     return await Order.findAll({
       include: [
-        {
-          model: Document,
-          as: "documents",
-        },
         {
           model: User,
           as: "users", // Fetch the user who placed the order
         },
-        { 
-          model: User,
-          as: "admin" // Correct alias for adminId association
+        {
+          model: Document,
+          as: "documents",
         },
-        { model: Address, as: "address" }
+        {
+          model: User,
+          as: "creator", // Correct alias for creatorId association
+        },
+        {
+          model: Role,
+          where: {},
+        },
+        { model: Address, as: "address" },
       ],
     });
   }
@@ -449,16 +535,14 @@ class OrderRepository {
           model: User,
           as: "users", // Fetch the user who placed the order
         },
-        { 
+        {
           model: User,
-          as: "admin" // Correct alias for adminId association
+          as: "creator", // Correct alias for creatorId association
         },
-        { model: Address, as: "address" }
+        { model: Address, as: "address" },
       ],
     });
-}
-
-
+  }
 }
 
 module.exports = OrderRepository;
