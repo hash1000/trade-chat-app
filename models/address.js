@@ -73,7 +73,7 @@ const Address = sequelize.define('Address', {
       key: 'id'
     }
   },
-  adminId: {
+  creatorId: {
     allowNull: false,
     type: DataTypes.INTEGER,
     references: {

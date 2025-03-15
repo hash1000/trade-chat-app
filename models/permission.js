@@ -12,33 +12,29 @@ const Permission = sequelize.define("Permission", {
     allowNull: false,
   },
   resource: {
-    type: DataTypes.STRING, // Example: "orders"
+    type: DataTypes.STRING,
     allowNull: false,
   },
-  canCreate: {
+  create: {
     type: DataTypes.BOOLEAN,
     defaultValue: false,
   },
-  canReadAll: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: false, // Admin has true, others false
-  },
-  canReadAssigned: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: false, // Operator has true
-  },
-  canReadOwn: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: true, // User has true
-  },
-  canUpdate: {
+  readAll: {
     type: DataTypes.BOOLEAN,
     defaultValue: false,
   },
-  canDelete: {
+  readSingle: {
     type: DataTypes.BOOLEAN,
     defaultValue: false,
-  }
+  },
+  canUpdate: { // ✅ Renamed from "update" to "canUpdate"
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+  },
+  canDelete: { // ✅ Renamed from "delete" to "canDelete"
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+  },
 }, {
   tableName: "permissions",
   timestamps: false,
