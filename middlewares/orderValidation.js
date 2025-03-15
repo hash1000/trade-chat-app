@@ -17,6 +17,7 @@ exports.createOrderValidator = [
     .notEmpty().withMessage('Order number is required.')
     .custom(async (value) => {
       const existingOrder = await Order.findOne({ where: { orderNo: value } });
+      console.log("existingOrder",existingOrder);
       if (existingOrder) {
         return Promise.reject('Order number must be unique.');
       }
