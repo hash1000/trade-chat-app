@@ -2,7 +2,7 @@ module.exports = {
   up: async (queryInterface, Sequelize) => {
     const timestamp = new Date(); // Get current timestamp
 
-    await queryInterface.bulkInsert("roles", [
+    await queryInterface.bulkInsert("Roles", [
       {
         name: "admin",
         createdAt: timestamp,
@@ -22,6 +22,6 @@ module.exports = {
   },
 
   down: async (queryInterface, Sequelize) => {
-    await queryInterface.bulkDelete("roles", null, {});
+    await queryInterface.bulkDelete("Roles", null, {});
   },
 };
