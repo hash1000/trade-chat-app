@@ -235,7 +235,6 @@ class OrderController {
     try {
         const { ids, names } = req.userRoles;
         const userId = req.user.id; // Get the logged-in user's ID
-        console.log("userId", userId);
 
         let userAllOrders;
 
