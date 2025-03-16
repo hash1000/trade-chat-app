@@ -265,6 +265,7 @@ class UserService {
   }
 
   async getUserById(userId) {
+    console.log("userId",userId);
     return await userRepository.getById(userId);
   }
 

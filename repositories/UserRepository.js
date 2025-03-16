@@ -48,11 +48,12 @@ class UserRepository {
 
   // Get a user by ID
   async getById(userId) {
+    console.log("repos");
     return await User.findByPk(userId, {
       include: [
           {
               model: Role,
-              as: "roles",
+              as: "roles"
           },
       ]
   })
