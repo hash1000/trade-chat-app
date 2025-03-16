@@ -2,7 +2,6 @@ const express = require("express");
 const UserProfileController = require("../controllers/UserProfileController");
 const authenticate = require("../middlewares/authenticate");
 const checkIntegerParam = require("../middlewares/paramIntegerValidation");
-const authorize = require("../middlewares/authorization");
 
 const router = express.Router();
 const userProfileController = new UserProfileController();
@@ -83,7 +82,7 @@ router.get(
 // Get address by userID
 router.get(
   "/get-user-address/:userId",
-  authorize,
+  authenticate,
   checkIntegerParam("userId"),
   userProfileController.getAddressByUserId.bind(userProfileController)
 );
