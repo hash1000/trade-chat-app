@@ -3,9 +3,37 @@ const Friends = require("../models/friends");
 const User = require("../models/user");
 const { Op } = require("sequelize");
 const UserTags = require("../models/userTags");
-const { Role } = require("../models");
+const { Role, UserRole } = require("../models");
 
 class UserRepository {
+
+  async assignRoleToUser(userId, roleName, transaction = null) {
+    try {
+      const role = await Role.findOne({ where: { name: roleName }, transaction });
+      if (!role) {
+        throw new Error(`Role "${roleName}" not found`);
+      }
+  
+      const user = await User.findByPk(userId, { transaction });
+      if (!user) {
+        throw new Error(`User with id "${userId}" not found`);
+      }
+  
+      const userRole = await UserRole.create(
+        {
+          userId: user.id,
+          roleId: role.id,
+        },
+        { transaction } // Pass the transaction object
+      );
+  
+      return user;
+    } catch (error) {
+      console.error("Error in assignRoleToUser:", error); // Log the exact error
+      throw new Error(`Failed to assign role "${roleName}" to user "${userId}": ${error.message}`);
+    }
+  }
+
   // Create a new user
   async create(user) {
     return User.create(user);
@@ -48,27 +76,30 @@ class UserRepository {
 
   // Get a user by ID
   async getById(userId) {
-    const user = await User.findByPk(userId, {
+    console.log("repos");
+    return await User.findByPk(userId, {
       include: [
           {
               model: Role,
               as: "roles"
           },
       ]
-  });
-  console.log("user",user);
-  return user;
+  })
   }
 
   async getUserTokenAndName(userId) {
-    return User.findByPk(userId, {
-      include: [
+    return User.findByPk(
+      userId,
+      {
+        include: [
           {
-              model: Role,
-              as: "roles",
+            model: Role,
+            as: "roles",
           },
-      ],
-  }, { attributes: ["id", "name", "fcm"] });
+        ],
+      },
+      { attributes: ["id", "name", "fcm"] }
+    );
   }
 
   async getUserProfile(id) {
@@ -325,7 +356,7 @@ class UserRepository {
       const userTag = await UserTags.findOne({
         where: { userId: user.id },
       });
-  
+
       // Check if user tags exist; return default values if not found
       if (!userTag) {
         return {
@@ -333,7 +364,7 @@ class UserRepository {
           tags: [],
         };
       }
-  
+
       // Return found tags
       return userTag;
     } catch (error) {
@@ -341,7 +372,6 @@ class UserRepository {
       throw new Error("Error while fetching tags: " + error.message);
     }
   }
-  
 }
 
 module.exports = UserRepository;
