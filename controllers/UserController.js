@@ -88,10 +88,7 @@ class UserController {
 
       const userByPhoneNumber = await userService.getUserByPhoneNumber(
         country_code,
-        phoneNumber,
-        {
-          include: ["roles"],
-        }
+        phoneNumber
       );
       const userByEmail = await userService.getUserByEmail(email);
 
