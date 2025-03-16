@@ -8,26 +8,40 @@ const UserFavouriteRepository = require("../repositories/UserFavouriteRepository
 const UserTags = require("../models/userTags");
 const UserRole = require("../models/userRole");
 const { Role } = require("../models");
-
+const sequelize = require("../config/database");
 const userRepository = new UserRepository();
 const chat = new ChatRepository();
 const payment = new PaymentService();
 const UserFavourite = new UserFavouriteRepository();
 
 class UserService {
+
   async createUser(userData) {
+    let transaction;
     try {
+      transaction = await sequelize.transaction();
       const { password, ...data } = userData;
       const hashedPassword = await bcrypt.hash(password, 10);
       const newUser = await userRepository.create({
         password: hashedPassword,
         ...data, // Spread the rest of the user data
-      });
+      },
+      { transaction }
+    );
+      // Assign a default role to the new user
+      await userRepository.assignRoleToUser(newUser.id, "user", transaction);
+  
+      // Commit the transaction
+      await transaction.commit();
+  
       return newUser;
     } catch (error) {
+      if (transaction) await transaction.rollback();
+      console.error("Error in createUser:", error); // Log the exact error
       throw new Error("Failed to create user");
     }
   }
+
   async updateGoogleUser(user, userData) {
     try {
       // Update user properties
@@ -265,7 +279,6 @@ class UserService {
   }
 
   async getUserById(userId) {
-    console.log("userId",userId);
     return await userRepository.getById(userId);
   }
 
