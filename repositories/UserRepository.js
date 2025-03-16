@@ -9,7 +9,6 @@ class UserRepository {
 
   async assignRoleToUser(userId, roleName, transaction = null) {
     try {
-      console.log("Assigning role to user:", userId, roleName);
       const role = await Role.findOne({ where: { name: roleName }, transaction });
       if (!role) {
         throw new Error(`Role ${roleName} not found`);
@@ -27,7 +26,6 @@ class UserRepository {
         },
         { transaction } // Pass the transaction object
       );
-      console.log("Role assigned successfully:", userRole);
       return user;
     } catch (error) {
       console.error("Error in assignRoleToUser:", error); // Log the exact error
@@ -37,6 +35,7 @@ class UserRepository {
 
   // Create a new user
   async create(user) {
+    console.log("user",user);
     return User.create(user);
   }
 
