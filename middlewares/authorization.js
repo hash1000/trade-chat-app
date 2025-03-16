@@ -11,7 +11,7 @@ const authorize = (allowedRoles = []) => {
       // Fetch user along with their roles through the User_Roles junction table
       const userService = new UserService()
       const user = await userService.getUserById(userId)
-    // console.log("user",user);
+    console.log("user",user);
     
       if (!user || !user.roles.length) {
         return res.status(403).json({ message: "Forbidden: No roles assigned" });
