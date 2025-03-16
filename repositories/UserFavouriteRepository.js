@@ -69,7 +69,6 @@ class UserFavouriteRepository {
         "username",
         "country",
         "gender",
-        "role",
         "age",
         "profilePic",
         "description",

@@ -357,7 +357,6 @@ class UserService {
           "firstName",
           "lastName",
           "username",
-          "role",
           "email",
           "phoneNumber",
           "country_code",
