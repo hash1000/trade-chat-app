@@ -22,7 +22,7 @@ module.exports = {
         type: Sequelize.INTEGER,
         allowNull: false,
         references: {
-          model: 'roles', // Must match the table name in Role model
+          model: 'Roles', // Must match the table name in Role model
           key: 'id'
         },
         onDelete: 'CASCADE'
