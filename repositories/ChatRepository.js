@@ -114,7 +114,6 @@ class ChatRepository {
             "country",
             "gender",
             "age",
-            "role",
             "profilePic",
             "description",
             "settings",
