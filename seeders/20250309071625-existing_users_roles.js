@@ -33,14 +33,14 @@ module.exports = {
       updatedAt: new Date()
     }));
 
-    // Insert into User_Roles table
-    await queryInterface.bulkInsert('User_Roles', userRoles);
+    // Insert into user_roles table
+    await queryInterface.bulkInsert('user_roles', userRoles);
   },
 
   async down(queryInterface, Sequelize) {
     // Remove assigned roles
     await queryInterface.sequelize.query(
-      `DELETE FROM "User_Roles" WHERE "roleId" = (SELECT id FROM roles WHERE name = 'user');`
+      `DELETE FROM "user_roles" WHERE "roleId" = (SELECT id FROM roles WHERE name = 'user');`
     );
   }
 };

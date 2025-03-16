@@ -2,7 +2,7 @@ const { DataTypes } = require("sequelize");
 const sequelize = require("../config/database");
 
 const UserRole = sequelize.define(
-  "User_Roles",
+  "user_roles",
   {
     id: {
       type: DataTypes.INTEGER,
@@ -19,7 +19,7 @@ const UserRole = sequelize.define(
     },
   },
   {
-    tableName: "User_Roles",
+    tableName: "user_roles",
     timestamps: true, // Enables createdAt & updatedAt automatically
   }
 );

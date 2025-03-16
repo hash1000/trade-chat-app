@@ -8,7 +8,7 @@ const authorize = (allowedRoles = []) => {
       if (!userId) {
         return res.status(401).json({ message: "Unauthorized" });
       }
-      // Fetch user along with their roles through the User_Roles junction table
+      // Fetch user along with their roles through the user_roles junction table
       const userService = new UserService()
       const user = await userService.getUserById(userId)
     console.log("user",user);
