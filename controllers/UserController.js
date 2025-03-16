@@ -21,14 +21,12 @@ const client = twilio(
 class UserController {
   async googleSignIn(req, res) {
     const { displayName, email, photoURL } = req.body;
-
     try {
       const userData = {
         username: displayName,
         email,
         photoURL,
       };
-
       // Check if the user already exists with the provided email
       const userByEmail = await userService.getUserByEmail(email);
       if (userByEmail) {
