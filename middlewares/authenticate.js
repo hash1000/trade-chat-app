@@ -16,6 +16,7 @@ const authenticate = async (req, res, next) => {
       console.log("decode",decoded);
       const { userId, tokenVersion } = decoded
       // Check if the user exists
+      console.log("authentication");
       const userService = new UserService();
       const user = await userService.getUserById(userId);
       console.log("auth user",user)
