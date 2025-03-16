@@ -22,6 +22,7 @@ class UserService {
       transaction = await sequelize.transaction();
       const { password, ...data } = userData;
       const hashedPassword = await bcrypt.hash(password, 10);
+  
       const newUser = await userRepository.create({
         password: hashedPassword,
         ...data, // Spread the rest of the user data
@@ -31,7 +32,7 @@ class UserService {
       // Assign a default role to the new user
       await userRepository.assignRoleToUser(newUser.id, "user", transaction);
   
-      // Commit the transaction
+      // Commit the transaction if everything is successful
       await transaction.commit();
   
       return newUser;
@@ -41,7 +42,6 @@ class UserService {
       throw new Error("Failed to create user");
     }
   }
-
   async updateGoogleUser(user, userData) {
     try {
       // Update user properties
