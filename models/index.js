@@ -44,4 +44,4 @@ Role.belongsToMany(User, {
 });
 
 // Export models
-module.exports = { db, User, Role, Order, Address, Document, Permission };
+module.exports = { db, User, Role, UserRole, Order, Address, Document, Permission };
