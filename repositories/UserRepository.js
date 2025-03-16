@@ -68,6 +68,12 @@ class UserRepository {
           "companyWalletBalance",
           "expiration_time",
         ],
+        include: [
+          {
+            model: Role,
+            as: "roles"
+          },
+        ]
       });
       return users.map((user) => user.toJSON());
     } catch (error) {
@@ -80,27 +86,24 @@ class UserRepository {
     console.log("repos");
     return await User.findByPk(userId, {
       include: [
-          {
-              model: Role,
-              as: "roles"
-          },
+        {
+          model: Role,
+          as: "roles"
+        },
       ]
-  })
+    });
   }
 
   async getUserTokenAndName(userId) {
-    return User.findByPk(
-      userId,
-      {
-        include: [
-          {
-            model: Role,
-            as: "roles",
-          },
-        ],
-      },
-      { attributes: ["id", "name", "fcm"] }
-    );
+    return User.findByPk(userId, {
+      include: [
+        {
+          model: Role,
+          as: "roles",
+        },
+      ],
+      attributes: ["id", "name", "fcm"]
+    });
   }
 
   async getUserProfile(id) {
@@ -132,6 +135,12 @@ class UserRepository {
         "companyWalletBalance",
         "expiration_time",
       ],
+      include: [
+        {
+          model: Role,
+          as: "roles"
+        },
+      ]
     });
     return user ? user.toJSON() : null;
   }
@@ -165,6 +174,12 @@ class UserRepository {
         "companyWalletBalance",
         "expiration_time",
       ],
+      include: [
+        {
+          model: Role,
+          as: "roles"
+        },
+      ]
     });
     return user ? user.toJSON() : null;
   }
@@ -173,6 +188,12 @@ class UserRepository {
     const user = await User.findOne({
       where: { id },
       attributes: ["id", "likes", "dislikes"],
+      include: [
+        {
+          model: Role,
+          as: "roles"
+        },
+      ]
     });
 
     return user ? user.toJSON() : null;
@@ -188,17 +209,39 @@ class UserRepository {
       where: {
         id: userIds,
       },
+      include: [
+        {
+          model: Role,
+          as: "roles"
+        },
+      ]
     });
   }
 
   // Get a user by email
   async getByEmail(email) {
-    return User.findOne({ where: { email } });
+    return User.findOne({ 
+      where: { email },
+      include: [
+        {
+          model: Role,
+          as: "roles"
+        },
+      ]
+    });
   }
 
   // Get a user by phoneNumber
   async getByPhoneNumber(country_code, phoneNumber) {
-    return User.findOne({ where: { country_code, phoneNumber } });
+    return User.findOne({ 
+      where: { country_code, phoneNumber },
+      include: [
+        {
+          model: Role,
+          as: "roles"
+        },
+      ]
+    });
   }
 
   // Update a user
@@ -231,7 +274,15 @@ class UserRepository {
 
   async getUserByResetToken(resetToken) {
     // Find a user by the reset token in the database
-    return User.findOne({ where: { resetToken } });
+    return User.findOne({ 
+      where: { resetToken },
+      include: [
+        {
+          model: Role,
+          as: "roles"
+        },
+      ]
+    });
   }
 
   async updateUserPassword(email, newPassword) {
@@ -259,6 +310,12 @@ class UserRepository {
       where,
       limit,
       offset,
+      include: [
+        {
+          model: Role,
+          as: "roles"
+        },
+      ]
     });
 
     const userIds = users.rows.map((user) => user.id);
@@ -320,6 +377,12 @@ class UserRepository {
         "phoneNumber",
         "profilePic",
       ],
+      include: [
+        {
+          model: Role,
+          as: "roles"
+        },
+      ]
     });
 
     users = users.filter((user) => {

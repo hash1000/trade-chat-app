@@ -15,26 +15,26 @@ const payment = new PaymentService();
 const UserFavourite = new UserFavouriteRepository();
 
 class UserService {
-
   async createUser(userData) {
     let transaction;
     try {
       transaction = await sequelize.transaction();
       const { password, ...data } = userData;
       const hashedPassword = await bcrypt.hash(password, 10);
-  
-      const newUser = await userRepository.create({
-        password: hashedPassword,
-        ...data, // Spread the rest of the user data
-      },
-      { transaction }
-    );
+
+      const newUser = await userRepository.create(
+        {
+          password: hashedPassword,
+          ...data, // Spread the rest of the user data
+        },
+        { transaction }
+      );
       // Assign a default role to the new user
       await userRepository.assignRoleToUser(newUser.id, "user", transaction);
-  
+
       // Commit the transaction if everything is successful
       await transaction.commit();
-  
+
       return newUser;
     } catch (error) {
       if (transaction) await transaction.rollback();
@@ -42,6 +42,7 @@ class UserService {
       throw new Error("Failed to create user");
     }
   }
+
   async updateGoogleUser(user, userData) {
     try {
       // Update user properties
@@ -203,7 +204,6 @@ class UserService {
 
   async updateUserRole(user, roleName) {
     try {
-  
       // Check if the role exists
       const role = await Role.findOne({ where: { name: roleName } });
       if (!role) {
@@ -212,22 +212,41 @@ class UserService {
   
       // Check if the user already has this role
       const existingUserRole = await UserRole.findOne({
-        where: { userId: user.id, roleId: role.id }
+        where: { userId: user.id, roleId: role.id },
       });
   
       if (existingUserRole) {
-        return { message: "User already has this role" };
+        return { message: "User already has this role", user };
       }
   
-      // If not, create the relationship
-      await UserRole.create({ userId: user.id, roleId: role.id });
+      // Update the user's role
+      await UserRole.update(
+        {
+          roleId: role.id,
+        },
+        {
+          where: {
+            userId: user.id,
+          },
+        }
+      );
   
-      return { message: "Role assigned successfully", user };
+      // Fetch the updated user with their roles
+      const updatedUser = await User.findByPk(user.id, {
+        include: [
+          {
+            model: Role,
+            as: "roles",
+          },
+        ],
+      });
+  
+      return { message: "Role assigned successfully", user: updatedUser };
     } catch (error) {
       throw new Error(`Error updating roles: ${error.message}`);
     }
   }
-  
+
   async getUserWithRoles(userId) {
     return User.findByPk(userId, {
       include: [
