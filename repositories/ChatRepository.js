@@ -8,6 +8,7 @@ const PaymentRequest = require("../models/payment_request");
 const FavouritePayment = require("../models/favourite_payments");
 const UserFavourite = require("../models/user_favourites");
 const UserTags = require("../models/userTags");
+const { Role } = require("../models");
 
 class ChatRepository {
   async findChat(requesterId, requesteeId) {
@@ -77,11 +78,8 @@ class ChatRepository {
   async cancelInvite(requesterId, requesteeId) {
     return Chat.destroy({
       where: {
-        [Op.or]: [
-          { user1Id: requesterId },
-          { user2Id: requesteeId },
-        ],
-      }
+        [Op.and]: [{ user1Id: requesterId }, { user2Id: requesteeId }],
+      },
     });
   }
 
@@ -119,6 +117,12 @@ class ChatRepository {
             "settings",
             "phoneNumber",
           ],
+          include: [
+            {
+              model: Role,
+              as: "roles",
+            },
+          ],
         },
       ],
     });
@@ -128,7 +132,7 @@ class ChatRepository {
       username: chat.userName || chat.user2.username,
       firstName: chat.user2.firstName,
       lastName: chat.user2.lastName,
-      email: chat.user2.email, 
+      email: chat.user2.email,
       country: chat.user2.country,
       gender: chat.user2.gender,
       age: chat.user2.age,
@@ -150,23 +154,19 @@ class ChatRepository {
     const limit = parseInt(pageSize, 10);
     const offset = (page - 1) * limit;
     const { Op } = require("sequelize");
-  
+
     // Fetch chats where userId is either user1Id or user2Id
     const chats = await Chat.findAndCountAll({
       where: {
-        [Op.or]: [
-          { user1Id: userId },
-          { user2Id: userId },
-        ],
+        [Op.or]: [{ user1Id: userId }, { user2Id: userId }],
       },
       limit, // Paginate the results
       offset,
       order: [["updatedAt", "DESC"]], // Optional: Order by latest updated chats
     });
-  
+
     return chats;
   }
-  
 
   async getMessages(chatId, page, pageSize, messageId, userId) {
     const chat = await Chat.findByPk(chatId);
@@ -263,7 +263,7 @@ class ChatRepository {
     };
   }
 
-  async updateFriend( 
+  async updateFriend(
     requesterId,
     requesteeId,
     userName,
@@ -282,25 +282,28 @@ class ChatRepository {
         where: { user1Id: requesterId, user2Id: requesteeId },
       }
     );
-    let newTag=[];
+    let newTag = [];
     let userTag = await UserTags.findOne({
       where: { userId: requesterId },
     });
-    if(userTag){
-      newTag.push(...userTag.tags,...tags)
-      newTag=[...new Set(newTag)]
+    if (userTag) {
+      newTag.push(...userTag.tags, ...tags);
+      newTag = [...new Set(newTag)];
       // userTag.tags
-      await UserTags.update({
-        tags: newTag,
-        updatedAt: new Date(),
-      },{
-        where: {
-          userId: requesterId
+      await UserTags.update(
+        {
+          tags: newTag,
+          updatedAt: new Date(),
         },
-      });
-    }else {
-      newTag.push(...tags)
-      newTag=[...new Set(newTag)]
+        {
+          where: {
+            userId: requesterId,
+          },
+        }
+      );
+    } else {
+      newTag.push(...tags);
+      newTag = [...new Set(newTag)];
       await UserTags.create({
         userId: requesterId,
         tags: newTag,
@@ -349,7 +352,7 @@ class ChatRepository {
       throw error;
     }
   }
-  
+
   async getUserTransactions(userId, specificUserId, from, to) {
     let condition = {
       status: "accepted",
@@ -365,7 +368,7 @@ class ChatRepository {
         },
       ],
     };
-  
+
     if (specificUserId) {
       condition = {
         status: "accepted",
@@ -384,7 +387,7 @@ class ChatRepository {
         ],
       };
     }
-  
+
     const transactions = await PaymentRequest.findAndCountAll({
       where: condition,
       order: [["createdAt", "DESC"]],
@@ -415,31 +418,31 @@ class ChatRepository {
         },
       ],
     });
-  
+
     const totalTransactions = transactions.count;
-  
+
     const outgoingTransactions = transactions.rows.filter(
       (transaction) => transaction.requesterId === userId
     );
     const totalOutgoingTransactions = outgoingTransactions.length;
-  
+
     const incomingTransactions = transactions.rows.filter(
       (transaction) => transaction.requesteeId === userId
     );
     const totalIncomingTransactions = incomingTransactions.length;
-  
+
     const totalAmountSent = outgoingTransactions.reduce(
       (acc, transaction) => acc + Number(transaction.amount),
       0
     );
-  
+
     const totalAmountReceived = incomingTransactions.reduce(
       (acc, transaction) => acc + Number(transaction.amount),
       0
     );
-  
+
     const transactionBalance = totalAmountReceived - totalAmountSent;
-  
+
     // Group transactions by month (as integers)
     const transactionsByMonth = transactions.rows.reduce((acc, transaction) => {
       const month = transaction.createdAt.getMonth() + 1; // Convert 0-indexed to 1-indexed
@@ -449,34 +452,39 @@ class ChatRepository {
       acc[month].transactions.push(transaction);
       return acc;
     }, {});
-  
+
     const transactionsByMonthArray = Object.values(transactionsByMonth);
-  
+
     const favouritePayments = await FavouritePayment.findAll({
       where: { userId },
       order: [["createdAt", "DESC"]],
     });
-  
+
     // Group favourite payments by month (as integers)
-    const favouritePaymentsByMonth = favouritePayments.reduce((acc, payment) => {
-      const month = payment.createdAt.getMonth() + 1;
-      if (!acc[month]) {
-        acc[month] = { month, transactions: [] };
-      }
-      acc[month].transactions.push(payment);
-      return acc;
-    }, {});
-  
-    const favouritePaymentsByMonthArray = Object.values(favouritePaymentsByMonth);
-  
+    const favouritePaymentsByMonth = favouritePayments.reduce(
+      (acc, payment) => {
+        const month = payment.createdAt.getMonth() + 1;
+        if (!acc[month]) {
+          acc[month] = { month, transactions: [] };
+        }
+        acc[month].transactions.push(payment);
+        return acc;
+      },
+      {}
+    );
+
+    const favouritePaymentsByMonthArray = Object.values(
+      favouritePaymentsByMonth
+    );
+
     const percentageOutgoingTransactions = totalTransactions
       ? ((totalOutgoingTransactions / totalTransactions) * 100).toFixed(2)
       : 0;
-  
+
     const percentageIncomingTransactions = totalTransactions
       ? ((totalIncomingTransactions / totalTransactions) * 100).toFixed(2)
       : 0;
-  
+
     return {
       transactions: transactionsByMonthArray || [],
       favouriteTransactions: favouritePaymentsByMonthArray || [],
@@ -486,11 +494,13 @@ class ChatRepository {
       totalAmountSent: totalAmountSent || 0,
       totalAmountReceived: totalAmountReceived || 0,
       transactionBalance: transactionBalance || 0,
-      percentageOutgoingTransactions: Number(percentageOutgoingTransactions) || 0,
-      percentageIncomingTransactions: Number(percentageIncomingTransactions) || 0,
+      percentageOutgoingTransactions:
+        Number(percentageOutgoingTransactions) || 0,
+      percentageIncomingTransactions:
+        Number(percentageIncomingTransactions) || 0,
     };
   }
-  
+
   async createMessage(
     chatId,
     userId,

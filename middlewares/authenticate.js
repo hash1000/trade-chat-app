@@ -16,10 +16,10 @@ const authenticate = async (req, res, next) => {
       console.log("decode",decoded);
       const { userId, tokenVersion } = decoded
       // Check if the user exists
-      console.log("authentication");
+      // console.log("authentication");
       const userService = new UserService();
       const user = await userService.getUserById(userId);
-      console.log("auth user",user)
+      // console.log("auth user",user)
       if (!user) {
         return res.status(401).json({ message: 'Invalid or expired token' })
       }
