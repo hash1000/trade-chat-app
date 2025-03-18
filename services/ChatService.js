@@ -3,7 +3,7 @@ const PaymentRepository = require("../repositories/PaymentRepository");
 const UserRepository = require("../repositories/UserRepository");
 const socket = require("../config/socket");
 const InSufficientBalance = require("../errors/InSufficientBalance");
-const User = require("../models/user");
+const { User } = require("../models");
 const sequelize = require("../config/database");
 const path = require("path");
 
@@ -59,6 +59,13 @@ class CartService {
   }
   async inviteRequest(requesterId, requesteeId) {
     try {
+      const user = await User.findByPk(requesteeId);
+      if (!user) {
+        return {
+          status: 404,
+          message: "User not found.",
+        };
+      }
       // Check if a chat already exists between the two users
       let chat = await this.chatRepository.findExistingChat(requesterId, requesteeId);
   
