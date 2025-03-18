@@ -7,7 +7,7 @@ const PaymentService = require("./PaymentService");
 const UserFavouriteRepository = require("../repositories/UserFavouriteRepository");
 const UserTags = require("../models/userTags");
 const UserRole = require("../models/userRole");
-const { Role } = require("../models");
+const { User,Role } = require("../models");
 const sequelize = require("../config/database");
 const userRepository = new UserRepository();
 const chat = new ChatRepository();
@@ -222,11 +222,9 @@ class UserService {
       const existingUserRole = await UserRole.findOne({
         where: { userId: user.id, roleId: role.id },
       });
-
       if (existingUserRole) {
         return { message: "User already has this role", user };
       }
-
       // Update the user's role
       await UserRole.update(
         {
@@ -248,7 +246,6 @@ class UserService {
           },
         ],
       });
-
       return { message: "Role assigned successfully", user: updatedUser };
     } catch (error) {
       throw new Error(`Error updating roles: ${error.message}`);
