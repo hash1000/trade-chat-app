@@ -213,13 +213,11 @@ class CartService {
   }
 
   async sendPayment(requesterId, requesteeId, amount) {
-    const users = await userService.getUsersByIds(requesteeId);
-    const user = users[0];
-    const { role } = user;
+    const user = await userService.getUserById(requesteeId);
     if (!user) {
       return { message: `User with ID ${requesteeId} not found` };
     }
-    if (requesterId === requesteeId && role.toLowerCase() !== "admin") {
+    if (requesterId === requesteeId && user.roles[0].name !== "admin") {
       return {
         message: "Regular users cannot transfer balance to themselves.",
         success: false,

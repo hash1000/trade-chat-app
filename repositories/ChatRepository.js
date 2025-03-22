@@ -554,6 +554,12 @@ class ChatRepository {
             "email",
             "settings",
           ],
+          include: [
+            {
+              model: Role,
+              as: "roles",
+            },
+          ]
         },
         {
           model: User,
@@ -566,6 +572,12 @@ class ChatRepository {
             "email",
             "settings",
           ],
+          include: [
+            {
+              model: Role,
+              as: "roles",
+            },
+          ]
         },
       ],
     });
