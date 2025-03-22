@@ -2,13 +2,14 @@ const Payment = require('../models/payment')
 const Card = require('../models/card')
 const FavouritePayment = require('../models/favourite_payments')
 const PaymentRequest = require('../models/payment_request')
+const { User, Role } = require('../models')
 
 class PaymentRepository {
-  async createPayment (paymentData) {
+  async createPayment(paymentData) {
     return Payment.create(paymentData)
   }
 
-  async update (paymentId, updatedPaymentData) {
+  async update(paymentId, updatedPaymentData) {
     const payment = await this.getById(paymentId)
     if (!payment) {
       throw new Error('Payment not found')
@@ -17,33 +18,33 @@ class PaymentRepository {
   }
 
   // Get a payment by ID
-  async getById (paymentId) {
+  async getById(paymentId) {
     return Payment.findByPk(paymentId)
   }
 
   // Get a payment requet by ID
-  async getRequestById (requestId) {
+  async getRequestById(requestId) {
     return PaymentRequest.findByPk(requestId)
   }
 
   // Get a favourite payment by ID
-  async getFavouriteById (favouriteId) {
+  async getFavouriteById(favouriteId) {
     return FavouritePayment.findByPk(favouriteId)
   }
 
-  async delete (paymentId) {
+  async delete(paymentId) {
     return Payment.destroy({
       where: { id: paymentId }
     })
   }
 
-  async getByUserId (userId) {
+  async getByUserId(userId) {
     return Payment.findAll({
       where: { userId }
     })
   }
 
-  async getCardsByUser (userId) {
+  async getCardsByUser(userId) {
     return Card.findAll({
       where: { userId }
     })
@@ -53,13 +54,13 @@ class PaymentRepository {
     return Card.create(cardData)
   }
 
-  async deleteCard (cardId) {
+  async deleteCard(cardId) {
     return Card.destroy({
       where: { id: cardId }
     })
   }
 
-  async favouritePayment (paymentId, userId) {
+  async favouritePayment(paymentId, userId) {
     const payment = await this.getRequestById(paymentId)
     if (!payment) {
       throw new Error('Payment not found')
@@ -72,7 +73,7 @@ class PaymentRepository {
     })
   }
 
-  async unfavouritePayment (paymentId, userId) {
+  async unfavouritePayment(paymentId, userId) {
     const payment = await this.getRequestById(paymentId)
     if (!payment) {
       throw new Error('Payment not found')
@@ -88,13 +89,35 @@ class PaymentRepository {
   }
 
   async createPaymentRequest(requesterId, requesteeId, amount, status) {
-    return PaymentRequest.create({
+    const paymentRequest = await PaymentRequest.create({
       requesterId,
       requesteeId,
       amount,
       status: status || 'pending'
-    })
-  }
+    });
+
+    return PaymentRequest.findByPk(paymentRequest.id, {
+      include: [
+        { model: User, as: 'requester',
+          include: [
+            {
+              model: Role,
+              as: "roles"
+            },
+          ]
+        } ,
+      { model: User, as: 'requestee',
+      include: [
+        {
+          model: Role,
+          as: "roles"
+        },
+      ]
+    }  
+      ]
+});
+  }  
+  
 }
 
 module.exports = PaymentRepository
