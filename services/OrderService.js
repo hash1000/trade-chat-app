@@ -15,14 +15,13 @@ class OrderService {
 
   async createOrder(name, image, userId, creatorId, creatorRole, orderNo, price, status) {
     const address = await this.addressService.getPinAddressByUserId(userId);
-    if (address) {
       const orderData = {
         name,
         image,
         userId,
         creatorId,
         creatorRole,
-        addressId: address.id,
+        addressId: address ? address.id : null,
         isFavorite: false,
         isLock: false,
         orderNo,
@@ -30,8 +29,6 @@ class OrderService {
         status,
       };
       return await this.orderRepository.createOrder(orderData);
-    }
-    return null;
   }
 
   async updateOrder(name, image, orderId, price, status, documents) {

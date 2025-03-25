@@ -21,7 +21,7 @@ const Order = db.define(
     },
     addressId: {
       type: DataTypes.INTEGER,
-      allowNull: false,
+      allowNull: true,
       references: {
         model: Address,
         key: "id",
