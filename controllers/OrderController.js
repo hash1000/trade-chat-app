@@ -40,13 +40,6 @@ class OrderController {
         return res.status(403).json({ error: "Unauthorized: Insufficient permissions" });
       }
 
-      if (createdOrder === null) {
-        return res.status(404).json({
-          message: "No address found for the given user ID.",
-          addressStatus: "not_found",
-        });
-      }
-
       return res.status(200).json({
         message: "Order added successfully.",
         createdOrder,
