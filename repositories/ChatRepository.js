@@ -136,7 +136,7 @@ class ChatRepository {
       country: chat.user2.country,
       gender: chat.user2.gender,
       age: chat.user2.age,
-      role: chat.user2.roles,
+      roles: chat.user2.roles,
       profilePic: chat.profilePic || chat.user2.profilePic,
       description: chat.description || chat.user2.description,
       settings: {
