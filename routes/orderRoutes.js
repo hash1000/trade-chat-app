@@ -34,7 +34,6 @@ router.post(
 
 router.patch('/favorite/:orderId', authMiddleware, authorize(['admin']), checkIntegerParam("orderId"), checkPermission("canUpdate", "orders"), orderController.isFavoriteOrder.bind(orderController));
 
-
 router.patch('/lock/:orderId', authMiddleware, authorize(['admin']), checkIntegerParam("orderId"), checkPermission("canUpdate", "orders"), orderController.isLockOrder.bind(orderController));
 
 router.patch('/order-address/:orderId', authMiddleware, authorize(['admin']), checkIntegerParam("orderId"), checkPermission("canUpdate", "orders"), updateOrderAddressValidator, orderController.updateOrderAddress.bind(orderController));
