@@ -195,7 +195,6 @@ class UserService {
     for (let i = 0; i < favourites.length; i++) {
       const fav = favourites[i];
       const inv = invite.find((inviteUser) => inviteUser.id === fav.id);
-      console.log("inv",inv);
       // If a corresponding invite is found, update the favourite
       if (inv && fav) {
         favourites[i] = {
@@ -206,7 +205,7 @@ class UserService {
           settings: {
             tags: inv.settings.tags,
           },
-          role: inv.role,
+          roles: inv.role,
           createdAt: inv.createdAt,
           updatedAt: inv.updatedAt,
           phoneNumber: inv.phoneNumber,
