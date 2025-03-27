@@ -161,6 +161,35 @@ class OrderController {
     }
   }
 
+  async deleteDocument(req, res) {
+    try {
+      const { orderNo, documentId } = req.params;
+      
+      // First verify the document belongs to the order
+      const document = await orderService.getDocumentById(documentId);
+      
+      console.log("document",document);
+      if (!document) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+      
+      if (document.orderNo !== orderNo) {
+        return res.status(400).json({ error: "Document does not belong to this order" });
+      }
+  
+      // Delete the document
+      await orderService.deleteDocument(documentId, document.document);
+      
+      res.json({
+        message: "Document deleted successfully",
+        documentId: documentId
+      });
+    } catch (error) {
+      console.error("Error deleting document:", error);
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+
   async deleteOrder(req, res) {
     try {
       const { ids, names } = req.userRoles;

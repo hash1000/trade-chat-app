@@ -160,6 +160,37 @@ class OrderService {
     }
   }
 
+  async getDocumentById(documentId) {
+    try {
+      return await this.orderRepository.getDocumentById(documentId);
+    } catch (error) {
+      throw error;
+    }
+  }
+  
+  async deleteDocument(documentId, documentUrls) {
+    console.log("documentUrls",documentId,documentUrls);
+    let transaction;
+    try {
+      transaction = await sequelize.transaction();
+      
+      // First delete from database
+      await this.orderRepository.deleteDocument(documentId, transaction);
+      
+        try {
+          await deleteFileFromS3(documentUrls, process.env.SPACES_BUCKET_NAME);
+        } catch (err) {
+          console.error("Failed to delete file from S3:", err);
+          // Continue even if S3 deletion fails
+        }
+      
+      await transaction.commit();
+    } catch (error) {
+      if (transaction) await transaction.rollback();
+      throw error;
+    }
+  }
+
   async deleteOrder(orderNo, creatorRole) {
     return await this.orderRepository.deleteOrder(orderNo, creatorRole);
   }

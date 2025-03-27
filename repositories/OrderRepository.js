@@ -447,6 +447,7 @@ class OrderRepository {
     }
   }
 
+
   async uploadDocument(orderNo, documentObj) {
     try {
       const documents = [];
@@ -461,6 +462,27 @@ class OrderRepository {
       }
 
       return documents;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async getDocumentById(documentId) {
+    try {
+      return await Document.findOne({
+        where: { id: documentId }
+      });
+    } catch (error) {
+      throw error;
+    }
+  }
+  
+  async deleteDocument(documentId, transaction) {
+    try {
+      return await Document.destroy({
+        where: { id: documentId },
+        transaction
+      });
     } catch (error) {
       throw error;
     }

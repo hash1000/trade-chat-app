@@ -32,6 +32,13 @@ router.post(
   orderController.uploadDocument.bind(orderController)
 );
 
+// delete api for document
+router.delete(
+  '/:orderNo/delete-document/:documentId',
+  authMiddleware,
+  orderController.deleteDocument.bind(orderController)
+);
+
 router.patch('/favorite/:orderId', authMiddleware, authorize(['admin']), checkIntegerParam("orderId"), checkPermission("canUpdate", "orders"), orderController.isFavoriteOrder.bind(orderController));
 
 router.patch('/lock/:orderId', authMiddleware, authorize(['admin']), checkIntegerParam("orderId"), checkPermission("canUpdate", "orders"), orderController.isLockOrder.bind(orderController));

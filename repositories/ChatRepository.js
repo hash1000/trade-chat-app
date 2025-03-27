@@ -148,7 +148,7 @@ class ChatRepository {
     }));
 
     return friends;
-  }
+  } 
 
   async getBinaryUserChat(userId, page, pageSize) {
     const limit = parseInt(pageSize, 10);
