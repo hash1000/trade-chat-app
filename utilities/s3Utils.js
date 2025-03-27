@@ -1,9 +1,9 @@
 const {
-    PutObjectCommand,
-    S3Client,
-    DeleteObjectCommand,
-    GetObjectCommand,
-  } = require("@aws-sdk/client-s3");
+  PutObjectCommand,
+  S3Client,
+  DeleteObjectCommand,
+  GetObjectCommand,
+} = require("@aws-sdk/client-s3");
 const path = require("path");
 require("dotenv").config();
 
@@ -39,7 +39,7 @@ const uploadFileToS3 = async (file, bucketName) => {
   await s3Client.send(new PutObjectCommand(params));
   return {
     title: file.originalname,
-    url: `${process.env.IMAGE_END_POINT}/${fileName}`
+    url: `${process.env.IMAGE_END_POINT}/${fileName}`,
   };
 };
 
@@ -50,26 +50,26 @@ const uploadFileToS3 = async (file, bucketName) => {
  * @returns {Promise<boolean>} - True if deletion was successful
  */
 const deleteFileFromS3 = async (fileUrl, bucketName) => {
-    if (!fileUrl) {
-      throw new Error("No file URL provided");
-    }
-  
-    try {
-      // Extract the key from the full URL
-      const urlParts = fileUrl.split('/');
-      const fileName = urlParts[urlParts.length - 1];
-      
-      const params = {
-        Bucket: bucketName,
-        Key: fileName,
-      };
-  
-      await s3Client.send(new DeleteObjectCommand(params));
-      return true;
-    } catch (error) {
-      console.error("Error deleting file from S3:", error);
-      throw new Error(`Failed to delete file: ${error.message}`);
-    }
-  };
+  if (!fileUrl) {
+    throw new Error("No file URL provided");
+  }
+
+  try {
+    // Extract the key from the full URL
+    const urlParts = fileUrl.split("/");
+    const fileName = urlParts[urlParts.length - 1];
+
+    const params = {
+      Bucket: bucketName,
+      Key: fileName,
+    };
+
+    await s3Client.send(new DeleteObjectCommand(params));
+    return true;
+  } catch (error) {
+    console.error("Error deleting file from S3:", error);
+    throw new Error(`Failed to delete file: ${error.message}`);
+  }
+};
 
 module.exports = { uploadFileToS3, deleteFileFromS3 };
