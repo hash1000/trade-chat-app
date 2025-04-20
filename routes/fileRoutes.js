@@ -14,7 +14,7 @@ const authMiddleware = require("../middlewares/authenticate"); // Adjust the pat
 const storage = multer.memoryStorage();
 const upload = multer({
   storage: storage,
-  limits: { fileSize: 25000000 },
+  limits: { fileSize: 1073741824 }, // 1 GB
 });
 
 // Configure AWS S3 client for DigitalOcean Spaces
@@ -33,6 +33,7 @@ const s3Client = new S3Client({
 router.post("/", upload.single("file"), async (req, res) => {
   try {
     const file = req.file;
+    console.log("file",file);
     // Check if file is present
     if (!file) {
       return res.status(400).json({ error: "No file was uploaded" });
