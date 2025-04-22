@@ -156,8 +156,8 @@ class OrderController {
         documents: result,
       });
     } catch (error) {
-      console.error("Error uploading order:", error);
-      return res.status(500).json({ message: "Internal server error" });
+      console.error("Upload error:", error.message);
+      res.status(500).json({ message: "Internal Server Error" });
     }
   }
 

@@ -253,8 +253,7 @@ class OrderRepository {
       }
       if (documents) {
         const fileUrl = await uploadFileToS3(
-          documents,
-          process.env.SPACES_BUCKET_NAME
+          documents
         );
         order.documents = fileUrl;
       }
@@ -450,6 +449,7 @@ class OrderRepository {
 
   async uploadDocument(orderNo, documentObj) {
     try {
+      console.log("orderNo, documentObj",orderNo, documentObj);
       const documents = [];
 
       for (const document of documentObj) {

@@ -1,156 +1,69 @@
 const express = require("express");
 const router = express.Router();
-const multer = require("multer");
-const path = require("path");
-const {
-  PutObjectCommand,
-  S3Client,
-  DeleteObjectCommand,
-  GetObjectCommand,
-} = require("@aws-sdk/client-s3");
-const authMiddleware = require("../middlewares/authenticate"); // Adjust the path as needed
+const { uploadSingle } = require("../utilities/multer-config");
+const { uploadFileToS3, deleteFileFromS3 } = require("../utilities/s3Utils");
+const authMiddleware = require("../middlewares/authenticate");
 
-// Configure multer storage
-const storage = multer.memoryStorage();
-const upload = multer({
-  storage: storage,
-  limits: { fileSize: 1073741824 }, // 1 GB
-});
-
-// Configure AWS S3 client for DigitalOcean Spaces
-const s3Client = new S3Client({
-  endpoint: process.env.SPACES_END_POINT,
-  forcePathStyle: false,
-  region: process.env.SPACES_REGION,
-  credentials: {
-    accessKeyId: process.env.SPACES_ACCESS_KEY,
-    secretAccessKey: process.env.SPACES_SECRET,
-  },
-});
-
-
-// Express route for file upload
-router.post("/", upload.single("file"), async (req, res) => {
+// Unified upload endpoint
+router.post("/", uploadSingle, async (req, res) => {
   try {
-    const file = req.file;
-    console.log("file",file);
-    // Check if file is present
-    if (!file) {
-      return res.status(400).json({ error: "No file was uploaded" });
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded" });
     }
-    // Create a new file name with the user id, timestamp, and the original file extension
-    const fileName = `${Date.now()}${path.extname(file.originalname)}`;
 
-    const params = {
-      Bucket: process.env.SPACES_BUCKET_NAME,
-      Key: fileName,
-      Body: file.buffer,
-      ContentType: file.mimetype,
-      ACL: "public-read",
-    };
-    await s3Client.send(new PutObjectCommand(params));
+    const { buffer, originalname, mimetype } = req.file;
+    const result = await uploadFileToS3(buffer, originalname, mimetype);
 
     res.status(200).json({
       message: "File uploaded successfully",
-      fileName: `${process.env.IMAGE_END_POINT}/${fileName}`,
+      data: result
     });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "An error occurred while uploading the file" });
+  } catch (error) {
+    console.error("Upload error:", error);
+    res.status(500).json({ 
+      error: "File upload failed",
+      details: error.message 
+    });
   }
 });
 
-// Express route for image upload
-router.post("/image", upload.single("file"), async (req, res) => {
+// Delete endpoint
+router.delete("/:key", authMiddleware, async (req, res) => {
   try {
-    const file = req.file;
-    // Check if file is present
-    if (!file) {
-      return res.status(400).json({ error: "No image was uploaded" });
-    }
-
-    // Allowed file extensions
-    const fileTypes = /jpeg|jpg|png|gif|svg/;
-    // Check extension names
-    const extName = fileTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimeType = fileTypes.test(file.mimetype);
-
-    if (mimeType && extName) {
-      const fileName = `${Date.now()}${path.extname(file.originalname)}`;
-
-      const params = {
-        Bucket: process.env.SPACES_BUCKET_NAME,
-        Key: fileName,
-        Body: file.buffer,
-        ContentType: file.mimetype,
-        ACL: "public-read",
-      };
-      await s3Client.send(new PutObjectCommand(params));
-
-      res.status(200).json({
-        message: "Image uploaded successfully",
-        fileName: `${process.env.IMAGE_END_POINT}/${fileName}`
-      });
-    } else {
-      res.status(400).json({ error: "Error: You can only upload images!" });
-    }
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "An error occurred while uploading the image" });
-  }
-});
-
-// Express route for file deletion
-router.delete("/delete", authMiddleware, async (req, res) => {
-  try {
-    const fileName = req.body.url; // Get the URL from the request body
-
-    const params = {
-      Bucket: process.env.SPACES_BUCKET_NAME,
-      Key: fileName,
-    };
-
-    await s3Client.send(new DeleteObjectCommand(params));
-
+    const { key } = req.params;
+    await deleteFileFromS3(key);
     res.status(200).json({ message: "File deleted successfully" });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "An error occurred while deleting the file" });
+  } catch (error) {
+    console.error("Delete error:", error);
+    res.status(500).json({ 
+      error: "File deletion failed",
+      details: error.message 
+    });
   }
 });
 
-// Express route for file download
-router.get("/download", authMiddleware, async (req, res) => {
+// Download endpoint
+router.get("/download/:key", authMiddleware, async (req, res) => {
   try {
-    const fileName = req.query.filename; // Get the file name from the query parameters
-
-    const params = {
+    const { key } = req.params;
+    const command = new GetObjectCommand({
       Bucket: process.env.SPACES_BUCKET_NAME,
-      Key: fileName,
-    };
+      Key: key,
+    });
 
-    const object = await s3Client.send(new GetObjectCommand(params));
-
-    res.attachment(fileName);
-    res.setHeader("Content-Length", object.ContentLength);
-
-    // Pipe the file stream to the response
-    object.Body.pipe(res);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "An error occurred while downloading the file" });
+    const { Body, ContentType } = await s3Client.send(command);
+    
+    res.setHeader("Content-Type", ContentType);
+    res.setHeader("Content-Disposition", `attachment; filename="${key}"`);
+    
+    Body.pipe(res);
+  } catch (error) {
+    console.error("Download error:", error);
+    res.status(500).json({ 
+      error: "File download failed",
+      details: error.message 
+    });
   }
-});
-
-// Error-handling middleware
-router.use((err, req, res, next) => {
-  if (err instanceof multer.MulterError) {
-    if (err.code === "LIMIT_FILE_SIZE") {
-      return res.status(400).json({ error: "File too large. Maximum size is 25MB." });
-    }
-    return res.status(400).json({ error: err.message });
-  }
-  next(err);
 });
 
 module.exports = router;
