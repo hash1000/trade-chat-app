@@ -13,22 +13,31 @@ class OrderService {
     this.addressRepository = new AddressRepository();
   }
 
-  async createOrder(name, image, userId, creatorId, creatorRole, orderNo, price, status) {
+  async createOrder(
+    name,
+    image,
+    userId,
+    creatorId,
+    creatorRole,
+    orderNo,
+    price,
+    status
+  ) {
     const address = await this.addressService.getPinAddressByUserId(userId);
-      const orderData = {
-        name,
-        image,
-        userId,
-        creatorId,
-        creatorRole,
-        addressId: address ? address.id : null,
-        isFavorite: false,
-        isLock: false,
-        orderNo,
-        price,
-        status,
-      };
-      return await this.orderRepository.createOrder(orderData);
+    const orderData = {
+      name,
+      image,
+      userId,
+      creatorId,
+      creatorRole,
+      addressId: address ? address.id : null,
+      isFavorite: false,
+      isLock: false,
+      orderNo,
+      price,
+      status,
+    };
+    return await this.orderRepository.createOrder(orderData);
   }
 
   async updateOrder(name, image, orderId, price, status, documents) {
@@ -114,7 +123,7 @@ class OrderService {
     }
     return { success: false, message: "This Order is does not exist" };
   }
-  
+
   async isLockOrder(orderId) {
     const order = await this.orderRepository.getOrderByOrderId(orderId);
     if (order) {
@@ -122,40 +131,31 @@ class OrderService {
     }
     return { success: false, message: "This Order is does not exist" };
   }
+
+  async uploadDocument(orderNo, files) {
+    const documentUrls = [];
+    const uploadedFiles = [];
   
-  async uploadDocument(orderNo, documents) {
-    const documentObj = [];
-    // let transaction;
     try {
-      // transaction = await sequelize.transaction();
-      if (!documents || documents.length === 0) {
-        throw new Error("No documents provided");
-      }
-
-      for (const file of documents) {
-        const fileUrl = await uploadFileToS3(
-          file,
-          process.env.SPACES_BUCKET_NAME
+      for (const file of files) {
+        const uploaded = await uploadFileToS3(
+          file.buffer,
+          file.originalname,
+          file.mimetype
         );
-        documentObj.push(fileUrl);
+        documentUrls.push(uploaded);
+        uploadedFiles.push(uploaded);
       }
-
-      return await this.orderRepository.uploadDocument(orderNo, documentObj);
-
-      // await transaction.commit();
-      return createdDocs;
+  
+      return await this.orderRepository.uploadDocument(orderNo, documentUrls);
     } catch (error) {
-      // await transaction.rollback();
-
-      // Delete uploaded files from S3 on error
       for (const file of uploadedFiles) {
         try {
           await deleteFileFromS3(file.url, process.env.SPACES_BUCKET_NAME);
         } catch (err) {
-          console.error("Failed to delete file:", err);
+          console.error("Rollback deletion failed:", err.message);
         }
       }
-
       throw error;
     }
   }
@@ -167,23 +167,23 @@ class OrderService {
       throw error;
     }
   }
-  
+
   async deleteDocument(documentId, documentUrls) {
-    console.log("documentUrls",documentId,documentUrls);
+    console.log("documentUrls", documentId, documentUrls);
     let transaction;
     try {
       transaction = await sequelize.transaction();
-      
+
       // First delete from database
       await this.orderRepository.deleteDocument(documentId, transaction);
-      
-        try {
-          await deleteFileFromS3(documentUrls, process.env.SPACES_BUCKET_NAME);
-        } catch (err) {
-          console.error("Failed to delete file from S3:", err);
-          // Continue even if S3 deletion fails
-        }
-      
+
+      try {
+        await deleteFileFromS3(documentUrls, process.env.SPACES_BUCKET_NAME);
+      } catch (err) {
+        console.error("Failed to delete file from S3:", err);
+        // Continue even if S3 deletion fails
+      }
+
       await transaction.commit();
     } catch (error) {
       if (transaction) await transaction.rollback();
@@ -195,9 +195,8 @@ class OrderService {
     return await this.orderRepository.deleteOrder(orderNo, creatorRole);
   }
 
-
   async getUserOrders(userId, creatorRole = null) {
-    return await this.orderRepository.getUserOrders(userId,creatorRole);
+    return await this.orderRepository.getUserOrders(userId, creatorRole);
   }
 
   async getAllUserOrders(creatorRole = null) {

@@ -11,10 +11,9 @@ const {
 const authorize = require('../middlewares/authorization');
 const checkIntegerParam = require('../middlewares/paramIntegerValidation');
 const checkPermission = require('../middlewares/permission');
+const { uploadMultiple } = require('../utilities/multer-config');
 const orderController = new OrderController();
 
-// Configure multer storage
-const upload = multer({ storage: multer.memoryStorage() });
 
 // Define the route handlers
 router.post('/:userId', authMiddleware, authorize(['admin','operator']), checkIntegerParam("userId"), checkPermission("create", "orders"), createOrderValidator, orderController.createOrder.bind(orderController));
@@ -24,11 +23,10 @@ router.get('/user-orders/:userId', authMiddleware, authorize(['admin','operator'
 // Admin get all orders
 router.get('/all-orders', authMiddleware, authorize(['admin','operator','user']), checkPermission("readAll", "orders"), orderController.getAllUserOrders.bind(orderController));
 
-// Upload document route
 router.post(
-  '/upload-documents/:orderNo',
-  authMiddleware,
-  upload.array('documents', 5), // Allow up to 5 files
+  "/upload-documents/:orderNo",
+  // authMiddleware,
+  uploadMultiple,
   orderController.uploadDocument.bind(orderController)
 );
 
