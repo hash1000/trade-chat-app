@@ -26,13 +26,13 @@ const fileFilter = (req, file, cb) => {
 // Upload handlers with proper limits
 const uploadSingle = multer({
   storage,
-  fileFilter,
+  // fileFilter,
   // limits: { fileSize: MAX_FILE_SIZE }
 }).single('file');
 
 const uploadMultiple = multer({
   storage,
-  fileFilter,
+  // fileFilter,
   limits: { 
     fileSize: MAX_FILE_SIZE,
     files: 5
@@ -41,7 +41,7 @@ const uploadMultiple = multer({
 
 const uploadFields = multer({
   storage,
-  fileFilter,
+  // fileFilter,
   limits: { 
     fileSize: MAX_FILE_SIZE,
     files: 10
