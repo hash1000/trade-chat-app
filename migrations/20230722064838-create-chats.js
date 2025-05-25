@@ -38,8 +38,7 @@ module.exports = {
         allowNull: true
       },
       tags: {
-        type: Sequelize.JSON,
-        defaultValue: []
+        type: Sequelize.STRING,
       },
       lastReadUser1Id: {
         type: Sequelize.INTEGER,

@@ -148,7 +148,7 @@ class ChatRepository {
     }));
 
     return friends;
-  } 
+  }
 
   async getBinaryUserChat(userId, page, pageSize) {
     const limit = parseInt(pageSize, 10);
@@ -282,13 +282,22 @@ class ChatRepository {
         where: { user1Id: requesterId, user2Id: requesteeId },
       }
     );
-    let newTag = [];
+    let newTag = "";
     let userTag = await UserTags.findOne({
       where: { userId: requesterId },
     });
+    console.log("userTag", userTag);
     if (userTag) {
-      newTag.push(...userTag.tags, ...tags);
-      newTag = [...new Set(newTag)];
+      newTag = userTag.tags + "," + tags;
+
+      const repeatedArr = newTag.split(","); // string to array seperated with ,
+
+      newTag = repeatedArr
+        .filter(function (value, index, self) {
+          return self.indexOf(value) === index;
+        })
+        .join(",");
+
       // userTag.tags
       await UserTags.update(
         {
@@ -302,8 +311,9 @@ class ChatRepository {
         }
       );
     } else {
-      newTag.push(...tags);
-      newTag = [...new Set(newTag)];
+      console.log("tags", tags);
+      newTag = tags;
+      // newTag = [...new Set(newTag)];
       await UserTags.create({
         userId: requesterId,
         tags: newTag,
@@ -559,7 +569,7 @@ class ChatRepository {
               model: Role,
               as: "roles",
             },
-          ]
+          ],
         },
         {
           model: User,
@@ -577,7 +587,7 @@ class ChatRepository {
               model: Role,
               as: "roles",
             },
-          ]
+          ],
         },
       ],
     });

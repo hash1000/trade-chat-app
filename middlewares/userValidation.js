@@ -156,7 +156,7 @@ exports.validateUpdateContact = [
     .withMessage("Profile picture must be a string"),
   body("tags")
     .optional()
-    .isArray()
+    .isString()
     .withMessage("Tags must be an array"),
   handleValidationErrors,
 ];
