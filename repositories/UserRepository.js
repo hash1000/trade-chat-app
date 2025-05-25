@@ -424,7 +424,7 @@ class UserRepository {
       if (!userTag) {
         return {
           message: "No tags found for this user",
-          tags: [],
+          tags: "",
         };
       }
 

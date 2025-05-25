@@ -63,7 +63,7 @@ const User = sequelize.define(
       defaultValue: {
         paymentCode: "", // Default empty string for paymentCode
         password: "12345678",
-        tags: [],
+        tags: "",
         emails: ["example@example.com"],
         phoneNumbers: ["1234567890"],
         description: "Default description",

@@ -11,9 +11,9 @@ const UserTags = sequelize.define(
       autoIncrement: true,
     },
     tags: {
-      type: DataTypes.JSON,
+      type: DataTypes.STRING,
       allowNull: false,
-      defaultValue: [], // Default to an empty array
+      // defaultValue: [], // Default to an empty array
     },
     userId: {
       allowNull: false,

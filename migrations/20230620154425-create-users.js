@@ -67,7 +67,7 @@ module.exports = {
         defaultValue: {
           paymentCode: "defaultPaymentCode", // Added paymentCode field
           password: "12345678",
-          tags: ["tag1", "tag2"],
+          tags: "tag1",
           emails: ["example@example.com"],
           phoneNumbers: ["1234567890"],
           description: "Default description",

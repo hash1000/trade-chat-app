@@ -7,7 +7,7 @@ const PaymentService = require("./PaymentService");
 const UserFavouriteRepository = require("../repositories/UserFavouriteRepository");
 const UserTags = require("../models/userTags");
 const UserRole = require("../models/userRole");
-const { User,Role } = require("../models");
+const { User, Role } = require("../models");
 const sequelize = require("../config/database");
 const userRepository = new UserRepository();
 const chat = new ChatRepository();
@@ -150,15 +150,25 @@ class UserService {
             where: { userId: user.id },
           });
 
-          let tagArr = []; // Array to hold all tags
+          let tagArr = ""; // Array to hold all tags
 
+          const existingTags = user.settings?.tags || "";
+          const incomingTags = profileData.settings.tags || "";
+
+          tagArr = existingTags + "," + incomingTags;
+
+          const repeatedArr = tagArr.split(","); // string to array seperated with ,
+
+          tagArr = repeatedArr
+            .filter(function (value, index, self) {
+              return self.indexOf(value) === index;
+            })
+            .join(",");
           // Combine tags from profileData and existing user settings
-          const incomingTags = profileData.settings.tags || [];
-          const existingTags = user.settings?.tags || [];
-          tagArr.push(...incomingTags, ...existingTags);
+          // tagArr.push(...incomingTags, ...existingTags);
 
           // Remove duplicates
-          tagArr = [...new Set(tagArr)];
+          // tagArr = [...new Set(tagArr)];
 
           // Save or update the UserTags table
           if (userTag) {
