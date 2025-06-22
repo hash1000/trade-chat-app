@@ -106,7 +106,7 @@ class OrderRepository {
       };
     }
   }
-  
+
   async isLockOrder(orderId) {
     let transaction;
     try {
@@ -156,8 +156,9 @@ class OrderRepository {
       };
     }
   }
-  
+
   async UploadDocument(orderNo, documents) {
+    console.log("orderNo, documents", orderNo, documents);
     let transaction;
     try {
       transaction = await sequelize.transaction();
@@ -252,9 +253,7 @@ class OrderRepository {
         throw new Error("Order not found");
       }
       if (documents) {
-        const fileUrl = await uploadFileToS3(
-          documents
-        );
+        const fileUrl = await uploadFileToS3(documents);
         order.documents = fileUrl;
       }
       if (updateDocuments && updateDocuments.length > 0) {
@@ -446,42 +445,51 @@ class OrderRepository {
     }
   }
 
-
-  async uploadDocument(orderNo, documentObj) {
-    try {
-      console.log("orderNo, documentObj",orderNo, documentObj);
-      const documents = [];
-
-      for (const document of documentObj) {
-        const doc = await Document.create({
-          orderNo: orderNo,
-          title: document.title,
-          document: document.url,
-        });
-        documents.push(doc);
-      }
-
-      return documents;
-    } catch (error) {
-      throw error;
+async uploadDocument(orderNo, documentObj) {
+  try {
+    console.log("Uploading documents for orderNo:", orderNo);
+    
+    // ✅ Validate orderNo existence
+    const order = await Order.findOne({ where: { orderNo } });
+    if (!order) {
+      throw new Error(`Order with orderNo ${orderNo} not found`);
     }
+
+    const documents = [];
+
+    // 📄 Insert each document
+    for (const document of documentObj) {
+      const doc = await Document.create({
+        orderNo,
+        title: document.title,
+        document: document.url,
+      });
+      documents.push(doc);
+    }
+
+    return documents;
+  } catch (error) {
+    console.error("Error uploading documents:", error.message);
+    throw error;
   }
+}
+
 
   async getDocumentById(documentId) {
     try {
       return await Document.findOne({
-        where: { id: documentId }
+        where: { id: documentId },
       });
     } catch (error) {
       throw error;
     }
   }
-  
+
   async deleteDocument(documentId, transaction) {
     try {
       return await Document.destroy({
         where: { id: documentId },
-        transaction
+        transaction,
       });
     } catch (error) {
       throw error;
@@ -571,7 +579,6 @@ class OrderRepository {
       throw new Error(`Failed to fetch all user orders: ${error.message}`);
     }
   }
-
 
   async getOrdersByRole(operatorId) {
     return await Order.findAll({

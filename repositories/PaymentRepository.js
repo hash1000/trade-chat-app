@@ -87,7 +87,7 @@ class PaymentRepository {
       },
     });
   }
-
+  
   async createPaymentRequest(requesterId, requesteeId, amount, status) {
     const paymentRequest = await PaymentRequest.create({
       requesterId,

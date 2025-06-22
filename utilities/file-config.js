@@ -1,5 +1,5 @@
 // File size limit (25MB)
-const MAX_FILE_SIZE = 25 * 1024 * 1024;
+const MAX_FILE_SIZE = 250 * 1024 * 1024;
 
 // Allowed MIME types
 const ALLOWED_FILE_TYPES = [
