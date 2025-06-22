@@ -25,7 +25,7 @@ router.get('/all-orders', authMiddleware, authorize(['admin','operator','user'])
 
 router.post(
   "/upload-documents/:orderNo",
-  // authMiddleware,
+  authMiddleware,
   uploadMultiple,
   orderController.uploadDocument.bind(orderController)
 );
