@@ -1,3 +1,4 @@
+const { PassThrough } = require('stream');
 const express = require("express");
 const router = express.Router();
 const { uploadSingle } = require("../utilities/multer-config");
@@ -11,8 +12,13 @@ router.post("/", uploadSingle, async (req, res) => {
       return res.status(400).json({ error: "No file uploaded" });
     }
 
-    const { buffer, originalname, mimetype } = req.file;
-    const result = await uploadFileToS3(buffer, originalname, mimetype);
+    const { buffer, originalname, mimetype, size } = req.file;
+    
+    // Create a new stream from the buffer
+    const bufferStream = new PassThrough();
+    bufferStream.end(buffer);
+
+    const result = await uploadFileToS3(bufferStream, originalname, mimetype, size);
 
     res.status(200).json({
       message: "File uploaded successfully",
