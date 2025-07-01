@@ -1,5 +1,7 @@
+const UserRepository = require("../repositories/UserRepository");
 const ChatService = require("../services/ChatService");
 const chatService = new ChatService();
+const userRepository = new UserRepository();
 
 class ChatController {
   async chatRequest(req, res) {
@@ -10,6 +12,7 @@ class ChatController {
 
     res.json(chat);
   }
+
   async inviteRequest(req, res) {
     try {
       const { requesteeId } = req.body;
@@ -188,36 +191,106 @@ class ChatController {
     res.json(transactions);
   }
 
-  async sendPaymentRequest(req, res) {
-    const { amount, requesteeId } = req.body;
-    const { id: requesterId } = req.user;
-    const paymentRequest = await chatService.sendPaymentRequest(
-      Number(requesterId),
-      Number(requesteeId),
-      amount
-    );
-    res.json(paymentRequest);
-  }
-
   async sendPayment(req, res) {
     try {
       const { amount, requesteeId } = req.body;
       const { id: requesterId } = req.user;
 
-      // Call the payment service to handle the payment
+      // Validate input
+      if (!amount || isNaN(amount) || amount <= 0) {
+        return res.status(400).json({ error: "Invalid amount" });
+      }
+      if (!requesteeId) {
+        return res.status(400).json({ error: "Recipient ID is required" });
+      }
+
+      // Get requester's balance
+      const requester = await userRepository.getById(requesterId);
+      if (!requester) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      // Check if requester has sufficient balance
+      // if (requester.personalWalletBalance < amount) {
+      //   return res.status(400).json({
+      //     error: "Insufficient funds",
+      //     currentBalance: requester.personalWalletBalance,
+      //     requiredAmount: amount,
+      //   });
+      // }
+
+      // Get recipient
+      const recipient = await userRepository.getById(requesteeId);
+      if (!recipient) {
+        return res.status(404).json({ error: "Recipient not found" });
+      }
+
+      // Process payment
       const payment = await chatService.sendPayment(
         Number(requesterId),
         Number(requesteeId),
         Number(amount)
       );
 
-      res.status(200).json(payment);
+      res.status(200).json({
+        success: true,
+        payment,
+        newBalance: requester.personalWalletBalance - amount,
+      });
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      console.error("Payment error:", error);
+      res.status(500).json({
+        error: error.message,
+        stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
+      });
     }
   }
 
-  async bulkForwardMessages(req, res) {
+  async sendPaymentRequest(req, res) {
+    const { amount, requesteeId } = req.body;
+    const { id: requesterId } = req.user;
+
+    try {
+      // Check requester's balance
+      const requester = await userRepository.getById(requesterId);
+      // Create payment request
+      const paymentRequest = await chatService.sendPaymentRequest(
+        Number(requesterId),
+        Number(requesteeId),
+        amount
+      );
+
+      res.json(paymentRequest);
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  }
+
+  // repositories/paymentRepository.js
+  async completePaymentRequest(paymentRequestId) {
+    const paymentRequest = await PaymentRequest.findByPk(paymentRequestId, {
+      include: ["requester", "requestee"],
+    });
+
+    if (!paymentRequest) throw new Error("Payment request not found");
+    if (paymentRequest.status !== "pending") {
+      throw new Error("Payment request already processed");
+    }
+
+    // Transfer funds
+    await userService.transferFunds(
+      paymentRequest.requesterId,
+      paymentRequest.requesteeId,
+      paymentRequest.amount
+    );
+
+    // Update payment request status
+    await paymentRequest.update({ status: "completed" });
+
+    return paymentRequest;
+  }
+
+    async bulkForwardMessages(req, res) {
     const {
       body: { payload, recipientId },
       files,

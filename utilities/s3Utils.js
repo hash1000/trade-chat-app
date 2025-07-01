@@ -73,6 +73,7 @@ const uploadFileToS3 = async (fileStream, originalname, mimetype, fileSize) => {
       console.log(`Large file detected (${fileSize} bytes). Processing: ${originalname}`);
 
       if (mimetype.startsWith('video/')) {
+        console.log("jhdjkhsda");
         processedStream = await processVideoStream(fileStream, ext);
       } else if (mimetype.startsWith('image/')) {
         processedStream = await processImageStream(fileStream);

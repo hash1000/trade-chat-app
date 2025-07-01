@@ -1,13 +1,21 @@
-const PaymentService = require('../services/PaymentService')
-const sequelize = require('../config/database')
-const User = require('../models/user')
-const paymentService = new PaymentService()
+const sequelize = require("../config/database");
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+const PaymentService = require("../services/PaymentService");
+const paymentService = new PaymentService();
+const User = require("../models/user");
 
 class PaymentController {
   async createPayment(req, res, next) {
     try {
-      const { amount, senderName, orderNumber, accountNumber, accountType, image } = req.body
-      const { id: userId } = req.user
+      const {
+        amount,
+        senderName,
+        orderNumber,
+        accountNumber,
+        accountType,
+        image,
+      } = req.body;
+      const { id: userId } = req.user;
       // Create a new payment using the payment service
       const payment = await paymentService.createPayment({
         amount,
@@ -16,204 +24,260 @@ class PaymentController {
         accountNumber,
         accountType,
         userId,
-        image
-      })
+        image,
+      });
 
       // Return the created payment as a response
-      return res.json(payment)
+      return res.json(payment);
     } catch (error) {
-      console.error('Error creating payment:', error)
-      res.status(500).json({ error: 'Internal server error' })
+      console.error("Error creating payment:", error);
+      res.status(500).json({ error: "Internal server error" });
     }
   }
 
   async updatePayment(req, res) {
     try {
-      const paymentId = req.params.id
-      const { amount, senderName, orderNumber, accountNumber } = req.body
+      const paymentId = req.params.id;
+      const { amount, senderName, orderNumber, accountNumber } = req.body;
 
       // Update the payment using the payment service
       const updatedPayment = await paymentService.updatePayment(paymentId, {
         amount,
         senderName,
         orderNumber,
-        accountNumber
-      })
+        accountNumber,
+      });
 
       // Return the updated payment as a response
-      return res.json(updatedPayment)
+      return res.json(updatedPayment);
     } catch (error) {
-      console.error('Error updating payment:', error)
-      res.status(500).json({ error: 'Internal server error' })
+      console.error("Error updating payment:", error);
+      res.status(500).json({ error: "Internal server error" });
     }
   }
 
   async confirmPayment(req, res) {
     try {
-      const paymentId = req.params.id
-      const { amount } = req.body
-      const { role: userRole } = req.user
-      if (userRole !== 'admin') {
-        res.status(400).json({ error: 'User is not an admin' })
+      const paymentId = req.params.id;
+      const { amount } = req.body;
+      const { role: userRole } = req.user;
+      if (userRole !== "admin") {
+        res.status(400).json({ error: "User is not an admin" });
       }
-      const payment = await paymentService.getPaymentById(paymentId)
+      const payment = await paymentService.getPaymentById(paymentId);
       if (!payment) {
-        res.status(400).json({ error: 'Payment not found' })
+        res.status(400).json({ error: "Payment not found" });
       }
-      if (payment.status === 'confirmed') {
-        res.status(400).json({ error: 'Payment is already confirmed' })
+      if (payment.status === "confirmed") {
+        res.status(400).json({ error: "Payment is already confirmed" });
       }
       // Update the payment using the payment service
       const updatedPayment = await paymentService.updatePayment(paymentId, {
         confirmedAmount: amount,
-        status: 'confirmed'
-      })
+        status: "confirmed",
+      });
       if (updatedPayment) {
-        await this.addBalance(payment.userId, amount, payment.accountType)
+        await this.addBalance(payment.userId, amount, payment.accountType);
       }
       // Return the updated payment as a response
-      return res.json(await updatedPayment)
+      return res.json(await updatedPayment);
     } catch (error) {
-      console.error('Error updating payment:', error)
-      res.status(500).json({ error: 'Internal server error' })
+      console.error("Error updating payment:", error);
+      res.status(500).json({ error: "Internal server error" });
     }
   }
 
   async addBalance(toUserId, amount, walletType) {
-    const t = await sequelize.transaction()
+    const t = await sequelize.transaction();
 
     try {
       // Add balance to the receiver
-      const receiver = await User.findByPk(toUserId, { transaction: t })
-      if (walletType === 'personal') {
-        receiver.personalWalletBalance += amount
+      const receiver = await User.findByPk(toUserId, { transaction: t });
+      if (walletType === "personal") {
+        receiver.personalWalletBalance += amount;
       } else {
-        receiver.companyWalletBalance += amount
+        receiver.companyWalletBalance += amount;
       }
-      await receiver.save({ transaction: t })
+      await receiver.save({ transaction: t });
       // Commit the transaction
-      await t.commit()
+      await t.commit();
 
-      console.log(`Successfully transferred ${amount} units.`)
+      console.log(`Successfully transferred ${amount} units.`);
     } catch (error) {
       // If any error occurs, roll back the transaction
-      await t.rollback()
-      console.error('Error transferring balance:', error)
-      throw error
+      await t.rollback();
+      console.error("Error transferring balance:", error);
+      throw error;
     }
   }
 
   async deletePayment(req, res) {
     try {
-      const paymentId = req.params.id
+      const paymentId = req.params.id;
 
       // Delete the payment using the payment service
-      await paymentService.deletePayment(paymentId)
+      await paymentService.deletePayment(paymentId);
 
       // Return a success response
-      return res.json({ message: 'Payment deleted successfully' })
+      return res.json({ message: "Payment deleted successfully" });
     } catch (error) {
-      console.error('Error deleting payment:', error)
-      res.status(500).json({ error: 'Internal server error' })
+      console.error("Error deleting payment:", error);
+      res.status(500).json({ error: "Internal server error" });
     }
   }
 
   async getUserPayments(req, res) {
     try {
-      const { id: userId } = req.user
+      const { id: userId } = req.user;
 
       // Get all user payments using the payment service
-      const payments = await paymentService.getUserPayments(userId)
+      const payments = await paymentService.getUserPayments(userId);
 
       // Return the user payments as a response
-      return res.json(payments)
+      return res.json(payments);
     } catch (error) {
-      console.error('Error fetching user payment:', error)
-      res.status(500).json({ error: 'Internal server error' })
+      console.error("Error fetching user payment:", error);
+      res.status(500).json({ error: "Internal server error" });
     }
   }
 
   async getUserCards(req, res) {
     try {
-      const { id: userId } = req.user
+      const { id: userId } = req.user;
 
       // Get all user cards using the payment service
-      const cards = await paymentService.getUserCards(userId)
+      const cards = await paymentService.getUserCards(userId);
 
       // Return the user cards as a response
-      return res.json(cards)
+      return res.json(cards);
     } catch (error) {
-      console.error('Error fetching user cards:', error)
-      res.status(500).json({ error: 'Internal server error' })
+      console.error("Error fetching user cards:", error);
+      res.status(500).json({ error: "Internal server error" });
     }
   }
 
   async addUserCard(req, res) {
     try {
-      const { id: userId } = req.user
-      const { number, expiry, cvv } = req.body
+      const { id: userId } = req.user;
+      const { number, expiry, cvv } = req.body;
 
       // Create new user card using the payment service
       const card = await paymentService.addCard({
         lastFourDigits: number.slice(-4),
         expiry,
-        userId
-      })
+        userId,
+      });
 
       // Return the created card as a response
-      return res.json(card)
+      return res.json(card);
     } catch (error) {
-      console.error('Error creating user card:', error)
-      res.status(500).json({ error: 'Internal server error' })
+      console.error("Error creating user card:", error);
+      res.status(500).json({ error: "Internal server error" });
     }
   }
 
-  async deleteUserCard (req, res) {
+  async deleteUserCard(req, res) {
     try {
-      const cardId = req.params.id
+      const cardId = req.params.id;
 
       // Delete the card using the payment service
-      await paymentService.deleteCard(cardId)
+      await paymentService.deleteCard(cardId);
 
       // Return a success response
-      return res.json({ message: 'Card deleted successfully' })
+      return res.json({ message: "Card deleted successfully" });
     } catch (error) {
-      console.error('Error deleting card:', error)
-      res.status(500).json({ error: 'Internal server error' })
+      console.error("Error deleting card:", error);
+      res.status(500).json({ error: "Internal server error" });
     }
   }
 
-  async favouritePayment (req, res) {
+  async favouritePayment(req, res) {
     try {
-      const { id: userId } = req.user
-      const paymentId = req.params.id
+      const { id: userId } = req.user;
+      const paymentId = req.params.id;
 
       // Favourite the payment using the payment service
-      const favourite = await paymentService.favouritePayment(paymentId, userId)
+      const favourite = await paymentService.favouritePayment(
+        paymentId,
+        userId
+      );
 
       // Return the favourite as a response
-      return res.json(favourite)
+      return res.json(favourite);
     } catch (error) {
-      console.error('Error favouriting payment:', error)
-      res.status(500).json({ error: 'Internal server error' })
+      console.error("Error favouriting payment:", error);
+      res.status(500).json({ error: "Internal server error" });
     }
   }
 
-  async unfavouritePayment (req, res) {
+  async unfavouritePayment(req, res) {
     try {
-      const { id: userId } = req.user
-      const paymentId = req.params.id
+      const { id: userId } = req.user;
+      const paymentId = req.params.id;
 
       // Unfavourite the payment using the payment service
-      await paymentService.unfavouritePayment(paymentId, userId)
+      await paymentService.unfavouritePayment(paymentId, userId);
 
       // Return a success response
-      return res.json({ message: 'Payment unfavourited successfully' })
+      return res.json({ message: "Payment unfavourited successfully" });
     } catch (error) {
-      console.error('Error unfavouriting payment:', error)
-      res.status(500).json({ error: 'Internal server error' })
+      console.error("Error unfavouriting payment:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+
+  async initiateTopup(req, res) {
+    try {
+      const { amount, cardDetails } = req.body;
+      const { id: userId } = req.user;
+
+      // Validate input
+      if (!amount || isNaN(amount) || amount <= 0) {
+        return res.status(400).json({ message: "Invalid amount" });
+      }
+
+      if (!cardDetails || !cardDetails.card_number || !cardDetails.exp_month || !cardDetails.exp_year || !cardDetails.cvc) {
+        return res.status(400).json({ message: "Invalid card details" });
+      }
+
+      // Process payment
+      const paymentResult = await paymentService.processTopupPayment(userId, amount, cardDetails);
+
+      // Return success response
+      return res.json({
+        success: true,
+        message: "Topup initiated successfully",
+        data: {
+          paymentIntentId: paymentResult.paymentIntentId,
+          amount: amount,
+          status: paymentResult.status
+        }
+      });
+    } catch (error) {
+      console.error("Topup error:", error);
+      res.status(error.statusCode || 500).json({ 
+        success: false,
+        message: error.message,
+        code: error.code || 'payment_error'
+      });
+    }
+  }
+
+//  webhook
+  async handleWebhook(req, res) {
+    try {
+      const event = req.body;
+      
+      // Handle the event
+      await paymentService.handleStripeWebhook(event);
+
+      // Return a response to acknowledge receipt of the event
+      res.json({ received: true });
+    } catch (error) {
+      console.error("Webhook error:", error);
+      res.status(400).json({ success: false, message: error.message });
     }
   }
 }
 
-module.exports = PaymentController
+module.exports = PaymentController;

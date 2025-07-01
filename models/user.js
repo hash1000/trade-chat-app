@@ -125,6 +125,10 @@ const User = sequelize.define(
       type: DataTypes.INTEGER,
       defaultValue: 0,
     },
+    stripeCustomerId: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
     otp: {
       type: DataTypes.STRING,
       allowNull: true,

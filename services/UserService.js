@@ -9,12 +9,13 @@ const UserTags = require("../models/userTags");
 const UserRole = require("../models/userRole");
 const { User, Role } = require("../models");
 const sequelize = require("../config/database");
-const userRepository = new UserRepository();
 const chat = new ChatRepository();
-const payment = new PaymentService();
-const UserFavourite = new UserFavouriteRepository();
+const userRepository = new UserRepository();
+const userFavourite = new UserFavouriteRepository();
+const paymentService = new PaymentService();
 
 class UserService {
+
   async createUser(userData) {
     let transaction;
     try {
@@ -204,12 +205,14 @@ class UserService {
           await user.save();
         }
       }
-
       if (profileData.profilePic) {
         user.profilePic = profileData.profilePic;
       }
       if (profileData.description) {
         user.description = profileData.description;
+      }
+      if (profileData.stripeCustomerId) {
+        user.stripeCustomerId = profileData.stripeCustomerId;
       }
       // Save both user and requesteeUser
       await user.save(); // Save the main user
@@ -290,6 +293,7 @@ class UserService {
       throw new Error(`Failed to update  user phoneNumber: ${error.message}`);
     }
   }
+
   async updateEmail(user, userData) {
     try {
       // Update user properties
@@ -320,11 +324,11 @@ class UserService {
     // Call the UserRepository to get a user by email
     return userRepository.getByEmail(email);
   }
-  // delete User
+
   async deleteUser(userId) {
     // Call the UserRepository to get a user by email
-    await payment.cancelPaymentRelation(userId, userId);
-    await UserFavourite.cancelUserFavourite(userId, userId);
+    await PaymentService.cancelPaymentRelation(userId, userId);
+    await userFavourite.cancelUserFavourite(userId, userId);
     await chat.cancelInvite(userId, userId);
     return userRepository.delete(userId);
   }
@@ -481,6 +485,91 @@ class UserService {
 
   async getUserOTPCode(id) {
     return userRepository.getUserOTPCode(id);
+  }
+
+  async creditUserWallet(userId, amount) {
+    const transaction = await sequelize.transaction();
+
+    try {
+      const user = await User.findByPk(userId, { transaction });
+      if (!user) throw new Error("User not found");
+
+      const newBalance = user.personalWalletBalance + amount;
+      await user.update({ personalWalletBalance: newBalance }, { transaction });
+
+      await Transaction.create(
+        {
+          userId,
+          amount,
+          type: "topup",
+          status: "completed",
+          reference: `topup-${Date.now()}`,
+        },
+        { transaction }
+      );
+
+      await transaction.commit();
+      return user;
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  }
+
+  async transferFunds(senderId, recipientId, amount) {
+    const transaction = await sequelize.transaction();
+
+    try {
+      const sender = await User.findByPk(senderId, { transaction });
+      const recipient = await User.findByPk(recipientId, { transaction });
+
+      if (!sender || !recipient) throw new Error("User not found");
+      if (sender.personalWalletBalance < amount)
+        throw new Error("Insufficient funds");
+
+      // Deduct from sender
+      const newSenderBalance = sender.personalWalletBalance - amount;
+      await sender.update(
+        { personalWalletBalance: newSenderBalance },
+        { transaction }
+      );
+
+      // Add to recipient
+      const newRecipientBalance = recipient.personalWalletBalance + amount;
+      await recipient.update(
+        { personalWalletBalance: newRecipientBalance },
+        { transaction }
+      );
+
+      // Create transactions
+      await Transaction.bulkCreate(
+        [
+          {
+            userId: senderId,
+            amount: -amount,
+            type: "transfer",
+            status: "completed",
+            reference: `transfer-to-${recipientId}-${Date.now()}`,
+            metadata: { recipientId },
+          },
+          {
+            userId: recipientId,
+            amount: amount,
+            type: "transfer",
+            status: "completed",
+            reference: `transfer-from-${senderId}-${Date.now()}`,
+            metadata: { senderId },
+          },
+        ],
+        { transaction }
+      );
+
+      await transaction.commit();
+      return { success: true };
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
   }
 }
 

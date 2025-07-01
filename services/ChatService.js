@@ -1,3 +1,5 @@
+
+const UserService = require("./UserService");
 const ChatRepository = require("../repositories/ChatRepository");
 const PaymentRepository = require("../repositories/PaymentRepository");
 const UserRepository = require("../repositories/UserRepository");
@@ -23,18 +25,17 @@ const s3Client = new S3Client({
     secretAccessKey: process.env.SPACES_SECRET, // Secret access key defined through an environment variable.
   },
 });
-const UserService = require("./UserService");
 const {
   PaymentReceivedNotification,
   PaymentRequestNotification,
   NewMessageNotification,
 } = require("../notifications");
 const { message } = require("../templates/email/email_verification");
-const { mainModule } = require("process");
 const userService = new UserService();
 
 class CartService {
   constructor() {
+    console.log("UserService>>>",UserService);
     this.chatRepository = new ChatRepository();
     this.paymentRepository = new PaymentRepository();
     this.userRepository = new UserRepository();
@@ -190,25 +191,25 @@ class CartService {
     );
   }
 
+  // services/chatService.js
   async sendPaymentRequest(requesterId, requesteeId, amount) {
     try {
-      const users = await userService.getUsersByIds(requesteeId);
-      const user = users[0];
-      if (!user) {
-        return { message: `User with ID ${requesteeId} not found` };
+      const users = await userService.getUsersByIds([requesterId, requesteeId]);
+      console.log("users",users);
+      if (users.length !== 2) {
+        throw new Error("One or both users not found");
       }
+
       const paymentRequest = await this.paymentRepository.createPaymentRequest(
         requesterId,
         requesteeId,
         amount
       );
-      if (!paymentRequest) {
-        throw new Error("Failed to create payment request.");
-      }
+
       return paymentRequest;
     } catch (error) {
       console.error("Error in sendPaymentRequest:", error.message);
-      throw new Error(`Payment request failed: ${error.message}`);
+      throw error;
     }
   }
 

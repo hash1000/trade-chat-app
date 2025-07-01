@@ -5,7 +5,8 @@ const PaymentController = require('../controllers/PaymentController')
 const authMiddleware = require('../middlewares/authenticate')
 const {
   createPaymentValidator,
-  updatePaymentValidator
+  updatePaymentValidator,
+  createTopupValidator
 } = require('../middlewares/paymentValidation')
 
 const paymentController = new PaymentController()
@@ -20,6 +21,14 @@ router.post('/cards', authMiddleware, paymentController.addUserCard.bind(payment
 router.delete('/cards/:id', authMiddleware, paymentController.deleteUserCard.bind(paymentController))
 router.put('/favourite/:id', authMiddleware, paymentController.favouritePayment.bind(paymentController))
 router.put('/unfavourite/:id', authMiddleware, paymentController.unfavouritePayment.bind(paymentController))
+
+// Top-up routes
+router.post('/topup/initiate', authMiddleware,createTopupValidator, paymentController.initiateTopup);
+// router.post('/stripe-webhook', express.raw({type: 'application/json'}), webhookController.handleStripeWebhook);
+// // Internal transfers
+// router.post('/send-payment', authMiddleware, paymentController.sendPayment);
+// router.post('/payment-requests/:id/complete', authMiddleware, paymentController.completePaymentRequest);
+// router.post('/payment-requests/:id/reject', authMiddleware, paymentController.rejectPaymentRequest);
 
 
 module.exports = router
