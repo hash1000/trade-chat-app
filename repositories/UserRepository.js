@@ -245,6 +245,7 @@ class UserRepository {
 
   // Update a user
   async update(userId, updates) {
+    console.log("userId, updates",userId, updates);
     const user = await this.getById(userId);
     if (!user) {
       throw new Error("User not found");

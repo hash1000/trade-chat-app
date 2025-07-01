@@ -2,6 +2,7 @@ const Payment = require("../models/payment");
 const Card = require("../models/card");
 const FavouritePayment = require("../models/favourite_payments");
 const PaymentRequest = require("../models/payment_request");
+const Transaction = require("../models/transaction");
 const { User, Role } = require("../models");
 
 class PaymentRepository {
@@ -65,8 +66,6 @@ class PaymentRepository {
     if (!payment) {
       throw new Error("Payment not found");
     }
-    // create a favourite payment record
-    // and return it
     return FavouritePayment.create({
       userId,
       paymentId,
@@ -78,8 +77,6 @@ class PaymentRepository {
     if (!payment) {
       throw new Error("Payment not found");
     }
-    // delete the favourite payment record
-    // and return a success message
     await FavouritePayment.destroy({
       where: {
         userId,
@@ -119,6 +116,62 @@ class PaymentRepository {
           ],
         },
       ],
+    });
+  }
+
+  // Transaction-related methods
+  async createTransaction(transactionData) {
+    return Transaction.create(transactionData);
+  }
+
+  async getTransactionById(transactionId) {
+    return Transaction.findByPk(transactionId);
+  }
+
+  async getTransactionsByUserId(userId, options = {}) {
+    return Transaction.findAll({
+      where: { userId },
+      ...options,
+    });
+  }
+
+  async updateTransaction(transactionId, updatedData) {
+    const transaction = await Transaction.findByPk(transactionId);
+    if (!transaction) {
+      throw new Error("Transaction not found");
+    }
+    return transaction.update(updatedData);
+  }
+
+  async updateTransactionByPaymentIntent(paymentIntentId, updatedData) {
+    const [affectedRows] = await Transaction.update(updatedData, {
+      where: { stripePaymentIntentId: paymentIntentId },
+    });
+    
+    if (affectedRows === 0) {
+      throw new Error("Transaction not found");
+    }
+    
+    return this.getTransactionByPaymentIntent(paymentIntentId);
+  }
+
+  async getTransactionByPaymentIntent(paymentIntentId) {
+    return Transaction.findOne({
+      where: { stripePaymentIntentId: paymentIntentId },
+    });
+  }
+
+  async getTransactionsByStatus(status, options = {}) {
+    return Transaction.findAll({
+      where: { status },
+      ...options,
+    });
+  }
+
+  async getRecentTransactions(limit = 10) {
+    return Transaction.findAll({
+      order: [['createdAt', 'DESC']],
+      limit: parseInt(limit),
     });
   }
 }
