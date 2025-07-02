@@ -23,7 +23,7 @@ const s3Client = new S3Client({
 
 // === Helper Functions ===
 const isVideo = (ext) =>
-  ["mp4", "mkv", "mov", "avi", "flv", "wmv", "webm", "mpg", "mpeg", "mkv"].includes(
+  ["mp4", "mov", "avi", "flv", "wmv", "webm", "mpg", "mpeg", "mkv"].includes(
     ext
   );
 const isImage = (ext) =>
@@ -510,15 +510,15 @@ const uploadFileToS3 = async (fileStream, originalname, mimetype, fileSize) => {
 
     // For documents, apply compression
     const compressionSettings = getCompressionSettings(fileSize, "document");
-    if (isDocument(ext) || fileSize > 10 * 1024 * 1024) {
-      processedStream = zipStream(
-        fileStream,
-        cleanName,
-        compressionSettings.level
-      );
-      finalName = cleanName.replace(/\.[^/.]+$/, "") + ".zip";
-      finalMime = "application/zip";
-    }
+    // if (isDocument(ext) || fileSize > 10 * 1024 * 1024) {
+    //   processedStream = zipStream(
+    //     fileStream,
+    //     cleanName,
+    //     compressionSettings.level
+    //   );
+    //   finalName = cleanName.replace(/\.[^/.]+$/, "") + ".zip";
+    //   finalMime = "application/zip";
+    // }
 
     const key = `${Date.now()}-${Math.round(Math.random() * 1e9)}.${
       finalName.split(".").pop() || "bin"
