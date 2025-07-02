@@ -22,16 +22,39 @@ const s3Client = new S3Client({
 });
 
 // === Helper Functions ===
+/**
+ * Check if file extension is a video type
+ * @param {string} ext - File extension
+ * @returns {boolean} True if video type
+ */
 const isVideo = (ext) =>
   ["mp4", "mov", "avi", "flv", "wmv", "webm", "mpg", "mpeg", "mkv"].includes(
     ext
   );
+
+/**
+ * Check if file extension is an image type
+ * @param {string} ext - File extension
+ * @returns {boolean} True if image type
+ */
 const isImage = (ext) =>
   ["jpg", "jpeg", "png", "gif", "bmp", "tiff", "webp"].includes(ext);
+
+/**
+ * Check if file extension is a document type
+ * @param {string} ext - File extension
+ * @returns {boolean} True if document type
+ */
 const isDocument = (ext) =>
   ["pdf", "doc", "docx", "xls", "xlsx", "txt", "ppt", "pptx"].includes(ext);
 
-// Timeout utility
+/**
+ * Adds timeout to a promise
+ * @param {Promise} promise - Promise to add timeout to
+ * @param {number} timeoutMs - Timeout in milliseconds
+ * @param {string} errorMsg - Error message if timeout occurs
+ * @returns {Promise} Promise with timeout
+ */
 const withTimeout = (promise, timeoutMs, errorMsg) => {
   return Promise.race([
     promise,
@@ -41,31 +64,48 @@ const withTimeout = (promise, timeoutMs, errorMsg) => {
   ]);
 };
 
+/**
+ * Convert stream to buffer
+ * @param {Stream} stream - Input stream
+ * @returns {Promise<Buffer>} Buffer containing stream data
+ */
+const streamToBuffer = (stream) => {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    stream.on("data", (chunk) => chunks.push(chunk));
+    stream.on("error", reject);
+    stream.on("end", () => resolve(Buffer.concat(chunks)));
+  });
+};
+
 // === Compression Configuration ===
+/**
+ * Get compression settings based on file size and type
+ * @param {number} fileSize - File size in bytes
+ * @param {string} fileType - File type ('video', 'image', etc.)
+ * @returns {Object} Compression settings
+ */
 const getCompressionSettings = (fileSize, fileType) => {
   if (fileType === "video") {
-    console.log("start video");
     if (fileSize > 100 * 1024 * 1024) {
       return { crf: 32, preset: "ultrafast", resolution: "256x144" };
     } else if (fileSize > 50 * 1024 * 1024) {
-      return { crf: 32, preset: "ultrafast", resolution: "256x144" };
+      return { crf: 28, preset: "superfast", resolution: "426x240" };
     } else if (fileSize > 20 * 1024 * 1024) {
-      return { crf: 32, preset: "ultrafast", resolution: "256x144" };
+      return { crf: 24, preset: "fast", resolution: "640x360" };
     }
-    return { crf: 32, preset: "ultrafast", resolution: "256x144" };
+    return { crf: 20, preset: "medium", resolution: "854x480" };
   } else if (fileType === "image") {
-    // Image compression
     if (fileSize > 20 * 1024 * 1024) {
       return { quality: 30, progressive: true, thumbnailSize: 120 };
     } else if (fileSize > 10 * 1024 * 1024) {
-      return { quality: 30, progressive: true, thumbnailSize: 120 };
+      return { quality: 50, progressive: true, thumbnailSize: 200 };
     } else if (fileSize > 5 * 1024 * 1024) {
-      return { quality: 30, progressive: true, thumbnailSize: 120 };
+      return { quality: 70, progressive: true, thumbnailSize: 300 };
     }
-    return { quality: 30, progressive: true, thumbnailSize: 120 };
+    return { quality: 80, progressive: true, thumbnailSize: 400 };
   }
 
-  // Document compression
   if (fileSize > 50 * 1024 * 1024) return { level: 9 };
   if (fileSize > 20 * 1024 * 1024) return { level: 7 };
   if (fileSize > 10 * 1024 * 1024) return { level: 5 };
@@ -73,6 +113,12 @@ const getCompressionSettings = (fileSize, fileType) => {
 };
 
 // === Processors ===
+/**
+ * Process image stream with compression
+ * @param {Stream} inputStream - Input image stream
+ * @param {Object} compressionSettings - Compression settings
+ * @returns {Stream} Processed image stream
+ */
 const processImageStream = (inputStream, compressionSettings) => {
   const transformer = sharp()
     .jpeg({
@@ -86,6 +132,13 @@ const processImageStream = (inputStream, compressionSettings) => {
   return inputStream.pipe(transformer);
 };
 
+/**
+ * Generate image thumbnail
+ * @param {Stream} inputStream - Input image stream
+ * @param {string} filename - Original filename
+ * @param {number} size - Thumbnail size
+ * @returns {Promise<Object>} Thumbnail data
+ */
 const generateImageThumbnail = async (inputStream, filename, size) => {
   try {
     const transformer = sharp()
@@ -112,6 +165,13 @@ const generateImageThumbnail = async (inputStream, filename, size) => {
   }
 };
 
+/**
+ * Zip a stream with compression
+ * @param {Stream} inputStream - Input stream to zip
+ * @param {string} originalname - Original filename
+ * @param {number} compressionLevel - Compression level (0-9)
+ * @returns {Stream} Zipped output stream
+ */
 const zipStream = (inputStream, originalname, compressionLevel) => {
   const outputStream = new PassThrough();
   const archive = archiver("zip", {
@@ -130,183 +190,187 @@ const zipStream = (inputStream, originalname, compressionLevel) => {
   return outputStream;
 };
 
-const generateVideoThumbnail = (inputStream, filename) => {
-  return new Promise((resolve, reject) => {
-    const tempDir = path.join(os.tmpdir(), "video-thumbs");
-    try {
-      if (!fs.existsSync(tempDir)) {
-        fs.mkdirSync(tempDir, { recursive: true });
-      }
-    } catch (err) {
-      return reject(
-        new Error(`Failed to create temp directory: ${err.message}`)
-      );
+/**
+ * Generate video thumbnail
+ * @param {Stream} inputStream - Input video stream
+ * @param {string} filename - Original filename
+ * @returns {Promise<Object>} Thumbnail data
+ */
+const generateVideoThumbnail = async (inputStream, filename) => {
+  const tempDir = path.join(os.tmpdir(), "video-thumbs");
+  try {
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
     }
+  } catch (err) {
+    throw new Error(`Failed to create temp directory: ${err.message}`);
+  }
 
-    const tempPath = path.join(
-      tempDir,
-      `${Date.now()}-${path.basename(filename)}`
-    );
-    const outputPath = path.join(tempDir, `${Date.now()}-thumb.jpg`);
+  const tempPath = path.join(
+    tempDir,
+    `${Date.now()}-${path.basename(filename)}`
+  );
+  const outputPath = path.join(tempDir, `${Date.now()}-thumb.jpg`);
 
-    const writeStream = fs.createWriteStream(tempPath);
-    inputStream.pipe(writeStream);
+  try {
+    // Write the stream to a temp file
+    await pipeline(inputStream, fs.createWriteStream(tempPath));
 
-    writeStream.on("finish", () => {
-      // First verify the file is valid
-      ffmpeg.ffprobe(tempPath, (err, metadata) => {
-        if (err) {
-          // Clean up and reject if file is invalid
-          [tempPath, outputPath].forEach((file) => {
-            try {
-              if (fs.existsSync(file)) fs.unlinkSync(file);
-            } catch (e) {}
-          });
-          return reject(
-            new Error("Invalid video file - could not read metadata")
-          );
-        }
-
-        // If file is valid, proceed with thumbnail generation
-        ffmpeg(tempPath)
-          .screenshots({
-            count: 1,
-            timemarks: ["10%"],
-            size: "160x90",
-            filename: path.basename(outputPath),
-            folder: tempDir,
-          })
-          .on("end", () => {
-            fs.readFile(outputPath, (err, data) => {
-              [tempPath, outputPath].forEach((file) => {
-                try {
-                  if (fs.existsSync(file)) fs.unlinkSync(file);
-                } catch (e) {}
-              });
-              if (err) return reject(err);
-              resolve({
-                buffer: data,
-                name: `${filename.replace(/\.[^/.]+$/, "")}-thumbnail.jpg`,
-                mimetype: "image/jpeg",
-              });
-            });
-          })
-          .on("error", (err) => {
-            [tempPath, outputPath].forEach((file) => {
-              try {
-                if (fs.existsSync(file)) fs.unlinkSync(file);
-              } catch (e) {}
-            });
-            reject(new Error(`Thumbnail generation failed: ${err.message}`));
-          });
+    // Verify the file is valid
+    await new Promise((resolve, reject) => {
+      ffmpeg.ffprobe(tempPath, (err) => {
+        if (err) reject(new Error("Invalid video file"));
+        else resolve();
       });
     });
 
-    writeStream.on("error", (err) => {
-      try {
-        if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
-      } catch (e) {}
-      reject(new Error(`Failed to write temp file: ${err.message}`));
+    // Generate thumbnail
+    await new Promise((resolve, reject) => {
+      ffmpeg(tempPath)
+        .screenshots({
+          count: 1,
+          timemarks: ["10%"],
+          size: "160x90",
+          filename: path.basename(outputPath),
+          folder: tempDir,
+        })
+        .on("end", resolve)
+        .on("error", reject);
     });
+
+    // Read the thumbnail
+    const data = await fs.promises.readFile(outputPath);
+
+    return {
+      buffer: data,
+      name: `${filename.replace(/\.[^/.]+$/, "")}-thumbnail.jpg`,
+      mimetype: "image/jpeg",
+    };
+  } catch (error) {
+    throw new Error(`Thumbnail generation failed: ${error.message}`);
+  } finally {
+    // Clean up temp files
+    try {
+      if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+    } catch {}
+    try {
+      if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+    } catch {}
+  }
+};
+
+/**
+ * Process video stream directly (for small files)
+ * @param {Stream} inputStream - Input video stream
+ * @param {Object} compressionSettings - Compression settings
+ * @returns {Promise<Buffer>} Processed video buffer
+ */
+const processVideoStreamDirect = (inputStream, compressionSettings) => {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    const outputStream = new PassThrough();
+
+    ffmpeg(inputStream)
+      .videoCodec("libx264")
+      .audioCodec("aac")
+      .outputOptions([
+        `-preset ${compressionSettings.preset}`,
+        `-crf ${compressionSettings.crf}`,
+        "-movflags +faststart",
+        "-threads 4",
+        "-profile:v main",
+        "-pix_fmt yuv420p",
+      ])
+      .format("mp4")
+      .size(compressionSettings.resolution)
+      .fps(24)
+      .on("error", reject)
+      .pipe(outputStream, { end: true });
+
+    outputStream.on("data", (chunk) => chunks.push(chunk));
+    outputStream.on("end", () => resolve(Buffer.concat(chunks)));
+    outputStream.on("error", reject);
   });
 };
 
-const processVideoStream = async (
-  inputStream,
-  originalExt,
-  filename,
-  fileSize
-) => {
-  return new Promise((resolve, reject) => {
-    const tempDir = path.join(os.tmpdir(), "video-processing");
-    try {
-      if (!fs.existsSync(tempDir)) {
-        fs.mkdirSync(tempDir, { recursive: true });
-      }
-    } catch (err) {
-      return reject(
-        new Error(`Failed to create temp directory: ${err.message}`)
-      );
+/**
+ * Process video stream using temp files (for large files)
+ * @param {Stream} inputStream - Input video stream
+ * @param {string} filename - Original filename
+ * @param {number} fileSize - File size in bytes
+ * @returns {Promise<Buffer>} Processed video buffer
+ */
+const processVideoStreamFile = async (inputStream, filename, fileSize) => {
+  const tempDir = path.join(os.tmpdir(), "video-processing");
+  try {
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
     }
+  } catch (err) {
+    throw new Error(`Failed to create temp directory: ${err.message}`);
+  }
 
-    const tempInputPath = path.join(
-      tempDir,
-      `${Date.now()}-${path.basename(filename)}`
-    );
-    // Always output as MP4 for better compatibility
-    const tempOutputPath = path.join(
-      tempDir,
-      `processed-${Date.now()}-${path.basename(
-        filename.replace(/\.[^/.]+$/, "")
-      )}.mp4`
-    );
+  const tempInputPath = path.join(
+    tempDir,
+    `${Date.now()}-${path.basename(filename)}`
+  );
+  const basename = path.basename(filename.replace(/\.[^/.]+$/, ""));
+  // Create output path
+  const tempOutputPath = path.join(
+    tempDir,
+    `processed-${Date.now()}-${basename}.mp4`
+  );
 
-    // Get compression settings based on file size
+  try {
+    await pipeline(inputStream, fs.createWriteStream(tempInputPath));
+
     const compression = getCompressionSettings(fileSize, "video");
 
-    // Write the input stream to a temp file
-    const writeStream = fs.createWriteStream(tempInputPath);
-    inputStream.pipe(writeStream);
-
-    writeStream.on("finish", () => {
-      // Faster video processing with optimized settings
-      const command = ffmpeg(tempInputPath)
+    // Process the video file
+    await new Promise((resolve, reject) => {
+      ffmpeg(tempInputPath)
         .videoCodec("libx264")
-        // .audioCodec("aac")
+        .audioCodec("aac")
         .outputOptions([
           `-preset ${compression.preset}`,
-          `-crf ${compression.crf}`
+          `-crf ${compression.crf}`,
+          "-movflags +faststart",
+          "-threads 4",
+          "-profile:v main",
+          "-pix_fmt yuv420p",
         ])
         .format("mp4")
-        .size(compression.resolution) 
+        .size(compression.resolution)
+        .fps(24)
         .on("progress", (progress) => {
           console.log(`Video processing: ${progress.percent}% done`);
         })
-        .on("error", (err) => {
-          console.error("FFmpeg processing error:", err);
-          // Cleanup temp files
-          try {
-            if (fs.existsSync(tempInputPath)) fs.unlinkSync(tempInputPath);
-            if (fs.existsSync(tempOutputPath)) fs.unlinkSync(tempOutputPath);
-          } catch (cleanupErr) {
-            console.error("Cleanup error:", cleanupErr);
-          }
-          reject(new Error(`Video processing failed: ${err.message}`));
-        })
-        .on("end", () => {
-          // Read the processed file
-          fs.readFile(tempOutputPath, (err, data) => {
-            // Cleanup temp files
-            try {
-              if (fs.existsSync(tempInputPath)) fs.unlinkSync(tempInputPath);
-              if (fs.existsSync(tempOutputPath)) fs.unlinkSync(tempOutputPath);
-            } catch (cleanupErr) {
-              console.error("Cleanup error:", cleanupErr);
-            }
-
-            if (err)
-              return reject(
-                new Error(`Failed to read output file: ${err.message}`)
-              );
-            resolve(data);
-          });
-        });
-
-      command.save(tempOutputPath);
+        .on("error", reject)
+        .on("end", resolve)
+        .save(tempOutputPath);
     });
 
-    writeStream.on("error", (err) => {
-      try {
-        if (fs.existsSync(tempInputPath)) fs.unlinkSync(tempInputPath);
-      } catch (cleanupErr) {
-        console.error("Cleanup error:", cleanupErr);
-      }
-      reject(new Error(`Failed to write input file: ${err.message}`));
-    });
-  });
+    // Read the processed file
+    return await fs.promises.readFile(tempOutputPath);
+  } finally {
+    // Clean up temp files
+    try {
+      if (fs.existsSync(tempInputPath)) fs.unlinkSync(tempInputPath);
+    } catch {}
+    try {
+      if (fs.existsSync(tempOutputPath)) fs.unlinkSync(tempOutputPath);
+    } catch {}
+  }
 };
 
 // === Upload Functions ===
+/**
+ * Upload stream to S3
+ * @param {Stream} stream - Data stream to upload
+ * @param {string} key - S3 object key
+ * @param {string} contentType - MIME type
+ * @returns {Promise} Upload result
+ */
 const uploadToS3 = async (stream, key, contentType) => {
   const upload = new Upload({
     client: s3Client,
@@ -322,6 +386,14 @@ const uploadToS3 = async (stream, key, contentType) => {
   return upload.done();
 };
 
+/**
+ * Process and upload video file
+ * @param {Stream} fileStream - Video stream
+ * @param {string} originalname - Original filename
+ * @param {string} mimetype - MIME type
+ * @param {number} fileSize - File size in bytes
+ * @returns {Promise<Object>} Upload result
+ */
 const processAndUploadVideo = async (
   fileStream,
   originalname,
@@ -329,63 +401,59 @@ const processAndUploadVideo = async (
   fileSize
 ) => {
   let ext = path.extname(originalname).slice(1).toLowerCase();
-  // Convert unsupported formats to MP4
   if (!["mp4", "webm", "mov"].includes(ext)) {
     ext = "mp4";
   }
-  console.log("start >>> video");
+
   const videoKey = `${Date.now()}-${Math.round(Math.random() * 1e9)}.${ext}`;
+  const thumbKey = `${Date.now()}-${Math.round(Math.random() * 1e9)}-thumb.jpg`;
 
   try {
-    // Create two streams from the input - one for video and one for thumbnail
-    const videoProcessingStream = new PassThrough();
+    const fileBuffer = await withTimeout(
+      streamToBuffer(fileStream),
+      300000,
+      "File buffering timed out"
+    );
+
+    const compression = getCompressionSettings(fileSize, "video");
+
+    // Thumbnail
     const thumbnailStream = new PassThrough();
-
-    fileStream.pipe(videoProcessingStream);
-    fileStream.pipe(thumbnailStream);
-
-    console.log(
-      "videoProcessingStream, ext, originalname, fileSize",
-      videoProcessingStream,
-      ext,
-      originalname,
-      fileSize
+    thumbnailStream.end(Buffer.from(fileBuffer));
+    const thumbnailResult = await withTimeout(
+      generateVideoThumbnail(thumbnailStream, originalname),
+      30000,
+      "Thumbnail generation timed out"
     );
-    console.log(
-      "generateVideoThumbnail(thumbnailStream, originalname",
-      thumbnailStream,
-      originalname
-    );
-    // Process video and thumbnail in parallel with timeout
-    const [processedVideoBuffer, thumbnailResult] = await Promise.all([
-      withTimeout(
-        processVideoStream(videoProcessingStream, ext, originalname, fileSize),
-        800000, // 5 minute timeout
-        "Video processing timed out"
-      ),
-      withTimeout(
-        generateVideoThumbnail(thumbnailStream, originalname),
-        15000, // 15s timeout for thumbnail (reduced from 30s)
-        "Thumbnail generation timed out"
-      ),
-    ]);
-
-    // Upload thumbnail
-    const thumbKey = `${Date.now()}-${Math.round(
-      Math.random() * 1e9
-    )}-thumb.jpg`;
     await uploadToS3(
       thumbnailResult.buffer,
       thumbKey,
       thumbnailResult.mimetype
     );
 
-    // Upload video
-    const videoResult = await uploadToS3(
-      Buffer.from(processedVideoBuffer),
-      videoKey,
-      "video/mp4"
-    );
+    let processedVideoBuffer;
+
+    if (fileSize <= 50 * 1024 * 1024) {
+      const stream = new PassThrough();
+      stream.end(Buffer.from(fileBuffer));
+
+      processedVideoBuffer = await withTimeout(
+        processVideoStreamDirect(stream, compression),
+        300000,
+        "Video processing timed out"
+      );
+    } else {
+      const stream = new PassThrough();
+      stream.end(Buffer.from(fileBuffer));
+
+      processedVideoBuffer = await withTimeout(
+        processVideoStreamFile(stream, originalname, fileSize),
+        900000,
+        "Video processing timed out"
+      );
+    }
+
+    await uploadToS3(processedVideoBuffer, videoKey, "video/mp4");
 
     return {
       title: originalname.replace(/\.[^/.]+$/, "") + ".mp4",
@@ -399,6 +467,14 @@ const processAndUploadVideo = async (
   }
 };
 
+/**
+ * Process and upload image file
+ * @param {Stream} fileStream - Image stream
+ * @param {string} originalname - Original filename
+ * @param {string} mimetype - MIME type
+ * @param {number} fileSize - File size in bytes
+ * @returns {Promise<Object>} Upload result
+ */
 const processAndUploadImage = async (
   fileStream,
   originalname,
@@ -467,11 +543,17 @@ const processAndUploadImage = async (
   }
 };
 
+/**
+ * Upload file to S3 with appropriate processing
+ * @param {Stream} fileStream - File stream
+ * @param {string} originalname - Original filename
+ * @param {string} mimetype - MIME type
+ * @param {number} fileSize - File size in bytes
+ * @returns {Promise<Object>} Upload result
+ */
 const uploadFileToS3 = async (fileStream, originalname, mimetype, fileSize) => {
   const cleanName = path.basename(originalname);
   let ext = cleanName.split(".").pop().toLowerCase();
-  let processedStream = fileStream;
-  let finalName = cleanName;
   let finalMime = mimetype;
 
   console.log("Processing file:", {
@@ -482,45 +564,41 @@ const uploadFileToS3 = async (fileStream, originalname, mimetype, fileSize) => {
   });
 
   try {
-    // Process videos
     if (isVideo(ext)) {
-      console.log("video start ext",ext);
+      console.log("Video detected:", ext);
       return await withTimeout(
         processAndUploadVideo(fileStream, cleanName, mimetype, fileSize),
-        900000, // 10 minute timeout for video uploads
+        900000,
         "Video upload timed out"
       );
     }
 
-    // Process images with thumbnails
     if (isImage(ext)) {
       return await withTimeout(
         processAndUploadImage(fileStream, cleanName, mimetype, fileSize),
-        120000, // 2 minute timeout for image uploads
+        120000,
         "Image upload timed out"
       );
     }
 
-    // For documents, apply compression
-    const compressionSettings = getCompressionSettings(fileSize, "document");
-    // if (isDocument(ext) || fileSize > 10 * 1024 * 1024) {
-    //   processedStream = zipStream(
-    //     fileStream,
-    //     cleanName,
-    //     compressionSettings.level
-    //   );
-    //   finalName = cleanName.replace(/\.[^/.]+$/, "") + ".zip";
-    //   finalMime = "application/zip";
-    // }
+    // Documents (no zip)
+    const key = `${Date.now()}-${Math.round(Math.random() * 1e9)}.${ext}`;
 
-console.log("compressionSettings",compressionSettings);
-    const key = `${Date.now()}-${Math.round(Math.random() * 1e9)}.${
-      finalName.split(".").pop() || "bin"
-    }`;
-    const result = await uploadToS3(processedStream, key, finalMime);
+    const upload = new Upload({
+      client: s3Client,
+      params: {
+        Bucket: process.env.SPACES_BUCKET_NAME,
+        Key: key,
+        Body: fileStream,
+        ACL: "public-read",
+        ContentType: mimetype,
+      },
+    });
+
+    await upload.done();
 
     return {
-      title: finalName,
+      title: cleanName,
       url: `${process.env.IMAGE_END_POINT}/${key}`,
       key,
       thumbnailUrl: null,
@@ -531,7 +609,11 @@ console.log("compressionSettings",compressionSettings);
   }
 };
 
-// === Delete from S3 ===
+/**
+ * Delete file from S3
+ * @param {string} key - S3 object key
+ * @returns {Promise<boolean>} True if successful
+ */
 const deleteFileFromS3 = async (key) => {
   try {
     await s3Client.send(
@@ -547,7 +629,6 @@ const deleteFileFromS3 = async (key) => {
   }
 };
 
-// === Exports ===
 module.exports = {
   s3Client,
   uploadFileToS3,
