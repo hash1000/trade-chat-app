@@ -1,5 +1,5 @@
 const { PassThrough } = require("stream");
-const { pipeline } = require('stream/promises');
+const { pipeline } = require("stream/promises");
 const ffmpeg = require("fluent-ffmpeg");
 const sharp = require("sharp");
 const archiver = require("archiver");
@@ -45,24 +45,25 @@ const withTimeout = (promise, timeoutMs, errorMsg) => {
 const getCompressionSettings = (fileSize, fileType) => {
   // Faster compression settings for videos
   if (fileType === "video") {
+    console.log("start video");
     if (fileSize > 100 * 1024 * 1024) {
       return { crf: 34, preset: "ultrafast", resolution: "854x480" }; // Lower quality, fastest processing
     } else if (fileSize > 50 * 1024 * 1024) {
       return { crf: 32, preset: "superfast", resolution: "854x480" };
     } else if (fileSize > 20 * 1024 * 1024) {
-      return { crf: 28, preset: "veryfast", resolution: "1280x720" };
+      return { crf: 28, preset: "veryfast", resolution: "854x480" };
     }
-    return { crf: 26, preset: "fast", resolution: "1280x720" };
+    return { crf: 26, preset: "fast", resolution: "854x480" };
   } else if (fileType === "image") {
     // Keep image settings but add thumbnail generation
     if (fileSize > 20 * 1024 * 1024) {
       return { quality: 60, progressive: true, thumbnailSize: 800 };
     } else if (fileSize > 10 * 1024 * 1024) {
-      return { quality: 70, progressive: true, thumbnailSize: 1000 };
+      return { quality: 70, progressive: true, thumbnailSize: 800 };
     } else if (fileSize > 5 * 1024 * 1024) {
-      return { quality: 80, progressive: true, thumbnailSize: 1200 };
+      return { quality: 80, progressive: true, thumbnailSize: 800 };
     }
-    return { quality: 85, progressive: true, thumbnailSize: 1500 };
+    return { quality: 85, progressive: true, thumbnailSize: 800 };
   }
   // Document compression remains the same
   if (fileSize > 50 * 1024 * 1024) return { level: 9 };
@@ -342,15 +343,25 @@ const processAndUploadVideo = async (
     fileStream.pipe(videoProcessingStream);
     fileStream.pipe(thumbnailStream);
 
-    console.log("videoProcessingStream, ext, originalname, fileSize",videoProcessingStream, ext, originalname, fileSize);
-    console.log("generateVideoThumbnail(thumbnailStream, originalname",thumbnailStream, originalname);
+    console.log(
+      "videoProcessingStream, ext, originalname, fileSize",
+      videoProcessingStream,
+      ext,
+      originalname,
+      fileSize
+    );
+    console.log(
+      "generateVideoThumbnail(thumbnailStream, originalname",
+      thumbnailStream,
+      originalname
+    );
     // Process video and thumbnail in parallel with timeout
     const [processedVideoBuffer, thumbnailResult] = await Promise.all([
       withTimeout(
-  processVideoStream(videoProcessingStream, ext, originalname, fileSize),
-  300000, // 5 minute timeout
-  "Video processing timed out"
-),
+        processVideoStream(videoProcessingStream, ext, originalname, fileSize),
+        300000, // 5 minute timeout
+        "Video processing timed out"
+      ),
       withTimeout(
         generateVideoThumbnail(thumbnailStream, originalname),
         15000, // 15s timeout for thumbnail (reduced from 30s)
