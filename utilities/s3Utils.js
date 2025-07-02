@@ -1,4 +1,5 @@
 const { PassThrough } = require("stream");
+const { pipeline } = require('stream/promises');
 const ffmpeg = require("fluent-ffmpeg");
 const sharp = require("sharp");
 const archiver = require("archiver");
@@ -345,16 +346,16 @@ const processAndUploadVideo = async (
     console.log("generateVideoThumbnail(thumbnailStream, originalname",thumbnailStream, originalname);
     // Process video and thumbnail in parallel with timeout
     const [processedVideoBuffer, thumbnailResult] = await Promise.all([
-      // withTimeout(
-      //   300000, // 5 minute timeout for video processing
-      //   "Video processing timed out"
-      // ),
-      processVideoStreazm(videoProcessingStream, ext, originalname, fileSize),
-    //   withTimeout(
-    //     15000, // 15s timeout for thumbnail (reduced from 30s)
-    //     "Thumbnail generation timed out"
-    //   ),
-    generateVideoThumbnail(thumbnailStream, originalname),
+      withTimeout(
+  processVideoStream(videoProcessingStream, ext, originalname, fileSize),
+  300000, // 5 minute timeout
+  "Video processing timed out"
+),
+      withTimeout(
+        generateVideoThumbnail(thumbnailStream, originalname),
+        15000, // 15s timeout for thumbnail (reduced from 30s)
+        "Thumbnail generation timed out"
+      ),
     ]);
 
     // Upload thumbnail
