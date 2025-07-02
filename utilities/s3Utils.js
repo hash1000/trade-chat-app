@@ -22,7 +22,7 @@ const s3Client = new S3Client({
 
 // === Helper Functions ===
 const isVideo = (ext) =>
-  ["mp4", "mkv", "mov", "avi", "flv", "wmv", "webm"].includes(ext);
+  ["mp4", "mkv", "mov", "avi", "flv", "wmv", "webm", "mpg"].includes(ext);
 const isImage = (ext) =>
   ["jpg", "jpeg", "png", "gif", "bmp", "tiff", "webp"].includes(ext);
 const isDocument = (ext) =>
@@ -41,21 +41,27 @@ const withTimeout = (promise, timeoutMs, errorMsg) => {
 // === Compression Configuration ===
 const getCompressionSettings = (fileSize, fileType) => {
   // Compression tiers based on file size
-  if (fileType === 'video') {
-    if (fileSize > 100 * 1024 * 1024) { // >100MB
-      return { crf: 32, preset: 'fast', resolution: '1280x720' };
-    } else if (fileSize > 50 * 1024 * 1024) { // 50-100MB
-      return { crf: 28, preset: 'fast', resolution: '1280x720' };
-    } else if (fileSize > 20 * 1024 * 1024) { // 20-50MB
-      return { crf: 24, preset: 'medium', resolution: '1920x1080' };
+  if (fileType === "video") {
+    if (fileSize > 100 * 1024 * 1024) {
+      // >100MB
+      return { crf: 32, preset: "fast", resolution: "1280x720" };
+    } else if (fileSize > 50 * 1024 * 1024) {
+      // 50-100MB
+      return { crf: 28, preset: "fast", resolution: "1280x720" };
+    } else if (fileSize > 20 * 1024 * 1024) {
+      // 20-50MB
+      return { crf: 24, preset: "medium", resolution: "1920x1080" };
     }
-    return { crf: 22, preset: 'slow', resolution: '1920x1080' }; // <20MB
-  } else if (fileType === 'image') {
-    if (fileSize > 20 * 1024 * 1024) { // >20MB
+    return { crf: 22, preset: "slow", resolution: "1920x1080" }; // <20MB
+  } else if (fileType === "image") {
+    if (fileSize > 20 * 1024 * 1024) {
+      // >20MB
       return { quality: 50, progressive: true };
-    } else if (fileSize > 10 * 1024 * 1024) { // 10-20MB
+    } else if (fileSize > 10 * 1024 * 1024) {
+      // 10-20MB
       return { quality: 65, progressive: true };
-    } else if (fileSize > 5 * 1024 * 1024) { // 5-10MB
+    } else if (fileSize > 5 * 1024 * 1024) {
+      // 5-10MB
       return { quality: 75, progressive: true };
     }
     return { quality: 85, progressive: true }; // <5MB
@@ -75,8 +81,8 @@ const processImageStream = (inputStream, compressionSettings) => {
       progressive: compressionSettings.progressive,
       mozjpeg: true,
     })
-    .on('error', err => {
-      console.error('Image processing error:', err);
+    .on("error", (err) => {
+      console.error("Image processing error:", err);
     });
   return inputStream.pipe(transformer);
 };
@@ -185,7 +191,7 @@ const processVideoStream = async (inputStream, ext, filename, fileSize) => {
     );
 
     // Get compression settings based on file size
-    const compression = getCompressionSettings(fileSize, 'video');
+    const compression = getCompressionSettings(fileSize, "video");
 
     // Write the input stream to a temp file
     const writeStream = fs.createWriteStream(tempInputPath);
@@ -202,7 +208,7 @@ const processVideoStream = async (inputStream, ext, filename, fileSize) => {
           "-movflags +faststart",
           "-threads 2", // Use multiple threads
           "-profile:v high",
-          "-pix_fmt yuv420p" // Ensure wide compatibility
+          "-pix_fmt yuv420p", // Ensure wide compatibility
         ])
         .format(ext === "mp4" ? "mp4" : "webm")
         .size(compression.resolution)
@@ -228,15 +234,12 @@ const processVideoStream = async (inputStream, ext, filename, fileSize) => {
         });
 
       // For webm format, use different codecs
-      if (ext !== 'mp4') {
-        command
-          .videoCodec('libvpx-vp9')
-          .audioCodec('libopus')
-          .outputOptions([
-            '-row-mt 1', // Enable row-based multithreading
-            '-quality good',
-            '-speed 4' // Faster encoding
-          ]);
+      if (ext !== "mp4") {
+        command.videoCodec("libvpx-vp9").audioCodec("libopus").outputOptions([
+          "-row-mt 1", // Enable row-based multithreading
+          "-quality good",
+          "-speed 4", // Faster encoding
+        ]);
       }
 
       command.save(tempOutputPath);
@@ -265,33 +268,40 @@ const uploadToS3 = async (stream, key, contentType) => {
   return upload.done();
 };
 
-const processAndUploadVideo = async (fileStream, originalname, mimetype, fileSize) => {
+const processAndUploadVideo = async (
+  fileStream,
+  originalname,
+  mimetype,
+  fileSize
+) => {
   const ext = path.extname(originalname).slice(1).toLowerCase();
   const videoKey = `${Date.now()}-${Math.round(Math.random() * 1e9)}.${ext}`;
-  
+
   try {
     // Create two streams from the input - one for video and one for thumbnail
     const videoProcessingStream = new PassThrough();
     const thumbnailStream = new PassThrough();
-    
+
     fileStream.pipe(videoProcessingStream);
     fileStream.pipe(thumbnailStream);
 
     // Process video and thumbnail in parallel
     const [processedVideoBuffer, thumbnailResult] = await Promise.all([
       processVideoStream(videoProcessingStream, ext, originalname, fileSize),
-      withTimeout(
-        generateVideoThumbnail(thumbnailStream, originalname),
-        30000, // 30s timeout for thumbnail
-        'Thumbnail generation timed out'
-      )
+      // withTimeout(
+      //   30000, // 30s timeout for thumbnail
+      //   'Thumbnail generation timed out'
+      // )
+      generateVideoThumbnail(thumbnailStream, originalname),
     ]);
 
     // Upload thumbnail
-    const thumbKey = `${Date.now()}-${Math.round(Math.random() * 1e9)}-thumb.jpg`;
+    const thumbKey = `${Date.now()}-${Math.round(
+      Math.random() * 1e9
+    )}-thumb.jpg`;
     await uploadToS3(
-      thumbnailResult.buffer, 
-      thumbKey, 
+      thumbnailResult.buffer,
+      thumbKey,
       thumbnailResult.mimetype
     );
 
@@ -306,10 +316,10 @@ const processAndUploadVideo = async (fileStream, originalname, mimetype, fileSiz
       title: originalname,
       url: `${process.env.IMAGE_END_POINT}/${videoKey}`,
       key: videoKey,
-      thumbnailUrl: `${process.env.IMAGE_END_POINT}/${thumbKey}`
+      thumbnailUrl: `${process.env.IMAGE_END_POINT}/${thumbKey}`,
     };
   } catch (error) {
-    console.error('Video processing error:', error);
+    console.error("Video processing error:", error);
     throw new Error(`Video processing failed: ${error.message}`);
   }
 };
@@ -331,22 +341,37 @@ const uploadFileToS3 = async (fileStream, originalname, mimetype, fileSize) => {
   try {
     // Always process videos (for thumbnails and compression)
     if (isVideo(ext)) {
-      return await processAndUploadVideo(fileStream, cleanName, mimetype, fileSize);
+      console.log("hashir uploading");
+      return await processAndUploadVideo(
+        fileStream,
+        cleanName,
+        mimetype,
+        fileSize
+      );
     }
 
     // For other files, apply compression based on size
-    const compressionSettings = getCompressionSettings(fileSize, isImage(ext) ? 'image' : 'document');
-
+    const compressionSettings = getCompressionSettings(
+      fileSize,
+      isImage(ext) ? "image" : "document"
+    );
+    console.log("compressionSettings", compressionSettings);
     if (isImage(ext)) {
       processedStream = processImageStream(fileStream, compressionSettings);
     } else if (isDocument(ext) || fileSize > 10 * 1024 * 1024) {
       // Compress documents or any large files (>10MB)
-      processedStream = zipStream(fileStream, cleanName, compressionSettings.level);
+      processedStream = zipStream(
+        fileStream,
+        cleanName,
+        compressionSettings.level
+      );
       finalName = cleanName.replace(/\.[^/.]+$/, "") + ".zip";
       finalMime = "application/zip";
     }
 
-    const key = `${Date.now()}-${Math.round(Math.random() * 1e9)}.${ext || "bin"}`;
+    const key = `${Date.now()}-${Math.round(Math.random() * 1e9)}.${
+      ext || "bin"
+    }`;
     const result = await uploadToS3(processedStream, key, finalMime);
 
     return {
