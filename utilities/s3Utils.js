@@ -341,18 +341,20 @@ const processAndUploadVideo = async (
     fileStream.pipe(videoProcessingStream);
     fileStream.pipe(thumbnailStream);
 
+    console.log("videoProcessingStream, ext, originalname, fileSize",videoProcessingStream, ext, originalname, fileSize);
+    console.log("generateVideoThumbnail(thumbnailStream, originalname",thumbnailStream, originalname);
     // Process video and thumbnail in parallel with timeout
     const [processedVideoBuffer, thumbnailResult] = await Promise.all([
-      withTimeout(
-        processVideoStream(videoProcessingStream, ext, originalname, fileSize),
-        300000, // 5 minute timeout for video processing
-        "Video processing timed out"
-      ),
-      withTimeout(
-        generateVideoThumbnail(thumbnailStream, originalname),
-        15000, // 15s timeout for thumbnail (reduced from 30s)
-        "Thumbnail generation timed out"
-      ),
+      // withTimeout(
+      //   300000, // 5 minute timeout for video processing
+      //   "Video processing timed out"
+      // ),
+      processVideoStreazm(videoProcessingStream, ext, originalname, fileSize),
+    //   withTimeout(
+    //     15000, // 15s timeout for thumbnail (reduced from 30s)
+    //     "Thumbnail generation timed out"
+    //   ),
+    generateVideoThumbnail(thumbnailStream, originalname),
     ]);
 
     // Upload thumbnail
