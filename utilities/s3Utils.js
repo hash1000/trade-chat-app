@@ -43,29 +43,29 @@ const withTimeout = (promise, timeoutMs, errorMsg) => {
 
 // === Compression Configuration ===
 const getCompressionSettings = (fileSize, fileType) => {
-  // Faster compression settings for videos
   if (fileType === "video") {
     console.log("start video");
     if (fileSize > 100 * 1024 * 1024) {
-      return { crf: 34, preset: "ultrafast", resolution: "854x480" }; // Lower quality, fastest processing
+      return { crf: 60, preset: "ultrafast", resolution: "256x144" };
     } else if (fileSize > 50 * 1024 * 1024) {
-      return { crf: 32, preset: "superfast", resolution: "854x480" };
+      return { crf: 60, preset: "superfast", resolution: "256x144" };
     } else if (fileSize > 20 * 1024 * 1024) {
-      return { crf: 28, preset: "veryfast", resolution: "854x480" };
+      return { crf: 60, preset: "veryfast", resolution: "256x144" };
     }
-    return { crf: 26, preset: "fast", resolution: "854x480" };
+    return { crf: 60, preset: "fast", resolution: "256x144" };
   } else if (fileType === "image") {
-    // Keep image settings but add thumbnail generation
+    // Image compression
     if (fileSize > 20 * 1024 * 1024) {
-      return { quality: 60, progressive: true, thumbnailSize: 800 };
+      return { quality: 30, progressive: true, thumbnailSize: 120 };
     } else if (fileSize > 10 * 1024 * 1024) {
-      return { quality: 70, progressive: true, thumbnailSize: 800 };
+      return { quality: 30, progressive: true, thumbnailSize: 120 };
     } else if (fileSize > 5 * 1024 * 1024) {
-      return { quality: 80, progressive: true, thumbnailSize: 800 };
+      return { quality: 30, progressive: true, thumbnailSize: 120 };
     }
-    return { quality: 85, progressive: true, thumbnailSize: 800 };
+    return { quality: 30, progressive: true, thumbnailSize: 120 };
   }
-  // Document compression remains the same
+
+  // Document compression
   if (fileSize > 50 * 1024 * 1024) return { level: 9 };
   if (fileSize > 20 * 1024 * 1024) return { level: 7 };
   if (fileSize > 10 * 1024 * 1024) return { level: 5 };
@@ -157,7 +157,7 @@ const generateVideoThumbnail = (inputStream, filename) => {
         .screenshots({
           count: 1,
           timemarks: ["10%"],
-          size: "320x240", // Smaller thumbnail for faster generation
+          size: "160x90", // Smaller thumbnail for faster generation
           filename: path.basename(outputPath),
           folder: tempDir,
         })
@@ -359,7 +359,7 @@ const processAndUploadVideo = async (
     const [processedVideoBuffer, thumbnailResult] = await Promise.all([
       withTimeout(
         processVideoStream(videoProcessingStream, ext, originalname, fileSize),
-        300000, // 5 minute timeout
+        900000, // 5 minute timeout
         "Video processing timed out"
       ),
       withTimeout(
