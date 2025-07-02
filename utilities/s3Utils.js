@@ -153,52 +153,59 @@ const generateVideoThumbnail = (inputStream, filename) => {
     inputStream.pipe(writeStream);
 
     writeStream.on("finish", () => {
-      ffmpeg(tempPath)
-        .screenshots({
-          count: 1,
-          timemarks: ["10%"],
-          size: "160x90", // Smaller thumbnail for faster generation
-          filename: path.basename(outputPath),
-          folder: tempDir,
-        })
-        .on("end", () => {
-          fs.readFile(outputPath, (err, data) => {
-            // Clean up temp files
-            [tempPath, outputPath].forEach((file) => {
-              try {
-                if (fs.existsSync(file)) fs.unlinkSync(file);
-              } catch (err) {
-                console.error("Cleanup error:", err);
-              }
-            });
-
-            if (err) return reject(err);
-
-            resolve({
-              buffer: data,
-              name: `${filename.replace(/\.[^/.]+$/, "")}-thumbnail.jpg`,
-              mimetype: "image/jpeg",
-            });
-          });
-        })
-        .on("error", (err) => {
+      // First verify the file is valid
+      ffmpeg.ffprobe(tempPath, (err, metadata) => {
+        if (err) {
+          // Clean up and reject if file is invalid
           [tempPath, outputPath].forEach((file) => {
             try {
               if (fs.existsSync(file)) fs.unlinkSync(file);
-            } catch (cleanupErr) {
-              console.error("Cleanup error:", cleanupErr);
-            }
+            } catch (e) {}
           });
-          reject(new Error(`Thumbnail generation failed: ${err.message}`));
-        });
+          return reject(
+            new Error("Invalid video file - could not read metadata")
+          );
+        }
+
+        // If file is valid, proceed with thumbnail generation
+        ffmpeg(tempPath)
+          .screenshots({
+            count: 1,
+            timemarks: ["10%"],
+            size: "160x90",
+            filename: path.basename(outputPath),
+            folder: tempDir,
+          })
+          .on("end", () => {
+            fs.readFile(outputPath, (err, data) => {
+              [tempPath, outputPath].forEach((file) => {
+                try {
+                  if (fs.existsSync(file)) fs.unlinkSync(file);
+                } catch (e) {}
+              });
+              if (err) return reject(err);
+              resolve({
+                buffer: data,
+                name: `${filename.replace(/\.[^/.]+$/, "")}-thumbnail.jpg`,
+                mimetype: "image/jpeg",
+              });
+            });
+          })
+          .on("error", (err) => {
+            [tempPath, outputPath].forEach((file) => {
+              try {
+                if (fs.existsSync(file)) fs.unlinkSync(file);
+              } catch (e) {}
+            });
+            reject(new Error(`Thumbnail generation failed: ${err.message}`));
+          });
+      });
     });
 
     writeStream.on("error", (err) => {
       try {
         if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
-      } catch (cleanupErr) {
-        console.error("Cleanup error:", cleanupErr);
-      }
+      } catch (e) {}
       reject(new Error(`Failed to write temp file: ${err.message}`));
     });
   });
@@ -333,6 +340,7 @@ const processAndUploadVideo = async (
   if (!["mp4", "webm", "mov"].includes(ext)) {
     ext = "mp4";
   }
+  console.log("start >>> video");
   const videoKey = `${Date.now()}-${Math.round(Math.random() * 1e9)}.${ext}`;
 
   try {
