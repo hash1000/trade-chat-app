@@ -23,7 +23,7 @@ const s3Client = new S3Client({
 
 // === Helper Functions ===
 const isVideo = (ext) =>
-  ["mp4", "mkv", "mov", "avi", "flv", "wmv", "webm", "mpg", "mpeg"].includes(
+  ["mp4", "mkv", "mov", "avi", "flv", "wmv", "webm", "mpg", "mpeg", "mkv"].includes(
     ext
   );
 const isImage = (ext) =>
@@ -367,7 +367,7 @@ const processAndUploadVideo = async (
     const [processedVideoBuffer, thumbnailResult] = await Promise.all([
       withTimeout(
         processVideoStream(videoProcessingStream, ext, originalname, fileSize),
-        900000, // 5 minute timeout
+        800000, // 5 minute timeout
         "Video processing timed out"
       ),
       withTimeout(
@@ -491,9 +491,10 @@ const uploadFileToS3 = async (fileStream, originalname, mimetype, fileSize) => {
   try {
     // Process videos
     if (isVideo(ext)) {
+      console.log("video start ext",ext);
       return await withTimeout(
         processAndUploadVideo(fileStream, cleanName, mimetype, fileSize),
-        600000, // 10 minute timeout for video uploads
+        900000, // 10 minute timeout for video uploads
         "Video upload timed out"
       );
     }
