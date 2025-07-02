@@ -48,9 +48,9 @@ const getCompressionSettings = (fileSize, fileType) => {
     if (fileSize > 100 * 1024 * 1024) {
       return { crf: 60, preset: "ultrafast", resolution: "256x144" };
     } else if (fileSize > 50 * 1024 * 1024) {
-      return { crf: 60, preset: "superfast", resolution: "256x144" };
+      return { crf: 60, preset: "ultrafast", resolution: "256x144" };
     } else if (fileSize > 20 * 1024 * 1024) {
-      return { crf: 60, preset: "veryfast", resolution: "256x144" };
+      return { crf: 60, preset: "ultrafast", resolution: "256x144" };
     }
     return { crf: 60, preset: "fast", resolution: "256x144" };
   } else if (fileType === "image") {
