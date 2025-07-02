@@ -252,20 +252,13 @@ const processVideoStream = async (
       // Faster video processing with optimized settings
       const command = ffmpeg(tempInputPath)
         .videoCodec("libx264")
-        .audioCodec("aac")
+        // .audioCodec("aac")
         .outputOptions([
           `-preset ${compression.preset}`,
-          `-crf ${compression.crf}`, // Higher CRF for smaller files
-          "-movflags +faststart",
-          "-threads 4", // Use more threads
-          "-profile:v main", // Simpler profile
-          "-pix_fmt yuv420p",
-          "-vsync 1", // Simpler frame timing
-          "-async 1", // Simpler audio sync
+          `-crf ${compression.crf}`
         ])
         .format("mp4")
-        .size(compression.resolution) // Lower resolution
-        .fps(24) // Standard frame rate
+        .size(compression.resolution) 
         .on("progress", (progress) => {
           console.log(`Video processing: ${progress.percent}% done`);
         })
@@ -520,6 +513,7 @@ const uploadFileToS3 = async (fileStream, originalname, mimetype, fileSize) => {
     //   finalMime = "application/zip";
     // }
 
+console.log("compressionSettings",compressionSettings);
     const key = `${Date.now()}-${Math.round(Math.random() * 1e9)}.${
       finalName.split(".").pop() || "bin"
     }`;
