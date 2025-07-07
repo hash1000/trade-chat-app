@@ -126,6 +126,8 @@ async uploadStream(req, res) {
     });
   }
 
+      const fileType = req.body.type;
+      console.log("File type:", fileType);
   try {
     const result = await fileService.processStreamUpload({
       req,
@@ -133,7 +135,7 @@ async uploadStream(req, res) {
       contentType,
       contentLength,
       socketId,
-      fileType: 'video', // Auto-detect file type
+      fileType, // Auto-detect file type
     });
 
     console.log("Stream upload result:", result);
