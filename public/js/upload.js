@@ -46,9 +46,9 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   });
 
-  // Upload progress handler
- socket.on("upload-progress", (data) => {
-  console.log("Received progress update:", data,currentFileId);
+ // Update the progress handler in upload.js
+socket.on("upload-progress", (data) => {
+  console.log("Received progress update:", data);
   if (data.fileId !== currentFileId) {
     console.log("Progress for different file, ignoring");
     return;
@@ -57,18 +57,18 @@ document.addEventListener("DOMContentLoaded", function () {
   progressBar.style.width = `${data.progress}%`;
   progressBar.textContent = `${data.progress}%`;
 
-      const elapsed = (Date.now() - uploadStats.startTime) / 1000;
-      const speed = uploadStats.lastBytes / (1024 * 1024) / elapsed;
+  const elapsed = (Date.now() - uploadStats.startTime) / 1000;
+  const loadedBytes = data.receivedChunks * 5 * 1024 * 1024; // Approximate bytes loaded
+  const speed = loadedBytes / (1024 * 1024) / elapsed;
 
-      statusMessage.innerHTML = `
-      <div class="alert alert-info">
-        Uploading... ${progress}% complete<br>
-        Chunks: ${receivedChunks}/${totalChunks}<br>
-        Speed: ${speed.toFixed(2)} MB/s - Elapsed: ${formatTime(elapsed)}
-      </div>
-    `;
-    }
-  );
+  statusMessage.innerHTML = `
+    <div class="alert alert-info">
+      Uploading... ${data.progress}% complete<br>
+      Chunks: ${data.receivedChunks}/${data.totalChunks}<br>
+      Speed: ${speed.toFixed(2)} MB/s - Elapsed: ${formatTime(elapsed)}
+    </div>
+  `;
+});
 
   // Upload complete handler
   socket.on("upload-complete", ({ fileId, name, size, url, hash }) => {

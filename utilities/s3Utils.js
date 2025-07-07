@@ -1,13 +1,15 @@
 const { S3Client, GetObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3");
 const { Upload } = require("@aws-sdk/lib-storage");
-const fs = require('fs');
-const { PassThrough, pipeline } = require("stream");
-const { promisify } = require('util');
-const { isVideo, isImage, processImage, processVideo } = require('./fileProcessors');
-const path = require('path');
+const { PassThrough } = require("stream");
+const path = require("path");
+const ffmpeg = require("fluent-ffmpeg");
+const ffmpegPath = require("ffmpeg-static");
+const os = require('os');
 
-const pipelineAsync = promisify(pipeline);
+// Configure FFmpeg
+ffmpeg.setFfmpegPath(ffmpegPath);
 
+// Initialize S3 client
 const s3Client = new S3Client({
   endpoint: process.env.SPACES_END_POINT,
   region: process.env.SPACES_REGION,
@@ -18,7 +20,56 @@ const s3Client = new S3Client({
   },
 });
 
-// Direct stream upload without processing
+// File type checkers
+const isImage = (ext) => [".jpg", ".jpeg", ".png", ".gif", ".webp"].includes(ext.toLowerCase());
+const isVideo = (ext) => [".mp4", ".mov", ".avi", ".mkv", ".webm"].includes(ext.toLowerCase());
+
+// Helper functions
+const streamToBuffer = (stream) => {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    stream.on("data", (chunk) => chunks.push(chunk));
+    stream.on("error", reject);
+    stream.on("end", () => resolve(Buffer.concat(chunks)));
+  });
+};
+
+const bufferToStream = (buffer) => {
+  const stream = new PassThrough();
+  stream.end(buffer);
+  return stream;
+};
+
+const generateUniqueKey = (originalname) => {
+  const ext = path.extname(originalname).toLowerCase();
+  const baseName = path.basename(originalname, ext);
+  const timestamp = Date.now();
+  const random = Math.round(Math.random() * 1e9);
+  return {
+    mainKey: `${timestamp}_${random}_${baseName}${ext}`,
+    thumbKey: `${timestamp}_${random}_${baseName}_thumb.jpg`
+  };
+};
+
+// S3 Upload Functions
+const uploadToS3 = async (body, key, mimetype) => {
+  const upload = new Upload({
+    client: s3Client,
+    params: {
+      Bucket: process.env.SPACES_BUCKET_NAME,
+      Key: key,
+      Body: body,
+      ContentType: mimetype,
+      ACL: "public-read",
+    },
+    queueSize: 4,
+    partSize: 5 * 1024 * 1024, // 5MB chunks
+  });
+
+  await upload.done();
+  return key;
+};
+
 const uploadStreamToS3 = async (stream, key, mimetype) => {
   const upload = new Upload({
     client: s3Client,
@@ -33,124 +84,144 @@ const uploadStreamToS3 = async (stream, key, mimetype) => {
     partSize: 5 * 1024 * 1024,
   });
 
-  await upload.done();
   return upload;
 };
 
-// Process and upload (for smaller files that can be buffered)
-const uploadProcessedFileToS3 = async (buffer, originalname, mimetype, fileSize, fileType) => {
-  const ext = path.extname(originalname).toLowerCase().slice(1);
-  const baseName = path.basename(originalname, `.${ext}`);
-  const timestamp = Date.now();
-  const random = Math.round(Math.random() * 1e9);
-  
-  let mainKey, thumbKey;
+// FFmpeg Processing Functions
+const processWithFFmpeg = (inputStream, outputOptions) => {
+  return new Promise((resolve, reject) => {
+    const outputStream = new PassThrough();
+    const chunks = [];
+    
+    outputStream.on("data", (chunk) => chunks.push(chunk));
+    outputStream.on("end", () => resolve(Buffer.concat(chunks)));
+    outputStream.on("error", reject);
 
-  if (fileType === 'image' || isImage(ext)) {
-    // Process image
-    const result = await processImage(buffer, originalname, fileSize);
-    mainKey = `${timestamp}_${random}_${baseName}.jpg`;
-    thumbKey = `${timestamp}_${random}_${baseName}_thumb.jpg`;
-    
-    await Promise.all([
-      uploadToS3(result.processedImage, mainKey, result.mimeType),
-      uploadToS3(result.thumbnail, thumbKey, result.thumbnailMimeType)
-    ]);
-  } 
-  else if (fileType === 'video' || isVideo(ext)) {
-    // Process video
-    const result = await processVideo(buffer, originalname, fileSize);
-    mainKey = `${timestamp}_${random}_${baseName}.mp4`;
-    thumbKey = `${timestamp}_${random}_${baseName}_thumb.jpg`;
-    
-    await Promise.all([
-      uploadToS3(result.processedVideo, mainKey, result.mimeType),
-      uploadToS3(result.thumbnail, thumbKey, result.thumbnailMimeType)
-    ]);
-  } 
-  else {
-    // Document or other file type
-    mainKey = `${timestamp}_${random}_${originalname}`;
-    await uploadToS3(buffer, mainKey, mimetype);
-  }
+    ffmpeg(inputStream)
+      .outputOptions(outputOptions)
+      .output(outputStream)
+      .on("error", reject)
+      .on("end", () => outputStream.end())
+      .run();
+  });
+};
+
+const processImage = async (buffer, originalname) => {
+  const [processedImage, thumbnail] = await Promise.all([
+    processWithFFmpeg(bufferToStream(buffer), [
+      "-vf scale=1200:-1",
+      "-q:v 20",
+      "-f image2pipe"
+    ]),
+    processWithFFmpeg(bufferToStream(buffer), [
+      "-vf scale=300:-1",
+      "-q:v 30",
+      "-f image2pipe"
+    ])
+  ]);
 
   return {
-    title: baseName,
-    url: `${process.env.IMAGE_END_POINT}/${mainKey}`,
-    key: mainKey,
-    thumbnailUrl: thumbKey ? `${process.env.IMAGE_END_POINT}/${thumbKey}` : null
+    processedImage,
+    thumbnail,
+    mimeType: "image/jpeg",
+    thumbnailMimeType: "image/jpeg"
   };
 };
 
-// Unified upload function that routes based on input type
+const processVideo = async (buffer, originalname) => {
+  const [processedVideo, thumbnail] = await Promise.all([
+    processWithFFmpeg(bufferToStream(buffer), [
+      "-c:v libx264",
+      "-preset fast",
+      "-crf 28",
+      "-c:a aac",
+      "-b:a 128k",
+      "-movflags faststart",
+      "-f mp4"
+    ]),
+    processWithFFmpeg(bufferToStream(buffer), [
+      "-ss 00:00:01",
+      "-vframes 1",
+      "-vf scale=640:-1",
+      "-q:v 20",
+      "-f image2pipe"
+    ])
+  ]);
+
+  return {
+    processedVideo,
+    thumbnail,
+    mimeType: "video/mp4",
+    thumbnailMimeType: "image/jpeg"
+  };
+};
+
+// Main Upload Functions
 const uploadFileToS3 = async (input, originalname, mimetype, fileSize, fileType) => {
-  // If input is a buffer, use processed upload
-  if (Buffer.isBuffer(input)) {
-    return uploadProcessedFileToS3(input, originalname, mimetype, fileSize, fileType);
+  const ext = path.extname(originalname).toLowerCase();
+  const { mainKey, thumbKey } = generateUniqueKey(originalname);
+  const baseName = path.basename(originalname, ext);
+
+  try {
+    // Handle buffer input (memory storage)
+    if (Buffer.isBuffer(input)) {
+      let result;
+
+      if (fileType === 'image' || isImage(ext)) {
+        result = await processImage(input, originalname);
+        await Promise.all([
+          uploadToS3(result.processedImage, mainKey, result.mimeType),
+          uploadToS3(result.thumbnail, thumbKey, result.thumbnailMimeType)
+        ]);
+      } 
+      else if (fileType === 'video' || isVideo(ext)) {
+        result = await processVideo(input, originalname);
+        await Promise.all([
+          uploadToS3(result.processedVideo, mainKey, result.mimeType),
+          uploadToS3(result.thumbnail, thumbKey, result.thumbnailMimeType)
+        ]);
+      } 
+      else {
+        await uploadToS3(input, mainKey, mimetype);
+      }
+
+      return {
+        url: `${process.env.IMAGE_END_POINT}/${mainKey}`,
+        key: mainKey,
+        thumbnailUrl: (fileType === 'image' || fileType === 'video') 
+          ? `${process.env.IMAGE_END_POINT}/${thumbKey}`
+          : null
+      };
+    }
+
+    // Handle stream input (disk storage)
+    if (typeof input.pipe === 'function') {
+      const uploader = await uploadStreamToS3(input, mainKey, mimetype);
+      return {
+        uploader,
+        url: `${process.env.IMAGE_END_POINT}/${mainKey}`,
+        key: mainKey,
+        thumbnailUrl: null // Can't generate thumbnail from stream
+      };
+    }
+
+    throw new Error('Invalid input type for upload');
+  } catch (error) {
+    console.error('File processing error:', error);
+    throw error;
   }
-  
-  // If input is a file path, create read stream
-  if (typeof input === 'string') {
-    const stream = fs.createReadStream(input);
-    return uploadStreamToS3(stream, originalname, mimetype);
-  }
-  
-  // If input is a stream, upload directly
-  if (typeof input.pipe === 'function') {
-    const ext = path.extname(originalname).toLowerCase().slice(1);
-    const baseName = path.basename(originalname, `.${ext}`);
-    const timestamp = Date.now();
-    const random = Math.round(Math.random() * 1e9);
-    const mainKey = `${timestamp}_${random}_${originalname}`;
-    
-    await uploadStreamToS3(input, mainKey, mimetype);
-    
-    return {
-      title: baseName,
-      url: `${process.env.IMAGE_END_POINT}/${mainKey}`,
-      key: mainKey,
-      thumbnailUrl: null // Can't generate thumbnail from stream
-    };
-  }
-  
-  throw new Error('Invalid input type for upload');
 };
 
-// Memory storage upload (buffers)
-const uploadToSpacesByMemoryStorage = async (buffer, key, mimetype, fileType) => {
-  return uploadFileToS3(
-    buffer, 
-    key, 
-    mimetype, 
-    buffer.length,
-    fileType
-  );
+// Storage-specific upload functions
+const uploadToSpacesByMemoryStorage = async (buffer, originalname, mimetype, fileType, fileSize) => {
+  return uploadFileToS3(buffer, originalname, mimetype, fileSize, fileType);
 };
 
-// Disk storage upload (streams)
-const uploadToSpacesByDiskStorage = async (filePath, key, mimetype, fileType) => {
-  const { size } = await fs.promises.stat(filePath);
-  const result = await uploadFileToS3(
-    filePath, 
-    key, 
-    mimetype, 
-    size,
-    fileType
-  );
-
-  // Clean up temp file
-  await fs.promises.unlink(filePath).catch(console.error);
-  return result;
+const uploadToSpacesByDiskStorage = async (stream, originalname, mimetype, fileType, fileSize) => {
+  return uploadFileToS3(stream, originalname, mimetype, fileSize, fileType);
 };
 
-// Helper to convert buffer to stream
-const bufferToStream = (buffer) => {
-  const stream = new PassThrough();
-  stream.end(buffer);
-  return stream;
-};
-
-// Download stream
+// Download and Delete Functions
 async function getDownloadStreamFromS3(key) {
   const command = new GetObjectCommand({
     Bucket: process.env.SPACES_BUCKET_NAME,
@@ -161,7 +232,6 @@ async function getDownloadStreamFromS3(key) {
   return Body;
 }
 
-// Delete file
 async function deleteFileFromS3(key) {
   const command = new DeleteObjectCommand({
     Bucket: process.env.SPACES_BUCKET_NAME,
@@ -174,9 +244,15 @@ async function deleteFileFromS3(key) {
 module.exports = {
   s3Client,
   uploadFileToS3,
+  streamToBuffer,
   uploadToSpacesByMemoryStorage,
   uploadToSpacesByDiskStorage,
   getDownloadStreamFromS3,
   deleteFileFromS3,
   uploadStreamToS3,
+  processVideo,
+  processImage,
+  uploadToS3,
+  isImage,
+  isVideo
 };
