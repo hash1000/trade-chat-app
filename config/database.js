@@ -20,6 +20,7 @@ const sequelize = new Sequelize({
 // Async function to handle database connection and default tags insertion
 const initializeDatabase = async () => {
   try {
+    console.log("database initializing...");
     // Authenticate the database connection
     await sequelize.authenticate();
     console.log('Connection to the database has been established successfully.');
