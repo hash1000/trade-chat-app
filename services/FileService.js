@@ -1,77 +1,146 @@
-const { Upload } = require('@aws-sdk/lib-storage');
-const { PassThrough } = require('stream');
-const { s3Client } = require('../utilities/s3Utils');
-const path = require('path');
+const { PassThrough } = require("stream");
+const path = require("path");
+const {
+  uploadFileToS3,
+  deleteFileFromS3,
+  getDownloadStreamFromS3,
+  uploadToSpacesByMemoryStorage,
+  uploadToSpacesByDiskStorage,
+  streamToBuffer,
+  processVideo,
+  uploadToS3,
+} = require("../utilities/s3Utils");
+const {
+  emitUploadProgress,
+  emitUploadComplete,
+  emitUploadError,
+} = require("../utilities/socketUtils");
 
 class FileService {
   constructor() {
     this.uploadProgress = {};
   }
 
-  async processStreamUpload({
-    req,
-    fileName,
-    contentType,
-    contentLength,
-    socketId,
+  /**
+   * Process file upload (memory or disk)
+   */
+async processUpload({
+    fileData,
+    originalname,
+    mimetype,
+    size,
+    storageType,
     fileType = 'auto'
   }) {
-    const sanitized = this.sanitizeFilename(fileName);
-    const key = sanitized.link;
-
-    // Create a pass-through stream
-    const passThrough = new PassThrough();
-    
-    // Start the upload immediately
-    const uploader = new Upload({
-      client: s3Client,
-      params: {
-        Bucket: process.env.SPACES_BUCKET_NAME,
-        Key: key,
-        Body: passThrough,
-        ContentType: contentType,
-        ACL: "public-read",
-      },
-      queueSize: 4,
-      partSize: 5 * 1024 * 1024,
-    });
-
-    this.setupProgressTracking({
-      uploader,
-      contentLength,
-      socketId,
-      fileId: key,
-    });
-
-    // Pipe the request directly to S3
-    req.pipe(passThrough);
-
     try {
-      const result = await uploader.done();
-
-      this.emitUploadComplete({
-        socketId,
-        fileId: key,
-        fileName: sanitized.baseName,
-        contentLength,
-        key: result.Key,
-        fileType: this.detectFileType(fileName)
-      });
+      const sanitized = this.sanitizeFilename(originalname);
+      
+      // Always use memory storage processing for consistent behavior
+      const result = await uploadToSpacesByMemoryStorage(
+        fileData,
+        originalname,
+        mimetype,
+        fileType,
+        size
+      );
 
       return {
-        baseName: sanitized.baseName,
-        url: `${process.env.IMAGE_END_POINT}/${result.Key}`,
-        size: contentLength,
-        mimeType: contentType,
-        fileType: this.detectFileType(fileName)
+        title: sanitized.baseName,
+        url: result.url,
+        key: result.key,
+        thumbnailUrl: result.thumbnailUrl,
+        size: size,
+        mimeType: mimetype,
+        fileType: fileType === 'auto' ? this.detectFileType(originalname) : fileType,
       };
     } catch (error) {
-      console.error('Stream upload error:', error);
-      this.emitUploadError(socketId, error.message);
+      console.error("File processing error:", error);
       throw error;
     }
   }
+  
+async processStreamUpload({
+  req,
+  fileName,
+  contentType,
+  contentLength,
+  socketId,
+  fileType = "auto",
+}) {
+  const sanitized = this.sanitizeFilename(fileName);
+  const keyBase = sanitized.link.replace(/\.[^.]+$/, ''); // Remove extension for consistency
 
+  try {
+    const buffer = await streamToBuffer(req); // Collect whole buffer
+
+    const trueFileType = fileType === 'auto' ? this.detectFileType(fileName) : fileType;
+
+    let result = {};
+    if (trueFileType === 'image') {
+      const { processedImage, thumbnail } = await processImage(buffer, fileName);
+
+      const [mainUpload, thumbUpload] = await Promise.all([
+        uploadToS3(processedImage, `${keyBase}.jpg`, 'image/jpeg'),
+        uploadToS3(thumbnail, `${keyBase}_thumb.jpg`, 'image/jpeg'),
+      ]);
+
+      result = {
+        url: `${process.env.IMAGE_END_POINT}/${keyBase}.jpg`,
+        thumbnailUrl: `${process.env.IMAGE_END_POINT}/${keyBase}_thumb.jpg`,
+        mimeType: 'image/jpeg',
+        size: buffer.length,
+      };
+    } else if (trueFileType === 'video') {
+      const { processedVideo, thumbnail } = await processVideo(buffer, fileName);
+
+      const [mainUpload, thumbUpload] = await Promise.all([
+        uploadToS3(processedVideo, `${keyBase}.mp4`, 'video/mp4'),
+        uploadToS3(thumbnail, `${keyBase}_thumb.jpg`, 'image/jpeg'),
+      ]);
+
+      result = {
+        url: `${process.env.IMAGE_END_POINT}/${keyBase}.mp4`,
+        thumbnailUrl: `${process.env.IMAGE_END_POINT}/${keyBase}_thumb.jpg`,
+        mimeType: 'video/mp4',
+        size: buffer.length,
+      };
+    } else {
+      await uploadToS3(buffer, `${keyBase}${path.extname(fileName)}`, contentType);
+      result = {
+        url: `${process.env.IMAGE_END_POINT}/${keyBase}${path.extname(fileName)}`,
+        thumbnailUrl: null,
+        mimeType: contentType,
+        size: buffer.length,
+      };
+    }
+
+    this.emitUploadComplete({
+      socketId,
+      fileId: keyBase,
+      fileName: sanitized.baseName,
+      contentLength: result.size,
+      key: `${keyBase}${path.extname(fileName)}`,
+      thumbnailUrl: result.thumbnailUrl,
+      fileType: trueFileType,
+    });
+
+    return {
+      baseName: sanitized.baseName,
+      url: result.url,
+      thumbnailUrl: result.thumbnailUrl,
+      size: result.size,
+      mimeType: result.mimeType,
+      fileType: trueFileType,
+    };
+  } catch (error) {
+    this.emitUploadError(socketId, error.message);
+    throw error;
+  }
+}
+
+  /**
+   * Setup upload progress tracking
+   */
   setupProgressTracking({ uploader, contentLength, socketId, fileId }) {
     uploader.on("httpUploadProgress", (progress) => {
       const totalSize = progress.total || contentLength;
@@ -79,8 +148,8 @@ class FileService {
 
       if (totalSize > 0) {
         const percent = Math.min(100, Math.floor((loaded / totalSize) * 100));
-        
-        this.emitUploadProgress(socketId, {
+
+        emitUploadProgress(socketId, {
           fileId,
           progress: percent,
           receivedChunks: Math.ceil(loaded / (5 * 1024 * 1024)),
@@ -100,16 +169,18 @@ class FileService {
     contentLength,
     key,
     thumbnailUrl,
-    fileType
+    fileType,
   }) {
     emitUploadComplete(socketId, {
       fileId,
       name: fileName,
       size: contentLength,
       url: `${process.env.IMAGE_END_POINT}/${key}`,
-      thumbnailUrl: thumbnailUrl ? `${process.env.IMAGE_END_POINT}/${thumbnailUrl.split('/').pop()}` : null,
+      thumbnailUrl: thumbnailUrl
+        ? `${process.env.IMAGE_END_POINT}/${thumbnailUrl.split("/").pop()}`
+        : null,
       hash: "stream-uploaded",
-      fileType
+      fileType,
     });
   }
 
@@ -151,16 +222,19 @@ class FileService {
   sanitizeFilename(originalName) {
     const name = originalName.toLowerCase();
     const extension = name.split(".").pop();
-    const baseName = path.basename(name, `.${extension}`)
-      .replace(/[^a-z0-9-_]/gi, '_')
+    const baseName = path
+      .basename(name, `.${extension}`)
+      .replace(/[^a-z0-9-_]/gi, "_")
       .substring(0, 100);
-    
-    const link = `${Date.now()}_${Math.round(Math.random() * 1e9)}_${baseName}.${extension}`;
-    
+
+    const link = `${Date.now()}_${Math.round(
+      Math.random() * 1e9
+    )}_${baseName}.${extension}`;
+
     return {
       baseName,
       extension,
-      link
+      link,
     };
   }
 
@@ -168,11 +242,16 @@ class FileService {
    * Detect file type from extension
    */
   detectFileType(filename) {
-    const ext = filename.split('.').pop().toLowerCase();
-    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(ext)) return 'image';
-    if (['mp4', 'mov', 'avi', 'mkv', 'webm', 'flv'].includes(ext)) return 'video';
-    if (['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt'].includes(ext)) return 'document';
-    return 'other';
+    const ext = filename.split(".").pop().toLowerCase();
+    if (["jpg", "jpeg", "png", "gif", "webp", "bmp"].includes(ext))
+      return "image";
+    if (["mp4", "mov", "avi", "mkv", "webm", "flv"].includes(ext))
+      return "video";
+    if (
+      ["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt"].includes(ext)
+    )
+      return "document";
+    return "other";
   }
 }
 
