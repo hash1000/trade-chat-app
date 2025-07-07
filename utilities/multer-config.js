@@ -1,68 +1,52 @@
-const multer = require("multer");
-const {
-  MAX_FILE_SIZE,
-  ALLOWED_FILE_TYPES,
-  ALLOWED_EXTENSIONS,
-} = require("./file-config");
+const fs = require('fs');
+const path = require('path');
+const multer = require('multer');
 
-// Configure memory storage
-const storage = multer.memoryStorage();
+// Size limits
+const MEMORY_LIMIT = 25 * 1024 * 1024; // 25MB
+const DISK_LIMIT = 50 * 1024 * 1024; // 50MB
 
-// Enhanced file filter
-const fileFilter = (req, file, cb) => {
-  try {
-    const ext = `.${file.originalname.split(".").pop().toLowerCase()}`;
-    const mimeType = file.mimetype;
+const uploadDir = path.join(__dirname, '../uploads');
 
-    const isAllowedType =
-      ALLOWED_FILE_TYPES.includes(mimeType) || ALLOWED_EXTENSIONS.includes(ext);
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
 
-    if (isAllowedType) {
-      cb(null, true);
-    } else {
-      cb(
-        new Error(
-          `Invalid file type. Only ${ALLOWED_FILE_TYPES.join(
-            ", "
-          )} files are allowed.`
-        )
-      );
-    }
-  } catch (err) {
-    cb(err);
+const diskStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, `${Date.now()}${ext}`);
   }
+});
+
+// Storage instances
+const memoryStorage = multer.memoryStorage();
+
+// File filter
+const fileFilter = (req, file, cb) => {
+  // Implement your file type validation logic here
+  cb(null, true);
 };
 
-// Upload handlers with proper limits
-const uploadSingle = multer({
-  storage,
-  // fileFilter,
-  // limits: { fileSize: MAX_FILE_SIZE }
-}).single("file");
+// Upload handlers
+const uploadMemory = multer({
+  storage: memoryStorage,
+  fileFilter,
+  limits: { fileSize: MEMORY_LIMIT }
+}).single('file');
 
-const uploadMultiple = multer({
-  storage,
-  // fileFilter,
-  limits: {
-    fileSize: MAX_FILE_SIZE,
-    files: 5,
-  },
-}).array("files", 5);
-
-const uploadFields = multer({
-  storage,
-  // fileFilter,
-  limits: {
-    fileSize: MAX_FILE_SIZE,
-    files: 10,
-  },
-}).fields([
-  { name: "images", maxCount: 5 },
-  { name: "documents", maxCount: 5 },
-]);
+const uploadDisk = multer({
+  storage: diskStorage,
+  fileFilter,
+  limits: { fileSize: DISK_LIMIT }
+}).single('file');
 
 module.exports = {
-  uploadSingle,
-  uploadMultiple,
-  uploadFields,
+  uploadMemory,
+  uploadDisk,
+  MEMORY_LIMIT,
+  DISK_LIMIT
 };

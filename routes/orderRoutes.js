@@ -11,7 +11,7 @@ const {
 const authorize = require('../middlewares/authorization');
 const checkIntegerParam = require('../middlewares/paramIntegerValidation');
 const checkPermission = require('../middlewares/permission');
-const { uploadMultiple } = require('../utilities/multer-config');
+// const { uploadMultiple } = require('../utilities/multer-config');
 const orderController = new OrderController();
 
 
@@ -23,12 +23,12 @@ router.get('/user-orders/:userId', authMiddleware, authorize(['admin','operator'
 // Admin get all orders
 router.get('/all-orders', authMiddleware, authorize(['admin','operator','user']), checkPermission("readAll", "orders"), orderController.getAllUserOrders.bind(orderController));
 
-router.post(
-  "/upload-documents/:orderNo",
-  authMiddleware,
-  uploadMultiple,
-  orderController.uploadDocument.bind(orderController)
-);
+// router.post(
+//   "/upload-documents/:orderNo",
+//   authMiddleware,
+//   uploadMultiple,
+//   orderController.uploadDocument.bind(orderController)
+// );
 
 // delete api for document
 router.delete(
