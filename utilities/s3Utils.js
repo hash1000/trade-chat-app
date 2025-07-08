@@ -51,29 +51,31 @@ const processImage = async (buffer) => {
 };
 
 const processVideo = async (buffer) => {
-  return new Promise((resolve, reject) => {
-    const stream = new PassThrough();
-    const chunks = [];
+  const { path: tmpInputPath, cleanup } = await tmp.file({ postfix: '.mp4' });
+  const { path: tmpOutputPath } = await tmp.file({ postfix: '.jpg' });
 
-    stream.on("data", (chunk) => chunks.push(chunk));
-    stream.on("end", () => {
-      const result = Buffer.concat(chunks);
-      if (!result || result.length < 100) return reject(new Error("Empty video thumbnail buffer"));
-      resolve(result);
+  try {
+    // Save buffer to temp file
+    await fs.writeFile(tmpInputPath, buffer);
+
+    // Use FFmpeg to extract thumbnail from temp file
+    await new Promise((resolve, reject) => {
+      ffmpeg(tmpInputPath)
+        .seekInput(1) // 1 second into video
+        .outputOptions(["-vframes", "1", "-vf", "scale=300:-1", "-q:v", "4"])
+        .output(tmpOutputPath)
+        .on("start", (cmd) => console.log("FFmpeg video command:", cmd))
+        .on("end", resolve)
+        .on("error", reject)
+        .run();
     });
-    stream.on("error", reject);
 
-    ffmpeg(bufferToStream(buffer))
-      .inputFormat("mp4")
-      .inputOptions("-fflags +genpts")
-      .outputOptions(["-vframes", "1", "-vf", "scale=300:-1", "-q:v", "4"])
-      .outputFormat("mjpeg")
-      .output(stream)
-      .on("start", (cmd) => console.log("FFmpeg video command:", cmd))
-      .on("error", reject)
-      .run();
-  });
+    return await fs.readFile(tmpOutputPath);
+  } finally {
+    await cleanup();
+  }
 };
+
 
 const bufferToStream = (buffer) => {
   const stream = new PassThrough();
