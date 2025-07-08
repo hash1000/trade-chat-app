@@ -1,14 +1,11 @@
-const { PassThrough } = require("stream");
 const path = require("path");
+const { PassThrough } = require("stream");
 const {
-  uploadFileToS3,
+  uploadMemoryFileToS3,
+  uploadDiskFileToS3,
+  uploadStreamFileToS3,
   deleteFileFromS3,
   getDownloadStreamFromS3,
-  uploadToSpacesByMemoryStorage,
-  uploadToSpacesByDiskStorage,
-  streamToBuffer,
-  processVideo,
-  uploadToS3,
 } = require("../utilities/s3Utils");
 const {
   emitUploadProgress,
@@ -21,147 +18,92 @@ class FileService {
     this.uploadProgress = {};
   }
 
-  /**
-   * Process file upload (memory or disk)
-   */
-async processUpload({
-    fileData,
-    originalname,
-    mimetype,
-    size,
-    storageType,
-    fileType = 'auto'
-  }) {
-    try {
-      const sanitized = this.sanitizeFilename(originalname);
-      
-      // Always use memory storage processing for consistent behavior
-      const result = await uploadToSpacesByMemoryStorage(
-        fileData,
-        originalname,
-        mimetype,
-        fileType,
-        size
-      );
+  // 🔹 Handle memory-based upload (e.g., from multer memoryStorage)
+  async processMemoryUpload({ buffer, originalname, mimetype, size }) {
+    const ext = path.extname(originalname).toLowerCase();
+    const fileType = this.detectFileType(ext);
 
-      return {
-        title: sanitized.baseName,
-        url: result.url,
-        key: result.key,
-        thumbnailUrl: result.thumbnailUrl,
-        size: size,
-        mimeType: mimetype,
-        fileType: fileType === 'auto' ? this.detectFileType(originalname) : fileType,
-      };
-    } catch (error) {
-      console.error("File processing error:", error);
-      throw error;
-    }
-  }
-  
-async processStreamUpload({
-  req,
-  fileName,
-  contentType,
-  contentLength,
-  socketId,
-  fileType = "auto",
-}) {
-  const sanitized = this.sanitizeFilename(fileName);
-  const keyBase = sanitized.link.replace(/\.[^.]+$/, ''); // Remove extension for consistency
-
-  try {
-    const buffer = await streamToBuffer(req); // Collect whole buffer
-
-    const trueFileType = fileType === 'auto' ? this.detectFileType(fileName) : fileType;
-
-    let result = {};
-    if (trueFileType === 'image') {
-      const { processedImage, thumbnail } = await processImage(buffer, fileName);
-
-      const [mainUpload, thumbUpload] = await Promise.all([
-        uploadToS3(processedImage, `${keyBase}.jpg`, 'image/jpeg'),
-        uploadToS3(thumbnail, `${keyBase}_thumb.jpg`, 'image/jpeg'),
-      ]);
-
-      result = {
-        url: `${process.env.IMAGE_END_POINT}/${keyBase}.jpg`,
-        thumbnailUrl: `${process.env.IMAGE_END_POINT}/${keyBase}_thumb.jpg`,
-        mimeType: 'image/jpeg',
-        size: buffer.length,
-      };
-    } else if (trueFileType === 'video') {
-      const { processedVideo, thumbnail } = await processVideo(buffer, fileName);
-
-      const [mainUpload, thumbUpload] = await Promise.all([
-        uploadToS3(processedVideo, `${keyBase}.mp4`, 'video/mp4'),
-        uploadToS3(thumbnail, `${keyBase}_thumb.jpg`, 'image/jpeg'),
-      ]);
-
-      result = {
-        url: `${process.env.IMAGE_END_POINT}/${keyBase}.mp4`,
-        thumbnailUrl: `${process.env.IMAGE_END_POINT}/${keyBase}_thumb.jpg`,
-        mimeType: 'video/mp4',
-        size: buffer.length,
-      };
-    } else {
-      await uploadToS3(buffer, `${keyBase}${path.extname(fileName)}`, contentType);
-      result = {
-        url: `${process.env.IMAGE_END_POINT}/${keyBase}${path.extname(fileName)}`,
-        thumbnailUrl: null,
-        mimeType: contentType,
-        size: buffer.length,
-      };
-    }
-
-    this.emitUploadComplete({
-      socketId,
-      fileId: keyBase,
-      fileName: sanitized.baseName,
-      contentLength: result.size,
-      key: `${keyBase}${path.extname(fileName)}`,
-      thumbnailUrl: result.thumbnailUrl,
-      fileType: trueFileType,
-    });
+    const result = await uploadMemoryFileToS3(buffer, originalname, mimetype, fileType);
 
     return {
-      baseName: sanitized.baseName,
+      name: originalname,
       url: result.url,
+      key: result.key,
       thumbnailUrl: result.thumbnailUrl,
-      size: result.size,
-      mimeType: result.mimeType,
-      fileType: trueFileType,
+      size,
+      mimeType: mimetype,
+      fileType,
     };
-  } catch (error) {
-    this.emitUploadError(socketId, error.message);
-    throw error;
   }
-}
 
-  /**
-   * Setup upload progress tracking
-   */
-  setupProgressTracking({ uploader, contentLength, socketId, fileId }) {
-    uploader.on("httpUploadProgress", (progress) => {
-      const totalSize = progress.total || contentLength;
-      const loaded = progress.loaded || 0;
+  // 🔹 Handle disk-based upload (e.g., multer diskStorage)
+  async processDiskUpload({ filePath, originalname, mimetype, size }) {
+    const ext = path.extname(originalname).toLowerCase();
+    const fileType = this.detectFileType(ext);
 
-      if (totalSize > 0) {
-        const percent = Math.min(100, Math.floor((loaded / totalSize) * 100));
+    const result = await uploadDiskFileToS3(filePath, originalname, mimetype, fileType);
 
+    return {
+      name: originalname,
+      url: result.url,
+      key: result.key,
+      thumbnailUrl: result.thumbnailUrl,
+      size,
+      mimeType: mimetype,
+      fileType,
+    };
+  }
+
+  // 🔹 Handle streaming upload (chunked stream + buffer for thumbnail)
+  async processStreamUpload({ req, fileName, contentType, contentLength, socketId }) {
+    const ext = path.extname(fileName).toLowerCase();
+    const fileType = this.detectFileType(ext);
+    const sanitized = this.sanitizeFilename(fileName);
+
+    const passThrough = new PassThrough();
+    const chunks = [];
+
+    req.on("data", (chunk) => {
+      chunks.push(chunk);
+      passThrough.write(chunk);
+
+      if (socketId && contentLength) {
         emitUploadProgress(socketId, {
-          fileId,
-          progress: percent,
-          receivedChunks: Math.ceil(loaded / (5 * 1024 * 1024)),
-          totalChunks: Math.ceil(totalSize / (5 * 1024 * 1024)),
+          fileId: sanitized.link,
+          progress: Math.floor((Buffer.concat(chunks).length / contentLength) * 100),
         });
       }
     });
+
+    req.on("end", () => passThrough.end());
+
+    const buffer = await new Promise((resolve) => {
+      req.on("end", () => resolve(Buffer.concat(chunks)));
+    });
+
+    const result = await uploadStreamFileToS3(buffer, fileName, contentType, fileType);
+
+    console.log("Stream upload successful:", result,{
+      name: sanitized.baseName,
+      url: result.url,
+      key: result.key,
+      thumbnailUrl: result.thumbnailUrl,
+      size: contentLength,
+      mimeType: contentType,
+      fileType,
+    });
+    return {
+      name: sanitized.baseName,
+      url: result.url,
+      key: result.key,
+      thumbnailUrl: result.thumbnailUrl,
+      size: contentLength,
+      mimeType: contentType,
+      fileType,
+    };
   }
 
-  /**
-   * Emit upload complete event
-   */
+  // 🔹 Emit event on complete upload
   emitUploadComplete({
     socketId,
     fileId,
@@ -184,16 +126,12 @@ async processStreamUpload({
     });
   }
 
-  /**
-   * Emit upload error event
-   */
+  // 🔹 Emit upload error
   emitUploadError(socketId, message) {
     emitUploadError(socketId, message);
   }
 
-  /**
-   * Delete file from storage
-   */
+  // 🔹 Delete file from S3
   async deleteFile(key) {
     try {
       await deleteFileFromS3(key);
@@ -204,9 +142,7 @@ async processStreamUpload({
     }
   }
 
-  /**
-   * Get download stream for a file
-   */
+  // 🔹 Download stream
   async getDownloadStream(key) {
     try {
       return await getDownloadStreamFromS3(key);
@@ -216,9 +152,7 @@ async processStreamUpload({
     }
   }
 
-  /**
-   * Sanitize filename and generate unique key
-   */
+  // 🔹 Sanitize filename for S3-safe keys
   sanitizeFilename(originalName) {
     const name = originalName.toLowerCase();
     const extension = name.split(".").pop();
@@ -238,19 +172,12 @@ async processStreamUpload({
     };
   }
 
-  /**
-   * Detect file type from extension
-   */
-  detectFileType(filename) {
-    const ext = filename.split(".").pop().toLowerCase();
-    if (["jpg", "jpeg", "png", "gif", "webp", "bmp"].includes(ext))
-      return "image";
-    if (["mp4", "mov", "avi", "mkv", "webm", "flv"].includes(ext))
-      return "video";
-    if (
-      ["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt"].includes(ext)
-    )
-      return "document";
+  // 🔹 Detect file type from extension
+  detectFileType(ext) {
+    if (!ext) return "other";
+    if ([".jpg", ".jpeg", ".png", ".gif", ".webp"].includes(ext)) return "image";
+    if ([".mp4", ".mov", ".avi", ".mkv", ".webm"].includes(ext)) return "video";
+    if ([".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx"].includes(ext)) return "document";
     return "other";
   }
 }

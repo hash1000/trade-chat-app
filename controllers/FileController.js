@@ -1,7 +1,7 @@
 const path = require("path");
 const fs = require("fs").promises;
+const { MEMORY_LIMIT, DISK_LIMIT, STREAM_LIMIT } = require("../utilities/multer-config");
 const FileService = require("../services/FileService");
-const { MEMORY_LIMIT, DISK_LIMIT } = require("../utilities/multer-config");
 
 const fileService = new FileService();
 
@@ -12,17 +12,15 @@ class FileController {
       const fileType = req.headers["x-file-type"] || "auto";
 
       if (!contentLength) {
-        return res
-          .status(411)
-          .json({ error: "Content-Length header required" });
+        return res.status(411).json({ error: "Content-Length header required" });
       }
 
       if (contentLength <= MEMORY_LIMIT) {
-        return this.uploadShort(req, res, fileType);
+        return this.uploadShort(req, res);
       } else if (contentLength <= DISK_LIMIT) {
-        return this.uploadMedium(req, res, fileType);
+        return this.uploadMedium(req, res);
       } else {
-        return this.uploadStream(req, res, fileType);
+        return this.uploadStream(req, res);
       }
     } catch (error) {
       console.error("Upload routing error:", error);
@@ -33,7 +31,6 @@ class FileController {
     }
   }
 
-  // Small files (≤25MB): memory storage
   async uploadShort(req, res) {
     try {
       if (!req.file) {
@@ -41,16 +38,12 @@ class FileController {
       }
 
       const { buffer, originalname, mimetype, size } = req.file;
-      const fileType = req.body.type;
-      console.log("File type:", fileType);
-
-      const result = await fileService.processUpload({
-        fileData: buffer,
+      
+      const result = await fileService.processMemoryUpload({
+        buffer,
         originalname,
         mimetype,
-        size,
-        storageType: 'memory',
-        fileType,
+        size
       });
 
       res.status(200).json({
@@ -66,7 +59,6 @@ class FileController {
     }
   }
 
-  // Medium files (≤50MB): disk storage
   async uploadMedium(req, res) {
     let filePath;
     try {
@@ -76,19 +68,12 @@ class FileController {
 
       filePath = req.file.path;
       const { originalname, mimetype, size } = req.file;
-  
-      const fileType = req.body.type;
-      console.log("File type:", fileType);
 
-      // Read file into buffer for processing
-      const buffer = await fs.readFile(filePath);
-      const result = await fileService.processUpload({
-        fileData: buffer,
+      const result = await fileService.processDiskUpload({
+        filePath,
         originalname,
         mimetype,
-        size,
-        storageType: 'memory', // Still use memory processing for medium files
-        fileType,
+        size
       });
 
       res.status(200).json({
@@ -102,7 +87,6 @@ class FileController {
         details: error.message,
       });
     } finally {
-      // Clean up temp file
       if (filePath) {
         try {
           await fs.unlink(filePath);
@@ -113,68 +97,78 @@ class FileController {
     }
   }
 
-  
-async uploadStream(req, res) {
-  const socketId = req.headers["x-socket-id"];
-  const fileName = req.headers["x-file-name"] || `file_${Date.now()}`;
-  const contentLength = parseInt(req.headers["content-length"] || "0");
-  const contentType = req.headers["content-type"] || "application/octet-stream";
+  async uploadStream(req, res) {
+    const socketId = req.headers["x-socket-id"];
+    const fileName = req.headers["x-file-name"] || `file_${Date.now()}`;
+    const contentLength = parseInt(req.headers["content-length"] || "0");
+    const contentType = req.headers["content-type"] || "application/octet-stream";
 
-  if (!contentLength || !fileName || !socketId) {
-    return res.status(400).json({
-      error: "Missing headers: file-name, content-length, socket-id required",
-    });
+    if (!contentLength || !fileName || !socketId) {
+      return res.status(400).json({
+        error: "Missing headers: file-name, content-length, socket-id required",
+      });
+    }
+
+    try {
+      const result = await fileService.processStreamUpload({
+        req,
+        fileName,
+        contentType,
+        contentLength,
+        socketId
+      });
+      console.log("Stream upload successful:", result);
+
+      res.status(200).json({
+        message: "Stream upload successful",
+        data: result,
+      });
+    } catch (error) {
+      console.error("Stream upload error:", error);
+      res.status(500).json({
+        error: "Upload failed",
+        details: error.message,
+      });
+    }
   }
 
-      const fileType = req.body.type;
-      console.log("File type:", fileType);
-  try {
-    const result = await fileService.processStreamUpload({
-      req,
-      fileName,
-      contentType,
-      contentLength,
-      socketId,
-      fileType, // Auto-detect file type
-    });
 
-    console.log("Stream upload result:", result);
-    res.status(200).json({
-      message: "Stream upload successful",
-      data: result,
-    });
-  } catch (error) {
-    console.error("Stream upload error:", error);
-    if (socketId) {
-      fileService.emitUploadError(socketId, error.message);
+  async uploadStream(req, res, fileType) {
+    const socketId = req.headers["x-socket-id"];
+    const fileName = req.headers["x-file-name"] || `file_${Date.now()}`;
+    const contentLength = parseInt(req.headers["content-length"] || "0");
+    const contentType = req.headers["content-type"] || "application/octet-stream";
+
+    if (!contentLength || !fileName || !socketId) {
+      return res.status(400).json({
+        error: "Missing headers: file-name, content-length, socket-id required",
+      });
     }
-    res.status(500).json({
-      error: "Upload failed",
-      details: error.message,
-    });
-  }
-}
 
+    try {
+      const result = await fileService.processStreamUpload({
+        req,
+        fileName,
+        contentType,
+        contentLength,
+        socketId,
+        fileType: 'video',
+      });
 
-  detectFileType(filename) {
-    const ext = path.extname(filename).toLowerCase();
-    if (['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext)) {
-      return 'image';
+      res.status(200).json({
+        message: "Stream upload successful",
+        data: result,
+      });
+    } catch (error) {
+      console.error("Stream upload error:", error);
+      if (socketId) {
+        fileService.emitUploadError(socketId, error.message);
+      }
+      res.status(500).json({
+        error: "Upload failed",
+        details: error.message,
+      });
     }
-    if (['.mp4', '.mov', '.avi', '.mkv', '.webm'].includes(ext)) {
-      return 'video';
-    }
-    return 'document';
-  }
-
-  sanitizeFilename(filename) {
-    const ext = path.extname(filename);
-    const baseName = path.basename(filename, ext);
-    const cleanName = baseName.replace(/[^a-zA-Z0-9-_]/g, '_');
-    return {
-      baseName: cleanName,
-      link: `${cleanName}${ext}`
-    };
   }
 
   async deleteFile(req, res) {
@@ -207,7 +201,6 @@ async uploadStream(req, res) {
         });
       });
 
-      // Set appropriate headers
       res.setHeader(
         "Content-Disposition",
         `attachment; filename="${key.split("_").slice(2).join("_")}"`
@@ -226,7 +219,6 @@ async uploadStream(req, res) {
   async getFileInfo(req, res) {
     try {
       const { key } = req.params;
-      // In a real implementation, you might get metadata from S3
       const filename = key.split("_").slice(2).join("_");
       const fileType = fileService.detectFileType(filename);
 
@@ -234,7 +226,7 @@ async uploadStream(req, res) {
         name: filename,
         url: `${process.env.IMAGE_END_POINT}/${key}`,
         type: fileType,
-        size: null, // You would get this from S3 metadata in a real implementation
+        size: null,
         uploadedAt: new Date(parseInt(key.split("_")[0])).toISOString(),
       });
     } catch (error) {

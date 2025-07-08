@@ -102,31 +102,35 @@ const processWithFFmpeg = (inputStream, outputOptions, outputFormat) => {
   });
 };
 
-const processImage = async (buffer, originalname) => {
-  const ext = path.extname(originalname).substring(1);
-  const inputStream = bufferToStream(buffer);
+const processImage = async (buffer, originalname, fileSize) => {
+  const ext = path.extname(originalname).toLowerCase().slice(1);
+  const settings = getImageCompressionSettings(fileSize);
+  
+  // Process main image
+  const processedImage = await sharp(buffer)
+    .jpeg({ 
+      quality: settings.quality,
+      progressive: true,
+      mozjpeg: true 
+    })
+    .toBuffer();
 
-  const [processedImage, thumbnail] = await Promise.all([
-    processWithFFmpeg(bufferToStream(buffer), [
-      "-vf scale=1200:-1",
-      "-q:v 20",
-      "-f image2pipe"
-    ]),
-    processWithFFmpeg(bufferToStream(buffer), [
-      "-vf scale=300:-1",
-      "-q:v 30",
-      "-f image2pipe"
-    ])
-  ]);
+  // Generate thumbnail
+  const thumbnail = await sharp(buffer)
+    .resize(settings.thumbnailSize, settings.thumbnailSize, {
+      fit: 'inside',
+      withoutEnlargement: true
+    })
+    .jpeg({ quality: 70 })
+    .toBuffer();
 
   return {
     processedImage,
     thumbnail,
-    mimeType: "image/jpeg",
-    thumbnailMimeType: "image/jpeg"
+    mimeType: 'image/jpeg',
+    thumbnailMimeType: 'image/jpeg'
   };
 };
-
 const processVideo = async (buffer, originalname) => {
   const ext = path.extname(originalname).substring(1);
   const inputStream = bufferToStream(buffer);
@@ -151,6 +155,7 @@ const processVideo = async (buffer, originalname) => {
 
   return {
     processedVideo,
+    processImage,
     thumbnail,
     mimeType: "video/mp4",
     thumbnailMimeType: "image/jpeg"
