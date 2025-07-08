@@ -150,16 +150,29 @@ socket.on("upload-progress", (data) => {
 
         showStatus(`Uploading ${file.name} (${formatSize(file.size)})`, "info");
 
-        const response = await fetch("/api/file/large", {
-          method: "POST",
-          headers: {
-            "x-socket-id": socket.id,
-            "x-file-name": file.name,
-            "Content-Type": file.type || "application/octet-stream",
-            "Content-Length": file.size,
-          },
-          body: file,
-        });
+        // const response = await fetch("/api/file/large", {
+        //   method: "POST",
+        //   headers: {
+        //     "x-socket-id": socket.id,
+        //     "x-file-name": file.name,
+        //     "Content-Type": file.type || "application/octet-stream",
+        //     "Content-Length": file.size,
+        //   },
+        //   body: file,
+        // });
+
+        const response = await fetch(
+          "http://157.230.84.217:5000/api/file/large",
+          {
+            method: "POST",
+            headers: {
+              "x-socket-id": socket.id,
+              "x-file-name": file.name,
+              "Content-Type": file.type || "application/octet-stream",
+            },
+            body: file,
+          }
+        );
 
         if (!response.ok) {
           const error = await response.json();
