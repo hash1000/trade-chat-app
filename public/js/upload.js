@@ -169,6 +169,7 @@ socket.on("upload-progress", (data) => {
               "x-socket-id": socket.id,
               "x-file-name": file.name,
               "Content-Type": file.type || "application/octet-stream",
+              "Content-Length": file.size,
             },
             body: file,
           }
