@@ -4,7 +4,7 @@ const multer = require('multer');
 
 // Size limits
 const MEMORY_LIMIT = 25 * 1024 * 1024; // 25MB
-const DISK_LIMIT = 50 * 1024 * 1024; // 50MB
+const DISK_LIMIT = 5000 * 1024 * 1024; // 50MB
 const STREAM_LIMIT = 1024 * 1024 * 1024; // 1GB
 
 const uploadDir = path.join(__dirname, '../uploads');
