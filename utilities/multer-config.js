@@ -41,13 +41,13 @@ const fileFilter = (req, file, cb) => {
 // Upload handlers
 const uploadMemory = multer({
   storage: memoryStorage,
-  fileFilter,
+  // fileFilter,
   limits: { fileSize: MEMORY_LIMIT }
 }).single('file');
 
 const uploadDisk = multer({
   storage: diskStorage,
-  fileFilter,
+  // fileFilter,
   limits: { fileSize: DISK_LIMIT }
 }).single('file');
 
