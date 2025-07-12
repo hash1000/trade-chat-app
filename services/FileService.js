@@ -19,12 +19,8 @@ class FileService {
   }
 
   // 🔹 Handle memory-based upload (e.g., from multer memoryStorage)
-  async processMemoryUpload({ buffer, originalname, mimetype, size }) {
-    const ext = path.extname(originalname).toLowerCase();
-    const fileType = this.detectFileType(ext);
-
+  async processMemoryUpload({ buffer, originalname, mimetype, size, fileType }) {
     const result = await uploadMemoryFileToS3(buffer, originalname, mimetype, fileType);
-
     return {
       name: originalname,
       url: result.url,
@@ -37,10 +33,7 @@ class FileService {
   }
 
   // 🔹 Handle disk-based upload (e.g., multer diskStorage)
-  async processDiskUpload({ filePath, originalname, mimetype, size }) {
-    const ext = path.extname(originalname).toLowerCase();
-    const fileType = this.detectFileType(ext);
-
+  async processDiskUpload({ fileType, filePath, originalname, mimetype, size }) {
     const result = await uploadDiskFileToS3(filePath, originalname, mimetype, fileType);
 
     return {
