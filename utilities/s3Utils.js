@@ -155,7 +155,6 @@ const uploadMemoryFileToS3 = async (buffer, originalname, mimetype, fileType) =>
 
     if (fileType === 'image') {
       const thumbnailBuffer = await processImage(buffer);
-      // await fs.writeFile('debug_image_thumb.jpg', thumbnailBuffer); // Optional debug
       thumbnailUrl = await uploadToS3(thumbnailBuffer, thumbKey, 'image/jpeg');
 
       console.log(`[Image] Thumbnail uploaded: ${thumbnailUrl}`);
@@ -163,10 +162,9 @@ const uploadMemoryFileToS3 = async (buffer, originalname, mimetype, fileType) =>
 
     if (fileType === 'video') {
       const thumbnailBuffer = await processVideo(buffer);
-      // await fs.writeFile('debug_video_thumb.jpg', thumbnailBuffer); // Optional debug
       thumbnailUrl = await uploadToS3(thumbnailBuffer, thumbKey, 'image/jpeg');
 
-      console.log(`[Video] Thumbnail uploaded: ${thumbnailUrl}`);
+      console.log(`[Video] Thumbnail uploaded: ${thumbnailUrl}`); 
     }
 
   } catch (err) {
@@ -187,6 +185,7 @@ const uploadDiskFileToS3 = async (filePath, originalname, mimetype, fileType) =>
   const buffer = await fs.readFile(filePath);
   const mainKey = generateKey(originalname);
   let thumbnailUrl = null;
+  console.log("Uploading file to S3:", filePath, mimetype,fileType);
 
   // Upload original file
   await uploadToS3(buffer, mainKey, mimetype);
@@ -196,13 +195,11 @@ const uploadDiskFileToS3 = async (filePath, originalname, mimetype, fileType) =>
 
     if (fileType === 'image') {
       const thumbnailBuffer = await processImage(buffer);
-      // await fs.writeFile('debug_image_thumb_from_disk.jpg', thumbnailBuffer); // Optional debug
       thumbnailUrl = await uploadToS3(thumbnailBuffer, thumbKey, 'image/jpeg');
     }
 
     if (fileType === 'video') {
       const thumbnailBuffer = await processVideo(buffer);
-      // await fs.writeFile('debug_video_thumb_from_disk.jpg', thumbnailBuffer); // Optional debug
       thumbnailUrl = await uploadToS3(thumbnailBuffer, thumbKey, 'image/jpeg');
     }
 
@@ -216,6 +213,7 @@ const uploadDiskFileToS3 = async (filePath, originalname, mimetype, fileType) =>
     thumbnailUrl,
   };
 };
+
 
 
 module.exports = {

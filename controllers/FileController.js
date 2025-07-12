@@ -1,6 +1,10 @@
 const path = require("path");
 const fs = require("fs").promises;
-const { MEMORY_LIMIT, DISK_LIMIT, STREAM_LIMIT } = require("../utilities/multer-config");
+const {
+  MEMORY_LIMIT,
+  DISK_LIMIT,
+  STREAM_LIMIT,
+} = require("../utilities/multer-config");
 const FileService = require("../services/FileService");
 
 const fileService = new FileService();
@@ -12,7 +16,9 @@ class FileController {
       const fileType = req.headers["x-file-type"] || "auto";
 
       if (!contentLength) {
-        return res.status(411).json({ error: "Content-Length header required" });
+        return res
+          .status(411)
+          .json({ error: "Content-Length header required" });
       }
 
       if (contentLength <= MEMORY_LIMIT) {
@@ -38,12 +44,14 @@ class FileController {
       }
 
       const { buffer, originalname, mimetype, size } = req.file;
-      
+      const fileType = req.body.type;
+
       const result = await fileService.processMemoryUpload({
         buffer,
         originalname,
         mimetype,
-        size
+        size,
+        fileType,
       });
 
       res.status(200).json({
@@ -61,6 +69,7 @@ class FileController {
 
   async uploadMedium(req, res) {
     let filePath;
+    let fileType;
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
@@ -68,12 +77,14 @@ class FileController {
 
       filePath = req.file.path;
       const { originalname, mimetype, size } = req.file;
+      fileType = req.body.type;
 
       const result = await fileService.processDiskUpload({
+        fileType,
         filePath,
         originalname,
         mimetype,
-        size
+        size,
       });
 
       res.status(200).json({
@@ -87,7 +98,10 @@ class FileController {
         details: error.message,
       });
     } finally {
+      console.log("Cleaning up temporary file:", filePath);
+      // Clean up temporary file if it exists
       if (filePath) {
+        console.log("Attempting to delete file:", filePath);
         try {
           await fs.unlink(filePath);
         } catch (cleanupError) {
@@ -101,7 +115,8 @@ class FileController {
     const socketId = req.headers["x-socket-id"];
     const fileName = req.headers["x-file-name"] || `file_${Date.now()}`;
     const contentLength = parseInt(req.headers["content-length"] || "0");
-    const contentType = req.headers["content-type"] || "application/octet-stream";
+    const contentType =
+      req.headers["content-type"] || "application/octet-stream";
 
     if (!contentLength || !fileName || !socketId) {
       return res.status(400).json({
@@ -115,7 +130,7 @@ class FileController {
         fileName,
         contentType,
         contentLength,
-        socketId
+        socketId,
       });
       console.log("Stream upload successful:", result);
 
@@ -132,12 +147,12 @@ class FileController {
     }
   }
 
-
   async uploadStream(req, res, fileType) {
     const socketId = req.headers["x-socket-id"];
     const fileName = req.headers["x-file-name"] || `file_${Date.now()}`;
     const contentLength = parseInt(req.headers["content-length"] || "0");
-    const contentType = req.headers["content-type"] || "application/octet-stream";
+    const contentType =
+      req.headers["content-type"] || "application/octet-stream";
 
     if (!contentLength || !fileName || !socketId) {
       return res.status(400).json({
@@ -152,7 +167,7 @@ class FileController {
         contentType,
         contentLength,
         socketId,
-        fileType: 'video',
+        fileType: "video",
       });
 
       res.status(200).json({
