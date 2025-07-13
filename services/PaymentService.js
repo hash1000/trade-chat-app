@@ -82,73 +82,28 @@ class PaymentService {
     return this.paymentRepository.unfavouritePayment(paymentId, userId);
   }
 
-  async processTopupPayment(userId, amount, cardDetails) {
-    // Get user from database
-    const user = await WalletService.getUserWalletById(userId);
+async processTopupPayment(userId, amount) {
+  const user = await WalletService.getUserWalletById(userId);
+  console.log("User for topup:", userId, amount);
 
-    // Create or retrieve Stripe customer
-    let customer;
-    if (!user.stripeCustomerId) {
-      customer = await this.createStripeCustomer(user);
-      await WalletService.updateCustomerId(user, customer.id);
-    } else {
-      customer = await stripe.customers.retrieve(user.stripeCustomerId);
-    }
-
-    // Create payment method
-    const paymentMethod = await stripe.paymentMethods.create({
-      type: "card",
-      card: {
-        number: cardDetails.card_number,
-        exp_month: cardDetails.exp_month,
-        exp_year: cardDetails.exp_year,
-        cvc: cardDetails.cvc,
-      },
-    });
-
-    // Attach payment method to customer
-    await stripe.paymentMethods.attach(paymentMethod.id, {
-      customer: customer.id,
-    });
-
-    // Set as default payment method
-    await stripe.customers.update(customer.id, {
-      invoice_settings: {
-        default_payment_method: paymentMethod.id,
-      },
-    });
-
-    // Create payment intent
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(amount * 100), // Convert to cents
-      currency: "usd",
-      customer: customer.id,
-      payment_method: paymentMethod.id,
-      confirm: true,
-      off_session: true,
-      metadata: {
-        userId: user.id,
-        purpose: "wallet_topup",
-      },
-      description: `Wallet top-up for ${user.email}`,
-    });
-
-    // Create transaction record
-    const transaction = await paymentRepository.createTransaction({
+  const paymentIntent = await stripe.paymentIntents.create({
+    amount: Math.round(amount * 100), // USD cents
+    currency: "usd",
+    metadata: {
       userId: user.id,
-      stripePaymentIntentId: paymentIntent.id,
-      amount: amount,
-      type: "topup",
-      status: paymentIntent.status,
-      paymentMethod: "card",
-    });
-    return {
-      paymentIntentId: paymentIntent.id,
-      status: paymentIntent.status,
-      amount: amount,
-      transaction: transaction,
-    };
-  }
+      purpose: "wallet_topup",
+    },
+    description: `Wallet top-up for ${user.email}`,
+  });
+
+  // You can save the paymentIntent.id if needed for later tracking
+
+  return {
+    clientSecret: paymentIntent.client_secret,
+    amount,
+  };
+}
+
 }
 
 module.exports = PaymentService;

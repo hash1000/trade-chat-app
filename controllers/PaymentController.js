@@ -225,43 +225,36 @@ class PaymentController {
       res.status(500).json({ error: "Internal server error" });
     }
   }
+  
+async initiateTopup(req, res) {
+  try {
+    const { amount } = req.body;
+    const { id: userId } = req.user;
 
-  async initiateTopup(req, res) {
-    try {
-      const { amount, cardDetails } = req.body;
-      const { id: userId } = req.user;
-
-      // Validate input
-      if (!amount || isNaN(amount) || amount <= 0) {
-        return res.status(400).json({ message: "Invalid amount" });
-      }
-
-      if (!cardDetails || !cardDetails.card_number || !cardDetails.exp_month || !cardDetails.exp_year || !cardDetails.cvc) {
-        return res.status(400).json({ message: "Invalid card details" });
-      }
-
-      // Process payment
-      const paymentResult = await paymentService.processTopupPayment(userId, amount, cardDetails);
-
-      // Return success response
-      return res.json({
-        success: true,
-        message: "Topup initiated successfully",
-        data: {
-          paymentIntentId: paymentResult.paymentIntentId,
-          amount: amount,
-          status: paymentResult.status
-        }
-      });
-    } catch (error) {
-      console.error("Topup error:", error);
-      res.status(error.statusCode || 500).json({ 
-        success: false,
-        message: error.message,
-        code: error.code || 'payment_error'
-      });
+    if (!amount || isNaN(amount) || amount <= 0) {
+      return res.status(400).json({ message: "Invalid amount" });
     }
+
+    const result = await paymentService.processTopupPayment(userId, amount);
+
+    return res.json({
+      success: true,
+      message: "Topup intent created successfully",
+      data: {
+        clientSecret: result.clientSecret,
+        amount: result.amount,
+      }
+    });
+  } catch (error) {
+    console.error("Topup error:", error);
+    res.status(error.statusCode || 500).json({
+      success: false,
+      message: error.message,
+      code: error.code || 'payment_error'
+    });
   }
+}
+
 
 //  webhook
   async handleWebhook(req, res) {

@@ -165,14 +165,6 @@ class FileService {
     };
   }
 
-  // 🔹 Detect file type from extension
-  detectFileType(ext) {
-    if (!ext) return "other";
-    if ([".jpg", ".jpeg", ".png", ".gif", ".webp"].includes(ext)) return "image";
-    if ([".mp4", ".mov", ".avi", ".mkv", ".webm"].includes(ext)) return "video";
-    if ([".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx"].includes(ext)) return "document";
-    return "other";
-  }
 }
 
 module.exports = FileService;
