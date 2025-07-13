@@ -1,134 +1,229 @@
-const { PassThrough } = require('stream');
-const ffmpeg = require('fluent-ffmpeg');
-const sharp = require('sharp');
-const archiver = require('archiver');
-
-const { S3Client, DeleteObjectCommand } = require("@aws-sdk/client-s3");
+// ✅ FILE: utilities/s3Utils.js
+const {
+  S3Client
+} = require("@aws-sdk/client-s3");
 const { Upload } = require("@aws-sdk/lib-storage");
+const { PassThrough } = require("stream");
+const path = require("path");
+const ffmpeg = require("fluent-ffmpeg");
+const ffmpegPath = require("ffmpeg-static");
+const fs = require("fs").promises;
+const tmp = require("tmp-promise");
 
-// Configure S3 client
+ffmpeg.setFfmpegPath(ffmpegPath);
+
 const s3Client = new S3Client({
   endpoint: process.env.SPACES_END_POINT,
   region: process.env.SPACES_REGION,
-  forcePathStyle: false,
   credentials: {
     accessKeyId: process.env.SPACES_ACCESS_KEY,
     secretAccessKey: process.env.SPACES_SECRET,
   },
 });
 
-// === Helper functions ===
-const isLargeFile = (size) => size > 500 * 1024 * 1024;
-
-const processVideoStream = (inputStream, ext) => {
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    const outputStream = new PassThrough();
-    
-    ffmpeg(inputStream)
-      .outputOptions("-crf 28")
-      .format(ext)
-      .pipe(outputStream)
-      .on('data', chunk => chunks.push(chunk))
-      .on('end', () => resolve(Buffer.concat(chunks)))
-      .on('error', reject);
-  });
+const generateKey = (originalname) => {
+  const ext = path.extname(originalname).toLowerCase();
+  const base = path.basename(originalname, ext).replace(/[^a-z0-9]/gi, "_");
+  return `${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${base}${ext}`;
 };
 
-const processImageStream = (inputStream) => {
-  const transformer = sharp().jpeg({ quality: 70 });
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    inputStream.pipe(transformer)
-      .on('data', chunk => chunks.push(chunk))
-      .on('end', () => resolve(Buffer.concat(chunks)))
-      .on('error', reject);
-  });
-};
-
-const zipStream = (inputStream, originalname) => {
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    const archive = archiver('zip', { zlib: { level: 9 } });
-    
-    archive.on('data', chunk => chunks.push(chunk));
-    archive.on('end', () => resolve(Buffer.concat(chunks)));
-    archive.on('error', reject);
-    
-    archive.append(inputStream, { name: originalname });
-    archive.finalize();
-  });
-};
-
-// === Upload function ===
-const uploadFileToS3 = async (fileStream, originalname, mimetype, fileSize) => {
-  let ext = originalname.split('.').pop().toLowerCase();
-  let processedStream = fileStream;
-  let finalName = originalname;
-  let finalMime = mimetype;
+const processImage = async (buffer) => {
+  const { path: tmpInputPath, cleanup } = await tmp.file({ postfix: ".jpg" });
+  const { path: tmpOutputPath } = await tmp.file({ postfix: ".jpg" });
 
   try {
-    // For large files, process them in memory without disk storage
-    if (isLargeFile(fileSize)) {
-      console.log(`Large file detected (${fileSize} bytes). Processing: ${originalname}`);
+    await fs.writeFile(tmpInputPath, buffer);
 
-      if (mimetype.startsWith('video/')) {
-        console.log("jhdjkhsda");
-        processedStream = await processVideoStream(fileStream, ext);
-      } else if (mimetype.startsWith('image/')) {
-        processedStream = await processImageStream(fileStream);
-      } else {
-        processedStream = await zipStream(fileStream, originalname);
-        finalName += '.zip';
-        ext = 'zip';
-        finalMime = 'application/zip';
-      }
-    }
-
-    const key = `${Date.now()}-${Math.round(Math.random() * 1e9)}.${ext}`;
-
-    const upload = new Upload({
-      client: s3Client,
-      params: {
-        Bucket: process.env.SPACES_BUCKET_NAME,
-        Key: key,
-        Body: processedStream,
-        ACL: 'public-read',
-        ContentType: finalMime,
-      },
+    await new Promise((resolve, reject) => {
+      ffmpeg(tmpInputPath)
+        .outputOptions(["-vf", "scale=300:-1", "-q:v", "7"])
+        .output(tmpOutputPath)
+        .on("start", (cmd) => console.log("FFmpeg command:", cmd))
+        .on("end", resolve)
+        .on("error", reject)
+        .run();
     });
 
-    const result = await upload.done();
-    console.log("Upload successful:", key);
-
-    return {
-      title: finalName,
-      url: `${process.env.IMAGE_END_POINT}/${key}`,
-      key,
-    };
-  } catch (error) {
-    console.error('Upload Error:', error);
-    throw new Error('File processing failed');
+    return await fs.readFile(tmpOutputPath);
+  } finally {
+    await cleanup();
   }
 };
 
-const deleteFileFromS3 = async (key) => {
+const processVideo = async (buffer) => {
+  const { path: tmpInputPath, cleanup } = await tmp.file({ postfix: '.mp4' });
+  const { path: tmpOutputPath } = await tmp.file({ postfix: '.jpg' });
+
   try {
-    await s3Client.send(
-      new DeleteObjectCommand({
-        Bucket: process.env.SPACES_BUCKET_NAME,
-        Key: key,
-      })
-    );
-    return true;
-  } catch (error) {
-    console.error('Delete Error:', error);
-    throw new Error('Failed to delete file from S3');
+    // Save buffer to temp file
+    await fs.writeFile(tmpInputPath, buffer);
+
+    // Use FFmpeg to extract thumbnail from temp file
+    await new Promise((resolve, reject) => {
+      ffmpeg(tmpInputPath)
+        .seekInput(1) // 1 second into video
+        .outputOptions(["-vframes", "1", "-vf", "scale=300:-1", "-q:v", "4"])
+        .output(tmpOutputPath)
+        .on("start", (cmd) => console.log("FFmpeg video command:", cmd))
+        .on("end", resolve)
+        .on("error", reject)
+        .run();
+    });
+
+    return await fs.readFile(tmpOutputPath);
+  } finally {
+    await cleanup();
   }
 };
 
-module.exports = { 
-  s3Client, 
-  uploadFileToS3, 
-  deleteFileFromS3 
+
+const bufferToStream = (buffer) => {
+  const stream = new PassThrough();
+  stream.end(buffer);
+  return stream;
+};
+
+const uploadToS3 = async (body, key, contentType) => {
+  const upload = new Upload({
+    client: s3Client,
+    params: {
+      Bucket: process.env.SPACES_BUCKET_NAME,
+      Key: key,
+      Body: body,
+      ContentType: contentType,
+      ACL: "public-read",
+      CacheControl: "public, max-age=31536000",
+    },
+  });
+  await upload.done();
+  return `${process.env.IMAGE_END_POINT}/${key}`;
+};
+
+const uploadStreamToS3 = async (stream, key, contentType, contentLength, progressCallback) => {
+  const upload = new Upload({
+    client: s3Client,
+    params: {
+      Bucket: process.env.SPACES_BUCKET_NAME,
+      Key: key,
+      Body: stream,
+      ContentType: contentType,
+      ACL: "public-read",
+    },
+    queueSize: 4,
+    partSize: 5 * 1024 * 1024,
+  });
+  upload.on("httpUploadProgress", (progress) => {
+    if (progressCallback) progressCallback(progress);
+  });
+  return upload;
+};
+
+const uploadStreamFileToS3 = async (buffer, originalname, mimetype, fileType = 'video') => {
+  const mainKey = generateKey(originalname);
+  let thumbnailUrl = null;
+
+  await uploadToS3(buffer, mainKey, mimetype);
+
+  try {
+    const thumbKey = `${path.parse(mainKey).name}_thumb.jpg`;
+    const thumbnailBuffer = fileType === 'image'
+      ? await processImage(buffer)
+      : await processVideo(buffer);
+
+    thumbnailUrl = await uploadToS3(thumbnailBuffer, thumbKey, 'image/jpeg');
+  } catch (err) {
+    console.error('Thumbnail generation failed:', err);
+  }
+
+  return {
+    url: `${process.env.IMAGE_END_POINT}/${mainKey}`,
+    key: mainKey,
+    thumbnailUrl,
+  };
+  
+};
+
+const uploadMemoryFileToS3 = async (buffer, originalname, mimetype, fileType) => {
+  const mainKey = generateKey(originalname);
+  let thumbnailUrl = null;
+
+  // Upload original file to S3
+  await uploadToS3(buffer, mainKey, mimetype);
+
+  try {
+    const thumbKey = `${path.parse(mainKey).name}_thumb.jpg`;
+
+    if (fileType === 'image') {
+      const thumbnailBuffer = await processImage(buffer);
+      thumbnailUrl = await uploadToS3(thumbnailBuffer, thumbKey, 'image/jpeg');
+
+      console.log(`[Image] Thumbnail uploaded: ${thumbnailUrl}`);
+    }
+
+    if (fileType === 'video') {
+      const thumbnailBuffer = await processVideo(buffer);
+      thumbnailUrl = await uploadToS3(thumbnailBuffer, thumbKey, 'image/jpeg');
+
+      console.log(`[Video] Thumbnail uploaded: ${thumbnailUrl}`); 
+    }
+
+  } catch (err) {
+    console.error('Thumbnail generation failed:', err.message);
+  }
+
+  return {
+    url: `${process.env.IMAGE_END_POINT}/${mainKey}`,
+    key: mainKey,
+    thumbnailUrl,
+    size: buffer.length,
+    mimeType: mimetype,
+    fileType
+  };
+};
+
+const uploadDiskFileToS3 = async (filePath, originalname, mimetype, fileType) => {
+  const buffer = await fs.readFile(filePath);
+  const mainKey = generateKey(originalname);
+  let thumbnailUrl = null;
+  console.log("Uploading file to S3:", filePath, mimetype,fileType);
+
+  // Upload original file
+  await uploadToS3(buffer, mainKey, mimetype);
+
+  try {
+    const thumbKey = `${path.parse(mainKey).name}_thumb.jpg`;
+
+    if (fileType === 'image') {
+      const thumbnailBuffer = await processImage(buffer);
+      thumbnailUrl = await uploadToS3(thumbnailBuffer, thumbKey, 'image/jpeg');
+    }
+
+    if (fileType === 'video') {
+      const thumbnailBuffer = await processVideo(buffer);
+      thumbnailUrl = await uploadToS3(thumbnailBuffer, thumbKey, 'image/jpeg');
+    }
+
+  } catch (err) {
+    console.error('Disk upload thumbnail failed:', err.message);
+  }
+
+  return {
+    url: `${process.env.IMAGE_END_POINT}/${mainKey}`,
+    key: mainKey,
+    thumbnailUrl,
+  };
+};
+
+
+
+module.exports = {
+  uploadToS3,
+  uploadStreamToS3,
+  uploadStreamFileToS3,
+  processImage,
+  processVideo,
+  bufferToStream,
+  uploadMemoryFileToS3,
+  uploadDiskFileToS3,
+  generateKey
 };

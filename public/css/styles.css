@@ -1,0 +1,25 @@
+body {
+  background-color: #f8f9fa;
+}
+
+.card {
+  max-width: 600px;
+  margin: 0 auto;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.progress {
+  height: 25px;
+}
+
+.progress-bar {
+  transition: width 0.3s ease;
+}
+
+#uploadResult {
+  word-break: break-all;
+}
+
+.alert {
+  margin-top: 10px;
+}
