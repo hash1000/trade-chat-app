@@ -1,69 +1,50 @@
-const express = require("express");
+const express = require('express');
 const router = express.Router();
-const { uploadSingle } = require("../utilities/multer-config");
-const { uploadFileToS3, deleteFileFromS3 } = require("../utilities/s3Utils");
-const authMiddleware = require("../middlewares/authenticate");
+const { uploadMemory, uploadDisk } = require('../utilities/multer-config');
+const authMiddleware = require('../middlewares/authenticate');
+const multerHandler = require('../middlewares/multerHandler');
+const FileController = require('../controllers/FileController');
 
-// Unified upload endpoint
-router.post("/", uploadSingle, async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: "No file uploaded" });
-    }
+const fileController = new FileController();
+const MEMORY_LIMIT = 25 * 1024 * 1024;
+const DISK_LIMIT = 50 * 1024 * 1024;
 
-    const { buffer, originalname, mimetype } = req.file;
-    const result = await uploadFileToS3(buffer, originalname, mimetype);
+router.post('/upload', authMiddleware, async (req, res) => {
+  // const contentLength = parseInt(req.headers['content-length'] || '0');
 
-    res.status(200).json({
-      message: "File uploaded successfully",
-      data: result
+  // if (!req.headers['content-length']) {
+  //   return res.status(411).json({ error: 'Content-Length header required' });
+  // }
+console.log("Content-Length:", req.headers['content-length']);
+  if (contentLength <= MEMORY_LIMIT) {
+    uploadMemory(req, res, (err) => {
+      if (err) return res.status(400).json({ error: 'Upload failed', details: err.message });
+      console.log("Memory upload successful");
+      fileController.uploadShort(req, res);
     });
-  } catch (error) {
-    console.error("Upload error:", error);
-    res.status(500).json({ 
-      error: "File upload failed",
-      details: error.message 
+  } else if (contentLength <= DISK_LIMIT) {
+    uploadDisk(req, res, (err) => {
+      if (err) return res.status(400).json({ error: 'Upload failed', details: err.message });
+      console.log("Disk upload successful");
+      fileController.uploadMedium(req, res);
     });
+  } else {
+    console.log("stream upload successful");
+    fileController.uploadStream(req, res);
   }
 });
 
-// Delete endpoint
-router.delete("/:key", authMiddleware, async (req, res) => {
-  try {
-    const { key } = req.params;
-    await deleteFileFromS3(key);
-    res.status(200).json({ message: "File deleted successfully" });
-  } catch (error) {
-    console.error("Delete error:", error);
-    res.status(500).json({ 
-      error: "File deletion failed",
-      details: error.message 
-    });
-  }
-});
+// Direct routes (optional use case)
+router.post(
+  '/short',
+  multerHandler(uploadMemory, 'File exceeds 25MB limit. Use /medium or /large.'),
+  fileController.uploadShort
+);
 
-// Download endpoint
-router.get("/download/:key", authMiddleware, async (req, res) => {
-  try {
-    const { key } = req.params;
-    const command = new GetObjectCommand({
-      Bucket: process.env.SPACES_BUCKET_NAME,
-      Key: key,
-    });
+router.post('/medium', multerHandler(uploadDisk, 'File exceeds 50MB limit. Use /large.'), fileController.uploadMedium.bind(fileController));
+router.post('/large', fileController.uploadStream.bind(fileController));
 
-    const { Body, ContentType } = await s3Client.send(command);
-    
-    res.setHeader("Content-Type", ContentType);
-    res.setHeader("Content-Disposition", `attachment; filename="${key}"`);
-    
-    Body.pipe(res);
-  } catch (error) {
-    console.error("Download error:", error);
-    res.status(500).json({ 
-      error: "File download failed",
-      details: error.message 
-    });
-  }
-});
+router.delete('/:key', fileController.deleteFile.bind(fileController));
+router.get('/download/:key', fileController.downloadFile.bind(fileController));
 
 module.exports = router;

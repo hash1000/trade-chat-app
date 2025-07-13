@@ -1,68 +1,60 @@
-const multer = require("multer");
-const {
-  MAX_FILE_SIZE,
-  ALLOWED_FILE_TYPES,
-  ALLOWED_EXTENSIONS,
-} = require("./file-config");
+const fs = require('fs');
+const path = require('path');
+const multer = require('multer');
 
-// Configure memory storage
-const storage = multer.memoryStorage();
+// Size limits
+const MEMORY_LIMIT = 25 * 1024 * 1024; // 25MB
+const DISK_LIMIT = 5000 * 1024 * 1024; // 50MB
+const STREAM_LIMIT = 1024 * 1024 * 1024; // 1GB
 
-// Enhanced file filter
+const uploadDir = path.join(__dirname, '../uploads');
+
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const diskStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, `${Date.now()}${ext}`);
+  }
+});
+
+// Storage instances
+const memoryStorage = multer.memoryStorage();
+
+// File filter
 const fileFilter = (req, file, cb) => {
-  try {
-    const ext = `.${file.originalname.split(".").pop().toLowerCase()}`;
-    const mimeType = file.mimetype;
-
-    const isAllowedType =
-      ALLOWED_FILE_TYPES.includes(mimeType) || ALLOWED_EXTENSIONS.includes(ext);
-
-    if (isAllowedType) {
-      cb(null, true);
-    } else {
-      cb(
-        new Error(
-          `Invalid file type. Only ${ALLOWED_FILE_TYPES.join(
-            ", "
-          )} files are allowed.`
-        )
-      );
-    }
-  } catch (err) {
-    cb(err);
+  const ext = path.extname(file.originalname).toLowerCase();
+  const allowedTypes = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.mp4', '.mov', '.avi', '.pdf', '.doc', '.docx'];
+  
+  if (allowedTypes.includes(ext)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Invalid file type'), false);
   }
 };
 
-// Upload handlers with proper limits
-const uploadSingle = multer({
-  storage,
+// Upload handlers
+const uploadMemory = multer({
+  storage: memoryStorage,
   // fileFilter,
-  // limits: { fileSize: MAX_FILE_SIZE }
-}).single("file");
+  limits: { fileSize: MEMORY_LIMIT }
+}).single('file');
 
-const uploadMultiple = multer({
-  storage,
+const uploadDisk = multer({
+  storage: diskStorage,
   // fileFilter,
-  limits: {
-    fileSize: MAX_FILE_SIZE,
-    files: 5,
-  },
-}).array("files", 5);
-
-const uploadFields = multer({
-  storage,
-  // fileFilter,
-  limits: {
-    fileSize: MAX_FILE_SIZE,
-    files: 10,
-  },
-}).fields([
-  { name: "images", maxCount: 5 },
-  { name: "documents", maxCount: 5 },
-]);
+  limits: { fileSize: DISK_LIMIT }
+}).single('file');
 
 module.exports = {
-  uploadSingle,
-  uploadMultiple,
-  uploadFields,
+  uploadMemory,
+  uploadDisk,
+  MEMORY_LIMIT,
+  DISK_LIMIT,
+  STREAM_LIMIT
 };
