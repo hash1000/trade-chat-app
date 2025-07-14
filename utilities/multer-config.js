@@ -27,11 +27,9 @@ const diskStorage = multer.diskStorage({
 const memoryStorage = multer.memoryStorage();
 
 // File filter
-const fileFilter = (req, file, cb) => {
-  const ext = path.extname(file.originalname).toLowerCase();
-  const allowedTypes = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.mp4', '.mov', '.avi', '.pdf', '.doc', '.docx'];
-  
-  if (allowedTypes.includes(ext)) {
+const videoFileFilter = (req, cb) => {
+  const fileType= req.body.type;
+  if (fileType === 'video') {
     cb(null, true);
   } else {
     cb(new Error('Invalid file type'), false);
@@ -51,9 +49,16 @@ const uploadDisk = multer({
   limits: { fileSize: DISK_LIMIT }
 }).single('file');
 
+const uploadDiskCloudinary = multer({
+  storage: diskStorage,
+  videoFileFilter,
+  limits: { fileSize: DISK_LIMIT }
+}).single('file');
+
 module.exports = {
   uploadMemory,
   uploadDisk,
+  uploadDiskCloudinary,
   MEMORY_LIMIT,
   DISK_LIMIT,
   STREAM_LIMIT

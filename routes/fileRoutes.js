@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { uploadMemory, uploadDisk } = require('../utilities/multer-config');
+const { uploadMemory, uploadDisk, uploadDiskCloudinary } = require('../utilities/multer-config');
 const authMiddleware = require('../middlewares/authenticate');
 const multerHandler = require('../middlewares/multerHandler');
 const FileController = require('../controllers/FileController');
@@ -43,6 +43,11 @@ router.post(
 
 router.post('/medium', multerHandler(uploadDisk, 'File exceeds 50MB limit. Use /large.'), fileController.uploadMedium.bind(fileController));
 router.post('/large', fileController.uploadStream.bind(fileController));
+router.post(
+  '/cloudinary', 
+  multerHandler(uploadDiskCloudinary, 'File must be a video'), 
+  fileController.uploadToCloudinary.bind(fileController)
+);
 
 router.delete('/:key', fileController.deleteFile.bind(fileController));
 router.get('/download/:key', fileController.downloadFile.bind(fileController));
