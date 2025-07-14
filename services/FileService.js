@@ -1,26 +1,45 @@
+// ✅ FILE: services/fileService.js
 const path = require("path");
 const { PassThrough } = require("stream");
+const fs = require("fs").promises;
 const {
   uploadMemoryFileToS3,
   uploadDiskFileToS3,
   uploadStreamFileToS3,
   deleteFileFromS3,
-  getDownloadStreamFromS3,
+  getDownloadStreamFromS3
 } = require("../utilities/s3Utils");
+const {
+  uploadToCloudinaryWithThumbnail,
+  MIN_VIDEO_SIZE,
+  MAX_VIDEO_SIZE
+} = require("../utilities/cloudinaryUtils");
 const {
   emitUploadProgress,
   emitUploadComplete,
-  emitUploadError,
+  emitUploadError
 } = require("../utilities/socketUtils");
 
+// const { uploadLargeVideo } = require("../utilities/cloudinaryUtils");
 class FileService {
   constructor() {
     this.uploadProgress = {};
   }
 
   // 🔹 Handle memory-based upload (e.g., from multer memoryStorage)
-  async processMemoryUpload({ buffer, originalname, mimetype, size, fileType }) {
-    const result = await uploadMemoryFileToS3(buffer, originalname, mimetype, fileType);
+  async processMemoryUpload({
+    buffer,
+    originalname,
+    mimetype,
+    size,
+    fileType,
+  }) {
+    const result = await uploadMemoryFileToS3(
+      buffer,
+      originalname,
+      mimetype,
+      fileType
+    );
     return {
       name: originalname,
       url: result.url,
@@ -33,8 +52,19 @@ class FileService {
   }
 
   // 🔹 Handle disk-based upload (e.g., multer diskStorage)
-  async processDiskUpload({ fileType, filePath, originalname, mimetype, size }) {
-    const result = await uploadDiskFileToS3(filePath, originalname, mimetype, fileType);
+  async processDiskUpload({
+    fileType,
+    filePath,
+    originalname,
+    mimetype,
+    size,
+  }) {
+    const result = await uploadDiskFileToS3(
+      filePath,
+      originalname,
+      mimetype,
+      fileType
+    );
 
     return {
       name: originalname,
@@ -48,7 +78,13 @@ class FileService {
   }
 
   // 🔹 Handle streaming upload (chunked stream + buffer for thumbnail)
-  async processStreamUpload({ req, fileName, contentType, contentLength, socketId }) {
+  async processStreamUpload({
+    req,
+    fileName,
+    contentType,
+    contentLength,
+    socketId,
+  }) {
     const ext = path.extname(fileName).toLowerCase();
     const fileType = this.detectFileType(ext);
     const sanitized = this.sanitizeFilename(fileName);
@@ -63,7 +99,9 @@ class FileService {
       if (socketId && contentLength) {
         emitUploadProgress(socketId, {
           fileId: sanitized.link,
-          progress: Math.floor((Buffer.concat(chunks).length / contentLength) * 100),
+          progress: Math.floor(
+            (Buffer.concat(chunks).length / contentLength) * 100
+          ),
         });
       }
     });
@@ -74,17 +112,13 @@ class FileService {
       req.on("end", () => resolve(Buffer.concat(chunks)));
     });
 
-    const result = await uploadStreamFileToS3(buffer, fileName, contentType, fileType);
+    const result = await uploadStreamFileToS3(
+      buffer,
+      fileName,
+      contentType,
+      fileType
+    );
 
-    console.log("Stream upload successful:", result,{
-      name: sanitized.baseName,
-      url: result.url,
-      key: result.key,
-      thumbnailUrl: result.thumbnailUrl,
-      size: contentLength,
-      mimeType: contentType,
-      fileType,
-    });
     return {
       name: sanitized.baseName,
       url: result.url,
@@ -94,6 +128,30 @@ class FileService {
       mimeType: contentType,
       fileType,
     };
+  }
+
+  validateVideoSize(fileSize) {
+    if (fileSize < MIN_VIDEO_SIZE) {
+      throw new Error(`Video must be at least ${MIN_VIDEO_SIZE/1024/1024}MB`);
+    }
+    if (fileSize > MAX_VIDEO_SIZE) {
+      throw new Error(`Video cannot exceed ${MAX_VIDEO_SIZE/1024/1024/1024}GB`);
+    }
+    return true;
+  }
+
+  // 🔹 Process Cloudinary upload with validation
+  async processCloudinaryUpload({ file, type }) {
+    try {
+      if (type === 'video') {
+        const fileSize = file.size || (await fs.stat(file.path)).size;
+        this.validateVideoSize(fileSize);
+      }
+      return await uploadToCloudinaryWithThumbnail(file, type);
+    } catch (error) {
+      console.error('Cloudinary upload error:', error);
+      throw error;
+    }
   }
 
   // 🔹 Emit event on complete upload
@@ -164,7 +222,6 @@ class FileService {
       link,
     };
   }
-
 }
 
 module.exports = FileService;

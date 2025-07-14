@@ -147,40 +147,105 @@ class FileController {
     }
   }
 
-  async uploadStream(req, res, fileType) {
-    const socketId = req.headers["x-socket-id"];
-    const fileName = req.headers["x-file-name"] || `file_${Date.now()}`;
-    const contentLength = parseInt(req.headers["content-length"] || "0");
-    const contentType =
-      req.headers["content-type"] || "application/octet-stream";
+  // async uploadStream(req, res, fileType) {
+  //   const socketId = req.headers["x-socket-id"];
+  //   const fileName = req.headers["x-file-name"] || `file_${Date.now()}`;
+  //   const contentLength = parseInt(req.headers["content-length"] || "0");
+  //   const contentType =
+  //     req.headers["content-type"] || "application/octet-stream";
 
-    if (!contentLength || !fileName || !socketId) {
-      return res.status(400).json({
-        error: "Missing headers: file-name, content-length, socket-id required",
-      });
-    }
+  //   if (!contentLength || !fileName || !socketId) {
+  //     return res.status(400).json({
+  //       error: "Missing headers: file-name, content-length, socket-id required",
+  //     });
+  //   }
 
+  //   try {
+  //     const result = await fileService.processStreamUpload({
+  //       req,
+  //       fileName,
+  //       contentType,
+  //       contentLength,
+  //       socketId,
+  //       fileType: "video",
+  //     });
+
+  //     res.status(200).json({
+  //       message: "Stream upload successful",
+  //       data: result,
+  //     });
+  //   } catch (error) {
+  //     console.error("Stream upload error:", error);
+  //     if (socketId) {
+  //       fileService.emitUploadError(socketId, error.message);
+  //     }
+  //     res.status(500).json({
+  //       error: "Upload failed",
+  //       details: error.message,
+  //     });
+  //   }
+  // }
+  async uploadToCloudinary(req, res) {
+    let filePath;
     try {
-      const result = await fileService.processStreamUpload({
-        req,
-        fileName,
-        contentType,
-        contentLength,
-        socketId,
-        fileType: "video",
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+filePath = req.file.path;
+      const result = await fileService.processCloudinaryUpload({
+        file: req.file,
+        type: req.body.type
       });
 
-      res.status(200).json({
-        message: "Stream upload successful",
+     res.status(200).json({
+        message: "File uploaded successfully",
         data: result,
       });
     } catch (error) {
-      console.error("Stream upload error:", error);
-      if (socketId) {
-        fileService.emitUploadError(socketId, error.message);
-      }
+      console.error("Medium upload error:", error);
       res.status(500).json({
-        error: "Upload failed",
+        error: "File upload failed",
+        details: error.message,
+      });
+    } finally {
+      console.log("Cleaning up temporary file:", filePath);
+      // Clean up temporary file if it exists
+      if (filePath) {
+        console.log("Attempting to delete file:", filePath);
+        try {
+          await fs.unlink(filePath);
+        } catch (cleanupError) {
+          console.warn("Failed to clean up temp file:", cleanupError);
+        }
+      }
+    }
+  }
+
+  async uploadLargeVideo(req, res) {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      const { buffer, originalname, mimetype, size } = req.file;
+      const fileType = req.body.type;
+
+      const result = await fileService.processCloudinaryUpload({
+        buffer,
+        originalname,
+        mimetype,
+        size,
+        fileType,
+      });
+
+      res.status(200).json({
+        message: "File uploaded successfully",
+        data: result,
+      });
+    } catch (error) {
+      console.error("Large video upload error:", error);
+      res.status(500).json({
+        error: "File upload failed",
         details: error.message,
       });
     }

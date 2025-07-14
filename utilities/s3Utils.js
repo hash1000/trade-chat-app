@@ -9,6 +9,7 @@ const ffmpeg = require("fluent-ffmpeg");
 const ffmpegPath = require("ffmpeg-static");
 const fs = require("fs").promises;
 const tmp = require("tmp-promise");
+const sharp = require('sharp');
 
 ffmpeg.setFfmpegPath(ffmpegPath);
 
@@ -28,25 +29,21 @@ const generateKey = (originalname) => {
 };
 
 const processImage = async (buffer) => {
-  const { path: tmpInputPath, cleanup } = await tmp.file({ postfix: ".jpg" });
-  const { path: tmpOutputPath } = await tmp.file({ postfix: ".jpg" });
-
   try {
-    await fs.writeFile(tmpInputPath, buffer);
-
-    await new Promise((resolve, reject) => {
-      ffmpeg(tmpInputPath)
-        .outputOptions(["-vf", "scale=300:-1", "-q:v", "7"])
-        .output(tmpOutputPath)
-        .on("start", (cmd) => console.log("FFmpeg command:", cmd))
-        .on("end", resolve)
-        .on("error", reject)
-        .run();
-    });
-
-    return await fs.readFile(tmpOutputPath);
-  } finally {
-    await cleanup();
+    return await sharp(buffer)
+      .resize(144, 144, {
+        fit: 'inside',
+        withoutEnlargement: true
+      })
+      .blur(1)
+      .jpeg({
+        quality: 40,
+        mozjpeg: true
+      })
+      .toBuffer();
+  } catch (err) {
+    console.error('Sharp processing error:', err);
+    throw err;
   }
 };
 
@@ -55,14 +52,12 @@ const processVideo = async (buffer) => {
   const { path: tmpOutputPath } = await tmp.file({ postfix: '.jpg' });
 
   try {
-    // Save buffer to temp file
     await fs.writeFile(tmpInputPath, buffer);
 
-    // Use FFmpeg to extract thumbnail from temp file
     await new Promise((resolve, reject) => {
       ffmpeg(tmpInputPath)
-        .seekInput(1) // 1 second into video
-        .outputOptions(["-vframes", "1", "-vf", "scale=300:-1", "-q:v", "4"])
+        .seekInput(1)
+        .outputOptions(["-vframes", "1", "-vf", "scale=144:144", "-q:v", "4"])
         .output(tmpOutputPath)
         .on("start", (cmd) => console.log("FFmpeg video command:", cmd))
         .on("end", resolve)
@@ -70,12 +65,19 @@ const processVideo = async (buffer) => {
         .run();
     });
 
-    return await fs.readFile(tmpOutputPath);
+    // Process the extracted frame with sharp for blur and quality
+    const frameBuffer = await fs.readFile(tmpOutputPath);
+    return await sharp(frameBuffer)
+      .blur(1)
+      .jpeg({
+        quality: 40,
+        mozjpeg: true
+      })
+      .toBuffer();
   } finally {
     await cleanup();
   }
 };
-
 
 const bufferToStream = (buffer) => {
   const stream = new PassThrough();
@@ -140,14 +142,12 @@ const uploadStreamFileToS3 = async (buffer, originalname, mimetype, fileType = '
     key: mainKey,
     thumbnailUrl,
   };
-  
 };
 
 const uploadMemoryFileToS3 = async (buffer, originalname, mimetype, fileType) => {
   const mainKey = generateKey(originalname);
   let thumbnailUrl = null;
 
-  // Upload original file to S3
   await uploadToS3(buffer, mainKey, mimetype);
 
   try {
@@ -156,14 +156,12 @@ const uploadMemoryFileToS3 = async (buffer, originalname, mimetype, fileType) =>
     if (fileType === 'image') {
       const thumbnailBuffer = await processImage(buffer);
       thumbnailUrl = await uploadToS3(thumbnailBuffer, thumbKey, 'image/jpeg');
-
       console.log(`[Image] Thumbnail uploaded: ${thumbnailUrl}`);
     }
 
     if (fileType === 'video') {
       const thumbnailBuffer = await processVideo(buffer);
       thumbnailUrl = await uploadToS3(thumbnailBuffer, thumbKey, 'image/jpeg');
-
       console.log(`[Video] Thumbnail uploaded: ${thumbnailUrl}`); 
     }
 
@@ -185,9 +183,8 @@ const uploadDiskFileToS3 = async (filePath, originalname, mimetype, fileType) =>
   const buffer = await fs.readFile(filePath);
   const mainKey = generateKey(originalname);
   let thumbnailUrl = null;
-  console.log("Uploading file to S3:", filePath, mimetype,fileType);
+  console.log("Uploading file to S3:", filePath, mimetype, fileType);
 
-  // Upload original file
   await uploadToS3(buffer, mainKey, mimetype);
 
   try {
@@ -213,8 +210,6 @@ const uploadDiskFileToS3 = async (filePath, originalname, mimetype, fileType) =>
     thumbnailUrl,
   };
 };
-
-
 
 module.exports = {
   uploadToS3,
