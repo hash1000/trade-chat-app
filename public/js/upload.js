@@ -139,7 +139,7 @@ socket.on("upload-progress", (data) => {
 
         showStatus(`Uploading ${file.name} (${formatSize(file.size)})`, "info");
 
-        const response = await fetch("/api/file/large", {
+        const response = await fetch("http://157.230.84.217:5000/api/file/large", {
           method: "POST",
           headers: {
             "x-socket-id": socket.id,
