@@ -5,9 +5,9 @@ function initSocketUtils(ioInstance) {
 }
 
 function emitUploadProgress(socketId, data) {
-  if (!io) return console.warn("Socket.IO not initialized");
-  io.to(socketId).emit("upload-progress", data);
+  io.of("/upload").to(socketId).emit("upload-progress", data); // 👈 Namespace matters
 }
+
 
 function emitUploadComplete(socketId, data) {
   if (!io) return console.warn("Socket.IO not initialized");
