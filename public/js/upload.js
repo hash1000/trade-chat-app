@@ -72,7 +72,6 @@ socket.on("upload-progress", (data) => {
         <strong>${name}</strong><br>
         Size: ${formatSize(size)}<br>
         Time: ${uploadTime.toFixed(1)}s (${avgSpeed.toFixed(2)} MB/s)<br>
-        SHA-256: <code>${hash}</code><br>
         <a href="${url}" target="_blank" class="btn btn-sm btn-success mt-2">Download</a>
       </div>
     `;
