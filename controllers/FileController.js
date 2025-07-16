@@ -111,41 +111,51 @@ class FileController {
     }
   }
 
-  async uploadStream(req, res) {
-    const socketId = req.headers["x-socket-id"];
-    const fileName = req.headers["x-file-name"] || `file_${Date.now()}`;
-    const contentLength = parseInt(req.headers["content-length"] || "0");
-    const contentType =
-      req.headers["content-type"] || "application/octet-stream";
+// ✅ FILE: controllers/uploadController.js
+async uploadStream(req, res) {
+  const socketId = req.headers["x-socket-id"];
+  const fileName = req.headers["x-file-name"] || `file_${Date.now()}`;
+  const contentLength = parseInt(req.headers["content-length"] || "0");
+  const contentType = req.headers["type"]; // Prioritize explicit type
 
-    if (!contentLength || !fileName || !socketId) {
-      return res.status(400).json({
-        error: "Missing headers: file-name, content-length, socket-id required",
-      });
-    }
+  console.log(`Starting video upload: ${fileName} (${contentLength} bytes)`);
+  console.log(`Headers:`, {
+    socketId,
+    fileName,
+    contentLength,
+    contentType
+  });
 
-    try {
-      const result = await fileService.processStreamUpload({
-        req,
-        fileName,
-        contentType,
-        contentLength,
-        socketId,
-      });
-      console.log("Stream upload successful:", result);
-
-      res.status(200).json({
-        message: "Stream upload successful",
-        data: result,
-      });
-    } catch (error) {
-      console.error("Stream upload error:", error);
-      res.status(500).json({
-        error: "Upload failed",
-        details: error.message,
-      });
-    }
+  if (!contentLength || !fileName || !socketId) {
+    console.error('Missing required headers');
+    return res.status(400).json({
+      error: "Missing headers: file-name, content-length, socket-id required",
+    });
   }
+
+  try {
+    console.log(`Processing video stream for ${fileName}`);
+    const result = await fileService.processStreamUpload({
+      req,
+      fileName,
+      contentType,
+      contentLength,
+      socketId,
+    });
+
+    console.log(`Video upload successful: ${result.url}`);
+    res.status(200).json({
+      message: "Stream upload successful",
+      data: result,
+    });
+  } catch (error) {
+    console.error("Stream upload error:", error);
+    res.status(500).json({
+      error: "Upload failed",
+      details: error.message,
+    });
+  }
+}
 
   // async uploadStream(req, res, fileType) {
   //   const socketId = req.headers["x-socket-id"];

@@ -53,22 +53,11 @@ socket.on("upload-progress", (data) => {
     console.log("Progress for different file, ignoring");
     return;
   }
-  
+
   progressBar.style.width = `${data.progress}%`;
   progressBar.textContent = `${data.progress}%`;
-
-  const elapsed = (Date.now() - uploadStats.startTime) / 1000;
-  const loadedBytes = data.receivedChunks * 5 * 1024 * 1024; // Approximate bytes loaded
-  const speed = loadedBytes / (1024 * 1024) / elapsed;
-
-  statusMessage.innerHTML = `
-    <div class="alert alert-info">
-      Uploading... ${data.progress}% complete<br>
-      Chunks: ${data.receivedChunks}/${data.totalChunks}<br>
-      Speed: ${speed.toFixed(2)} MB/s - Elapsed: ${formatTime(elapsed)}
-    </div>
-  `;
 });
+
 
   // Upload complete handler
   socket.on("upload-complete", ({ fileId, name, size, url, hash }) => {
@@ -150,30 +139,32 @@ socket.on("upload-progress", (data) => {
 
         showStatus(`Uploading ${file.name} (${formatSize(file.size)})`, "info");
 
-        // const response = await fetch("/api/file/large", {
-        //   method: "POST",
-        //   headers: {
-        //     "x-socket-id": socket.id,
-        //     "x-file-name": file.name,
-        //     "Content-Type": file.type || "application/octet-stream",
-        //     "Content-Length": file.size,
-        //   },
-        //   body: file,
-        // });
+        const response = await fetch("/api/file/large", {
+          method: "POST",
+          headers: {
+            "x-socket-id": socket.id,
+            "x-file-name": file.name,
+            "Content-Type": file.type || "application/octet-stream",
+            "Content-Length": file.size,
+            "type": "video", // 👈 Custom header
+          },
+          body: file,
+        });
 
-        const response = await fetch(
-          "http://157.230.84.217:5000/api/file/large",
-          {
-            method: "POST",
-            headers: {
-              "x-socket-id": socket.id,
-              "x-file-name": file.name,
-              "Content-Type": file.type || "application/octet-stream",
-              "Content-Length": file.size,
-            },
-            body: file,
-          }
-        );
+        // const response = await fetch(
+        //   "http://157.230.84.217:5000/api/file/large",
+        //   {
+        //     method: "POST",
+        //     headers: {
+        //       "x-socket-id": socket.id,
+        //       "x-file-name": file.name,
+        //       "Content-Type": file.type || "application/octet-stream",
+        //       "Content-Length": file.size,
+        //       "x-file-type": "video",
+        //     },
+        //     body: file,
+        //   }
+        // );
 
         if (!response.ok) {
           const error = await response.json();
@@ -249,15 +240,15 @@ socket.on("upload-progress", (data) => {
   }
 
   // Helper functions
-  function prepareUI() {
-    uploadBtn.disabled = true;
-    fileInput.disabled = true;
-    cancelBtn.classList.remove("d-none");
-    progressContainer.classList.remove("d-none");
-    progressBar.style.width = "0%";
-    progressBar.textContent = "0%";
-    uploadResult.innerHTML = "";
-  }
+function prepareUI() {
+  uploadBtn.disabled = true;
+  fileInput.disabled = true;
+  cancelBtn.classList.remove("d-none");
+  progressContainer.classList.remove("d-none"); // <-- SHOW this
+  progressBar.style.width = "0%";
+  progressBar.textContent = "0%";
+  uploadResult.innerHTML = "";
+}
 
   function resetUI() {
     uploadBtn.disabled = false;

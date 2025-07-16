@@ -7,7 +7,8 @@ const {
   uploadDiskFileToS3,
   uploadStreamFileToS3,
   deleteFileFromS3,
-  getDownloadStreamFromS3
+  getDownloadStreamFromS3,
+  handleVideoStreamUpload
 } = require("../utilities/s3Utils");
 const {
   uploadToCloudinaryWithThumbnail,
@@ -77,58 +78,45 @@ class FileService {
     };
   }
 
-  // 🔹 Handle streaming upload (chunked stream + buffer for thumbnail)
-  async processStreamUpload({
-    req,
-    fileName,
-    contentType,
-    contentLength,
-    socketId,
-  }) {
-    const ext = path.extname(fileName).toLowerCase();
-    const fileType = this.detectFileType(ext);
-    const sanitized = this.sanitizeFilename(fileName);
+// ✅ FILE: services/fileService.js
+async processStreamUpload({ req, fileName, contentType, contentLength, socketId, fileType }) {
+  const sanitized = this.sanitizeFilename(fileName);
 
-    const passThrough = new PassThrough();
-    const chunks = [];
+  const passThrough = new PassThrough();
+  const chunks = [];
 
-    req.on("data", (chunk) => {
-      chunks.push(chunk);
-      passThrough.write(chunk);
+req.on("data", (chunk) => {
+  chunks.push(chunk);
+  passThrough.write(chunk);
 
-      if (socketId && contentLength) {
-        emitUploadProgress(socketId, {
-          fileId: sanitized.link,
-          progress: Math.floor(
-            (Buffer.concat(chunks).length / contentLength) * 100
-          ),
-        });
-      }
+  if (socketId && contentLength) {
+    emitUploadProgress(socketId, {
+      fileId: sanitized.link, // <-- make sure this matches frontend `currentFileId`
+      progress: Math.floor((Buffer.concat(chunks).length / contentLength) * 100),
     });
-
-    req.on("end", () => passThrough.end());
-
-    const buffer = await new Promise((resolve) => {
-      req.on("end", () => resolve(Buffer.concat(chunks)));
-    });
-
-    const result = await uploadStreamFileToS3(
-      buffer,
-      fileName,
-      contentType,
-      fileType
-    );
-
-    return {
-      name: sanitized.baseName,
-      url: result.url,
-      key: result.key,
-      thumbnailUrl: result.thumbnailUrl,
-      size: contentLength,
-      mimeType: contentType,
-      fileType,
-    };
   }
+});
+
+
+  req.on("end", () => passThrough.end());
+
+  const buffer = await new Promise((resolve) => {
+    req.on("end", () => resolve(Buffer.concat(chunks)));
+  });
+
+  const result = await handleVideoStreamUpload(buffer, socketId, fileName, contentLength);
+
+  return {
+    name: sanitized.baseName,
+    url: result.url,
+    key: result.key,
+    thumbnailUrl: result.thumbnailUrl,
+    size: contentLength,
+    mimeType: contentType,
+    fileType, // ⬅️ Return it
+  };
+}
+
 
   validateVideoSize(fileSize) {
     if (fileSize < MIN_VIDEO_SIZE) {
