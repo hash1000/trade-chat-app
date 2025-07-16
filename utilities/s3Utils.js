@@ -20,6 +20,14 @@ const s3Client = new S3Client({
   },
 });
 
+const awsS3Client = new S3Client({
+  region: process.env.AWS_REGION,
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY,
+    secretAccessKey: process.env.AWS_SECRET_KEY,
+  },
+});
+
 const generateKey = (originalname) => {
   const ext = path.extname(originalname).toLowerCase();
   const base = path.basename(originalname, ext).replace(/[^a-z0-9]/gi, "_");
@@ -27,6 +35,7 @@ const generateKey = (originalname) => {
     .toString(36)
     .substring(2, 9)}_${base}${ext}`;
 };
+
 const determineCompression = (size) => {
   if (size <= 100 * 1024 * 1024) return 0.8; // 20% reduction
   if (size <= 200 * 1024 * 1024) return 0.7; // 30%
@@ -355,9 +364,101 @@ const uploadDiskFileToS3 = async (
   };
 };
 
+const uploadLargeFileToS3 = async ({
+  fileBuffer,
+  fileName,
+  mimetype,
+  fileType,
+}) => {
+  const originalSize = fileBuffer.length;
+  const key = generateKey(fileName);
+  let processedBuffer = fileBuffer;
+
+  // Compress if fileType is video and size > 100MB
+  if (fileType === "video" && originalSize > 100 * 1024 * 1024) {
+    console.log("Compressing large video before upload...");
+    const { path: inputPath, cleanup } = await tmp.file({ postfix: ".mp4" });
+    const compressedPath = inputPath.replace(".mp4", "_compressed.mp4");
+
+    try {
+      await fs.writeFile(inputPath, fileBuffer);
+      const compressionRatio = determineCompression(originalSize);
+      await compressVideoStream(inputPath, compressedPath, compressionRatio);
+      processedBuffer = await fs.readFile(compressedPath);
+      console.log("Video compressed successfully");
+    } catch (err) {
+      console.error("Video compression failed:", err);
+      throw err;
+    } finally {
+      await cleanup();
+    }
+  }
+
+  // Upload the main video file to AWS
+  const stream = new PassThrough();
+  stream.end(processedBuffer);
+
+  const upload = new Upload({
+    client: awsS3Client,
+    params: {
+      Bucket: process.env.AWS_BUCKET,
+      Key: key,
+      Body: stream,
+      ContentType: mimetype,
+      CacheControl: "public, max-age=31536000",
+    },
+    queueSize: 4,
+    partSize: 10 * 1024 * 1024,
+    leavePartsOnError: false,
+  });
+
+  await upload.done();
+  console.log("Video uploaded:", key);
+
+  // Generate and upload thumbnail
+  let thumbnailUrl = null;
+  try {
+    const thumbKey = `${path.parse(key).name}_thumb.jpg`;
+    let thumbnailBuffer;
+
+    if (fileType === "video") {
+      thumbnailBuffer = await processVideo(processedBuffer); // ✅ this uses FFmpeg + Sharp
+    } else if (fileType === "image") {
+      thumbnailBuffer = await processImage(processedBuffer); // ✅ this uses Sharp only
+    } else {
+      throw new Error("Unsupported file type for thumbnail generation");
+    }
+
+    const thumbUpload = new Upload({
+      client: awsS3Client,
+      params: {
+        Bucket: process.env.AWS_BUCKET,
+        Key: thumbKey,
+        Body: thumbnailBuffer,
+        ContentType: "image/jpeg",
+        CacheControl: "public, max-age=31536000",
+      },
+    });
+
+    await thumbUpload.done();
+    thumbnailUrl = `https://${process.env.AWS_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${thumbKey}`;
+  } catch (err) {
+    console.warn("Thumbnail generation failed:", err.message);
+  }
+
+  return {
+    key,
+    url: `https://${process.env.AWS_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`,
+    size: processedBuffer.length,
+    mimeType: mimetype,
+    thumbnailUrl,
+  };
+};
+
 module.exports = {
   uploadToS3,
   // uploadStreamFileToS3,
+  uploadLargeFileToS3,
   handleVideoStreamUpload,
   processImage,
   processVideo,

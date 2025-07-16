@@ -43,6 +43,13 @@ const uploadMemory = multer({
   limits: { fileSize: MEMORY_LIMIT }
 }).single('file');
 
+
+const uploadAwsMemory = multer({
+  storage: memoryStorage,
+  // fileFilter,
+  limits: { fileSize: DISK_LIMIT }
+}).single('file');
+
 const uploadDisk = multer({
   storage: diskStorage,
   // fileFilter,
@@ -58,6 +65,7 @@ const uploadDiskCloudinary = multer({
 module.exports = {
   uploadMemory,
   uploadDisk,
+  uploadAwsMemory,
   uploadDiskCloudinary,
   MEMORY_LIMIT,
   DISK_LIMIT,
