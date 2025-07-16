@@ -1,5 +1,5 @@
 const twilio = require("twilio");
-const { Vonage } = require("@vonage/server-sdk");
+// const { Vonage } = require("@vonage/server-sdk");
 const jwt = require("jsonwebtoken");
 const UserService = require("../services/UserService"); // Replace the path with the correct location of your UserService.js file
 const CustomError = require("../errors/CustomError");
@@ -1017,9 +1017,12 @@ class UserController {
     try {
       const { role, requesteeId } = req.body;
       const requesteeUser = await userService.getUserById(requesteeId);
-  
+
       if (requesteeUser) {
-        const updatedUser = await userService.updateUserRole(requesteeUser, role.toLowerCase());
+        const updatedUser = await userService.updateUserRole(
+          requesteeUser,
+          role.toLowerCase()
+        );
         res.json(updatedUser);
       } else {
         return res.status(404).json({ message: "User not found" });
@@ -1029,7 +1032,6 @@ class UserController {
       res.status(500).json({ message: "Internal server error" });
     }
   }
-  
 
   async updateFCM(req, res) {
     try {
@@ -1047,10 +1049,10 @@ class UserController {
     try {
       const { phone, email } = req.body;
       const user = req.user; // Assuming you have an authentication middleware to attach the user object to the request
-      const vonage = new Vonage({
-        apiKey: "70c5b3e3",
-        apiSecret: "sMo8UULGWO94oeuY",
-      });
+      // const vonage = new Vonage({
+      //   apiKey: "70c5b3e3",
+      //   apiSecret: "sMo8UULGWO94oeuY",
+      // });
       if (phone) {
         const { country_code, phoneNumber } = phone;
         // check if any other user has the phone number
@@ -1063,19 +1065,19 @@ class UserController {
             .status(409)
             .json({ message: "Phone number already in use" });
         }
-        vonage.verify
-          .start({
-            number: `${country_code}${phoneNumber}`,
-            brand: "QRM Trade Chat",
-          })
-          .then(async (resp) => {
-            // Respond with the token and user data
-            await userService.updateUserEmailCode(user.id, resp.request_id);
-            res.json({ message: "SMS OTP Sent.", request_id: resp.request_id });
-          })
-          .catch((err) => {
-            res.status(500).json({ message: "Filed to send OTP" });
-          });
+        // vonage.verify
+        //   .start({
+        //     number: `${country_code}${phoneNumber}`,
+        //     brand: "QRM Trade Chat",
+        //   })
+        //   .then(async (resp) => {
+        //     // Respond with the token and user data
+        //     await userService.updateUserEmailCode(user.id, resp.request_id);
+        //     res.json({ message: "SMS OTP Sent.", request_id: resp.request_id });
+        //   })
+        //   .catch((err) => {
+        //     res.status(500).json({ message: "Filed to send OTP" });
+        //   });
       } else if (email) {
         // check if any other user has the phone number
         const userByEmail = await userService.getUserByEmail(email);
@@ -1131,25 +1133,25 @@ class UserController {
             .status(409)
             .json({ message: "Phone number already in use" });
         }
-        const vonage = new Vonage({
-          apiKey: "70c5b3e3",
-          apiSecret: "sMo8UULGWO94oeuY",
-        });
+        // const vonage = new Vonage({
+        //   apiKey: "70c5b3e3",
+        //   apiSecret: "sMo8UULGWO94oeuY",
+        // });
 
         const { otp: request_id } = await userService.getUserOTPCode(user.id);
-        vonage.verify
-          .check(request_id, otp)
-          .then(async (resp) => {
-            await userService.updateUserProfileById(user.id, {
-              country_code,
-              phoneNumber,
-            });
-            const updatedUser = await userService.getUserById(user.id);
-            res.json({ updatedUser });
-          })
-          .catch((err) => {
-            res.status(500).json({ message: "Filed to verify OTP" });
-          });
+        // vonage.verify
+        //   .check(request_id, otp)
+        //   .then(async (resp) => {
+        //     await userService.updateUserProfileById(user.id, {
+        //       country_code,
+        //       phoneNumber,
+        //     });
+        //     const updatedUser = await userService.getUserById(user.id);
+        //     res.json({ updatedUser });
+        //   })
+        //   .catch((err) => {
+        //     res.status(500).json({ message: "Filed to verify OTP" });
+        //   });
       }
     } catch (error) {
       console.error(error);
