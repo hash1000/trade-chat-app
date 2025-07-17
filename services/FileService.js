@@ -1,23 +1,24 @@
 // ✅ FILE: services/fileService.js
 const path = require("path");
-const { PassThrough } = require("stream");
+const tmp = require("tmp-promise");
 const fs = require("fs").promises;
+const fps = require("fs");
 const {
   uploadMemoryFileToS3,
   uploadDiskFileToS3,
   handleVideoStreamUpload,
   deleteFileFromS3,
-  getDownloadStreamFromS3
+  getDownloadStreamFromS3,
 } = require("../utilities/s3Utils");
 const {
   uploadToCloudinaryWithThumbnail,
   MIN_VIDEO_SIZE,
-  MAX_VIDEO_SIZE
+  MAX_VIDEO_SIZE,
 } = require("../utilities/cloudinaryUtils");
 const {
   emitUploadProgress,
   emitUploadComplete,
-  emitUploadError
+  emitUploadError,
 } = require("../utilities/socketUtils");
 
 class FileService {
@@ -74,62 +75,97 @@ class FileService {
     };
   }
 
-  async processStreamUpload({ req, fileName, contentType, contentLength, socketId, fileType }) {
+  async processStreamUpload({
+    req,
+    fileName,
+    contentType,
+    contentLength,
+    socketId,
+    fileType,
+  }) {
     const sanitized = this.sanitizeFilename(fileName);
+    const { path: tempFilePath, cleanup } = await tmp.file({
+      postfix: path.extname(fileName),
+    });
 
-    const passThrough = new PassThrough();
-    const chunks = [];
+    // Set global timeout (30 minutes)
+    const globalTimeout = setTimeout(() => {
+      throw new Error("Processing timed out after 30 minutes");
+    }, 30 * 60 * 1000);
 
-    req.on("data", (chunk) => {
-      chunks.push(chunk);
-      passThrough.write(chunk);
+    try {
+      // Write stream directly to temp file
+      const writeStream = fps.createWriteStream(tempFilePath);
+      let bytesReceived = 0;
 
-      if (socketId && contentLength) {
-        emitUploadProgress(socketId, {
-          fileId: sanitized.link,
-          progress: Math.floor((Buffer.concat(chunks).length / contentLength) * 100),
+      req.on("data", (chunk) => {
+        bytesReceived += chunk.length;
+        writeStream.write(chunk);
+
+        if (socketId && contentLength) {
+          emitUploadProgress(socketId, {
+            fileId: sanitized.link,
+            progress: Math.floor((bytesReceived / contentLength) * 100),
+          });
+        }
+      });
+
+      await new Promise((resolve, reject) => {
+        req.on("end", () => {
+          writeStream.end(resolve);
         });
-      }
-    });
+        req.on("error", reject);
+      });
 
-    req.on("end", () => passThrough.end());
+      // Process the file on disk
+      const result = await handleVideoStreamUpload(
+        tempFilePath,
+        socketId,
+        fileName,
+        contentLength
+      );
 
-    const buffer = await new Promise((resolve) => {
-      req.on("end", () => resolve(Buffer.concat(chunks)));
-    });
-
-    const result = await handleVideoStreamUpload(buffer, socketId, fileName, contentLength);
-
-    return {
-      name: sanitized.baseName,
-      url: result.url,
-      key: result.key,
-      thumbnailUrl: result.thumbnailUrl,
-      size: contentLength,
-      mimeType: contentType,
-      fileType,
-    };
+      clearTimeout(globalTimeout);
+      return {
+        name: sanitized.baseName,
+        url: result.url,
+        key: result.key,
+        thumbnailUrl: result.thumbnailUrl,
+        size: result.size, // Now using compressed size from handleVideoStreamUpload
+        mimeType: contentType,
+        fileType,
+      };
+    } catch (err) {
+      clearTimeout(globalTimeout);
+      throw err;
+    } finally {
+      await cleanup().catch(console.error);
+    }
   }
 
   validateVideoSize(fileSize) {
     if (fileSize < MIN_VIDEO_SIZE) {
-      throw new Error(`Video must be at least ${MIN_VIDEO_SIZE/1024/1024}MB`);
+      throw new Error(
+        `Video must be at least ${MIN_VIDEO_SIZE / 1024 / 1024}MB`
+      );
     }
     if (fileSize > MAX_VIDEO_SIZE) {
-      throw new Error(`Video cannot exceed ${MAX_VIDEO_SIZE/1024/1024/1024}GB`);
+      throw new Error(
+        `Video cannot exceed ${MAX_VIDEO_SIZE / 1024 / 1024 / 1024}GB`
+      );
     }
     return true;
   }
 
   async processCloudinaryUpload({ file, type }) {
     try {
-      if (type === 'video') {
+      if (type === "video") {
         const fileSize = file.size || (await fs.stat(file.path)).size;
         this.validateVideoSize(fileSize);
       }
       return await uploadToCloudinaryWithThumbnail(file, type);
     } catch (error) {
-      console.error('Cloudinary upload error:', error);
+      console.error("Cloudinary upload error:", error);
       throw error;
     }
   }
