@@ -37,10 +37,24 @@ const generateKey = (originalname) => {
 };
 
 const determineCompression = (size) => {
-  if (size <= 100 * 1024 * 1024) return 0.8; // 20% reduction
-  if (size <= 200 * 1024 * 1024) return 0.7; // 30%
-  if (size <= 500 * 1024 * 1024) return 0.5; // 50%
-  return 1.0; // no compression for large files
+  // Target size is 50MB (50 * 1024 * 1024 bytes)
+  const targetSize = 50 * 1024 * 1024;
+  
+  // Calculate compression ratio based on original size vs target size
+  // We'll use a logarithmic scale to be more aggressive with larger files
+  if (size <= 100 * 1024 * 1024) {
+    // For files up to 100MB, use moderate compression
+    return 0.7; // 30% reduction
+  } else if (size <= 300 * 1024 * 1024) {
+    // For files 100-300MB, use more aggressive compression
+    return 0.5; // 50% reduction
+  } else if (size <= 500 * 1024 * 1024) {
+    // For files 300-500MB, use very aggressive compression
+    return 0.3; // 70% reduction
+  } else {
+    // For files >500MB, use maximum compression
+    return 0.2; // 80% reduction
+  }
 };
 
 const processImage = async (buffer) => {
@@ -147,30 +161,96 @@ const processVideoStream = async (buffer) => {
   }
 };
 
-const compressVideoStream = (inputPath, outputPath, compressionRatio) => {
-  return new Promise((resolve, reject) => {
-    console.log(`Starting video compression: ${inputPath} -> ${outputPath}`);
-
-    const command = ffmpeg(inputPath)
-      .videoCodec("libx264")
-      .audioCodec("aac")
-      .videoBitrate(compressionRatio * 1000 + "k")
-      .on("start", (cmd) => {
-        console.log("FFmpeg command:", cmd);
-      })
-      .on("progress", (progress) => {
-        console.log(`Compression progress: ${JSON.stringify(progress)}`);
-      })
-      .on("end", () => {
-        console.log("Compression completed successfully");
-        resolve();
-      })
-      .on("error", (err) => {
-        console.error("Compression error:", err);
-        reject(err);
-      })
-      .save(outputPath);
+const compressVideoStream = async (inputPath, outputPath, originalSize) => {
+  console.log(`Starting video compression: ${inputPath} -> ${outputPath}`);
+  
+  // First get the video metadata
+  const metadata = await new Promise((resolve, reject) => {
+    ffmpeg.ffprobe(inputPath, (err, data) => {
+      if (err) reject(err);
+      else resolve(data);
+    });
   });
+
+  const targetSize = 50 * 1024 * 1024; // 50MB target
+  const duration = metadata.format.duration || 60;
+  
+  // More aggressive compression settings for larger files
+  let crf = 23;
+  let preset = 'medium';
+  const videoStream = metadata.streams.find(s => s.codec_type === 'video');
+  
+  if (videoStream) {
+    const width = videoStream.width || 1920;
+    if (width > 1920) {
+      crf = 26; // More compression for 4K+
+      preset = 'fast'; // Faster preset for large files
+    } else if (width > 1280) {
+      crf = 24; // Moderate compression for Full HD
+    } else {
+      crf = 22; // Less compression for smaller videos
+    }
+  }
+
+  // Adjust based on original size
+  if (originalSize > 300 * 1024 * 1024) {
+    crf += 2; // More compression for very large files
+    preset = 'fast';
+  } else if (originalSize > 100 * 1024 * 1024) {
+    crf += 1;
+  }
+
+  console.log(`Compression settings: CRF=${crf}, preset=${preset}`);
+
+  try {
+    await new Promise((resolve, reject) => {
+      const command = ffmpeg(inputPath)
+        .videoCodec('libx264')
+        .audioCodec('aac')
+        .outputOptions([
+          `-crf`, `${crf}`,
+          `-preset`, preset,
+          '-movflags', '+faststart',
+          '-profile:v', 'main',
+          '-pix_fmt', 'yuv420p',
+          '-threads', '0' // Use all available threads
+        ])
+        .on('start', (cmd) => console.log("FFmpeg command:", cmd))
+        .on('progress', (progress) => {
+          console.log(`Compression progress: ${JSON.stringify(progress)}`);
+        })
+        .on('end', () => {
+          console.log("Compression completed successfully");
+          resolve();
+        })
+        .on('error', (err) => {
+          console.error("Compression error:", err);
+          reject(err);
+        });
+
+      // Timeout based on video duration (1 minute per minute of video)
+      const timeoutDuration = Math.max(60000, duration * 60000); // At least 1 minute
+      const timeout = setTimeout(() => {
+        command.kill('SIGTERM');
+        reject(new Error(`Compression timed out after ${timeoutDuration/60000} minutes`));
+      }, timeoutDuration);
+
+      command.on('end', () => clearTimeout(timeout));
+      command.save(outputPath);
+    });
+
+    // Verify output file exists
+    const stats = await fs.stat(outputPath);
+    if (stats.size === 0) {
+      throw new Error('Compression failed - output file is empty');
+    }
+    
+    return true;
+  } catch (err) {
+    // Clean up potentially corrupted output file
+    await fs.unlink(outputPath).catch(() => {});
+    throw err;
+  }
 };
 
 const bufferToStream = (buffer) => {
@@ -192,22 +272,14 @@ const uploadToS3 = async (body, key, contentType) => {
       CacheControl: "public, max-age=31536000",
     },
   });
-  console.log(`[Upload Success] File uploaded to S3 as ${key}`); // Changed this line
+  console.log(`[Upload Success] File uploaded to S3 as ${key}`);
   await upload.done();
   console.timeEnd(`Upload:${key}`);
   return `${process.env.IMAGE_END_POINT}/${key}`;
 };
 
-// ✅ FILE: utils/s3Utils.js
-async function handleVideoStreamUpload(
-  buffer,
-  socketId,
-  fileName,
-  contentLength
-) {
-  console.log(
-    `Starting video processing for ${fileName} (${buffer.length} bytes)`
-  );
+async function handleVideoStreamUpload(buffer, socketId, fileName, contentLength) {
+  console.log(`Starting video processing for ${fileName} (${buffer.length} bytes)`);
 
   const { path: inputPath, cleanup } = await tmp.file({ postfix: ".mp4" });
   const compressedPath = inputPath.replace(".mp4", "_compressed.mp4");
@@ -216,12 +288,10 @@ async function handleVideoStreamUpload(
     await fs.writeFile(inputPath, buffer);
     console.log(`Temporary file created at ${inputPath}`);
 
-    const compressionRatio = determineCompression(contentLength);
-    console.log(`Determined compression ratio: ${compressionRatio}`);
-
-    if (compressionRatio < 1) {
-      console.log(`Compressing video with ratio ${compressionRatio}`);
-      await compressVideoStream(inputPath, compressedPath, compressionRatio);
+    // Always compress videos larger than 50MB
+    if (contentLength > 50 * 1024 * 1024) {
+      console.log(`Compressing video (original size: ${contentLength} bytes)`);
+      await compressVideoStream(inputPath, compressedPath, contentLength);
       console.log("Video compression completed");
     } else {
       console.log("No compression needed, copying file");
@@ -238,11 +308,7 @@ async function handleVideoStreamUpload(
     console.log("Generating thumbnail");
     const thumbnailBuffer = await processVideoStream(finalBuffer);
     const thumbKey = `${path.parse(key).name}_thumb.jpg`;
-    const thumbnailUrl = await uploadToS3(
-      thumbnailBuffer,
-      thumbKey,
-      "image/jpeg"
-    );
+    const thumbnailUrl = await uploadToS3(thumbnailBuffer, thumbKey, "image/jpeg");
 
     console.log("Video upload complete:", {
       key,
@@ -256,7 +322,6 @@ async function handleVideoStreamUpload(
       url,
       size: finalBuffer.length,
       mimeType: "video/mp4",
-      compressionRatio,
       thumbnailUrl,
     };
   } finally {
@@ -264,30 +329,6 @@ async function handleVideoStreamUpload(
     console.log("Temporary files cleaned up");
   }
 }
-
-// const uploadStreamFileToS3 = async (buffer, originalname, mimetype, fileType = 'video') => {
-//   const mainKey = generateKey(originalname);
-//   let thumbnailUrl = null;
-
-//   await uploadToS3(buffer, mainKey, mimetype);
-
-//   try {
-//     const thumbKey = `${path.parse(mainKey).name}_thumb.jpg`;
-//     const thumbnailBuffer = fileType === 'image'
-//       ? await processImage(buffer)
-//       : await processVideo(buffer);
-
-//     thumbnailUrl = await uploadToS3(thumbnailBuffer, thumbKey, 'image/jpeg');
-//   } catch (err) {
-//     console.error('Thumbnail generation failed:', err);
-//   }
-
-//   return {
-//     url: `${process.env.IMAGE_END_POINT}/${mainKey}`,
-//     key: mainKey,
-//     thumbnailUrl,
-//   };
-// };
 
 const uploadMemoryFileToS3 = async (
   buffer,
@@ -422,9 +463,9 @@ const uploadLargeFileToS3 = async ({
     let thumbnailBuffer;
 
     if (fileType === "video") {
-      thumbnailBuffer = await processVideo(processedBuffer); // ✅ this uses FFmpeg + Sharp
+      thumbnailBuffer = await processVideo(processedBuffer);
     } else if (fileType === "image") {
-      thumbnailBuffer = await processImage(processedBuffer); // ✅ this uses Sharp only
+      thumbnailBuffer = await processImage(processedBuffer);
     } else {
       throw new Error("Unsupported file type for thumbnail generation");
     }
@@ -457,7 +498,6 @@ const uploadLargeFileToS3 = async ({
 
 module.exports = {
   uploadToS3,
-  // uploadStreamFileToS3,
   uploadLargeFileToS3,
   handleVideoStreamUpload,
   processImage,

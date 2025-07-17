@@ -5,10 +5,9 @@ const fs = require("fs").promises;
 const {
   uploadMemoryFileToS3,
   uploadDiskFileToS3,
-  uploadStreamFileToS3,
+  handleVideoStreamUpload,
   deleteFileFromS3,
-  getDownloadStreamFromS3,
-  handleVideoStreamUpload
+  getDownloadStreamFromS3
 } = require("../utilities/s3Utils");
 const {
   uploadToCloudinaryWithThumbnail,
@@ -21,13 +20,11 @@ const {
   emitUploadError
 } = require("../utilities/socketUtils");
 
-// const { uploadLargeVideo } = require("../utilities/cloudinaryUtils");
 class FileService {
   constructor() {
     this.uploadProgress = {};
   }
 
-  // 🔹 Handle memory-based upload (e.g., from multer memoryStorage)
   async processMemoryUpload({
     buffer,
     originalname,
@@ -52,7 +49,6 @@ class FileService {
     };
   }
 
-  // 🔹 Handle disk-based upload (e.g., multer diskStorage)
   async processDiskUpload({
     fileType,
     filePath,
@@ -78,45 +74,42 @@ class FileService {
     };
   }
 
-// ✅ FILE: services/fileService.js
-async processStreamUpload({ req, fileName, contentType, contentLength, socketId, fileType }) {
-  const sanitized = this.sanitizeFilename(fileName);
+  async processStreamUpload({ req, fileName, contentType, contentLength, socketId, fileType }) {
+    const sanitized = this.sanitizeFilename(fileName);
 
-  const passThrough = new PassThrough();
-  const chunks = [];
+    const passThrough = new PassThrough();
+    const chunks = [];
 
-req.on("data", (chunk) => {
-  chunks.push(chunk);
-  passThrough.write(chunk);
+    req.on("data", (chunk) => {
+      chunks.push(chunk);
+      passThrough.write(chunk);
 
-  if (socketId && contentLength) {
-    emitUploadProgress(socketId, {
-      fileId: sanitized.link, // <-- make sure this matches frontend `currentFileId`
-      progress: Math.floor((Buffer.concat(chunks).length / contentLength) * 100),
+      if (socketId && contentLength) {
+        emitUploadProgress(socketId, {
+          fileId: sanitized.link,
+          progress: Math.floor((Buffer.concat(chunks).length / contentLength) * 100),
+        });
+      }
     });
+
+    req.on("end", () => passThrough.end());
+
+    const buffer = await new Promise((resolve) => {
+      req.on("end", () => resolve(Buffer.concat(chunks)));
+    });
+
+    const result = await handleVideoStreamUpload(buffer, socketId, fileName, contentLength);
+
+    return {
+      name: sanitized.baseName,
+      url: result.url,
+      key: result.key,
+      thumbnailUrl: result.thumbnailUrl,
+      size: contentLength,
+      mimeType: contentType,
+      fileType,
+    };
   }
-});
-
-
-  req.on("end", () => passThrough.end());
-
-  const buffer = await new Promise((resolve) => {
-    req.on("end", () => resolve(Buffer.concat(chunks)));
-  });
-
-  const result = await handleVideoStreamUpload(buffer, socketId, fileName, contentLength);
-
-  return {
-    name: sanitized.baseName,
-    url: result.url,
-    key: result.key,
-    thumbnailUrl: result.thumbnailUrl,
-    size: contentLength,
-    mimeType: contentType,
-    fileType, // ⬅️ Return it
-  };
-}
-
 
   validateVideoSize(fileSize) {
     if (fileSize < MIN_VIDEO_SIZE) {
@@ -128,7 +121,6 @@ req.on("data", (chunk) => {
     return true;
   }
 
-  // 🔹 Process Cloudinary upload with validation
   async processCloudinaryUpload({ file, type }) {
     try {
       if (type === 'video') {
@@ -142,7 +134,6 @@ req.on("data", (chunk) => {
     }
   }
 
-  // 🔹 Emit event on complete upload
   emitUploadComplete({
     socketId,
     fileId,
@@ -165,12 +156,10 @@ req.on("data", (chunk) => {
     });
   }
 
-  // 🔹 Emit upload error
   emitUploadError(socketId, message) {
     emitUploadError(socketId, message);
   }
 
-  // 🔹 Delete file from S3
   async deleteFile(key) {
     try {
       await deleteFileFromS3(key);
@@ -181,7 +170,6 @@ req.on("data", (chunk) => {
     }
   }
 
-  // 🔹 Download stream
   async getDownloadStream(key) {
     try {
       return await getDownloadStreamFromS3(key);
@@ -191,7 +179,6 @@ req.on("data", (chunk) => {
     }
   }
 
-  // 🔹 Sanitize filename for S3-safe keys
   sanitizeFilename(originalName) {
     const name = originalName.toLowerCase();
     const extension = name.split(".").pop();
