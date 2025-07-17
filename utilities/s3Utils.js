@@ -6,6 +6,7 @@ const path = require("path");
 const ffmpeg = require("fluent-ffmpeg");
 const ffmpegPath = require("ffmpeg-static");
 const fs = require("fs").promises;
+const fps = require("fs");
 const tmp = require("tmp-promise");
 const sharp = require("sharp");
 
@@ -314,12 +315,12 @@ async function handleVideoStreamUpload(
     console.log(`Uploading to S3 with key ${key}`);
 
     // Stream directly from disk
-    const fileStream = fs.createReadStream(compressedPath);
+    const fileStream = fps.createReadStream(compressedPath);
     const url = await uploadToS3(fileStream, key, "video/mp4");
 
     console.log("Generating thumbnail");
     // Read the compressed file for thumbnail generation
-    const compressedFileBuffer = await fs.readFile(compressedPath);
+    const compressedFileBuffer = await fps.readFile(compressedPath);
     const thumbnailBuffer = await processVideoStream(compressedFileBuffer);
     const thumbKey = `${path.parse(key).name}_thumb.jpg`;
     const thumbnailUrl = await uploadToS3(
