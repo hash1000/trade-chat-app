@@ -104,43 +104,49 @@ async processTopupPayment(userId, amount) {
   };
 }
 
- async handleStripeWebhook(req, res) {
-    const sig = req.headers['stripe-signature'];
-    const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+async handleStripeWebhook(req, res) {
+  const sig = req.headers['stripe-signature'];
+  const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
-    let event;
-
-    try {
-      event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
-
-      switch (event.type) {
-        case 'payment_intent.succeeded':
-          console.log('Payment succeeded:', event.data.object);
-          // handle success
-          break;
-        case 'payment_intent.payment_failed':
-          console.log('Payment failed:', event.data.object);
-          // handle failure
-          break;
-        case 'payment_intent.canceled':
-          console.log('Payment canceled:', event.data.object);
-          // handle cancel
-          break;
-        case 'account.updated':
-          console.log('Account updated:', event.data.object);
-          // handle account updates
-          break;
-        default:
-          console.log(`Unhandled event type: ${event.type}`);
-      }
-
-      res.status(200).json({ received: true });
-    } catch (err) {
-      console.error(`Webhook Error: ${err.message}`);
-      res.status(400).send(`Webhook Error: ${err.message}`);
-    }
+  if (!sig || !endpointSecret) {
+    console.error('Missing Stripe signature or webhook secret.');
+    return res.status(400).send('Missing Stripe signature or webhook secret.');
   }
 
+  let event;
+
+  try {
+    // Construct and verify event
+    event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
+
+    // Handle event types
+    switch (event.type) {
+      case 'payment_intent.succeeded':
+        console.log('✅ Payment succeeded:', event.data.object);
+        break;
+      case 'payment_intent.payment_failed':
+        console.log('❌ Payment failed:', event.data.object);
+        break;
+      case 'payment_intent.canceled':
+        console.log('🚫 Payment canceled:', event.data.object);
+        break;
+      case 'account.updated':
+        console.log('🔄 Account updated:', event.data.object);
+        break;
+      default:
+        console.log(`ℹ️ Unhandled event type: ${event.type}`);
+    }
+
+    // Send back a 200 to acknowledge receipt of the event
+    return res.status(200).json({ received: true });
+
+  } catch (err) {
+    // If signature verification fails or body is malformed
+    console.error(`❗Webhook Error: ${err.message}`);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+}
 }
 
 module.exports = PaymentService;
