@@ -61,7 +61,11 @@ router.post(
   multerHandler(uploadDisk, "File exceeds 50MB limit. Use /large."),
   fileController.uploadMedium.bind(fileController)
 );
-router.post("/large", fileController.uploadStream.bind(fileController));
+router.post(
+  "/large",
+  multerHandler(uploadDisk, "File exceeds 50MB limit. Use /large."),
+  fileController.uploadStream.bind(fileController)
+);
 
 router.post(
   "/aws-large",
