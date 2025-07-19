@@ -255,9 +255,7 @@ async initiateTopup(req, res) {
   }
 }
 
-
-//  webhook
-  async handleWebhook(req, res) {
+  async handleStripeWebhook(req, res) {
     try {
       const event = req.body;
       

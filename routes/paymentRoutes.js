@@ -1,34 +1,36 @@
-const express = require('express')
-const router = express.Router()
+const express = require('express');
+const bodyParser = require('body-parser'); // ✅ ADD THIS
+const router = express.Router();
 
-const PaymentController = require('../controllers/PaymentController')
-const authMiddleware = require('../middlewares/authenticate')
+const PaymentController = require('../controllers/PaymentController');
+const authMiddleware = require('../middlewares/authenticate');
 const {
   createPaymentValidator,
   updatePaymentValidator,
-  createTopupValidator
-} = require('../middlewares/paymentValidation')
+  createTopupValidator,
+} = require('../middlewares/paymentValidation');
 
-const paymentController = new PaymentController()
+const paymentController = new PaymentController();
 
-router.post('/', authMiddleware, createPaymentValidator, paymentController.createPayment.bind(paymentController))
-router.put('/:id', authMiddleware, updatePaymentValidator, paymentController.updatePayment.bind(paymentController))
-router.post('/:id/confirm', authMiddleware, paymentController.confirmPayment.bind(paymentController))
-router.delete('/:id', authMiddleware, paymentController.deletePayment.bind(paymentController))
-router.get('/', authMiddleware, paymentController.getUserPayments.bind(paymentController))
-router.get('/cards', authMiddleware, paymentController.getUserCards.bind(paymentController))
-router.post('/cards', authMiddleware, paymentController.addUserCard.bind(paymentController))
-router.delete('/cards/:id', authMiddleware, paymentController.deleteUserCard.bind(paymentController))
-router.put('/favourite/:id', authMiddleware, paymentController.favouritePayment.bind(paymentController))
-router.put('/unfavourite/:id', authMiddleware, paymentController.unfavouritePayment.bind(paymentController))
+router.post('/', authMiddleware, createPaymentValidator, paymentController.createPayment.bind(paymentController));
+router.put('/:id', authMiddleware, updatePaymentValidator, paymentController.updatePayment.bind(paymentController));
+router.post('/:id/confirm', authMiddleware, paymentController.confirmPayment.bind(paymentController));
+router.delete('/:id', authMiddleware, paymentController.deletePayment.bind(paymentController));
+router.get('/', authMiddleware, paymentController.getUserPayments.bind(paymentController));
+router.get('/cards', authMiddleware, paymentController.getUserCards.bind(paymentController));
+router.post('/cards', authMiddleware, paymentController.addUserCard.bind(paymentController));
+router.delete('/cards/:id', authMiddleware, paymentController.deleteUserCard.bind(paymentController));
+router.put('/favourite/:id', authMiddleware, paymentController.favouritePayment.bind(paymentController));
+router.put('/unfavourite/:id', authMiddleware, paymentController.unfavouritePayment.bind(paymentController));
 
 // Top-up routes
-router.post('/topup/initiate', authMiddleware,createTopupValidator, paymentController.initiateTopup);
-// router.post('/stripe-webhook', express.raw({type: 'application/json'}), webhookController.handleStripeWebhook);
-// // Internal transfers
-// router.post('/send-payment', authMiddleware, paymentController.sendPayment);
-// router.post('/payment-requests/:id/complete', authMiddleware, paymentController.completePaymentRequest);
-// router.post('/payment-requests/:id/reject', authMiddleware, paymentController.rejectPaymentRequest);
+router.post('/topup/initiate', authMiddleware, createTopupValidator, paymentController.initiateTopup);
 
+// ✅ FIXED: Webhook route with correct middleware
+router.post(
+  '/webhook',
+  bodyParser.raw({ type: 'application/json' }),
+  paymentController.handleStripeWebhook.bind(paymentController)
+);
 
-module.exports = router
+module.exports = router;
