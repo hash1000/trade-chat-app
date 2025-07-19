@@ -26,7 +26,6 @@ router.put('/unfavourite/:id', authMiddleware, paymentController.unfavouritePaym
 // Top-up routes
 router.post('/topup/initiate', authMiddleware, createTopupValidator, paymentController.initiateTopup);
 
-// ✅ FIXED: Webhook route with correct middleware
 router.post(
   '/webhook',
   bodyParser.raw({ type: 'application/json' }),
