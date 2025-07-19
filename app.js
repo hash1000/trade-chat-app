@@ -1,4 +1,5 @@
 const express = require("express");
+const bodyParser = require('body-parser');
 const cookieParser = require("cookie-parser");
 const logger = require("morgan");
 const path = require("path");
@@ -6,6 +7,8 @@ const routes = require("./routes/index");
 const cors = require("cors");
 const { Server } = require("socket.io");
 
+
+// ✅ Apply raw only for webhook
 const app = express();
 const httpServer = require('http').createServer(app);
 const io = new Server(httpServer, {
@@ -16,6 +19,7 @@ const io = new Server(httpServer, {
   }
 });
 
+app.use('/api/payment/webhook', bodyParser.raw({ type: 'application/json' }));
 
 // 👇 Initialize socket utils with io instance
 const { initSocketUtils } = require("./utilities/socketUtils");
