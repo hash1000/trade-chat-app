@@ -105,14 +105,19 @@ async processTopupPayment(userId, amount) {
 }
 
 async handleStripeWebhook(req, res) {
-  const sig = req.headers['stripe-signature'];
   const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
-  if (!sig || !endpointSecret) {
-    console.error('Missing Stripe signature or webhook secret.');
-    return res.status(400).send('Missing Stripe signature or webhook secret.');
-  }
-
+    const signature = request.headers['stripe-signature'];
+    try {
+      event = stripe.webhooks.constructEvent(
+        request.body,
+        signature,
+        endpointSecret
+      );
+    } catch (err) {
+      console.log(`⚠️  Webhook signature verification failed.`, err.message);
+      return response.sendStatus(400);
+    }
   let event;
 
   try {
