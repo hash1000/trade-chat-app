@@ -145,8 +145,8 @@ async handleStripeWebhook(req, res) {
     console.error(`❗Webhook Error: ${err.message}`);
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
-
 }
+
 }
 
 module.exports = PaymentService;
