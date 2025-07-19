@@ -28,7 +28,7 @@ router.post('/topup/initiate', authMiddleware, createTopupValidator, paymentCont
 
 router.post(
   '/webhook',
-  express.json({type: 'application/json'}),
+  bodyParser.raw({ type: 'application/json' }), // MUST be raw
   paymentController.handleStripeWebhook.bind(paymentController)
 );
 
