@@ -35,7 +35,6 @@ const userService = new UserService();
 
 class CartService {
   constructor() {
-    console.log("UserService>>>",UserService);
     this.chatRepository = new ChatRepository();
     this.paymentRepository = new PaymentRepository();
     this.userRepository = new UserRepository();
