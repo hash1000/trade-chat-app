@@ -117,7 +117,7 @@ async handleStripeWebhook(req, res) {
 
   try {
     // Construct and verify event
-    event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
+    event = stripe.webhooks.constructEvent(req.body);
 
     // Handle event types
     switch (event.type) {
