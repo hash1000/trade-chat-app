@@ -9,7 +9,7 @@ const Transaction = sequelize.define("Transaction", {
     autoIncrement: true,
   },
   orderId: {
-    type: DataTypes.STRING, // Changed from INTEGER to STRING
+    type: DataTypes.STRING,
     allowNull: false,
   },
   userId: {
@@ -20,41 +20,36 @@ const Transaction = sequelize.define("Transaction", {
     type: DataTypes.FLOAT,
     allowNull: false,
   },
+  usdAmount: {
+    type: DataTypes.FLOAT,
+    allowNull: false,
+  },
+  rate: {
+    type: DataTypes.FLOAT,
+    allowNull: false,
+  },
+  currency: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+  type: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
   status: {
-    type: DataTypes.ENUM("pending", "success", "failed"),
+    type: DataTypes.ENUM("pending", "completed", "failed"),
     defaultValue: "pending",
   },
   paymentMethod: {
     type: DataTypes.STRING,
     allowNull: false,
   },
-  transactionRef: {
-    type: DataTypes.STRING,
-    allowNull: true,
-  },
-  // Add any other fields you're trying to insert
-  usdAmount: {
-    type: DataTypes.FLOAT,
-    allowNull: true,
-  },
-  rate: {
-    type: DataTypes.FLOAT,
-    allowNull: true,
-  },
-  currency: {
-    type: DataTypes.STRING,
-    allowNull: true,
-  },
-  type: {
-    type: DataTypes.STRING,
-    allowNull: true,
-  },
   metadata: {
     type: DataTypes.JSON,
     allowNull: true,
   }
 }, {
-  tableName: "transaction", // Match your migration
+  tableName: "transaction",
   timestamps: true
 });
 
