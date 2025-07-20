@@ -7,6 +7,7 @@ const Document = require("./document");
 const Role = require("./role");
 const UserRole = require("./userRole");
 const Permission = require("./permission"); // Add this line
+const Transaction = require("./transaction");
 
 // Define associations here
 User.hasMany(Address, { foreignKey: "userId", as: "addresses" });
