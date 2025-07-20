@@ -4,7 +4,6 @@ const CurrencyService = require("../services/CurrencyService");
 const PaymentService = require("../services/PaymentService");
 
 
-
 const paymentService = new PaymentService();
 const currencyService = new CurrencyService();
 const User = require("../models/user");
@@ -334,8 +333,9 @@ async handleStripeWebhook(req, res) {
     // Handle event types
     switch (event.type) {
       case 'payment_intent.succeeded':
-        console.log('✅ Payment succeeded:', event.data.object);
+         await paymentService.handlePaymentIntentSucceeded(event.data.object);
         break;
+        
       case 'payment_intent.payment_failed':
         console.log('❌ Payment failed:', event.data.object);
         break;
@@ -356,6 +356,7 @@ async handleStripeWebhook(req, res) {
     return res.status(400).json({ success: false, message: error.message });
   }
 }
+
 }
 
 module.exports = PaymentController;

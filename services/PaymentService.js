@@ -104,10 +104,60 @@ async processTopupPayment(userId, amount) {
   };
 }
 
-// async handleStripeWebhook(event) {
-//   let event;
- 
-// }
+async  handlePaymentIntentSucceeded(paymentIntent) {
+  console.log("Payment intent succeeded:", paymentIntent.id);
+  if (!paymentIntent.metadata?.purpose === 'wallet_topup') return;
+
+  const userId = paymentIntent.metadata.userId;
+  const amountInDollars = paymentIntent.amount / 100;
+  console.log(`Processing top-up of $${amountInDollars} for user ${userId}`);
+  try {
+    // 1. Get current rate (with error handling)
+    const rateResponse = await currencyService.getAdjustedRate('CNY').catch(err => {
+      throw new Error(`Failed to get exchange rate: ${err.message}`);
+    });
+    
+    if (!rateResponse?.finalRate) {
+      throw new Error('Invalid rate response format');
+    }
+
+    const finalRate = rateResponse.finalRate;
+    const amountToAdd = Math.floor(amountInDollars * finalRate);
+console.log(`Final rate: ${finalRate}, Amount to add: ${amountToAdd} CNY`);
+    // 2. Start transaction for data consistency
+    await sequelize.transaction(async (t) => {
+      // 3. Update user balance
+      const user = await User.findByPk(userId, { transaction: t });
+      if (!user) throw new Error(`User ${userId} not found`);
+
+      user.personalWalletBalance += amountToAdd;
+      await user.save({ transaction: t });
+
+      // 4. Create transaction record
+      const trans = await Transaction.create({
+        userId,
+        amount: amountToAdd,
+        usdAmount: amountInDollars,
+        rate: finalRate,
+        currency: 'CNY',
+        type: 'wallet_topup',
+        status: 'completed',
+        reference: paymentIntent.id,
+        metadata: {
+          stripeEvent: 'payment_intent.succeeded',
+          chargeId: paymentIntent.latest_charge
+        }
+      }, { transaction: t });
+
+      console.log(`Successfully processed $${amountInDollars} payment (converted to ${amountToAdd} CNY) ${trans}`);
+    });
+
+  } catch (error) {
+    console.error('Payment processing failed:', error);
+    // Implement your error notification system here
+    throw error; // Will trigger Stripe's retry mechanism
+  }
+}
 
 }
 
