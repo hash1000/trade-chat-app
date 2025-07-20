@@ -35,6 +35,10 @@ yarn.lock
 .env.test.local
 .env.production.local
 
+#  config/secrets
+config/config.json
+
+
 # Operating System Files
 .DS_Store
 .DS_Store?
