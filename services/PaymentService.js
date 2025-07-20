@@ -3,6 +3,7 @@ const PaymentRepository = require("../repositories/PaymentRepository");
 const PaymentRequest = require("../models/payment_request");
 const { Transaction } = require("../models");
 const User = require("../models/user");
+const CurrencyService = require("./CurrencyService");
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
 class PaymentService {
@@ -113,7 +114,7 @@ async  handlePaymentIntentSucceeded(paymentIntent) {
   console.log(`Processing top-up of $${amountInDollars} for user ${userId}`);
   try {
     // 1. Get current rate (with error handling)
-    const rateResponse = await currencyService.getAdjustedRate('CNY').catch(err => {
+    const rateResponse = await CurrencyService.getAdjustedRate('CNY').catch(err => {
       throw new Error(`Failed to get exchange rate: ${err.message}`);
     });
     
