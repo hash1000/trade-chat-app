@@ -1,7 +1,12 @@
 const sequelize = require("../config/database");
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+const CurrencyService = require("../services/CurrencyService");
 const PaymentService = require("../services/PaymentService");
+
+
+
 const paymentService = new PaymentService();
+const currencyService = new CurrencyService();
 const User = require("../models/user");
 
 class PaymentController {
@@ -251,6 +256,53 @@ async initiateTopup(req, res) {
       success: false,
       message: error.message,
       code: error.code || 'payment_error'
+    });
+  }
+}
+
+async priceAdjust(req, res) {
+  try {
+    const { adjustment, currency = 'CNY' } = req.body;
+    const userId = req.user.id;
+
+    const result = await currencyService.setRateAdjustment(
+      userId,
+      currency,
+      parseFloat(adjustment)
+    );
+
+    return res.json({
+      success: true,
+      message: "Currency rate adjustment set successfully",
+      data: result
+    });
+  } catch (error) {
+    console.error("Currency adjustment error:", error);
+    res.status(error.statusCode || 500).json({
+      success: false,
+      message: error.message,
+      code: error.code || 'CURRENCY_ADJUSTMENT_ERROR'
+    });
+  }
+}
+
+
+async getCurrentRate(req, res) {
+  try {
+    const { currency = 'CNY' } = req.query;
+    const rateInfo = await currencyService.getAdjustedRate(currency);
+    
+    return res.json({
+      success: true,
+      message: "Currency rate retrieved successfully",
+      data: rateInfo
+    });
+  } catch (error) {
+    console.error("Get rate error:", error);
+    res.status(error.statusCode || 500).json({
+      success: false,
+      message: error.message,
+      code: error.code || 'GET_RATE_ERROR'
     });
   }
 }
