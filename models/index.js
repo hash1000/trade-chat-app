@@ -43,5 +43,24 @@ Role.belongsToMany(User, {
   as: "users",
 });
 
+// User - Transaction
+User.hasMany(Transaction, { foreignKey: "userId", as: "transactions" });
+Transaction.belongsTo(User, { foreignKey: "userId", as: "user" });
+
+// Order - Transaction
+Order.hasMany(Transaction, { foreignKey: "orderId", as: "transactions" });
+Transaction.belongsTo(Order, { foreignKey: "orderId", as: "order" });
+
+
 // Export models
-module.exports = { db, User, Role, UserRole, Order, Address, Document, Permission };
+module.exports = {
+  db,
+  User,
+  Role,
+  UserRole,
+  Order,
+  Address,
+  Document,
+  Permission,
+  Transaction
+};

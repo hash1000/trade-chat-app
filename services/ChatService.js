@@ -248,7 +248,6 @@ class CartService {
 
   async transferBalance(fromUserId, toUserId, amount) {
     try {
-      console.log("hahahj");
       const sender = await userService.getUserById(fromUserId);
       if (fromUserId === toUserId && sender.roles[0].name === "admin") {
         console.log("hjsjdhdja");
