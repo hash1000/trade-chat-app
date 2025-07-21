@@ -17,30 +17,59 @@ const MAX_FILE_SIZE_STREAM = 5000 * 1024 * 1024; // 5GB
 // Allowed MIME types
 const ALLOWED_FILE_TYPES = [
   // Images
-  'image/jpeg', 'image/png', 'image/gif', 'image/svg+xml', 'image/webp',
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/svg+xml",
+  "image/webp",
   // Videos
-  'video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/x-flv', 
-  'video/x-ms-wmv', 'video/webm', 'video/mpeg', 'video/x-matroska',
+  "video/mp4",
+  "video/quicktime",
+  "video/x-msvideo",
+  "video/x-flv",
+  "video/x-ms-wmv",
+  "video/webm",
+  "video/mpeg",
+  "video/x-matroska",
   // Documents
-  'application/pdf', 
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   // Spreadsheets
-  'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   // Text
-  'text/plain',
+  "text/plain",
   // Archives
-  'application/zip',
-  'application/x-rar-compressed'
+  "application/zip",
+  "application/x-rar-compressed",
 ];
 
 // Allowed file extensions
 const ALLOWED_EXTENSIONS = [
-  '.jpg', '.jpeg', '.png', '.gif', '.svg', '.webp',
-  '.mp4', '.mov', '.avi', '.flv', '.wmv', '.webm', '.mpg', '.mpeg', '.mkv',
-  '.pdf', '.doc', '.docx', '.xls', '.xlsx',
-  '.txt', '.zip', '.rar'
+  ".jpg",
+  ".jpeg",
+  ".png",
+  ".gif",
+  ".svg",
+  ".webp",
+  ".mp4",
+  ".mov",
+  ".avi",
+  ".flv",
+  ".wmv",
+  ".webm",
+  ".mpg",
+  ".mpeg",
+  ".mkv",
+  ".pdf",
+  ".doc",
+  ".docx",
+  ".xls",
+  ".xlsx",
+  ".txt",
+  ".zip",
+  ".rar",
 ];
 
 module.exports = {
@@ -51,5 +80,5 @@ module.exports = {
   MAX_FILE_SIZE_DISK,
   MAX_FILE_SIZE_STREAM,
   ALLOWED_FILE_TYPES,
-  ALLOWED_EXTENSIONS
+  ALLOWED_EXTENSIONS,
 };

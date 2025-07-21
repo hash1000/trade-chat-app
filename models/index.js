@@ -8,6 +8,10 @@ const Role = require("./role");
 const UserRole = require("./userRole");
 const Permission = require("./permission"); // Add this line
 const Transaction = require("./transaction");
+const BalanceSheet = require("./balanceSheet");
+const Ledger = require("./ledger");
+const Income = require("./ledgerIncome");
+const Expense = require("./ledgerExpense");
 
 // Define associations here
 User.hasMany(Address, { foreignKey: "userId", as: "addresses" });
@@ -51,7 +55,35 @@ Transaction.belongsTo(User, { foreignKey: "userId", as: "user" });
 // Order - Transaction
 Order.hasMany(Transaction, { foreignKey: "orderId", as: "transactions" });
 Transaction.belongsTo(Order, { foreignKey: "orderId", as: "order" });
+// BalanceSheet - Ledger (One-to-Many)
+BalanceSheet.hasMany(Ledger, {
+  foreignKey: "balanceSheetId",
+  as: "ledgers",
+});
+Ledger.belongsTo(BalanceSheet, {
+  foreignKey: "balanceSheetId",
+  as: "balanceSheet",
+});
 
+// Ledger - Income (One-to-Many)
+Ledger.hasMany(Income, {
+  foreignKey: "ledgerId",
+  as: "incomes",
+});
+Income.belongsTo(Ledger, {
+  foreignKey: "ledgerId",
+  as: "ledger",
+});
+
+// Ledger - Expense (One-to-Many)
+Ledger.hasMany(Expense, {
+  foreignKey: "ledgerId",
+  as: "expenses",
+});
+Expense.belongsTo(Ledger, {
+  foreignKey: "ledgerId",
+  as: "ledger",
+});
 
 // Export models
 module.exports = {
@@ -63,5 +95,9 @@ module.exports = {
   Address,
   Document,
   Permission,
-  Transaction
+  Transaction,
+  BalanceSheet,
+  Ledger,
+  Income,
+  Expense,
 };

@@ -3,7 +3,8 @@ const Card = require("../models/card");
 const FavouritePayment = require("../models/favourite_payments");
 const PaymentRequest = require("../models/payment_request");
 const Transaction = require("../models/transaction");
-const { User, Role } = require("../models");
+const { User, Role, Income, Expense } = require("../models");
+const PaymentType = require("../models/paymentType");
 
 class PaymentRepository {
   async createPayment(paymentData) {
@@ -84,7 +85,7 @@ class PaymentRepository {
       },
     });
   }
-  
+
   async createPaymentRequest(requesterId, requesteeId, amount, status) {
     const paymentRequest = await PaymentRequest.create({
       requesterId,
@@ -147,11 +148,11 @@ class PaymentRepository {
     const [affectedRows] = await Transaction.update(updatedData, {
       where: { stripePaymentIntentId: paymentIntentId },
     });
-    
+
     if (affectedRows === 0) {
       throw new Error("Transaction not found");
     }
-    
+
     return this.getTransactionByPaymentIntent(paymentIntentId);
   }
 
@@ -170,9 +171,51 @@ class PaymentRepository {
 
   async getRecentTransactions(limit = 10) {
     return Transaction.findAll({
-      order: [['createdAt', 'DESC']],
+      order: [["createdAt", "DESC"]],
       limit: parseInt(limit),
     });
+  }
+
+  // Payment Type Repository Methods
+
+  async createPaymentType(paymentTypeData) {
+    return PaymentType.create(paymentTypeData);
+  }
+
+  async getPaymentTypeByName(name) {
+    return PaymentType.findOne({ where: { name } });
+  }
+
+  async getAllPaymentTypes(where = {}) {
+    return PaymentType.findAll({
+      where,
+      order: [["name", "ASC"]],
+    });
+  }
+
+  async getPaymentTypeById(id) {
+    return PaymentType.findByPk(id);
+  }
+
+  async updatePaymentType(id, updateData) {
+    const paymentType = await PaymentType.findByPk(id);
+    if (!paymentType) return null;
+    return paymentType.update(updateData);
+  }
+
+  async deletePaymentType(id) {
+    const paymentType = await PaymentType.findByPk(id);
+    if (!paymentType) return null;
+    await paymentType.destroy();
+    return true;
+  }
+
+  async isPaymentTypeInUse(id) {
+    const [inIncomes, inExpenses] = await Promise.all([
+      Income.count({ where: { paymentTypeId: id } }),
+      Expense.count({ where: { paymentTypeId: id } }),
+    ]);
+    return inIncomes > 0 || inExpenses > 0;
   }
 }
 

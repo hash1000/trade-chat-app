@@ -9,6 +9,7 @@ const {
   updatePaymentValidator,
   createTopupValidator,
   currencyAdjustmentValidator,
+  validatePaymentType,
 } = require("../middlewares/paymentValidation");
 const authorize = require("../middlewares/authorization");
 const checkIntegerParam = require("../middlewares/paramIntegerValidation");
@@ -68,22 +69,26 @@ router.put(
   paymentController.unfavouritePayment.bind(paymentController)
 );
 
+//  stripe
 router.post(
   "/adjust-rate",
   authMiddleware,
   authorize(["admin"]),
   currencyAdjustmentValidator,
-  paymentController.priceAdjust
+  paymentController.priceAdjust.bind(paymentController)
 );
 
 // Public endpoint to get current rate
-router.get("/current-rate", paymentController.getCurrentRate);
+router.get(
+  "/current-rate",
+  paymentController.getCurrentRate.bind(paymentController)
+);
 
 router.post(
   "/topup/initiate",
   authMiddleware,
   createTopupValidator,
-  paymentController.initiateTopup
+  paymentController.initiateTopup.bind(paymentController)
 );
 
 router.post(
@@ -92,4 +97,32 @@ router.post(
   paymentController.handleStripeWebhook.bind(paymentController)
 );
 
+// Payment Type Routes
+router.post(
+  "/paymentType",
+  authMiddleware,
+  validatePaymentType,
+  paymentController.createPaymentType.bind(paymentController)
+);
+router.get(
+  "/paymentType",
+  authMiddleware,
+  paymentController.getAllPaymentTypes.bind(paymentController)
+);
+router.get(
+  "/paymentType/:id",
+  authMiddleware,
+  paymentController.getPaymentType.bind(paymentController)
+);
+router.put(
+  "/paymentType/:id",
+  authMiddleware,
+  validatePaymentType,
+  paymentController.updatePaymentType.bind(paymentController)
+);
+router.delete(
+  "/paymentType/:id",
+  authMiddleware,
+  paymentController.deletePaymentType.bind(paymentController)
+);
 module.exports = router;
