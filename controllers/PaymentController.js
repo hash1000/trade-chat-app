@@ -361,22 +361,33 @@ class PaymentController {
   // Payment Type Methods
   async createPaymentType(req, res) {
     try {
-      const { name, description, isActive = true } = req.body;
+      const { name, isActive = true } = req.body;
 
-      // Validate input
       if (!name) {
-        return res.status(400).json({ error: "Name is required" });
+        return res.status(400).json({
+          success: false,
+          message: "Name is required",
+          data: null,
+        });
       }
 
       const paymentType = await paymentService.createPaymentType({
         name,
         isActive,
       });
-      console.log("paymentType", paymentType);
-      res.status(201).json(paymentType);
+
+      return res.status(201).json({
+        success: true,
+        message: "Payment type created successfully",
+        data: paymentType,
+      });
     } catch (error) {
       console.error("Error creating payment type:", error);
-      res.status(500).json({ error: "Internal server error" });
+      return res.status(500).json({
+        success: false,
+        message: "Internal server error",
+        data: null,
+      });
     }
   }
 
@@ -388,10 +399,18 @@ class PaymentController {
         isActive,
       });
 
-      res.json(paymentTypes);
+      return res.status(200).json({
+        success: true,
+        message: "Payment types fetched successfully",
+        data: paymentTypes,
+      });
     } catch (error) {
       console.error("Error fetching payment types:", error);
-      res.status(500).json({ error: "Internal server error" });
+      return res.status(500).json({
+        success: false,
+        message: "Internal server error",
+        data: null,
+      });
     }
   }
 
@@ -401,13 +420,25 @@ class PaymentController {
       const paymentType = await paymentService.getPaymentTypeById(id);
 
       if (!paymentType) {
-        return res.status(404).json({ error: "Payment type not found" });
+        return res.status(404).json({
+          success: false,
+          message: "Payment type not found",
+          data: null,
+        });
       }
 
-      res.json(paymentType);
+      return res.status(200).json({
+        success: true,
+        message: "Payment type fetched successfully",
+        data: paymentType,
+      });
     } catch (error) {
       console.error("Error fetching payment type:", error);
-      res.status(500).json({ error: "Internal server error" });
+      return res.status(500).json({
+        success: false,
+        message: "Internal server error",
+        data: null,
+      });
     }
   }
 
@@ -422,13 +453,25 @@ class PaymentController {
       );
 
       if (!paymentType) {
-        return res.status(404).json({ error: "Payment type not found" });
+        return res.status(404).json({
+          success: false,
+          message: "Payment type not found",
+          data: null,
+        });
       }
 
-      res.json(paymentType);
+      return res.status(200).json({
+        success: true,
+        message: "Payment type updated successfully",
+        data: paymentType,
+      });
     } catch (error) {
       console.error("Error updating payment type:", error);
-      res.status(500).json({ error: "Internal server error" });
+      return res.status(500).json({
+        success: false,
+        message: "Internal server error",
+        data: null,
+      });
     }
   }
 
@@ -449,25 +492,17 @@ class PaymentController {
       return res.status(200).json({
         success: true,
         message: "Payment type deleted successfully",
-        data: null,
+        data: result,
       });
     } catch (error) {
       console.error("Error deleting payment type:", error);
 
-      if (error.message.includes("in use")) {
-        return res.status(400).json({
-          success: false,
-          message: error.message,
-          data: null,
-        });
-      }
+      const isUsedError = error.message?.toLowerCase().includes("in use");
 
-      return res.status(500).json({
+      return res.status(isUsedError ? 400 : 500).json({
         success: false,
-        message: "Internal server error",
+        message: isUsedError ? error.message : "Internal server error",
         data: null,
-        error:
-          process.env.NODE_ENV === "development" ? error.message : undefined,
       });
     }
   }

@@ -201,7 +201,6 @@ class PaymentService {
   }
 
   async deletePaymentType(id) {
-    // Check if payment type is in use
     const inUse = await this.paymentRepository.isPaymentTypeInUse(id);
     if (inUse) {
       throw new Error("Cannot delete - payment type is in use");
