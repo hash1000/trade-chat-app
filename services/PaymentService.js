@@ -107,51 +107,108 @@ class PaymentService {
     };
   }
 
-async handlePaymentIntentSucceeded(paymentIntent) {
-  console.log("Payment intent succeeded:", paymentIntent.id);
-  if (!paymentIntent.metadata?.purpose === "wallet_topup") return;
+  async handlePaymentIntentSucceeded(paymentIntent) {
+    if (!paymentIntent.metadata?.purpose === "wallet_topup") return;
 
-  const userId = paymentIntent.metadata.userId;
-  const amountInDollars = paymentIntent.amount / 100;
-  
-  try {
-    const rateResponse = await currencyService.getAdjustedRate("CNY");
-    if (!rateResponse?.finalRate) throw new Error("Invalid rate response");
+    const userId = paymentIntent.metadata.userId;
+    const amountInDollars = paymentIntent.amount / 100;
 
-    const finalRate = rateResponse.finalRate;
-    const amountToAdd = Math.floor(amountInDollars * finalRate);
+    try {
+      const rateResponse = await currencyService.getAdjustedRate("CNY");
+      if (!rateResponse?.finalRate) throw new Error("Invalid rate response");
 
-    await sequelize.transaction(async (t) => {
-      const user = await User.findByPk(userId, { transaction: t });
-      if (!user) throw new Error(`User ${userId} not found`);
+      const finalRate = rateResponse.finalRate;
+      const amountToAdd = Math.floor(amountInDollars * finalRate);
 
-      user.personalWalletBalance += amountToAdd;
-      await user.save({ transaction: t });
+      await sequelize.transaction(async (t) => {
+        const user = await User.findByPk(userId, { transaction: t });
+        if (!user) throw new Error(`User ${userId} not found`);
 
-      await Transaction.create({
-        userId,
-        amount: amountToAdd,
-        usdAmount: amountInDollars,
-        rate: finalRate,
-        currency: "CNY",
-        type: "wallet_topup",
-        status: "completed",
-        reference: paymentIntent.id,
-        orderId: `topup_${paymentIntent.id.slice(-8)}`,
-        paymentMethod: paymentIntent.payment_method_types?.[0] || 'stripe',
-        metadata: {
-          stripeEvent: "payment_intent.succeeded",
-          chargeId: paymentIntent.latest_charge
-        }
-      }, { transaction: t });
-    });
+        user.personalWalletBalance += amountToAdd;
+        await user.save({ transaction: t });
 
-    console.log(`Successfully processed $${amountInDollars} payment`);
-  } catch (error) {
-    console.error("Payment processing failed:", error);
-    throw error;
+        await Transaction.create(
+          {
+            userId,
+            amount: amountToAdd,
+            usdAmount: amountInDollars,
+            rate: finalRate,
+            currency: "CNY",
+            type: "wallet_topup",
+            status: "completed",
+            reference: paymentIntent.id,
+            orderId: `topup_${paymentIntent.id.slice(-8)}`,
+            paymentMethod: paymentIntent.payment_method_types?.[0] || "stripe",
+            metadata: {
+              stripeEvent: "payment_intent.succeeded",
+              chargeId: paymentIntent.latest_charge,
+            },
+          },
+          { transaction: t }
+        );
+      });
+
+      console.log(`Successfully processed $${amountInDollars} payment`);
+    } catch (error) {
+      console.error("Payment processing failed:", error);
+      throw error;
+    }
   }
-}
+
+  // Payment Type Methods
+  async createPaymentType(paymentTypeData) {
+    // Check if payment type already exists
+    const existingType = await this.paymentRepository.getPaymentTypeByName(
+      paymentTypeData.name
+    );
+    if (existingType) {
+      throw new Error("Payment type already exists");
+    }
+
+    return this.paymentRepository.createPaymentType(paymentTypeData);
+  }
+
+  async getAllPaymentTypes({ search, isActive }) {
+    const where = {};
+
+    if (search) {
+      where[Op.or] = [{ name: { [Op.iLike]: `%${search}%` } }];
+    }
+
+    if (isActive === "true" || isActive === "false") {
+      where.isActive = isActive === "true";
+    }
+
+    return this.paymentRepository.getAllPaymentTypes(where);
+  }
+
+  async getPaymentTypeById(id) {
+    return this.paymentRepository.getPaymentTypeById(id);
+  }
+
+  async updatePaymentType(id, updateData) {
+    // Check if name is being changed to one that already exists
+    if (updateData.name) {
+      const existingType = await this.paymentRepository.getPaymentTypeByName(
+        updateData.name
+      );
+      if (existingType && existingType.id !== parseInt(id)) {
+        throw new Error("Payment type with this name already exists");
+      }
+    }
+
+    return this.paymentRepository.updatePaymentType(id, updateData);
+  }
+
+  async deletePaymentType(id) {
+    // Check if payment type is in use
+    const inUse = await this.paymentRepository.isPaymentTypeInUse(id);
+    if (inUse) {
+      throw new Error("Cannot delete - payment type is in use");
+    }
+
+    return this.paymentRepository.deletePaymentType(id);
+  }
 }
 
 module.exports = PaymentService;

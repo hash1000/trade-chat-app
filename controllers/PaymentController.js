@@ -3,7 +3,6 @@ const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const CurrencyService = require("../services/CurrencyService");
 const PaymentService = require("../services/PaymentService");
 
-
 const paymentService = new PaymentService();
 const currencyService = new CurrencyService();
 const User = require("../models/user");
@@ -229,134 +228,249 @@ class PaymentController {
       res.status(500).json({ error: "Internal server error" });
     }
   }
-  
-async initiateTopup(req, res) {
-  try {
-    const { amount } = req.body;
-    const { id: userId } = req.user;
 
-    if (!amount || isNaN(amount) || amount <= 0) {
-      return res.status(400).json({ message: "Invalid amount" });
-    }
-
-    const result = await paymentService.processTopupPayment(userId, amount);
-
-    return res.json({
-      success: true,
-      message: "Topup intent created successfully",
-      data: {
-        clientSecret: result.clientSecret,
-        amount: result.amount,
-      }
-    });
-  } catch (error) {
-    console.error("Topup error:", error);
-    res.status(error.statusCode || 500).json({
-      success: false,
-      message: error.message,
-      code: error.code || 'payment_error'
-    });
-  }
-}
-
-async priceAdjust(req, res) {
-  try {
-    const { adjustment, currency = 'CNY' } = req.body;
-    const userId = req.user.id;
-
-    const result = await currencyService.setRateAdjustment(
-      userId,
-      currency,
-      parseFloat(adjustment)
-    );
-
-    return res.json({
-      success: true,
-      message: "Currency rate adjustment set successfully",
-      data: result
-    });
-  } catch (error) {
-    console.error("Currency adjustment error:", error);
-    res.status(error.statusCode || 500).json({
-      success: false,
-      message: error.message,
-      code: error.code || 'CURRENCY_ADJUSTMENT_ERROR'
-    });
-  }
-}
-
-
-async getCurrentRate(req, res) {
-  try {
-    const { currency = 'CNY' } = req.query;
-    const rateInfo = await currencyService.getAdjustedRate(currency);
-    
-    return res.json({
-      success: true,
-      message: "Currency rate retrieved successfully",
-      data: rateInfo
-    });
-  } catch (error) {
-    console.error("Get rate error:", error);
-    res.status(error.statusCode || 500).json({
-      success: false,
-      message: error.message,
-      code: error.code || 'GET_RATE_ERROR'
-    });
-  }
-}
-
-async handleStripeWebhook(req, res) {
-  try {
-    const sig = req.headers['stripe-signature'];
-    const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
-
-    if (!sig || !endpointSecret) {
-      console.error('Missing Stripe signature or webhook secret');
-      return res.status(400).send('Webhook Error: Missing signature or secret');
-    }
-
-    let event;
-    
+  async initiateTopup(req, res) {
     try {
-      // Construct and verify the event
-      event = stripe.webhooks.constructEvent(
-        req.body, // Make sure this is the raw body
-        sig,
-        endpointSecret
-      );
-    } catch (err) {
-      console.error(`⚠️ Webhook signature verification failed: ${err.message}`);
-      return res.status(400).send(`Webhook Error: ${err.message}`);
+      const { amount } = req.body;
+      const { id: userId } = req.user;
+
+      if (!amount || isNaN(amount) || amount <= 0) {
+        return res.status(400).json({ message: "Invalid amount" });
+      }
+
+      const result = await paymentService.processTopupPayment(userId, amount);
+
+      return res.json({
+        success: true,
+        message: "Topup intent created successfully",
+        data: {
+          clientSecret: result.clientSecret,
+          amount: result.amount,
+        },
+      });
+    } catch (error) {
+      console.error("Topup error:", error);
+      res.status(error.statusCode || 500).json({
+        success: false,
+        message: error.message,
+        code: error.code || "payment_error",
+      });
     }
-
-    // Handle event types
-    switch (event.type) {
-      case 'payment_intent.succeeded':
-         await paymentService.handlePaymentIntentSucceeded(event.data.object);
-        break;
-        
-      case 'payment_intent.payment_failed':
-        console.log('❌ Payment failed:', event.data.object);
-        break;
-      case 'payment_intent.canceled':
-        console.log('🚫 Payment canceled:', event.data.object);
-        break;
-      case 'account.updated':
-        console.log('🔄 Account updated:', event.data.object);
-        break;
-      default:
-        console.log(`ℹ️ Unhandled event type: ${event.type}`);
-    }
-
-    return res.status(200).json({ received: true });
-
-  } catch (error) {
-    console.error("Webhook error:", error);
-    return res.status(400).json({ success: false, message: error.message });
   }
-}
 
+  async priceAdjust(req, res) {
+    try {
+      const { adjustment, currency = "CNY" } = req.body;
+      const userId = req.user.id;
+
+      const result = await currencyService.setRateAdjustment(
+        userId,
+        currency,
+        parseFloat(adjustment)
+      );
+
+      return res.json({
+        success: true,
+        message: "Currency rate adjustment set successfully",
+        data: result,
+      });
+    } catch (error) {
+      console.error("Currency adjustment error:", error);
+      res.status(error.statusCode || 500).json({
+        success: false,
+        message: error.message,
+        code: error.code || "CURRENCY_ADJUSTMENT_ERROR",
+      });
+    }
+  }
+
+  async getCurrentRate(req, res) {
+    try {
+      const { currency = "CNY" } = req.query;
+      const rateInfo = await currencyService.getAdjustedRate(currency);
+
+      return res.json({
+        success: true,
+        message: "Currency rate retrieved successfully",
+        data: rateInfo,
+      });
+    } catch (error) {
+      console.error("Get rate error:", error);
+      res.status(error.statusCode || 500).json({
+        success: false,
+        message: error.message,
+        code: error.code || "GET_RATE_ERROR",
+      });
+    }
+  }
+
+  async handleStripeWebhook(req, res) {
+    try {
+      const sig = req.headers["stripe-signature"];
+      const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+      if (!sig || !endpointSecret) {
+        console.error("Missing Stripe signature or webhook secret");
+        return res
+          .status(400)
+          .send("Webhook Error: Missing signature or secret");
+      }
+
+      let event;
+
+      try {
+        // Construct and verify the event
+        event = stripe.webhooks.constructEvent(
+          req.body, // Make sure this is the raw body
+          sig,
+          endpointSecret
+        );
+      } catch (err) {
+        console.error(
+          `⚠️ Webhook signature verification failed: ${err.message}`
+        );
+        return res.status(400).send(`Webhook Error: ${err.message}`);
+      }
+
+      // Handle event types
+      switch (event.type) {
+        case "payment_intent.succeeded":
+          await paymentService.handlePaymentIntentSucceeded(event.data.object);
+          break;
+
+        case "payment_intent.payment_failed":
+          console.log("❌ Payment failed:", event.data.object);
+          break;
+        case "payment_intent.canceled":
+          console.log("🚫 Payment canceled:", event.data.object);
+          break;
+        case "account.updated":
+          console.log("🔄 Account updated:", event.data.object);
+          break;
+        default:
+          console.log(`ℹ️ Unhandled event type: ${event.type}`);
+      }
+
+      return res.status(200).json({ received: true });
+    } catch (error) {
+      console.error("Webhook error:", error);
+      return res.status(400).json({ success: false, message: error.message });
+    }
+  }
+
+  // Payment Type Methods
+  async createPaymentType(req, res) {
+    try {
+      const { name, description, isActive = true } = req.body;
+
+      // Validate input
+      if (!name) {
+        return res.status(400).json({ error: "Name is required" });
+      }
+
+      const paymentType = await paymentService.createPaymentType({
+        name,
+        isActive,
+      });
+      console.log("paymentType", paymentType);
+      res.status(201).json(paymentType);
+    } catch (error) {
+      console.error("Error creating payment type:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+
+  async getAllPaymentTypes(req, res) {
+    try {
+      const { search, isActive } = req.query;
+      const paymentTypes = await paymentService.getAllPaymentTypes({
+        search,
+        isActive,
+      });
+
+      res.json(paymentTypes);
+    } catch (error) {
+      console.error("Error fetching payment types:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+
+  async getPaymentType(req, res) {
+    try {
+      const { id } = req.params;
+      const paymentType = await paymentService.getPaymentTypeById(id);
+
+      if (!paymentType) {
+        return res.status(404).json({ error: "Payment type not found" });
+      }
+
+      res.json(paymentType);
+    } catch (error) {
+      console.error("Error fetching payment type:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+
+  async updatePaymentType(req, res) {
+    try {
+      const { id } = req.params;
+      const updateData = req.body;
+
+      const paymentType = await paymentService.updatePaymentType(
+        id,
+        updateData
+      );
+
+      if (!paymentType) {
+        return res.status(404).json({ error: "Payment type not found" });
+      }
+
+      res.json(paymentType);
+    } catch (error) {
+      console.error("Error updating payment type:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+
+  async deletePaymentType(req, res) {
+    try {
+      const { id } = req.params;
+
+      const result = await paymentService.deletePaymentType(id);
+
+      if (!result) {
+        return res.status(404).json({
+          success: false,
+          message: "Payment type not found",
+          data: null,
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: "Payment type deleted successfully",
+        data: null,
+      });
+    } catch (error) {
+      console.error("Error deleting payment type:", error);
+
+      if (error.message.includes("in use")) {
+        return res.status(400).json({
+          success: false,
+          message: error.message,
+          data: null,
+        });
+      }
+
+      return res.status(500).json({
+        success: false,
+        message: "Internal server error",
+        data: null,
+        error:
+          process.env.NODE_ENV === "development" ? error.message : undefined,
+      });
+    }
+  }
 }
 
 module.exports = PaymentController;
