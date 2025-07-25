@@ -304,59 +304,76 @@ class PaymentController {
     }
   }
 
-  async handleStripeWebhook(req, res) {
-    try {
-      const sig = req.headers["stripe-signature"];
-      const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+// paymentController.js
 
-      if (!sig || !endpointSecret) {
-        console.error("Missing Stripe signature or webhook secret");
-        return res
-          .status(400)
-          .send("Webhook Error: Missing signature or secret");
-      }
+async handleStripeWebhook(req, res) {
+  try {
+    const sig = req.headers["stripe-signature"];
+    const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
-      let event;
-
-      try {
-        // Construct and verify the event
-        event = stripe.webhooks.constructEvent(
-          req.body, // Make sure this is the raw body
-          sig,
-          endpointSecret
-        );
-      } catch (err) {
-        console.error(
-          `⚠️ Webhook signature verification failed: ${err.message}`
-        );
-        return res.status(400).send(`Webhook Error: ${err.message}`);
-      }
-
-      // Handle event types
-      switch (event.type) {
-        case "payment_intent.succeeded":
-          await paymentService.handlePaymentIntentSucceeded(event.data.object);
-          break;
-
-        case "payment_intent.payment_failed":
-          console.log("❌ Payment failed:", event.data.object);
-          break;
-        case "payment_intent.canceled":
-          console.log("🚫 Payment canceled:", event.data.object);
-          break;
-        case "account.updated":
-          console.log("🔄 Account updated:", event.data.object);
-          break;
-        default:
-          console.log(`ℹ️ Unhandled event type: ${event.type}`);
-      }
-
-      return res.status(200).json({ received: true });
-    } catch (error) {
-      console.error("Webhook error:", error);
-      return res.status(400).json({ success: false, message: error.message });
+    if (!sig || !endpointSecret) {
+      console.error("Missing Stripe signature or webhook secret");
+      return res.status(400).send("Webhook Error: Missing signature or secret");
     }
+
+    let event;
+
+    try {
+      // Make sure req.body is raw!
+      event = stripe.webhooks.constructEvent(
+        req.body,
+        sig,
+        endpointSecret
+      );
+    } catch (err) {
+      console.error(`⚠️ Webhook signature verification failed: ${err.message}`);
+      return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+
+    // Handle event types
+    switch (event.type) {
+      // ====== CHECKOUT SESSION EVENTS ======
+      case "checkout.session.completed":
+      case "checkout.session.async_payment_succeeded":
+        console.log("✅ Checkout session completed:", event.data.object);
+        // Payment completed successfully
+        await paymentService.handleCheckoutSessionCompleted(event.data.object);
+        break;
+
+      case "checkout.session.expired":
+      case "checkout.session.canceled":
+      case "checkout.session.async_payment_failed":
+        // Payment was canceled or failed (session expired, user closed, payment declined)
+        await paymentService.handleCheckoutSessionCanceled(event.data.object);
+        break;
+
+      // ====== PAYMENT INTENT EVENTS ======
+      case "payment_intent.succeeded":
+        await paymentService.handlePaymentIntentSucceeded(event.data.object);
+        break;
+
+      case "payment_intent.payment_failed":
+      case "payment_intent.canceled":
+        await paymentService.handlePaymentIntentCanceled(event.data.object);
+        break;
+
+      // ====== ACCOUNT EVENTS ======
+      case "account.updated":
+        console.log("🔄 Account updated:", event.data.object);
+        break;
+
+      // ====== DEFAULT ======
+      default:
+        console.log(`ℹ️ Unhandled event type: ${event.type}`);
+    }
+
+    return res.status(200).json({ received: true });
+  } catch (error) {
+    console.error("Webhook error:", error);
+    return res.status(400).json({ success: false, message: error.message });
   }
+}
+
 
   // Payment Type Methods
   async createPaymentType(req, res) {
