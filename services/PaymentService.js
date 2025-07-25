@@ -85,24 +85,38 @@ class PaymentService {
     return this.paymentRepository.unfavouritePayment(paymentId, userId);
   }
 
+  // Inside paymentService.js
   async processTopupPayment(userId, amount) {
     const user = await WalletService.getUserWalletById(userId);
-    console.log("User for topup:", userId, amount);
+    const roundedAmount = Math.round(amount * 100); // cents
 
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(amount * 100), // USD cents
-      currency: "usd",
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ["card"],
+      mode: "payment",
+      line_items: [
+        {
+          price_data: {
+            currency: "usd",
+            product_data: {
+              name: "Wallet Top-up",
+              description: `Wallet top-up for ${user.email}`,
+            },
+            unit_amount: roundedAmount,
+          },
+          quantity: 1,
+        },
+      ],
       metadata: {
         userId: user.id,
         purpose: "wallet_topup",
       },
-      description: `Wallet top-up for ${user.email}`,
+      success_url: `http://157.230.84.217:5000/wallet/topup-success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `http://157.230.84.217:5000/wallet/topup-cancelled`,
     });
 
-    // You can save the paymentIntent.id if needed for later tracking
-
     return {
-      clientSecret: paymentIntent.client_secret,
+      checkoutUrl: session.url,
+      checkoutSessionId: session.id, // 👈 Add this line!
       amount,
     };
   }

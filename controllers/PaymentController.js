@@ -242,9 +242,9 @@ class PaymentController {
 
       return res.json({
         success: true,
-        message: "Topup intent created successfully",
+        message: "Stripe Checkout session created",
         data: {
-          clientSecret: result.clientSecret,
+          checkoutUrl: result.checkoutUrl,
           amount: result.amount,
         },
       });
