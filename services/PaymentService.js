@@ -169,6 +169,24 @@ class PaymentService {
     }
   }
 
+  async handleCheckoutSessionCompleted(session) {
+  // Your top-up logic for successful payment (already shown in previous answers)
+  console.log("Checkout session completed:", session);
+}
+
+async handleCheckoutSessionCanceled(session) {
+  // Optional: update transaction as canceled/expired, notify user, etc.
+  console.log("Checkout session canceled/expired:", session.id);
+  // (Update your DB or logs if you want)
+}
+
+
+async handlePaymentIntentCanceled(paymentIntent) {
+  // Optional: mark transaction as canceled/failed
+  console.log("PaymentIntent canceled/failed:", paymentIntent.id);
+  // (Update your DB or logs if you want)
+}
+
   // Payment Type Methods
   async createPaymentType(paymentTypeData) {
     // Check if payment type already exists
