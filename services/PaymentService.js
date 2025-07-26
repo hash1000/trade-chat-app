@@ -121,72 +121,83 @@ class PaymentService {
     };
   }
 
-  async handlePaymentIntentSucceeded(paymentIntent) {
-    console.log("PaymentIntent succeeded:", paymentIntent);
-    if (!paymentIntent.metadata?.purpose === "wallet_topup") return;
+  async handlePaymentCheckoutSucceeded(session) {
+    console.log("✅ Checkout session completed:", session);
 
-    const userId = paymentIntent.metadata.userId;
-    const amountInDollars = paymentIntent.amount / 100;
+    const {
+      metadata,
+      amount_total,
+      id: sessionId,
+      payment_method_types,
+      customer_details,
+    } = session;
+
+    if (!metadata || metadata.purpose !== "wallet_topup") {
+      console.warn("Skipping non-wallet top-up session.");
+      return;
+    }
+
+    const userId = Number(metadata.userId);
+    const amountInUsd = parseFloat((amount_total / 100).toFixed(2));
+
+    if (isNaN(userId) || isNaN(amountInUsd)) {
+      throw new Error("Invalid userId or amount");
+    }
 
     try {
-      const rateResponse = await currencyService.getAdjustedRate("CNY");
-      if (!rateResponse?.finalRate) throw new Error("Invalid rate response");
+      const rateData = await currencyService.getAdjustedRate("CNY");
+      if (!rateData?.finalRate) throw new Error("Currency rate fetch failed");
 
-      const finalRate = rateResponse.finalRate;
-      const amountToAdd = Math.floor(amountInDollars * finalRate);
+      const rate = parseFloat(rateData.finalRate.toFixed(5));
+      const convertedAmount = Math.floor(amountInUsd * rate);
 
       await sequelize.transaction(async (t) => {
         const user = await User.findByPk(userId, { transaction: t });
-        if (!user) throw new Error(`User ${userId} not found`);
+        if (!user) throw new Error(`User not found: ${userId}`);
 
-        user.personalWalletBalance += amountToAdd;
+        user.personalWalletBalance += convertedAmount;
         await user.save({ transaction: t });
 
         await Transaction.create(
           {
             userId,
-            amount: amountToAdd,
-            usdAmount: amountInDollars,
-            rate: finalRate,
+            amount: convertedAmount,
+            usdAmount: amountInUsd,
+            rate,
             currency: "CNY",
             type: "wallet_topup",
             status: "completed",
-            reference: paymentIntent.id,
-            orderId: `topup_${paymentIntent.id.slice(-8)}`,
-            paymentMethod: paymentIntent.payment_method_types?.[0] || "stripe",
+            orderId: `topup_${sessionId.slice(-8)}`,
+            reference: sessionId,
+            paymentMethod: payment_method_types?.[0] || "card",
             metadata: {
-              stripeEvent: "payment_intent.succeeded",
-              chargeId: paymentIntent.latest_charge,
+              stripeEvent: "checkout.session.completed",
+              email: customer_details?.email || null,
+              name: customer_details?.name || null,
             },
           },
           { transaction: t }
         );
       });
 
-      console.log(`Successfully processed $${amountInDollars} payment`);
-    } catch (error) {
-      console.error("Payment processing failed:", error);
-      throw error;
+      console.log(
+        `💰 Wallet top-up successful: $${amountInUsd} → ¥${convertedAmount}`
+      );
+    } catch (err) {
+      console.error("❌ Payment processing failed:", err);
+      throw err;
     }
   }
 
-  async handleCheckoutSessionCompleted(session) {
-  // Your top-up logic for successful payment (already shown in previous answers)
-  console.log("Checkout session completed:", session);
-}
+  async handleCheckoutSessionCanceled(session) {
+    console.log("⚠️ Checkout session canceled:", session.id);
+    // You may optionally log or persist the cancellation here.
+  }
 
-async handleCheckoutSessionCanceled(session) {
-  // Optional: update transaction as canceled/expired, notify user, etc.
-  console.log("Checkout session canceled/expired:", session.id);
-  // (Update your DB or logs if you want)
-}
-
-
-async handlePaymentIntentCanceled(paymentIntent) {
-  // Optional: mark transaction as canceled/failed
-  console.log("PaymentIntent canceled/failed:", paymentIntent.id);
-  // (Update your DB or logs if you want)
-}
+  async handlePaymentIntentCanceled(paymentIntent) {
+    console.log("⚠️ PaymentIntent canceled:", paymentIntent.id);
+    // You may optionally log or persist the cancellation here.
+  }
 
   // Payment Type Methods
   async createPaymentType(paymentTypeData) {
