@@ -334,7 +334,6 @@ async handleStripeWebhook(req, res) {
     switch (event.type) {
       // ====== CHECKOUT SESSION EVENTS ======
       case "checkout.session.completed":
-      case "checkout.session.async_payment_succeeded":
         console.log("✅ Checkout session completed:", event.data.object);
         // Payment completed successfully
         await paymentService.handlePaymentIntentSucceeded(event.data.object);

@@ -122,6 +122,7 @@ class PaymentService {
   }
 
   async handlePaymentIntentSucceeded(paymentIntent) {
+    console.log("PaymentIntent succeeded:", paymentIntent);
     if (!paymentIntent.metadata?.purpose === "wallet_topup") return;
 
     const userId = paymentIntent.metadata.userId;
