@@ -609,7 +609,6 @@ class PaymentController {
       const { id: ledgerId } = req.params;
       const { incomes = [], expenses = [] } = req.body;
       const { id: userId } = req.user;
-console.log("Adding bulk transactions to ledger:", ledgerId, incomes, expenses);
       const result = await paymentService.addBulkLedgerTransactions({
         ledgerId,
         incomes,

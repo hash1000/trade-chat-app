@@ -15,7 +15,6 @@ class PaymentService {
 
   // Create a Stripe customer when user registers
   async createStripeCustomer(user, email) {
-    console.log(">>>", user, email);
     const customer = await stripe.customers.create({
       email: email,
       metadata: {
@@ -25,7 +24,6 @@ class PaymentService {
 
     // Save stripeCustomerId to your user in database
     const updatedUser = await WalletService.updateCustomerId(user, customer.id);
-    console.log("updatedUser", updatedUser);
     return updatedUser;
   }
 
@@ -403,8 +401,6 @@ class PaymentService {
 async addBulkLedgerTransactions({ ledgerId, incomes = [], expenses = [], userId }) {
   const ledger = await this.paymentRepository.getLedgerById(ledgerId);
   if (!ledger) throw new Error("Ledger not found");
-
-  console.log("Adding bulk transactions to ledger:", ledgerId, incomes, expenses);
 
   const paymentTypeIds = [
     ...incomes.map((i) => i.paymentTypeId),
