@@ -19,7 +19,7 @@ class PaymentService {
       email: email,
       metadata: {
         userId: user.id, // Link to your internal user ID
-      }
+      },
     });
 
     // Save stripeCustomerId to your user in database
@@ -340,7 +340,46 @@ class PaymentService {
   }
 
   async getBalanceSheetsByUser(userId) {
-    return this.paymentRepository.getBalanceSheetsByUser(userId);
+    const balanceSheets = await this.paymentRepository.getBalanceSheetsByUser(
+      userId
+    );
+
+    return balanceSheets.map((sheet) => {
+      let sheetTotalIncome = 0;
+      let sheetTotalExpense = 0;
+
+      const ledgers = sheet.ledgers.map((ledger) => {
+        const totalIncome =
+          ledger.incomes?.reduce(
+            (sum, inc) => sum + parseFloat(inc.amount || 0),
+            0
+          ) || 0;
+        const totalExpense =
+          ledger.expenses?.reduce(
+            (sum, exp) => sum + parseFloat(exp.amount || 0),
+            0
+          ) || 0;
+        const balance = totalIncome - totalExpense;
+
+        sheetTotalIncome += totalIncome;
+        sheetTotalExpense += totalExpense;
+
+        return {
+          ...ledger.toJSON(),
+          totalIncome,
+          totalExpense,
+          balance,
+        };
+      });
+
+      return {
+        ...sheet.toJSON(),
+        ledgers,
+        totalIncome: sheetTotalIncome,
+        totalExpense: sheetTotalExpense,
+        balance: sheetTotalIncome - sheetTotalExpense,
+      };
+    });
   }
 
   async getBalanceSheetById(id) {
