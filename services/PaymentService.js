@@ -400,7 +400,28 @@ class PaymentService {
   }
 
   async getLedgerById(id) {
-    return this.paymentRepository.getLedgerById(id);
+    const ledger = await this.paymentRepository.getLedgerById(id);
+
+    if (!ledger) return null;
+
+    const totalIncome =
+      ledger.incomes?.reduce(
+        (sum, inc) => sum + parseFloat(inc.amount || 0),
+        0
+      ) || 0;
+    const totalExpense =
+      ledger.expenses?.reduce(
+        (sum, exp) => sum + parseFloat(exp.amount || 0),
+        0
+      ) || 0;
+    const balance = totalIncome - totalExpense;
+
+    return {
+      ...ledger.toJSON(),
+      totalIncome,
+      totalExpense,
+      balance,
+    };
   }
 
   async updateLedger(id, updateData) {
