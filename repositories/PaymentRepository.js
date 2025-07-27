@@ -226,6 +226,15 @@ class PaymentRepository {
     return PaymentType.findOne({ where: { name, userId } });
   }
 
+  async findExistingPaymentTypeIds(ids) {
+    const rows = await PaymentType.findAll({
+      where: { id: ids },
+      attributes: ["id"],
+      raw: true,
+    });
+    return rows.map((r) => r.id);
+  }
+
   // BALANCE SHEET
   async getBalanceSheetsByUser(userId) {
     return BalanceSheet.findAll({

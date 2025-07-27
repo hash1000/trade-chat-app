@@ -304,114 +304,116 @@ class PaymentController {
     }
   }
 
- // paymentController.js
+  // paymentController.js
 
-  async handleStripeWebhook(req, res)  {
-  const sig = req.headers["stripe-signature"];
-  const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  async handleStripeWebhook(req, res) {
+    const sig = req.headers["stripe-signature"];
+    const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
-  if (!sig || !endpointSecret) {
-    console.error("Missing Stripe signature or webhook secret");
-    return res.status(400).send("Webhook Error: Missing signature or secret");
-  }
-
-  let event;
-  try {
-    event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
-  } catch (err) {
-    console.error(`⚠️ Webhook signature error: ${err.message}`);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
-  }
-
-  try {
-    switch (event.type) {
-      case "checkout.session.completed":
-      case "checkout.session.async_payment_succeeded":
-        await paymentService.handlePaymentCheckoutSucceeded(event.data.object);
-        break;
-
-      case "checkout.session.canceled":
-      case "checkout.session.expired":
-      case "checkout.session.async_payment_failed":
-        await paymentService.handleCheckoutSessionCanceled(event.data.object);
-        break;
-
-      case "payment_intent.canceled":
-        await paymentService.handlePaymentIntentCanceled(event.data.object);
-        break;
-
-      default:
-        console.log(`ℹ️ Unhandled event type: ${event.type}`);
-        break;
+    if (!sig || !endpointSecret) {
+      console.error("Missing Stripe signature or webhook secret");
+      return res.status(400).send("Webhook Error: Missing signature or secret");
     }
 
-    return res.status(200).json({ received: true });
-  } catch (err) {
-    console.error("❌ Webhook handler error:", err);
-    return res.status(400).json({ error: err.message });
-  }
+    let event;
+    try {
+      event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
+    } catch (err) {
+      console.error(`⚠️ Webhook signature error: ${err.message}`);
+      return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+
+    try {
+      switch (event.type) {
+        case "checkout.session.completed":
+        case "checkout.session.async_payment_succeeded":
+          await paymentService.handlePaymentCheckoutSucceeded(
+            event.data.object
+          );
+          break;
+
+        case "checkout.session.canceled":
+        case "checkout.session.expired":
+        case "checkout.session.async_payment_failed":
+          await paymentService.handleCheckoutSessionCanceled(event.data.object);
+          break;
+
+        case "payment_intent.canceled":
+          await paymentService.handlePaymentIntentCanceled(event.data.object);
+          break;
+
+        default:
+          console.log(`ℹ️ Unhandled event type: ${event.type}`);
+          break;
+      }
+
+      return res.status(200).json({ received: true });
+    } catch (err) {
+      console.error("❌ Webhook handler error:", err);
+      return res.status(400).json({ error: err.message });
+    }
   }
 
   // Payment Type Methods
-async createPaymentType(req, res) {
-  try {
-    const { name, isActive = true } = req.body;
-    const { id: userId } = req.user;
+  async createPaymentType(req, res) {
+    try {
+      const { name, isActive = true } = req.body;
+      const { id: userId } = req.user;
 
-    if (!name) {
-      return res.status(400).json({
+      if (!name) {
+        return res.status(400).json({
+          success: false,
+          message: "Name is required",
+          data: null,
+        });
+      }
+
+      const paymentType = await paymentService.createPaymentType({
+        name,
+        isActive,
+        userId,
+      });
+
+      return res.status(201).json({
+        success: true,
+        message: "Payment type created successfully",
+        data: paymentType,
+      });
+    } catch (error) {
+      console.error("Error creating payment type:", error);
+      return res.status(500).json({
         success: false,
-        message: "Name is required",
+        message: error.message || "Internal server error",
         data: null,
       });
     }
-
-    const paymentType = await paymentService.createPaymentType({
-      name,
-      isActive,
-      userId
-    });
-
-    return res.status(201).json({
-      success: true,
-      message: "Payment type created successfully",
-      data: paymentType,
-    });
-  } catch (error) {
-    console.error("Error creating payment type:", error);
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Internal server error",
-      data: null,
-    });
   }
-}
 
-async getAllPaymentTypes(req, res) {
-  try {
-    const { search, isActive } = req.query;
-    const { id: userId } = req.user;
+  async getAllPaymentTypes(req, res) {
+    try {
+      const { search, isActive } = req.query;
+      const { id: userId } = req.user;
 
-    const paymentTypes = await paymentService.getAllPaymentTypes({
-      search,
-      isActive,
-      userId
-    });
+      const paymentTypes = await paymentService.getAllPaymentTypes({
+        search,
+        isActive,
+        userId,
+      });
 
-    return res.status(200).json({
-      success: true,
-      message: "Payment types fetched successfully",
-      data: paymentTypes,
-    });
-  } catch (error) {
-    console.error("Error fetching payment types:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Internal server error",
-      data: null,
-    });
+      return res.status(200).json({
+        success: true,
+        message: "Payment types fetched successfully",
+        data: paymentTypes,
+      });
+    } catch (error) {
+      console.error("Error fetching payment types:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Internal server error",
+        data: null,
+      });
+    }
   }
-}
 
   async getPaymentType(req, res) {
     try {
@@ -505,14 +507,23 @@ async getAllPaymentTypes(req, res) {
       });
     }
   }
-  
-    // BALANCE SHEET
+
+  // BALANCE SHEET
   async createBalanceSheet(req, res) {
     try {
       const { ledgers } = req.body;
       const { id: userId } = req.user;
-      const result = await paymentService.createBalanceSheet({ ledgers, userId });
-      res.status(201).json({ success: true, message: "Balance sheet created", data: result });
+      const result = await paymentService.createBalanceSheet({
+        ledgers,
+        userId,
+      });
+      res
+        .status(201)
+        .json({
+          success: true,
+          message: "Balance sheet created",
+          data: result,
+        });
     } catch (error) {
       console.error("Create balance sheet error:", error);
       res.status(500).json({ success: false, message: error.message });
@@ -533,7 +544,10 @@ async getAllPaymentTypes(req, res) {
   async getBalanceSheetById(req, res) {
     try {
       const result = await paymentService.getBalanceSheetById(req.params.id);
-      if (!result) return res.status(404).json({ success: false, message: "Balance sheet not found" });
+      if (!result)
+        return res
+          .status(404)
+          .json({ success: false, message: "Balance sheet not found" });
       res.json({ success: true, data: result });
     } catch (error) {
       console.error("Get balance sheet by ID error:", error);
@@ -543,8 +557,14 @@ async getAllPaymentTypes(req, res) {
 
   async updateBalanceSheet(req, res) {
     try {
-      const result = await paymentService.updateBalanceSheet(req.params.id, req.body);
-      if (!result) return res.status(404).json({ success: false, message: "Balance sheet not found" });
+      const result = await paymentService.updateBalanceSheet(
+        req.params.id,
+        req.body
+      );
+      if (!result)
+        return res
+          .status(404)
+          .json({ success: false, message: "Balance sheet not found" });
       res.json({ success: true, message: "Balance sheet updated" });
     } catch (error) {
       console.error("Update balance sheet error:", error);
@@ -555,7 +575,10 @@ async getAllPaymentTypes(req, res) {
   async deleteBalanceSheet(req, res) {
     try {
       const result = await paymentService.deleteBalanceSheet(req.params.id);
-      if (!result) return res.status(404).json({ success: false, message: "Balance sheet not found" });
+      if (!result)
+        return res
+          .status(404)
+          .json({ success: false, message: "Balance sheet not found" });
       res.json({ success: true, message: "Balance sheet deleted" });
     } catch (error) {
       console.error("Delete balance sheet error:", error);
@@ -568,7 +591,12 @@ async getAllPaymentTypes(req, res) {
     try {
       const { title, description, balanceSheetId } = req.body;
       const { id: userId } = req.user;
-      const result = await paymentService.addLedger({ title, description,  balanceSheetId, userId });
+      const result = await paymentService.addLedger({
+        title,
+        description,
+        balanceSheetId,
+        userId,
+      });
       res.json({ success: true, message: "Ledger added", data: result });
     } catch (error) {
       console.error("Add ledger error:", error);
@@ -576,10 +604,37 @@ async getAllPaymentTypes(req, res) {
     }
   }
 
+  async addBulkLedgerTransactions(req, res) {
+    try {
+      const { id: ledgerId } = req.params;
+      const { incomes = [], expenses = [] } = req.body;
+      const { id: userId } = req.user;
+console.log("Adding bulk transactions to ledger:", ledgerId, incomes, expenses);
+      const result = await paymentService.addBulkLedgerTransactions({
+        ledgerId,
+        incomes,
+        expenses,
+        userId,
+      });
+
+      res.status(201).json({
+        success: true,
+        message: "Incomes and expenses added to ledger",
+        data: result,
+      });
+    } catch (error) {
+      console.error("Bulk ledger transaction error:", error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  }
+
   async getLedgerById(req, res) {
     try {
       const result = await paymentService.getLedgerById(req.params.id);
-      if (!result) return res.status(404).json({ success: false, message: "Ledger not found" });
+      if (!result)
+        return res
+          .status(404)
+          .json({ success: false, message: "Ledger not found" });
       res.json({ success: true, data: result });
     } catch (error) {
       console.error("Get ledger by ID error:", error);
@@ -590,7 +645,10 @@ async getAllPaymentTypes(req, res) {
   async updateLedger(req, res) {
     try {
       const result = await paymentService.updateLedger(req.params.id, req.body);
-      if (!result) return res.status(404).json({ success: false, message: "Ledger not found" });
+      if (!result)
+        return res
+          .status(404)
+          .json({ success: false, message: "Ledger not found" });
       res.json({ success: true, message: "Ledger updated" });
     } catch (error) {
       console.error("Update ledger error:", error);
@@ -601,7 +659,10 @@ async getAllPaymentTypes(req, res) {
   async deleteLedger(req, res) {
     try {
       const result = await paymentService.deleteLedger(req.params.id);
-      if (!result) return res.status(404).json({ success: false, message: "Ledger not found" });
+      if (!result)
+        return res
+          .status(404)
+          .json({ success: false, message: "Ledger not found" });
       res.json({ success: true, message: "Ledger deleted" });
     } catch (error) {
       console.error("Delete ledger error:", error);
@@ -614,7 +675,13 @@ async getAllPaymentTypes(req, res) {
     try {
       const { amount, description, paymentTypeId, ledgerId } = req.body;
       const { id: userId } = req.user;
-      const result = await paymentService.addIncomeQRM({ amount, description, paymentTypeId, ledgerId, userId });
+      const result = await paymentService.addIncomeQRM({
+        amount,
+        description,
+        paymentTypeId,
+        ledgerId,
+        userId,
+      });
       res.json({ success: true, message: "Income added", data: result });
     } catch (error) {
       console.error("Add income error:", error);
@@ -625,7 +692,10 @@ async getAllPaymentTypes(req, res) {
   async getIncomeById(req, res) {
     try {
       const result = await paymentService.getIncomeById(req.params.id);
-      if (!result) return res.status(404).json({ success: false, message: "Income not found" });
+      if (!result)
+        return res
+          .status(404)
+          .json({ success: false, message: "Income not found" });
       res.json({ success: true, data: result });
     } catch (error) {
       console.error("Get income by ID error:", error);
@@ -636,7 +706,10 @@ async getAllPaymentTypes(req, res) {
   async updateIncome(req, res) {
     try {
       const result = await paymentService.updateIncome(req.params.id, req.body);
-      if (!result) return res.status(404).json({ success: false, message: "Income not found" });
+      if (!result)
+        return res
+          .status(404)
+          .json({ success: false, message: "Income not found" });
       res.json({ success: true, message: "Income updated" });
     } catch (error) {
       console.error("Update income error:", error);
@@ -647,7 +720,10 @@ async getAllPaymentTypes(req, res) {
   async deleteIncome(req, res) {
     try {
       const result = await paymentService.deleteIncome(req.params.id);
-      if (!result) return res.status(404).json({ success: false, message: "Income not found" });
+      if (!result)
+        return res
+          .status(404)
+          .json({ success: false, message: "Income not found" });
       res.json({ success: true, message: "Income deleted" });
     } catch (error) {
       console.error("Delete income error:", error);
@@ -660,7 +736,13 @@ async getAllPaymentTypes(req, res) {
     try {
       const { amount, description, paymentTypeId, ledgerId } = req.body;
       const { id: userId } = req.user;
-      const result = await paymentService.addExpenseQRM({ amount, description, paymentTypeId, ledgerId, userId });
+      const result = await paymentService.addExpenseQRM({
+        amount,
+        description,
+        paymentTypeId,
+        ledgerId,
+        userId,
+      });
       res.json({ success: true, message: "Expense added", data: result });
     } catch (error) {
       console.error("Add expense error:", error);
@@ -671,7 +753,10 @@ async getAllPaymentTypes(req, res) {
   async getExpenseById(req, res) {
     try {
       const result = await paymentService.getExpenseById(req.params.id);
-      if (!result) return res.status(404).json({ success: false, message: "Expense not found" });
+      if (!result)
+        return res
+          .status(404)
+          .json({ success: false, message: "Expense not found" });
       res.json({ success: true, data: result });
     } catch (error) {
       console.error("Get expense by ID error:", error);
@@ -681,8 +766,14 @@ async getAllPaymentTypes(req, res) {
 
   async updateExpense(req, res) {
     try {
-      const result = await paymentService.updateExpense(req.params.id, req.body);
-      if (!result) return res.status(404).json({ success: false, message: "Expense not found" });
+      const result = await paymentService.updateExpense(
+        req.params.id,
+        req.body
+      );
+      if (!result)
+        return res
+          .status(404)
+          .json({ success: false, message: "Expense not found" });
       res.json({ success: true, message: "Expense updated" });
     } catch (error) {
       console.error("Update expense error:", error);
@@ -693,14 +784,16 @@ async getAllPaymentTypes(req, res) {
   async deleteExpense(req, res) {
     try {
       const result = await paymentService.deleteExpense(req.params.id);
-      if (!result) return res.status(404).json({ success: false, message: "Expense not found" });
+      if (!result)
+        return res
+          .status(404)
+          .json({ success: false, message: "Expense not found" });
       res.json({ success: true, message: "Expense deleted" });
     } catch (error) {
       console.error("Delete expense error:", error);
       res.status(500).json({ success: false, message: error.message });
     }
   }
-
 }
 
 module.exports = PaymentController;

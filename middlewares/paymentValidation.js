@@ -90,6 +90,44 @@ exports.addIncomeValidator = [
   handleValidationErrors
 ];
 
+exports.bulkLedgerTransactionValidator = [
+  body("incomes")
+    .optional()
+    .isArray()
+    .withMessage("Incomes must be an array"),
+  body("incomes.*.amount")
+    .optional()
+    .isFloat({ min: 0.01 })
+    .withMessage("Income amount must be a valid number > 0"),
+  body("incomes.*.description")
+    .optional()
+    .isString()
+    .withMessage("Income description must be a string"),
+  body("incomes.*.paymentTypeId")
+    .optional()
+    .isInt()
+    .withMessage("Income paymentTypeId must be an integer"),
+
+  body("expenses")
+    .optional()
+    .isArray()
+    .withMessage("Expenses must be an array"),
+  body("expenses.*.amount")
+    .optional()
+    .isFloat({ min: 0.01 })
+    .withMessage("Expense amount must be a valid number > 0"),
+  body("expenses.*.description")
+    .optional()
+    .isString()
+    .withMessage("Expense description must be a string"),
+  body("expenses.*.paymentTypeId")
+    .optional()
+    .isInt()
+    .withMessage("Expense paymentTypeId must be an integer"),
+
+  handleValidationErrors,
+];
+
 // EXPENSE
 exports.addExpenseValidator = [
   body("amount").isFloat({ min: 0.01 }).withMessage("Amount must be greater than 0"),
