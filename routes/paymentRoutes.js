@@ -14,6 +14,7 @@ const {
   addLedgerValidator,
   addIncomeValidator,
   addExpenseValidator,
+  bulkLedgerTransactionValidator,
 } = require("../middlewares/paymentValidation");
 const authorize = require("../middlewares/authorization");
 const checkIntegerParam = require("../middlewares/paramIntegerValidation");
@@ -111,6 +112,12 @@ router.delete("/balance-sheet/:id", authMiddleware, paymentController.deleteBala
 
 // LEDGER
 router.post("/add-ledger", authMiddleware, addLedgerValidator, paymentController.addLedger.bind(paymentController));
+router.post(
+  "/ledger/:id/income-expense",
+  authMiddleware,
+  bulkLedgerTransactionValidator,
+  paymentController.addBulkLedgerTransactions.bind(paymentController)
+);
 router.get("/ledger/:id", authMiddleware, paymentController.getLedgerById.bind(paymentController));
 router.put("/ledger/:id", authMiddleware, paymentController.updateLedger.bind(paymentController));
 router.delete("/ledger/:id", authMiddleware, paymentController.deleteLedger.bind(paymentController));

@@ -12,6 +12,7 @@ class PaymentService {
   constructor() {
     this.paymentRepository = new PaymentRepository();
   }
+
   // Create a Stripe customer when user registers
   async createStripeCustomer(user, email) {
     console.log(">>>", user, email);
@@ -398,6 +399,48 @@ class PaymentService {
   async addLedger(data) {
     return this.paymentRepository.addLedger(data);
   }
+
+async addBulkLedgerTransactions({ ledgerId, incomes = [], expenses = [], userId }) {
+  const ledger = await this.paymentRepository.getLedgerById(ledgerId);
+  if (!ledger) throw new Error("Ledger not found");
+
+  console.log("Adding bulk transactions to ledger:", ledgerId, incomes, expenses);
+
+  const paymentTypeIds = [
+    ...incomes.map((i) => i.paymentTypeId),
+    ...expenses.map((e) => e.paymentTypeId),
+  ].filter(Boolean);
+
+  const validIds = await this.paymentRepository.findExistingPaymentTypeIds(paymentTypeIds);
+  const invalidIds = paymentTypeIds.filter((id) => !validIds.includes(id));
+  if (invalidIds.length > 0) {
+    throw new Error(`Invalid paymentTypeId(s): ${invalidIds.join(", ")}`);
+  }
+
+  const transaction = await sequelize.transaction();
+  try {
+    if (incomes.length > 0) {
+      const incomeData = incomes.map((i) => ({ ...i, ledgerId }));
+      await this.paymentRepository.bulkCreateIncome(incomeData, { transaction });
+    }
+
+    if (expenses.length > 0) {
+      const expenseData = expenses.map((e) => ({ ...e, ledgerId }));
+      await this.paymentRepository.bulkCreateExpense(expenseData, { transaction });
+    }
+
+    await transaction.commit();
+    return {
+      ledgerId,
+      incomeCount: incomes.length,
+      expenseCount: expenses.length,
+    };
+  } catch (error) {
+    await transaction.rollback();
+    throw error;
+  }
+}
+
 
   async getLedgerById(id) {
     const ledger = await this.paymentRepository.getLedgerById(id);
