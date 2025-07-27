@@ -567,9 +567,9 @@ async getAllPaymentTypes(req, res) {
   // LEDGER
   async addLedger(req, res) {
     try {
-      const { title, balanceSheetId } = req.body;
+      const { title, description, balanceSheetId } = req.body;
       const { id: userId } = req.user;
-      const result = await paymentService.addLedger({ title, balanceSheetId, userId });
+      const result = await paymentService.addLedger({ title, description,  balanceSheetId, userId });
       res.json({ success: true, message: "Ledger added", data: result });
     } catch (error) {
       console.error("Add ledger error:", error);

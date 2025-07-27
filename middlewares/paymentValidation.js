@@ -13,6 +13,28 @@ exports.createPaymentValidator = [
   handleValidationErrors,
 ];
 
+
+exports.currencyAdjustmentValidator = [
+  body('adjustment')
+    .exists().withMessage('Adjustment value is required')
+    .isFloat().withMessage('Adjustment must be a number')
+    .custom((value) => {
+      if (Math.abs(value) > 10) {
+        throw new Error('Adjustment cannot be more than ±10');
+      }
+      return true;
+    }),
+
+  body('currency')
+    .optional()
+    .isString().withMessage('Currency must be a string')
+    .isLength({ min: 3, max: 3 }).withMessage('Currency must be 3 characters')
+    .isUppercase().withMessage('Currency must be uppercase'),
+
+  handleValidationErrors,
+];
+
+
 exports.updatePaymentValidator = [
   body("amount").isFloat().notEmpty(),
   body("senderName").notEmpty(),
@@ -35,6 +57,7 @@ exports.createTopupValidator = [
 exports.createBalanceSheetValidator = [
   body("ledgers").isArray({ min: 1 }).withMessage("At least one ledger is required"),
   body("ledgers.*.title").notEmpty().withMessage("Ledger title is required"),
+  body("ledgers.*.description").optional().isString(),
   body("ledgers.*.incomes").optional().isArray(),
   body("ledgers.*.incomes.*.amount")
     .optional({ nullable: true })
@@ -53,6 +76,7 @@ exports.createBalanceSheetValidator = [
 // LEDGER
 exports.addLedgerValidator = [
   body("title").notEmpty().withMessage("Title is required"),
+  body("description").optional().isString(),
   body("balanceSheetId").isInt().withMessage("Valid balanceSheetId is required"),
   handleValidationErrors
 ];

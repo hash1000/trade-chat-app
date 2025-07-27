@@ -294,8 +294,6 @@ class PaymentRepository {
 
   // LEDGER
   async addLedger(data, options = {}) {
-    const balanceSheet = await BalanceSheet.findByPk(data.balanceSheetId);
-    if (!balanceSheet) throw new Error("Balance sheet not found");
     return Ledger.create(data, options);
   }
 

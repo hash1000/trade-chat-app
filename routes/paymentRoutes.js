@@ -78,7 +78,7 @@ router.post(
   "/adjust-rate",
   authMiddleware,
   authorize(["admin"]),
-  // currencyAdjustmentValidator,
+  currencyAdjustmentValidator,
   paymentController.priceAdjust.bind(paymentController)
 );
 

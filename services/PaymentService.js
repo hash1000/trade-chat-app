@@ -212,33 +212,36 @@ class PaymentService {
   }
 
   // Payment Type Methods
-async createPaymentType(paymentTypeData) {
-  // Check if payment type already exists for this user
-  const existingType = await this.paymentRepository.getPaymentTypeByNameAndUser(
-    paymentTypeData.name,
-    paymentTypeData.userId
-  );
-  
-  if (existingType) {
-    throw new Error("Payment type with this name already exists for your account");
+  async createPaymentType(paymentTypeData) {
+    // Check if payment type already exists for this user
+    const existingType =
+      await this.paymentRepository.getPaymentTypeByNameAndUser(
+        paymentTypeData.name,
+        paymentTypeData.userId
+      );
+
+    if (existingType) {
+      throw new Error(
+        "Payment type with this name already exists for your account"
+      );
+    }
+
+    return this.paymentRepository.createPaymentType(paymentTypeData);
   }
 
-  return this.paymentRepository.createPaymentType(paymentTypeData);
-}
+  async getAllPaymentTypes({ search, isActive, userId }) {
+    const where = { userId }; // Only get payment types for this user
 
-async getAllPaymentTypes({ search, isActive, userId }) {
-  const where = { userId }; // Only get payment types for this user
+    if (search) {
+      where[Op.or] = [{ name: { [Op.iLike]: `%${search}%` } }];
+    }
 
-  if (search) {
-    where[Op.or] = [{ name: { [Op.iLike]: `%${search}%` } }];
+    if (isActive === "true" || isActive === "false") {
+      where.isActive = isActive === "true";
+    }
+
+    return this.paymentRepository.getAllPaymentTypes(where);
   }
-
-  if (isActive === "true" || isActive === "false") {
-    where.isActive = isActive === "true";
-  }
-
-  return this.paymentRepository.getAllPaymentTypes(where);
-}
 
   async getPaymentTypeById(id) {
     return this.paymentRepository.getPaymentTypeById(id);
@@ -267,60 +270,74 @@ async getAllPaymentTypes({ search, isActive, userId }) {
     return this.paymentRepository.deletePaymentType(id);
   }
 
-
-async createBalanceSheet({ ledgers, userId }) {
-  const transaction = await sequelize.transaction();
-  try {
-    const balanceSheet = await this.paymentRepository.addBalanceSheet({ userId }, { transaction });
-
-    for (const ledgerData of ledgers) {
-      const { title, incomes = [], expenses = [] } = ledgerData;
-
-      const ledger = await this.paymentRepository.addLedger(
-        { title, balanceSheetId: balanceSheet.id },
+  async createBalanceSheet({ ledgers, userId }) {
+    const transaction = await sequelize.transaction();
+    try {
+      const balanceSheet = await this.paymentRepository.addBalanceSheet(
+        { userId },
         { transaction }
       );
+      console.log(balanceSheet);
 
-      // Validate all paymentTypeIds before inserting
-      const paymentTypeIdsToCheck = [
-        ...incomes.map(i => i.paymentTypeId),
-        ...expenses.map(e => e.paymentTypeId)
-      ];
+      for (const ledgerData of ledgers) {
+        const { title, description, incomes = [], expenses = [] } = ledgerData;
 
-      const uniqueIds = [...new Set(paymentTypeIdsToCheck)];
+        const ledger = await this.paymentRepository.addLedger(
+          { title, description, balanceSheetId: balanceSheet.id },
+          { transaction }
+        );
 
-      const foundPaymentTypes = await PaymentType.findAll({
-        where: { id: uniqueIds, userId },
-        transaction
-      });
+        // Validate all paymentTypeIds before inserting
+        const paymentTypeIdsToCheck = [
+          ...incomes.map((i) => i.paymentTypeId),
+          ...expenses.map((e) => e.paymentTypeId),
+        ];
 
-      if (foundPaymentTypes.length !== uniqueIds.length) {
-        await transaction.rollback();
-        const foundIds = foundPaymentTypes.map(p => p.id);
-        const missingIds = uniqueIds.filter(id => !foundIds.includes(id));
-        throw new Error(`Invalid or missing paymentTypeId(s): ${missingIds.join(", ")}`);
+        const uniqueIds = [...new Set(paymentTypeIdsToCheck)];
+
+        const foundPaymentTypes = await PaymentType.findAll({
+          where: { id: uniqueIds, userId },
+          transaction,
+        });
+
+        if (foundPaymentTypes.length !== uniqueIds.length) {
+          await transaction.rollback();
+          const foundIds = foundPaymentTypes.map((p) => p.id);
+          const missingIds = uniqueIds.filter((id) => !foundIds.includes(id));
+          throw new Error(
+            `Invalid or missing paymentTypeId(s): ${missingIds.join(", ")}`
+          );
+        }
+
+        // Proceed with creating incomes and expenses
+        if (Array.isArray(incomes) && incomes.length > 0) {
+          const incomesData = incomes.map((i) => ({
+            ...i,
+            ledgerId: ledger.id,
+          }));
+          await this.paymentRepository.bulkCreateIncome(incomesData, {
+            transaction,
+          });
+        }
+
+        if (Array.isArray(expenses) && expenses.length > 0) {
+          const expensesData = expenses.map((e) => ({
+            ...e,
+            ledgerId: ledger.id,
+          }));
+          await this.paymentRepository.bulkCreateExpense(expensesData, {
+            transaction,
+          });
+        }
       }
 
-      // Proceed with creating incomes and expenses
-      if (Array.isArray(incomes) && incomes.length > 0) {
-        const incomesData = incomes.map(i => ({ ...i, ledgerId: ledger.id }));
-        await this.paymentRepository.bulkCreateIncome(incomesData, { transaction });
-      }
-
-      if (Array.isArray(expenses) && expenses.length > 0) {
-        const expensesData = expenses.map(e => ({ ...e, ledgerId: ledger.id }));
-        await this.paymentRepository.bulkCreateExpense(expensesData, { transaction });
-      }
+      await transaction.commit();
+      return { balanceSheetId: balanceSheet.id };
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
     }
-
-    await transaction.commit();
-    return { balanceSheetId: balanceSheet.id };
-  } catch (error) {
-    await transaction.rollback();
-    throw error;
   }
-}
-
 
   async getBalanceSheetsByUser(userId) {
     return this.paymentRepository.getBalanceSheetsByUser(userId);

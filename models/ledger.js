@@ -16,6 +16,10 @@ const Ledger = db.define(
         len: [0, 100] // Limit title length to 100 characters
       }
     },
+    description: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
     balanceSheetId: {
       type: DataTypes.INTEGER,
       allowNull: false,
