@@ -518,7 +518,6 @@ async getAllPaymentTypes(req, res) {
       res.status(500).json({ success: false, message: error.message });
     }
   }
-  
 
   async getBalanceSheets(req, res) {
     try {
