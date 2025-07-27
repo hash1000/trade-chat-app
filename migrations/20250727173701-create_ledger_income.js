@@ -1,22 +1,41 @@
+// migrations/xxxx-create-income.js
 "use strict";
 
 module.exports = {
   up: async (queryInterface, Sequelize) => {
-    await queryInterface.createTable("payment_types", {
+    await queryInterface.createTable("incomes", {
       id: {
         type: Sequelize.INTEGER,
         primaryKey: true,
         autoIncrement: true,
       },
-      name: {
-        type: Sequelize.STRING,
+      amount: {
+        type: Sequelize.FLOAT,
         allowNull: false,
-        unique: true,
       },
-      isActive: {
-        type: Sequelize.BOOLEAN,
+      description: {
+        type: Sequelize.STRING,
+        allowNull: true,
+      },
+      ledgerId: {
+        type: Sequelize.INTEGER,
         allowNull: false,
-        defaultValue: true,
+        references: {
+          model: "ledger",
+          key: "id",
+        },
+        onUpdate: "CASCADE",
+        onDelete: "CASCADE",
+      },
+      paymentTypeId: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
+        references: {
+          model: "payment_types",
+          key: "id",
+        },
+        onUpdate: "CASCADE",
+        onDelete: "RESTRICT",
       },
       createdAt: {
         type: Sequelize.DATE,
@@ -34,6 +53,6 @@ module.exports = {
   },
 
   down: async (queryInterface, Sequelize) => {
-    await queryInterface.dropTable("payment_types");
+    await queryInterface.dropTable("incomes");
   },
 };

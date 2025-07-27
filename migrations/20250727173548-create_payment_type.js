@@ -1,23 +1,28 @@
-// migrations/xxxx-create-ledger.js
 "use strict";
 
 module.exports = {
   up: async (queryInterface, Sequelize) => {
-    await queryInterface.createTable("ledger", {
+    await queryInterface.createTable("payment_types", {
       id: {
         type: Sequelize.INTEGER,
         primaryKey: true,
         autoIncrement: true,
       },
-      title: {
+      name: {
         type: Sequelize.STRING,
-        allowNull: true,
+        allowNull: false,
+        unique: true,
       },
-      balanceSheetId: {
+      isActive: {
+        type: Sequelize.BOOLEAN,
+        allowNull: false,
+        defaultValue: true,
+      },
+      userId: {
         type: Sequelize.INTEGER,
         allowNull: false,
         references: {
-          model: "balance_sheet",
+          model: "users", // Table name
           key: "id",
         },
         onUpdate: "CASCADE",
@@ -39,6 +44,6 @@ module.exports = {
   },
 
   down: async (queryInterface, Sequelize) => {
-    await queryInterface.dropTable("ledger");
+    await queryInterface.dropTable("payment_types");
   },
 };

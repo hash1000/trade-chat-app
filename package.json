@@ -5,6 +5,8 @@
   "scripts": {
     "start": "nodemon ./bin/app.js",
     "migrate": "npx sequelize-cli db:migrate",
+    "migrate:prod": "npx sequelize-cli db:migrate --env production",
+    "migration:generate": "npx sequelize-cli migration:generate --name",
     "seed": "npx sequelize-cli db:seed:all",
     "rollback": "npx sequelize-cli db:migrate:undo",
     "check:deps": "madge --circular --extensions js ./"

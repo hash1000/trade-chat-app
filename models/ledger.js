@@ -1,4 +1,3 @@
-// models/Ledger.js
 const { DataTypes } = require("sequelize");
 const db = require("../config/database");
 
@@ -13,11 +12,17 @@ const Ledger = db.define(
     title: {
       type: DataTypes.STRING,
       allowNull: true,
+      validate: {
+        len: [0, 100] // Limit title length to 100 characters
+      }
     },
     balanceSheetId: {
-      // Fixed typo from banceSheetId
       type: DataTypes.INTEGER,
       allowNull: false,
+      references: {
+        model: 'balance_sheet',
+        key: 'id'
+      }
     },
     createdAt: {
       allowNull: false,
@@ -30,7 +35,15 @@ const Ledger = db.define(
       defaultValue: DataTypes.NOW,
     },
   },
-  { tableName: "ledger" }
+  { 
+    tableName: "ledger",
+    timestamps: true,
+    indexes: [
+      {
+        fields: ['balanceSheetId']
+      }
+    ]
+  }
 );
 
 module.exports = Ledger;

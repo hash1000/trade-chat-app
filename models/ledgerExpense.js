@@ -21,7 +21,10 @@ const Expense = db.define(
       type: DataTypes.INTEGER,
       allowNull: false,
     },
-    // other fields as needed
+    paymentTypeId: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    },
   },
   { tableName: "expenses" }
 );
