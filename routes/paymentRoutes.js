@@ -10,6 +10,10 @@ const {
   createTopupValidator,
   currencyAdjustmentValidator,
   validatePaymentType,
+  createBalanceSheetValidator,
+  addLedgerValidator,
+  addIncomeValidator,
+  addExpenseValidator,
 } = require("../middlewares/paymentValidation");
 const authorize = require("../middlewares/authorization");
 const checkIntegerParam = require("../middlewares/paramIntegerValidation");
@@ -74,7 +78,7 @@ router.post(
   "/adjust-rate",
   authMiddleware,
   authorize(["admin"]),
-  currencyAdjustmentValidator,
+  // currencyAdjustmentValidator,
   paymentController.priceAdjust.bind(paymentController)
 );
 
@@ -97,32 +101,37 @@ router.post(
   paymentController.handleStripeWebhook.bind(paymentController)
 );
 
-// Payment Type Routes
-router.post(
-  "/paymentType",
-  authMiddleware,
-  validatePaymentType,
-  paymentController.createPaymentType.bind(paymentController)
-);
-router.get(
-  "/paymentType",
-  authMiddleware,
-  paymentController.getAllPaymentTypes.bind(paymentController)
-);
-router.get(
-  "/paymentType/:id",
-  authMiddleware,
-  paymentController.getPaymentType.bind(paymentController)
-);
-router.put(
-  "/paymentType/:id",
-  authMiddleware,
-  validatePaymentType,
-  paymentController.updatePaymentType.bind(paymentController)
-);
-router.delete(
-  "/paymentType/:id",
-  authMiddleware,
-  paymentController.deletePaymentType.bind(paymentController)
-);
+
+// BALANCE SHEET
+router.post("/balance-sheet", authMiddleware, createBalanceSheetValidator, paymentController.createBalanceSheet.bind(paymentController));
+router.get("/balance-sheets", authMiddleware, paymentController.getBalanceSheets.bind(paymentController));
+router.get("/balance-sheet/:id", authMiddleware, paymentController.getBalanceSheetById.bind(paymentController));
+router.put("/balance-sheet/:id", authMiddleware, paymentController.updateBalanceSheet.bind(paymentController));
+router.delete("/balance-sheet/:id", authMiddleware, paymentController.deleteBalanceSheet.bind(paymentController));
+
+// LEDGER
+router.post("/add-ledger", authMiddleware, addLedgerValidator, paymentController.addLedger.bind(paymentController));
+router.get("/ledger/:id", authMiddleware, paymentController.getLedgerById.bind(paymentController));
+router.put("/ledger/:id", authMiddleware, paymentController.updateLedger.bind(paymentController));
+router.delete("/ledger/:id", authMiddleware, paymentController.deleteLedger.bind(paymentController));
+
+// INCOME
+router.post("/add-income-qrm", authMiddleware, addIncomeValidator, paymentController.addIncomeQRM.bind(paymentController));
+router.get("/income/:id", authMiddleware, paymentController.getIncomeById.bind(paymentController));
+router.put("/income/:id", authMiddleware, addIncomeValidator, paymentController.updateIncome.bind(paymentController));
+router.delete("/income/:id", authMiddleware, paymentController.deleteIncome.bind(paymentController));
+
+// EXPENSE
+router.post("/add-expense-qrm", authMiddleware, addExpenseValidator, paymentController.addExpenseQRM.bind(paymentController));
+router.get("/expense/:id", authMiddleware, paymentController.getExpenseById.bind(paymentController));
+router.put("/expense/:id", authMiddleware, addExpenseValidator, paymentController.updateExpense.bind(paymentController));
+router.delete("/expense/:id", authMiddleware, paymentController.deleteExpense.bind(paymentController));
+
+// PAYMENT TYPE
+router.post("/paymentType", authMiddleware, validatePaymentType, paymentController.createPaymentType.bind(paymentController));
+router.get("/paymentType", authMiddleware, paymentController.getAllPaymentTypes.bind(paymentController));
+router.get("/paymentType/:id", authMiddleware, paymentController.getPaymentType.bind(paymentController));
+router.put("/paymentType/:id", authMiddleware, validatePaymentType, paymentController.updatePaymentType.bind(paymentController));
+router.delete("/paymentType/:id", authMiddleware, paymentController.deletePaymentType.bind(paymentController));
+
 module.exports = router;

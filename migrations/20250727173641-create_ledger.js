@@ -1,22 +1,26 @@
-// migrations/xxxx-create-balance-sheet.js
 "use strict";
 
 module.exports = {
   up: async (queryInterface, Sequelize) => {
-    await queryInterface.createTable("balance_sheet", {
+    await queryInterface.createTable("ledger", {
       id: {
         type: Sequelize.INTEGER,
         primaryKey: true,
         autoIncrement: true,
       },
-      totalIncome: {
-        type: Sequelize.FLOAT,
-        allowNull: false,
+      title: {
+        type: Sequelize.STRING,
+        allowNull: true,
       },
-      totalExpence: {
-        // Note: You might want to rename this to 'totalExpense' for consistency
-        type: Sequelize.FLOAT,
+      balanceSheetId: {
+        type: Sequelize.INTEGER,
         allowNull: false,
+        references: {
+          model: "balance_sheet",
+          key: "id",
+        },
+        onUpdate: "CASCADE",
+        onDelete: "CASCADE",
       },
       createdAt: {
         type: Sequelize.DATE,
@@ -34,6 +38,6 @@ module.exports = {
   },
 
   down: async (queryInterface, Sequelize) => {
-    await queryInterface.dropTable("balance_sheet");
+    await queryInterface.dropTable("ledger");
   },
 };

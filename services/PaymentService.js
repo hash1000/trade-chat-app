@@ -2,7 +2,7 @@ const sequelize = require("../config/database");
 const WalletService = require("./WalletService");
 const PaymentRepository = require("../repositories/PaymentRepository");
 const PaymentRequest = require("../models/payment_request");
-const { Transaction } = require("../models");
+const { Transaction, PaymentType } = require("../models");
 const User = require("../models/user");
 const CurrencyService = require("./CurrencyService");
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
@@ -19,7 +19,7 @@ class PaymentService {
       email: email,
       metadata: {
         userId: user.id, // Link to your internal user ID
-      },
+      }
     });
 
     // Save stripeCustomerId to your user in database
@@ -121,79 +121,85 @@ class PaymentService {
     };
   }
 
-async handlePaymentCheckoutSucceeded(session) {
-  console.log("✅ Checkout session completed:", session);
+  async handlePaymentCheckoutSucceeded(session) {
+    console.log("✅ Checkout session completed:", session);
 
-  const {
-    metadata,
-    amount_total,
-    id: sessionId,
-    payment_method_types,
-    customer_details,
-  } = session;
+    const {
+      metadata,
+      amount_total,
+      id: sessionId,
+      payment_method_types,
+      customer_details,
+    } = session;
 
-  if (!metadata || metadata.purpose !== "wallet_topup") {
-    console.warn("Skipping non-wallet top-up session.");
-    return;
+    if (!metadata || metadata.purpose !== "wallet_topup") {
+      console.warn("Skipping non-wallet top-up session.");
+      return;
+    }
+
+    const rawUserId = metadata.userId;
+    const rawAmount = amount_total;
+
+    // Defensive validation
+    if (!rawUserId || isNaN(rawUserId)) {
+      throw new Error("Invalid or missing userId in metadata.");
+    }
+
+    if (!rawAmount || isNaN(rawAmount)) {
+      throw new Error("Invalid or missing amount_total in session.");
+    }
+
+    const userId = parseInt(rawUserId);
+    const amountInUsd = parseFloat((rawAmount / 100).toFixed(2));
+
+    try {
+      const rateData = await currencyService.getAdjustedRate("CNY");
+      if (!rateData?.finalRate) throw new Error("Currency rate fetch failed");
+
+      const rate = parseFloat(rateData.finalRate.toFixed(5));
+      const convertedAmount = Math.floor(amountInUsd * rate);
+
+      console.log(
+        `Converting $${amountInUsd} → ¥${convertedAmount} at rate ${rate}`
+      );
+
+      await sequelize.transaction(async (t) => {
+        const user = await User.findByPk(userId, { transaction: t });
+        if (!user) throw new Error(`User not found: ${userId}`);
+
+        user.personalWalletBalance += convertedAmount;
+        await user.save({ transaction: t });
+
+        await Transaction.create(
+          {
+            userId,
+            amount: convertedAmount,
+            usdAmount: amountInUsd,
+            rate,
+            currency: "CNY",
+            type: "wallet_topup",
+            status: "completed",
+            orderId: `topup_${sessionId.slice(-8)}`,
+            reference: sessionId,
+            paymentMethod: payment_method_types?.[0] || "card",
+            metadata: {
+              stripeEvent: "checkout.session.completed",
+              email: customer_details?.email || null,
+              name: customer_details?.name || null,
+            },
+          },
+          { transaction: t }
+        );
+      });
+
+      console.log(
+        `💰 Wallet top-up successful: $${amountInUsd} → ¥${convertedAmount}`
+      );
+    } catch (err) {
+      console.error("❌ Payment processing failed:", err);
+      throw err;
+    }
   }
-
-  const rawUserId = metadata.userId;
-  const rawAmount = amount_total;
-
-  // Defensive validation
-  if (!rawUserId || isNaN(rawUserId)) {
-    throw new Error("Invalid or missing userId in metadata.");
-  }
-
-  if (!rawAmount || isNaN(rawAmount)) {
-    throw new Error("Invalid or missing amount_total in session.");
-  }
-
-  const userId = parseInt(rawUserId);
-  const amountInUsd = parseFloat((rawAmount / 100).toFixed(2));
-
-  try {
-    const rateData = await currencyService.getAdjustedRate("CNY");
-    if (!rateData?.finalRate) throw new Error("Currency rate fetch failed");
-
-    const rate = parseFloat(rateData.finalRate.toFixed(5));
-    const convertedAmount = Math.floor(amountInUsd * rate);
-
-    console.log(`Converting $${amountInUsd} → ¥${convertedAmount} at rate ${rate}`);
-
-    await sequelize.transaction(async (t) => {
-      const user = await User.findByPk(userId, { transaction: t });
-      if (!user) throw new Error(`User not found: ${userId}`);
-
-      user.personalWalletBalance += convertedAmount;
-      await user.save({ transaction: t });
-
-      await Transaction.create({
-        userId,
-        amount: convertedAmount,
-        usdAmount: amountInUsd,
-        rate,
-        currency: "CNY",
-        type: "wallet_topup",
-        status: "completed",
-        orderId: `topup_${sessionId.slice(-8)}`,
-        reference: sessionId,
-        paymentMethod: payment_method_types?.[0] || "card",
-        metadata: {
-          stripeEvent: "checkout.session.completed",
-          email: customer_details?.email || null,
-          name: customer_details?.name || null,
-        },
-      }, { transaction: t });
-    });
-
-    console.log(`💰 Wallet top-up successful: $${amountInUsd} → ¥${convertedAmount}`);
-  } catch (err) {
-    console.error("❌ Payment processing failed:", err);
-    throw err;
-  }
-}
-
 
   async handleCheckoutSessionCanceled(session) {
     console.log("⚠️ Checkout session canceled:", session.id);
@@ -206,31 +212,33 @@ async handlePaymentCheckoutSucceeded(session) {
   }
 
   // Payment Type Methods
-  async createPaymentType(paymentTypeData) {
-    // Check if payment type already exists
-    const existingType = await this.paymentRepository.getPaymentTypeByName(
-      paymentTypeData.name
-    );
-    if (existingType) {
-      throw new Error("Payment type already exists");
-    }
-
-    return this.paymentRepository.createPaymentType(paymentTypeData);
+async createPaymentType(paymentTypeData) {
+  // Check if payment type already exists for this user
+  const existingType = await this.paymentRepository.getPaymentTypeByNameAndUser(
+    paymentTypeData.name,
+    paymentTypeData.userId
+  );
+  
+  if (existingType) {
+    throw new Error("Payment type with this name already exists for your account");
   }
 
-  async getAllPaymentTypes({ search, isActive }) {
-    const where = {};
+  return this.paymentRepository.createPaymentType(paymentTypeData);
+}
 
-    if (search) {
-      where[Op.or] = [{ name: { [Op.iLike]: `%${search}%` } }];
-    }
+async getAllPaymentTypes({ search, isActive, userId }) {
+  const where = { userId }; // Only get payment types for this user
 
-    if (isActive === "true" || isActive === "false") {
-      where.isActive = isActive === "true";
-    }
-
-    return this.paymentRepository.getAllPaymentTypes(where);
+  if (search) {
+    where[Op.or] = [{ name: { [Op.iLike]: `%${search}%` } }];
   }
+
+  if (isActive === "true" || isActive === "false") {
+    where.isActive = isActive === "true";
+  }
+
+  return this.paymentRepository.getAllPaymentTypes(where);
+}
 
   async getPaymentTypeById(id) {
     return this.paymentRepository.getPaymentTypeById(id);
@@ -257,6 +265,128 @@ async handlePaymentCheckoutSucceeded(session) {
     }
 
     return this.paymentRepository.deletePaymentType(id);
+  }
+
+
+async createBalanceSheet({ ledgers, userId }) {
+  const transaction = await sequelize.transaction();
+  try {
+    const balanceSheet = await this.paymentRepository.addBalanceSheet({ userId }, { transaction });
+
+    for (const ledgerData of ledgers) {
+      const { title, incomes = [], expenses = [] } = ledgerData;
+
+      const ledger = await this.paymentRepository.addLedger(
+        { title, balanceSheetId: balanceSheet.id },
+        { transaction }
+      );
+
+      // Validate all paymentTypeIds before inserting
+      const paymentTypeIdsToCheck = [
+        ...incomes.map(i => i.paymentTypeId),
+        ...expenses.map(e => e.paymentTypeId)
+      ];
+
+      const uniqueIds = [...new Set(paymentTypeIdsToCheck)];
+
+      const foundPaymentTypes = await PaymentType.findAll({
+        where: { id: uniqueIds, userId },
+        transaction
+      });
+
+      if (foundPaymentTypes.length !== uniqueIds.length) {
+        await transaction.rollback();
+        const foundIds = foundPaymentTypes.map(p => p.id);
+        const missingIds = uniqueIds.filter(id => !foundIds.includes(id));
+        throw new Error(`Invalid or missing paymentTypeId(s): ${missingIds.join(", ")}`);
+      }
+
+      // Proceed with creating incomes and expenses
+      if (Array.isArray(incomes) && incomes.length > 0) {
+        const incomesData = incomes.map(i => ({ ...i, ledgerId: ledger.id }));
+        await this.paymentRepository.bulkCreateIncome(incomesData, { transaction });
+      }
+
+      if (Array.isArray(expenses) && expenses.length > 0) {
+        const expensesData = expenses.map(e => ({ ...e, ledgerId: ledger.id }));
+        await this.paymentRepository.bulkCreateExpense(expensesData, { transaction });
+      }
+    }
+
+    await transaction.commit();
+    return { balanceSheetId: balanceSheet.id };
+  } catch (error) {
+    await transaction.rollback();
+    throw error;
+  }
+}
+
+
+  async getBalanceSheetsByUser(userId) {
+    return this.paymentRepository.getBalanceSheetsByUser(userId);
+  }
+
+  async getBalanceSheetById(id) {
+    return this.paymentRepository.getBalanceSheetById(id);
+  }
+
+  async updateBalanceSheet(id, updateData) {
+    return this.paymentRepository.updateBalanceSheet(id, updateData);
+  }
+
+  async deleteBalanceSheet(id) {
+    return this.paymentRepository.deleteBalanceSheet(id);
+  }
+
+  // LEDGER
+  async addLedger(data) {
+    return this.paymentRepository.addLedger(data);
+  }
+
+  async getLedgerById(id) {
+    return this.paymentRepository.getLedgerById(id);
+  }
+
+  async updateLedger(id, updateData) {
+    return this.paymentRepository.updateLedger(id, updateData);
+  }
+
+  async deleteLedger(id) {
+    return this.paymentRepository.deleteLedger(id);
+  }
+
+  // INCOME
+  async addIncomeQRM(data) {
+    return this.paymentRepository.addIncomeQRM(data);
+  }
+
+  async getIncomeById(id) {
+    return this.paymentRepository.getIncomeById(id);
+  }
+
+  async updateIncome(id, updateData) {
+    return this.paymentRepository.updateIncome(id, updateData);
+  }
+
+  async deleteIncome(id) {
+    return this.paymentRepository.deleteIncome(id);
+  }
+
+  // EXPENSE
+  async addExpenseQRM(data) {
+    return this.paymentRepository.addExpenseQRM(data);
+  }
+
+  async getExpenseById(id) {
+    return this.paymentRepository.getExpenseById(id);
+  }
+
+  async updateExpense(id, updateData) {
+    return this.paymentRepository.updateExpense(id, updateData);
+  }
+
+  async deleteExpense(id) {
+    return this.paymentRepository.deleteExpense(id);
   }
 }
 

@@ -9,12 +9,8 @@ const BalanceSheet = db.define(
       primaryKey: true,
       autoIncrement: true,
     },
-    totalIncome: {
-      type: DataTypes.FLOAT,
-      allowNull: false,
-    },
-    totalExpence: {
-      type: DataTypes.FLOAT,
+    userId: {
+      type: DataTypes.INTEGER,
       allowNull: false,
     },
     createdAt: {
@@ -28,7 +24,14 @@ const BalanceSheet = db.define(
       defaultValue: DataTypes.NOW,
     },
   },
-  { tableName: "balance_sheet" }
+  { 
+    tableName: "balance_sheet",
+    indexes: [
+      {
+        fields: ['userId'] // Index for faster user queries
+      }
+    ]
+  }
 );
 
 module.exports = BalanceSheet;
