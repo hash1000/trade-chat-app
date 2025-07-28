@@ -1,10 +1,13 @@
 const sequelize = require("../config/database");
-const { Order } = require("../models");
+const fs = require("fs").promises;
 const AddressRepository = require("../repositories/AddressRepository");
 const OrderRepository = require("../repositories/OrderRepository");
-const { uploadFileToS3, deleteFileFromS3 } = require("../utilities/s3Utils");
+const {
+  uploadToS3,
+  deleteFileFromS3,
+  generateKey,
+} = require("../utilities/s3Utils");
 const AddressService = require("./AddressService");
-const multer = require("multer");
 
 class OrderService {
   constructor() {
@@ -133,29 +136,23 @@ class OrderService {
   }
 
   async uploadDocument(orderNo, files) {
-    const documentUrls = [];
-    const uploadedFiles = [];
-  
+    const uploadedUrls = [];
+
     try {
       for (const file of files) {
-        const uploaded = await uploadFileToS3(
-          file.buffer,
-          file.originalname,
-          file.mimetype
-        );
-        documentUrls.push(uploaded);
-        uploadedFiles.push(uploaded);
+        const filePath = file.path;
+        const buffer = await fs.readFile(filePath);
+        const s3Key = generateKey(file.originalname);
+        const url = await uploadToS3(buffer, s3Key, file.mimetype);
+        uploadedUrls.push({ url, title: file.originalname });
+
+        // Clean up local file after upload
+        await fs.unlink(filePath).catch(console.warn);
       }
-  
-      return await this.orderRepository.uploadDocument(orderNo, documentUrls);
+
+      return await this.orderRepository.uploadDocument(orderNo, uploadedUrls);
     } catch (error) {
-      for (const file of uploadedFiles) {
-        try {
-          await deleteFileFromS3(file.url, process.env.SPACES_BUCKET_NAME);
-        } catch (err) {
-          console.error("Rollback deletion failed:", err.message);
-        }
-      }
+      console.error("uploadDocument failed:", error.message);
       throw error;
     }
   }
