@@ -1,9 +1,7 @@
-const { HostNotFoundError, ValidationError } = require("sequelize");
-const OrderService = require("../services/OrderService");
+const OrderService = require("../services/OrderService.js");
 const orderService = new OrderService();
 
 class OrderController {
-
   async createOrder(req, res) {
     try {
       const { ids, names } = req.userRoles;
@@ -37,7 +35,9 @@ class OrderController {
         );
       } else {
         // If user has no valid role to update the order
-        return res.status(403).json({ error: "Unauthorized: Insufficient permissions" });
+        return res
+          .status(403)
+          .json({ error: "Unauthorized: Insufficient permissions" });
       }
 
       return res.status(200).json({
@@ -110,7 +110,9 @@ class OrderController {
         );
       } else {
         // If user has no valid role to update the order
-        return res.status(403).json({ error: "Unauthorized: Insufficient permissions" });
+        return res
+          .status(403)
+          .json({ error: "Unauthorized: Insufficient permissions" });
       }
 
       // Return the updated order
@@ -131,7 +133,7 @@ class OrderController {
       return res.status(400).json({ error: error.message });
     }
   }
-  
+
   async isLockOrder(req, res) {
     try {
       const { orderId } = req.parsedParams;
@@ -142,13 +144,14 @@ class OrderController {
       return res.status(400).json({ error: error.message });
     }
   }
-  
+
   async uploadDocument(req, res) {
     try {
       const orderNo = req.params.orderNo;
       if (!req.files || req.files.length === 0) {
         return res.status(400).json({ error: "No files uploaded" });
       }
+
       const result = await orderService.uploadDocument(orderNo, req.files);
       res.json({
         message: "Documents uploaded successfully",
@@ -164,25 +167,27 @@ class OrderController {
   async deleteDocument(req, res) {
     try {
       const { orderNo, documentId } = req.params;
-      
+
       // First verify the document belongs to the order
       const document = await orderService.getDocumentById(documentId);
-      
-      console.log("document",document);
+
+      console.log("document", document);
       if (!document) {
         return res.status(404).json({ error: "Document not found" });
       }
-      
+
       if (document.orderNo !== orderNo) {
-        return res.status(400).json({ error: "Document does not belong to this order" });
+        return res
+          .status(400)
+          .json({ error: "Document does not belong to this order" });
       }
-  
+
       // Delete the document
       await orderService.deleteDocument(documentId, document.document);
-      
+
       res.json({
         message: "Document deleted successfully",
-        documentId: documentId
+        documentId: documentId,
       });
     } catch (error) {
       console.error("Error deleting document:", error);
@@ -204,11 +209,15 @@ class OrderController {
         deleteResult = await orderService.deleteOrder(orderNo, "operator");
       } else {
         // If user has no valid role to delete the order
-        return res.status(403).json({ error: "Unauthorized: Insufficient permissions" });
+        return res
+          .status(403)
+          .json({ error: "Unauthorized: Insufficient permissions" });
       }
 
       // Return the result of the delete operation
-      return res.status(deleteResult.status).json({ message: deleteResult.message });
+      return res
+        .status(deleteResult.status)
+        .json({ message: deleteResult.message });
     } catch (error) {
       console.error("Error deleting order:", error);
       return res.status(500).json({ message: "Internal server error" });
@@ -230,7 +239,9 @@ class OrderController {
       } else if (names.includes("user")) {
         userOrders = await orderService.getUserOrders(userId);
       } else {
-        return res.status(403).json({ error: "Unauthorized: Insufficient permissions" });
+        return res
+          .status(403)
+          .json({ error: "Unauthorized: Insufficient permissions" });
       }
 
       // Return the orders
@@ -247,7 +258,8 @@ class OrderController {
       } else {
         return res.status(500).json({
           error: "Internal server error",
-          details: process.env.NODE_ENV === "development" ? error.message : undefined,
+          details:
+            process.env.NODE_ENV === "development" ? error.message : undefined,
         });
       }
     }
@@ -255,41 +267,45 @@ class OrderController {
 
   async getAllUserOrders(req, res) {
     try {
-        const { ids, names } = req.userRoles;
-        const userId = req.user.id; // Get the logged-in user's ID
+      const { ids, names } = req.userRoles;
+      const userId = req.user.id; // Get the logged-in user's ID
+      console.log("Logged-in user ID:", userId);
 
-        let userAllOrders;
+      let userAllOrders;
 
-        // Check permissions and fetch orders accordingly
-        if (names.includes("admin")) {
-            userAllOrders = await orderService.getAllUserOrders();
-        } else if (names.includes("operator")) {
-            userAllOrders = await orderService.getAllUserOrders("operator");
-        } else if (names.includes("user")) {
-            userAllOrders = await orderService.getUserOrders(userId);
-        } else {
-            return res.status(403).json({ error: "Unauthorized: Insufficient permissions" });
-        }
+      // Check permissions and fetch orders accordingly
+      if (names.includes("admin")) {
+        userAllOrders = await orderService.getAllUserOrders();
+      } else if (names.includes("operator")) {
+        userAllOrders = await orderService.getAllUserOrders("operator");
+      } else if (names.includes("user")) {
+        userAllOrders = await orderService.getUserOrders(userId);
+      } else {
+        return res
+          .status(403)
+          .json({ error: "Unauthorized: Insufficient permissions" });
+      }
 
-        // Return the orders
-        return res.status(200).json({
-            message: "Orders retrieved successfully",
-            orders: userAllOrders,
-        });
+      // Return the orders
+      return res.status(200).json({
+        message: "Orders retrieved successfully",
+        orders: userAllOrders,
+      });
     } catch (error) {
-        console.error("Error fetching all user orders:", error);
+      console.error("Error fetching all user orders:", error);
 
-        // Handle specific errors
-        if (error.message.includes("No orders found")) {
-            return res.status(404).json({ error: error.message });
-        } else {
-            return res.status(500).json({
-                error: "Internal server error",
-                details: process.env.NODE_ENV === "development" ? error.message : undefined,
-            });
-        }
+      // Handle specific errors
+      if (error.message.includes("No orders found")) {
+        return res.status(404).json({ error: error.message });
+      } else {
+        return res.status(500).json({
+          error: "Internal server error",
+          details:
+            process.env.NODE_ENV === "development" ? error.message : undefined,
+        });
+      }
     }
-}
+  }
 
   async getOrderById(req, res) {
     try {

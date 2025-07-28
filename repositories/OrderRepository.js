@@ -445,35 +445,22 @@ class OrderRepository {
     }
   }
 
-async uploadDocument(orderNo, documentObj) {
-  try {
-    console.log("Uploading documents for orderNo:", orderNo);
-    
-    // ✅ Validate orderNo existence
+  async uploadDocument(orderNo, documentList) {
     const order = await Order.findOne({ where: { orderNo } });
-    if (!order) {
-      throw new Error(`Order with orderNo ${orderNo} not found`);
-    }
+    if (!order) throw new Error(`Order with orderNo ${orderNo} not found`);
 
-    const documents = [];
-
-    // 📄 Insert each document
-    for (const document of documentObj) {
-      const doc = await Document.create({
+    const docs = [];
+    for (const doc of documentList) {
+      const created = await Document.create({
         orderNo,
-        title: document.title,
-        document: document.url,
+        title: doc.title,
+        document: doc.url,
       });
-      documents.push(doc);
+      docs.push(created);
     }
 
-    return documents;
-  } catch (error) {
-    console.error("Error uploading documents:", error.message);
-    throw error;
+    return docs;
   }
-}
-
 
   async getDocumentById(documentId) {
     try {
@@ -508,22 +495,10 @@ async uploadDocument(orderNo, documentObj) {
       const userOrders = await Order.findAll({
         where: whereClause,
         include: [
-          {
-            model: Document,
-            as: "documents",
-          },
-          {
-            model: User,
-            as: "users",
-          },
-          {
-            model: User,
-            as: "creator", // Correct alias for creatorId association
-          },
-          {
-            model: Address,
-            as: "address",
-          },
+          { model: Document, as: "documents" },
+          { model: User, as: "user" },
+          { model: User, as: "creator" },
+          { model: Address, as: "address" },
         ],
       });
 
@@ -541,8 +516,6 @@ async uploadDocument(orderNo, documentObj) {
   async getAllUserOrders(creatorRole = null) {
     try {
       const whereClause = {};
-
-      // Add creatorRole to the query if provided
       if (creatorRole) {
         whereClause.creatorRole = creatorRole;
       }
@@ -550,23 +523,12 @@ async uploadDocument(orderNo, documentObj) {
       const userAllOrders = await Order.findAll({
         where: whereClause,
         include: [
-          {
-            model: Document,
-            as: "documents",
-          },
-          {
-            model: User,
-            as: "users",
-          },
-          {
-            model: User,
-            as: "creator",
-          },
-          {
-            model: Address,
-            as: "address",
-          },
+          { model: Document, as: "documents" },
+          { model: User, as: "user" },
+          { model: User, as: "creator" },
+          { model: Address, as: "address" },
         ],
+        order: [["createdAt", "DESC"]],
       });
 
       if (!userAllOrders || userAllOrders.length === 0) {
@@ -575,7 +537,7 @@ async uploadDocument(orderNo, documentObj) {
 
       return userAllOrders;
     } catch (error) {
-      console.error("Error fetching all user orders:", error);
+      console.error("Error fetching all user orders:", error.message);
       throw new Error(`Failed to fetch all user orders: ${error.message}`);
     }
   }
@@ -605,24 +567,23 @@ async uploadDocument(orderNo, documentObj) {
   }
 
   async getOrderByOrderId(orderId) {
-    return await Order.findOne({
-      where: { id: orderId },
-      include: [
-        {
-          model: Document,
-          as: "documents",
-        },
-        {
-          model: User,
-          as: "users", // Fetch the user who placed the order
-        },
-        {
-          model: User,
-          as: "creator", // Correct alias for creatorId association
-        },
-        { model: Address, as: "address" },
-      ],
-    });
+    try {
+      console.log("Fetching order by ID:", orderId);
+      const order = await Order.findOne({
+        where: { id: orderId },
+        include: [
+          { model: Document, as: "documents" },
+          { model: User, as: "user" },
+          { model: User, as: "creator" },
+          { model: Address, as: "address" },
+        ],
+      });
+
+      return order;
+    } catch (error) {
+      console.error("OrderRepository error:", error.message);
+      throw new Error(`Failed to fetch order: ${error.message}`);
+    }
   }
 }
 

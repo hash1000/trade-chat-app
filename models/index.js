@@ -98,8 +98,14 @@ function defineAssociations() {
   PaymentType.belongsTo(User, { foreignKey: "userId", as: "user" });
   User.hasMany(PaymentType, { foreignKey: "userId", as: "paymentTypes" });
 
-  Income.belongsTo(PaymentType, { foreignKey: "paymentTypeId", as: "paymentType" });
-  Expense.belongsTo(PaymentType, { foreignKey: "paymentTypeId", as: "paymentType" });
+  Income.belongsTo(PaymentType, {
+    foreignKey: "paymentTypeId",
+    as: "paymentType",
+  });
+  Expense.belongsTo(PaymentType, {
+    foreignKey: "paymentTypeId",
+    as: "paymentType",
+  });
 }
 
 // Initialize associations
