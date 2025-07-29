@@ -192,8 +192,16 @@ class PaymentRepository {
     return Ledger.findAll({
       where: { userId },
       include: [
-        { model: Income, as: "incomes" },
-        { model: Expense, as: "expenses" },
+        {
+          model: Income,
+          as: "incomes",
+          include: [{ model: PaymentType, as: "paymentType" }],
+        },
+        {
+          model: Expense,
+          as: "expenses",
+          include: [{ model: PaymentType, as: "paymentType" }],
+        },
         {
           model: User,
           as: "user",
