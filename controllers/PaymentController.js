@@ -246,7 +246,7 @@ class PaymentController {
         data: {
           checkoutUrl: result.checkoutUrl,
           amount: result.amount,
-        },
+        }
       });
     } catch (error) {
       console.error("Topup error:", error);
@@ -354,246 +354,120 @@ class PaymentController {
     }
   }
 
-  // Payment Type Methods
+  // ------------------- PAYMENT TYPE -------------------
+
   async createPaymentType(req, res) {
     try {
-      console.log("fdsskdhkhfds");
-      const { name, isActive = true } = req.body;
+      const { name } = req.body;
       const { id: userId } = req.user;
 
-      if (!name) {
-        return res.status(400).json({
-          success: false,
-          message: "Name is required",
-          data: null,
-        });
-      }
-
-      const paymentType = await paymentService.createPaymentType({
-        name,
-        isActive,
-        userId,
-      });
-
-      return res.status(201).json({
-        success: true,
-        message: "Payment type created successfully",
-        data: paymentType,
-      });
+      const result = await paymentService.createPaymentType({ name, userId });
+      res
+        .status(201)
+        .json({ success: true, message: "Payment type created", data: result });
     } catch (error) {
-      console.error("Error creating payment type:", error);
-      return res.status(500).json({
-        success: false,
-        message: error.message || "Internal server error",
-        data: null,
-      });
+      console.error("Create payment type error:", error);
+      res.status(500).json({ success: false, message: error.message });
     }
   }
 
   async getAllPaymentTypes(req, res) {
     try {
-      const { search, isActive } = req.query;
+      const { search } = req.query;
       const { id: userId } = req.user;
 
-      const paymentTypes = await paymentService.getAllPaymentTypes({
+      const result = await paymentService.getAllPaymentTypes({
         search,
-        isActive,
         userId,
       });
-
-      return res.status(200).json({
-        success: true,
-        message: "Payment types fetched successfully",
-        data: paymentTypes,
-      });
+      res.status(200).json({ success: true, data: result });
     } catch (error) {
-      console.error("Error fetching payment types:", error);
-      return res.status(500).json({
-        success: false,
-        message: "Internal server error",
-        data: null,
-      });
+      console.error("Get all payment types error:", error);
+      res.status(500).json({ success: false, message: error.message });
     }
   }
 
   async getPaymentType(req, res) {
     try {
       const { id } = req.params;
-      const paymentType = await paymentService.getPaymentTypeById(id);
-
-      if (!paymentType) {
-        return res.status(404).json({
-          success: false,
-          message: "Payment type not found",
-          data: null,
-        });
-      }
-
-      return res.status(200).json({
-        success: true,
-        message: "Payment type fetched successfully",
-        data: paymentType,
-      });
+      const result = await paymentService.getPaymentTypeById(id);
+      if (!result)
+        return res
+          .status(404)
+          .json({ success: false, message: "Payment type not found" });
+      res.json({ success: true, data: result });
     } catch (error) {
-      console.error("Error fetching payment type:", error);
-      return res.status(500).json({
-        success: false,
-        message: "Internal server error",
-        data: null,
-      });
+      console.error("Get payment type by ID error:", error);
+      res.status(500).json({ success: false, message: error.message });
     }
   }
 
   async updatePaymentType(req, res) {
     try {
       const { id } = req.params;
-      const updateData = req.body;
-
-      const paymentType = await paymentService.updatePaymentType(
-        id,
-        updateData
-      );
-
-      if (!paymentType) {
-        return res.status(404).json({
-          success: false,
-          message: "Payment type not found",
-          data: null,
-        });
-      }
-
-      return res.status(200).json({
+      const result = await paymentService.updatePaymentType(id, req.body);
+      if (!result)
+        return res
+          .status(404)
+          .json({ success: false, message: "Payment type not found" });
+      res.json({
         success: true,
-        message: "Payment type updated successfully",
-        data: paymentType,
+        message: "Payment type updated",
+        data: result,
       });
     } catch (error) {
-      console.error("Error updating payment type:", error);
-      return res.status(500).json({
-        success: false,
-        message: "Internal server error",
-        data: null,
-      });
+      console.error("Update payment type error:", error);
+      res.status(500).json({ success: false, message: error.message });
     }
   }
 
   async deletePaymentType(req, res) {
     try {
       const { id } = req.params;
-
       const result = await paymentService.deletePaymentType(id);
-
-      if (!result) {
-        return res.status(404).json({
-          success: false,
-          message: "Payment type not found",
-          data: null,
-        });
-      }
-
-      return res.status(200).json({
-        success: true,
-        message: "Payment type deleted successfully",
-        data: result,
-      });
+      if (!result)
+        return res
+          .status(404)
+          .json({ success: false, message: "Payment type not found" });
+      res.json({ success: true, message: "Payment type deleted" });
     } catch (error) {
-      console.error("Error deleting payment type:", error);
-
-      const isUsedError = error.message?.toLowerCase().includes("in use");
-
-      return res.status(isUsedError ? 400 : 500).json({
+      const isUsed = error.message?.toLowerCase().includes("in use");
+      console.error("Delete payment type error:", error);
+      res.status(isUsed ? 400 : 500).json({
         success: false,
-        message: isUsedError ? error.message : "Internal server error",
-        data: null,
+        message: isUsed ? error.message : "Internal server error",
       });
     }
   }
 
-  // BALANCE SHEET
-  async createBalanceSheet(req, res) {
+  // ------------------- LEDGER -------------------
+
+  async bulkCreateLedgers(req, res) {
     try {
       const { ledgers } = req.body;
       const { id: userId } = req.user;
-      const result = await paymentService.createBalanceSheet({
+      const result = await paymentService.bulkCreateLedgers({
         ledgers,
         userId,
       });
       res.status(201).json({
         success: true,
-        message: "Balance sheet created",
+        message: "Ledgers created successfully",
         data: result,
       });
     } catch (error) {
-      console.error("Create balance sheet error:", error);
+      console.error("Bulk create ledgers error:", error);
       res.status(500).json({ success: false, message: error.message });
     }
   }
 
-  async getBalanceSheets(req, res) {
-    try {
-      const { id: userId } = req.user;
-      const result = await paymentService.getBalanceSheetsByUser(userId);
-      res.json({ success: true, data: result });
-    } catch (error) {
-      console.error("Get balance sheets error:", error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  }
-
-  async getBalanceSheetById(req, res) {
-    try {
-      const result = await paymentService.getBalanceSheetById(req.params.id);
-      if (!result)
-        return res
-          .status(404)
-          .json({ success: false, message: "Balance sheet not found" });
-      res.json({ success: true, data: result });
-    } catch (error) {
-      console.error("Get balance sheet by ID error:", error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  }
-
-  async updateBalanceSheet(req, res) {
-    try {
-      const result = await paymentService.updateBalanceSheet(
-        req.params.id,
-        req.body
-      );
-      if (!result)
-        return res
-          .status(404)
-          .json({ success: false, message: "Balance sheet not found" });
-      res.json({ success: true, message: "Balance sheet updated" });
-    } catch (error) {
-      console.error("Update balance sheet error:", error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  }
-
-  async deleteBalanceSheet(req, res) {
-    try {
-      const result = await paymentService.deleteBalanceSheet(req.params.id);
-      if (!result)
-        return res
-          .status(404)
-          .json({ success: false, message: "Balance sheet not found" });
-      res.json({ success: true, message: "Balance sheet deleted" });
-    } catch (error) {
-      console.error("Delete balance sheet error:", error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  }
-
-  // LEDGER
   async addLedger(req, res) {
     try {
-      const { title, description, balanceSheetId } = req.body;
+      const { title, description } = req.body;
       const { id: userId } = req.user;
       const result = await paymentService.addLedger({
         title,
         description,
-        balanceSheetId,
         userId,
       });
       res.json({ success: true, message: "Ledger added", data: result });
@@ -603,25 +477,13 @@ class PaymentController {
     }
   }
 
-  async addBulkLedgerTransactions(req, res) {
+  async getUserLedgers(req, res) {
     try {
-      const { id: ledgerId } = req.params;
-      const { incomes = [], expenses = [] } = req.body;
       const { id: userId } = req.user;
-      const result = await paymentService.addBulkLedgerTransactions({
-        ledgerId,
-        incomes,
-        expenses,
-        userId,
-      });
-
-      res.status(201).json({
-        success: true,
-        message: "Incomes and expenses added to ledger",
-        data: result,
-      });
+      const result = await paymentService.getUserLedgers(userId);
+      res.json({ success: true, data: result });
     } catch (error) {
-      console.error("Bulk ledger transaction error:", error);
+      console.error("Get ledgers error:", error);
       res.status(500).json({ success: false, message: error.message });
     }
   }
@@ -668,7 +530,160 @@ class PaymentController {
     }
   }
 
-  // INCOME
+  async addBulkLedgerTransactions(req, res) {
+    try {
+      const { id: ledgerId } = req.params;
+      const { incomes = [], expenses = [] } = req.body;
+      const { id: userId } = req.user;
+      const result = await paymentService.addBulkLedgerTransactions({
+        ledgerId,
+        incomes,
+        expenses,
+        userId,
+      });
+      res.status(201).json({
+        success: true,
+        message: "Incomes and expenses added to ledger",
+        data: result,
+      });
+    } catch (error) {
+      console.error("Bulk ledger transaction error:", error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  }
+
+  // ------------------- LEDGER -------------------
+
+  async bulkCreateLedgers(req, res) {
+    try {
+      const { ledgers } = req.body;
+      const { id: userId } = req.user;
+      const result = await paymentService.bulkCreateLedgers({
+        ledgers,
+        userId,
+      });
+      res.status(201).json({
+        success: true,
+        message: "Ledgers created successfully",
+        data: result,
+      });
+    } catch (error) {
+      console.error("Bulk create ledgers error:", error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  }
+
+  async addLedger(req, res) {
+    try {
+      const { title, description } = req.body;
+      const { id: userId } = req.user;
+      const result = await paymentService.addLedger({
+        title,
+        description,
+        userId,
+      });
+      res.json({ success: true, message: "Ledger added", data: result });
+    } catch (error) {
+      console.error("Add ledger error:", error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  }
+
+  async getUserLedgers(req, res) {
+    try {
+      const { id: userId } = req.user;
+      const result = await paymentService.getUserLedgers(userId);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      console.error("Get ledgers error:", error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  }
+
+  async getLedgerById(req, res) {
+    try {
+      const result = await paymentService.getLedgerById(req.params.id);
+      if (!result)
+        return res
+          .status(404)
+          .json({ success: false, message: "Ledger not found" });
+      res.json({ success: true, data: result });
+    } catch (error) {
+      console.error("Get ledger by ID error:", error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  }
+
+  async updateLedger(req, res) {
+    try {
+      const result = await paymentService.updateLedger(req.params.id, req.body);
+      if (!result)
+        return res
+          .status(404)
+          .json({ success: false, message: "Ledger not found" });
+      res.json({ success: true, message: "Ledger updated" });
+    } catch (error) {
+      console.error("Update ledger error:", error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  }
+
+  async duplicateLedger(req, res) {
+    try {
+      const { id: originalLedgerId } = req.params;
+      const { id: userId } = req.user;
+
+      const duplicated = await paymentService.duplicateLedger(
+        originalLedgerId,
+        userId
+      );
+      res.json({
+        success: true,
+        message: "Ledger duplicated successfully",
+        data: duplicated,
+      });
+    } catch (error) {
+      console.error("Ledger duplication failed:", error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  }
+
+  async deleteLedger(req, res) {
+    try {
+      const result = await paymentService.deleteLedger(req.params.id);
+      if (!result)
+        return res
+          .status(404)
+          .json({ success: false, message: "Ledger not found" });
+      res.json({ success: true, message: "Ledger deleted" });
+    } catch (error) {
+      console.error("Delete ledger error:", error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  }
+
+  async addBulkLedgerTransactions(req, res) {
+    try {
+      const { id: ledgerId } = req.params;
+      const { incomes = [], expenses = [] } = req.body;
+      const { id: userId } = req.user;
+      const result = await paymentService.addBulkLedgerTransactions({
+        ledgerId,
+        incomes,
+        expenses,
+        userId,
+      });
+      res.status(201).json({
+        success: true,
+        message: "Incomes and expenses added to ledger",
+        data: result,
+      });
+    } catch (error) {
+      console.error("Bulk ledger transaction error:", error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  }
+
   async addIncomeQRM(req, res) {
     try {
       const { amount, description, paymentTypeId, ledgerId } = req.body;
@@ -682,8 +697,7 @@ class PaymentController {
       });
       res.json({ success: true, message: "Income added", data: result });
     } catch (error) {
-      console.error("Add income error:", error);
-      res.status(500).json({ success: false, message: error.message });
+      res.status(400).json({ success: false, message: error.message });
     }
   }
 
@@ -696,7 +710,6 @@ class PaymentController {
           .json({ success: false, message: "Income not found" });
       res.json({ success: true, data: result });
     } catch (error) {
-      console.error("Get income by ID error:", error);
       res.status(500).json({ success: false, message: error.message });
     }
   }
@@ -704,32 +717,21 @@ class PaymentController {
   async updateIncome(req, res) {
     try {
       const result = await paymentService.updateIncome(req.params.id, req.body);
-      if (!result)
-        return res
-          .status(404)
-          .json({ success: false, message: "Income not found" });
-      res.json({ success: true, message: "Income updated" });
+      res.json({ success: true, message: "Income updated", data: result });
     } catch (error) {
-      console.error("Update income error:", error);
-      res.status(500).json({ success: false, message: error.message });
+      res.status(400).json({ success: false, message: error.message });
     }
   }
 
   async deleteIncome(req, res) {
     try {
-      const result = await paymentService.deleteIncome(req.params.id);
-      if (!result)
-        return res
-          .status(404)
-          .json({ success: false, message: "Income not found" });
+      await paymentService.deleteIncome(req.params.id);
       res.json({ success: true, message: "Income deleted" });
     } catch (error) {
-      console.error("Delete income error:", error);
-      res.status(500).json({ success: false, message: error.message });
+      res.status(400).json({ success: false, message: error.message });
     }
   }
 
-  // EXPENSE
   async addExpenseQRM(req, res) {
     try {
       const { amount, description, paymentTypeId, ledgerId } = req.body;
@@ -743,8 +745,7 @@ class PaymentController {
       });
       res.json({ success: true, message: "Expense added", data: result });
     } catch (error) {
-      console.error("Add expense error:", error);
-      res.status(500).json({ success: false, message: error.message });
+      res.status(400).json({ success: false, message: error.message });
     }
   }
 
@@ -757,7 +758,6 @@ class PaymentController {
           .json({ success: false, message: "Expense not found" });
       res.json({ success: true, data: result });
     } catch (error) {
-      console.error("Get expense by ID error:", error);
       res.status(500).json({ success: false, message: error.message });
     }
   }
@@ -768,28 +768,18 @@ class PaymentController {
         req.params.id,
         req.body
       );
-      if (!result)
-        return res
-          .status(404)
-          .json({ success: false, message: "Expense not found" });
-      res.json({ success: true, message: "Expense updated" });
+      res.json({ success: true, message: "Expense updated", data: result });
     } catch (error) {
-      console.error("Update expense error:", error);
-      res.status(500).json({ success: false, message: error.message });
+      res.status(400).json({ success: false, message: error.message });
     }
   }
 
   async deleteExpense(req, res) {
     try {
-      const result = await paymentService.deleteExpense(req.params.id);
-      if (!result)
-        return res
-          .status(404)
-          .json({ success: false, message: "Expense not found" });
+      await paymentService.deleteExpense(req.params.id);
       res.json({ success: true, message: "Expense deleted" });
     } catch (error) {
-      console.error("Delete expense error:", error);
-      res.status(500).json({ success: false, message: error.message });
+      res.status(400).json({ success: false, message: error.message });
     }
   }
 }

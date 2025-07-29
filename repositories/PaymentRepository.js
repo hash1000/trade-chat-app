@@ -1,4 +1,5 @@
 const Payment = require("../models/payment");
+const { Op } = require("sequelize");
 const Card = require("../models/card");
 const FavouritePayment = require("../models/favourite_payments");
 const PaymentRequest = require("../models/payment_request");
@@ -137,10 +138,10 @@ class PaymentRepository {
   }
 
   async getTransactionsByUserId(userId, options = {}) {
-    return Transaction.findAll({
-      where: { userId },
-      ...options,
-    });
+    // return Transaction.findAll({
+    //   where: { userId }
+    //   ...options,
+    // });
   }
 
   async updateTransaction(transactionId, updatedData) {
@@ -170,10 +171,10 @@ class PaymentRepository {
   }
 
   async getTransactionsByStatus(status, options = {}) {
-    return Transaction.findAll({
-      where: { status },
-      ...options,
-    });
+    // return Transaction.findAll({
+    //   where: { status }
+    //   ...options,
+    // });
   }
 
   async getRecentTransactions(limit = 10) {
@@ -182,240 +183,148 @@ class PaymentRepository {
       limit: parseInt(limit),
     });
   }
-  async createPaymentType(paymentTypeData) {
-    return PaymentType.create(paymentTypeData);
-  }
-
-  async getPaymentTypeByName(name) {
-    return PaymentType.findOne({ where: { name } });
-  }
-
-  async getAllPaymentTypes(where = {}) {
-    return PaymentType.findAll({
-      where,
-      order: [["name", "ASC"]],
-    });
-  }
-
-  async getPaymentTypeById(id) {
-    return PaymentType.findByPk(id);
-  }
-
-  async updatePaymentType(id, updateData) {
-    const paymentType = await PaymentType.findByPk(id);
-    if (!paymentType) return null;
-    return paymentType.update(updateData);
-  }
-
-  async deletePaymentType(id) {
-    const paymentType = await PaymentType.findByPk(id);
-    if (!paymentType) return null;
-    await paymentType.destroy();
-    return true;
-  }
-
-  async isPaymentTypeInUse(id) {
-    const [inIncomes, inExpenses] = await Promise.all([
-      Income.count({ where: { paymentTypeId: id } }),
-      Expense.count({ where: { paymentTypeId: id } }),
-    ]);
-    return inIncomes > 0 || inExpenses > 0;
-  }
-
-  async getPaymentTypeByNameAndUser(name, userId) {
-    return PaymentType.findOne({ where: { name, userId } });
-  }
-
-  async findExistingPaymentTypeIds(ids) {
-    const rows = await PaymentType.findAll({
-      where: { id: ids },
-      attributes: ["id"],
-      raw: true,
-    });
-    return rows.map((r) => r.id);
-  }
-
-  // BALANCE SHEET
-  async getBalanceSheetsByUser(userId) {
-    return BalanceSheet.findAll({
-      where: { userId },
-      order: [["createdAt", "DESC"]],
-      include: [
-        {
-          model: Ledger,
-          as: "ledgers",
-          include: [
-            {
-              model: Income,
-              as: "incomes",
-              include: [{ model: PaymentType, as: "paymentType" }],
-            },
-            {
-              model: Expense,
-              as: "expenses",
-              include: [{ model: PaymentType, as: "paymentType" }],
-            },
-          ],
-        },
-      ],
-    });
-  }
-
-  async getBalanceSheetById(id) {
-    return BalanceSheet.findByPk(id, {
-      include: [
-        {
-          model: User,
-          as: "user",
-          attributes: [
-            "id",
-            "username",
-            "phoneNumber",
-            "profilePic",
-            "email",
-            "settings",
-          ],
-          include: [
-            {
-              model: Role,
-              as: "roles",
-            },
-          ],
-        },
-        {
-          model: Ledger,
-          as: "ledgers",
-          include: [
-            {
-              model: Income,
-              as: "incomes",
-              include: [{ model: PaymentType, as: "paymentType" }],
-            },
-            {
-              model: Expense,
-              as: "expenses",
-              include: [{ model: PaymentType, as: "paymentType" }],
-            },
-          ],
-        },
-      ],
-    });
-  }
-
-  async addBalanceSheet(data, options) {
-    return BalanceSheet.create(data, options);
-  }
-
-  async updateBalanceSheet(id, data) {
-    const sheet = await BalanceSheet.findByPk(id);
-    if (!sheet) return null;
-    return sheet.update(data);
-  }
-
-  async deleteBalanceSheet(id) {
-    const sheet = await BalanceSheet.findByPk(id);
-    if (!sheet) return null;
-    await sheet.destroy();
-    return true;
-  }
-
-  // LEDGER
-  async addLedger(data, options = {}) {
+  // ---------------- LEDGER ----------------
+  addLedger(data, options = {}) {
     return Ledger.create(data, options);
   }
 
-  async getLedgerById(id) {
-    return Ledger.findByPk(id, {
+  getLedgersByUser(userId) {
+    return Ledger.findAll({
+      where: { userId },
       include: [
+        { model: Income, as: "incomes" },
+        { model: Expense, as: "expenses" },
         {
-          model: Income,
-          as: "incomes",
-          include: [{ model: PaymentType, as: "paymentType" }],
-        },
-        {
-          model: Expense,
-          as: "expenses",
-          include: [{ model: PaymentType, as: "paymentType" }],
+          model: User,
+          as: "user",
+          attributes: ["id", "username"],
         },
       ],
     });
   }
 
-  async updateLedger(id, data) {
-    const ledger = await Ledger.findByPk(id);
-    if (!ledger) return null;
-    return ledger.update(data);
+  getLedgerById(id) {
+    return Ledger.findByPk(id, {
+      include: [
+        { model: Income, as: "incomes" },
+        { model: Expense, as: "expenses" },
+        {
+          model: User,
+          as: "user",
+          attributes: ["id", "username"],
+        },
+      ],
+    });
   }
 
-  async deleteLedger(id) {
-    const ledger = await Ledger.findByPk(id);
-    if (!ledger) return null;
-    await ledger.destroy();
-    return true;
+  updateLedger(id, data) {
+    return Ledger.update(data, { where: { id } });
   }
 
-  // INCOME
-  async addIncomeQRM(data) {
-    const ledger = await Ledger.findByPk(data.ledgerId);
-    if (!ledger) throw new Error("Ledger not found");
-    const paymentType = await PaymentType.findByPk(data.paymentTypeId);
-    if (!paymentType) throw new Error("Payment type not found");
+  getLedgerWithTransactions(id) {
+    return Ledger.findByPk(id, {
+      include: [
+        { model: Income, as: "incomes" },
+        { model: Expense, as: "expenses" },
+      ],
+    });
+  }
+
+  createLedger(data) {
+    return Ledger.create(data);
+  }
+
+  deleteLedger(id) {
+    return Ledger.destroy({ where: { id } });
+  }
+
+  // ---------------- INCOME ----------------
+  bulkCreateIncome(incomes, options = {}) {
+    return Income.bulkCreate(incomes, options);
+  }
+
+  addIncomeQRM(data) {
     return Income.create(data);
   }
 
-  async getIncomeById(id) {
+  getIncomeById(id) {
     return Income.findByPk(id, {
       include: [{ model: PaymentType, as: "paymentType" }],
     });
   }
 
-  async updateIncome(id, data) {
-    const income = await Income.findByPk(id);
-    if (!income) return null;
-    return income.update(data);
+  updateIncome(id, data) {
+    return Income.update(data, { where: { id } });
   }
 
-  async deleteIncome(id) {
-    const income = await Income.findByPk(id);
-    if (!income) return null;
-    await income.destroy();
-    return true;
+  deleteIncome(id) {
+    return Income.destroy({ where: { id } });
   }
 
-  async bulkCreateIncome(data, options) {
-    return Income.bulkCreate(data, options);
+  // ---------------- EXPENSE ----------------
+  bulkCreateExpense(expenses, options = {}) {
+    return Expense.bulkCreate(expenses, options);
   }
 
-  // EXPENSE
-  async addExpenseQRM(data) {
-    const ledger = await Ledger.findByPk(data.ledgerId);
-    if (!ledger) throw new Error("Ledger not found");
-    const paymentType = await PaymentType.findByPk(data.paymentTypeId);
-    if (!paymentType) throw new Error("Payment type not found");
+  addExpenseQRM(data) {
     return Expense.create(data);
   }
 
-  async getExpenseById(id) {
+  getExpenseById(id) {
     return Expense.findByPk(id, {
       include: [{ model: PaymentType, as: "paymentType" }],
     });
   }
 
-  async updateExpense(id, data) {
-    const expense = await Expense.findByPk(id);
-    if (!expense) return null;
-    return expense.update(data);
+  updateExpense(id, data) {
+    return Expense.update(data, { where: { id } });
   }
 
-  async deleteExpense(id) {
-    const expense = await Expense.findByPk(id);
-    if (!expense) return null;
-    await expense.destroy();
-    return true;
+  deleteExpense(id) {
+    return Expense.destroy({ where: { id } });
   }
 
-  async bulkCreateExpense(data, options) {
-    return Expense.bulkCreate(data, options);
+  // ---------------- PAYMENT TYPE ----------------
+  createPaymentType(data) {
+    return PaymentType.create(data);
+  }
+
+  getAllPaymentTypes(where) {
+    return PaymentType.findAll({ where });
+  }
+
+  getPaymentTypeById(id) {
+    return PaymentType.findByPk(id);
+  }
+
+  updatePaymentType(id, data) {
+    return PaymentType.update(data, { where: { id } });
+  }
+
+  deletePaymentType(id) {
+    return PaymentType.destroy({ where: { id } });
+  }
+
+  getPaymentTypeByName(name) {
+    return PaymentType.findOne({ where: { name } });
+  }
+
+  getPaymentTypeByNameAndUser(name, userId) {
+    return PaymentType.findOne({ where: { name, userId } });
+  }
+
+  isPaymentTypeInUse(id) {
+    return Promise.all([
+      Income.count({ where: { paymentTypeId: id } }),
+      Expense.count({ where: { paymentTypeId: id } }),
+    ]).then(([incomeCount, expenseCount]) => incomeCount + expenseCount > 0);
+  }
+
+  findExistingPaymentTypeIds(ids) {
+    return PaymentType.findAll({
+      where: { id: { [Op.in]: ids } },
+      attributes: ["id"],
+    }).then((rows) => rows.map((r) => r.id));
   }
 }
 
