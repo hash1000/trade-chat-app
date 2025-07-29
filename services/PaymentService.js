@@ -213,12 +213,13 @@ class PaymentService {
   // Payment Type Methods
   async createPaymentType(paymentTypeData) {
     // Check if payment type already exists for this user
+    console.log("paymentTypeData", paymentTypeData);
     const existingType =
       await this.paymentRepository.getPaymentTypeByNameAndUser(
         paymentTypeData.name,
         paymentTypeData.userId
       );
-
+    console.log("existingType", existingType);
     if (existingType) {
       throw new Error(
         "Payment type with this name already exists for your account"
@@ -285,6 +286,7 @@ class PaymentService {
           { title, description, balanceSheetId: balanceSheet.id },
           { transaction }
         );
+        console.log("ledger", ledger);
 
         // Validate all paymentTypeIds before inserting
         const paymentTypeIdsToCheck = [
@@ -333,7 +335,9 @@ class PaymentService {
       await transaction.commit();
       return { balanceSheetId: balanceSheet.id };
     } catch (error) {
-      await transaction.rollback();
+      if (!transaction.finished) {
+        await transaction.rollback();
+      }
       throw error;
     }
   }
@@ -398,45 +402,55 @@ class PaymentService {
     return this.paymentRepository.addLedger(data);
   }
 
-async addBulkLedgerTransactions({ ledgerId, incomes = [], expenses = [], userId }) {
-  const ledger = await this.paymentRepository.getLedgerById(ledgerId);
-  if (!ledger) throw new Error("Ledger not found");
+  async addBulkLedgerTransactions({
+    ledgerId,
+    incomes = [],
+    expenses = [],
+    userId,
+  }) {
+    const ledger = await this.paymentRepository.getLedgerById(ledgerId);
+    if (!ledger) throw new Error("Ledger not found");
 
-  const paymentTypeIds = [
-    ...incomes.map((i) => i.paymentTypeId),
-    ...expenses.map((e) => e.paymentTypeId),
-  ].filter(Boolean);
+    const paymentTypeIds = [
+      ...incomes.map((i) => i.paymentTypeId),
+      ...expenses.map((e) => e.paymentTypeId),
+    ].filter(Boolean);
 
-  const validIds = await this.paymentRepository.findExistingPaymentTypeIds(paymentTypeIds);
-  const invalidIds = paymentTypeIds.filter((id) => !validIds.includes(id));
-  if (invalidIds.length > 0) {
-    throw new Error(`Invalid paymentTypeId(s): ${invalidIds.join(", ")}`);
-  }
-
-  const transaction = await sequelize.transaction();
-  try {
-    if (incomes.length > 0) {
-      const incomeData = incomes.map((i) => ({ ...i, ledgerId }));
-      await this.paymentRepository.bulkCreateIncome(incomeData, { transaction });
+    const validIds = await this.paymentRepository.findExistingPaymentTypeIds(
+      paymentTypeIds
+    );
+    const invalidIds = paymentTypeIds.filter((id) => !validIds.includes(id));
+    if (invalidIds.length > 0) {
+      throw new Error(`Invalid paymentTypeId(s): ${invalidIds.join(", ")}`);
     }
 
-    if (expenses.length > 0) {
-      const expenseData = expenses.map((e) => ({ ...e, ledgerId }));
-      await this.paymentRepository.bulkCreateExpense(expenseData, { transaction });
+    const transaction = await sequelize.transaction();
+    try {
+      if (incomes.length > 0) {
+        const incomeData = incomes.map((i) => ({ ...i, ledgerId }));
+        await this.paymentRepository.bulkCreateIncome(incomeData, {
+          transaction,
+        });
+      }
+
+      if (expenses.length > 0) {
+        const expenseData = expenses.map((e) => ({ ...e, ledgerId }));
+        await this.paymentRepository.bulkCreateExpense(expenseData, {
+          transaction,
+        });
+      }
+
+      await transaction.commit();
+      return {
+        ledgerId,
+        incomeCount: incomes.length,
+        expenseCount: expenses.length,
+      };
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
     }
-
-    await transaction.commit();
-    return {
-      ledgerId,
-      incomeCount: incomes.length,
-      expenseCount: expenses.length,
-    };
-  } catch (error) {
-    await transaction.rollback();
-    throw error;
   }
-}
-
 
   async getLedgerById(id) {
     const ledger = await this.paymentRepository.getLedgerById(id);

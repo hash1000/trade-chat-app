@@ -265,6 +265,24 @@ class PaymentRepository {
     return BalanceSheet.findByPk(id, {
       include: [
         {
+          model: User,
+          as: "user",
+          attributes: [
+            "id",
+            "username",
+            "phoneNumber",
+            "profilePic",
+            "email",
+            "settings",
+          ],
+          include: [
+            {
+              model: Role,
+              as: "roles",
+            },
+          ],
+        },
+        {
           model: Ledger,
           as: "ledgers",
           include: [

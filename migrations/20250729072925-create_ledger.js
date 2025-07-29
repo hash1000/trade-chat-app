@@ -12,11 +12,15 @@ module.exports = {
         type: Sequelize.STRING,
         allowNull: true,
       },
+      description: {
+        type: Sequelize.STRING,
+        allowNull: true,
+      },
       balanceSheetId: {
         type: Sequelize.INTEGER,
         allowNull: false,
         references: {
-          model: "balance_sheet",
+          model: "balanceSheet",
           key: "id",
         },
         onUpdate: "CASCADE",

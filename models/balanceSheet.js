@@ -24,13 +24,13 @@ const BalanceSheet = db.define(
       defaultValue: DataTypes.NOW,
     },
   },
-  { 
-    tableName: "balance_sheet",
+  {
+    tableName: "balanceSheet",
     indexes: [
       {
-        fields: ['userId'] // Index for faster user queries
-      }
-    ]
+        fields: ["userId"], // Index for faster user queries
+      },
+    ],
   }
 );
 
