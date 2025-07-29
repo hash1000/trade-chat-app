@@ -357,6 +357,7 @@ class PaymentController {
   // Payment Type Methods
   async createPaymentType(req, res) {
     try {
+      console.log("fdsskdhkhfds");
       const { name, isActive = true } = req.body;
       const { id: userId } = req.user;
 
@@ -517,13 +518,11 @@ class PaymentController {
         ledgers,
         userId,
       });
-      res
-        .status(201)
-        .json({
-          success: true,
-          message: "Balance sheet created",
-          data: result,
-        });
+      res.status(201).json({
+        success: true,
+        message: "Balance sheet created",
+        data: result,
+      });
     } catch (error) {
       console.error("Create balance sheet error:", error);
       res.status(500).json({ success: false, message: error.message });

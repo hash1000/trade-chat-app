@@ -20,7 +20,7 @@ const UserRole = sequelize.define(
   },
   {
     tableName: "user_roles",
-    timestamps: true, // Enables createdAt & updatedAt automatically
+    timestamps: true,
   }
 );
 

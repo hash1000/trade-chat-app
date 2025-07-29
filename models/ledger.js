@@ -13,8 +13,8 @@ const Ledger = db.define(
       type: DataTypes.STRING,
       allowNull: true,
       validate: {
-        len: [0, 100] // Limit title length to 100 characters
-      }
+        len: [0, 100], // Limit title length to 100 characters
+      },
     },
     description: {
       type: DataTypes.STRING,
@@ -24,9 +24,9 @@ const Ledger = db.define(
       type: DataTypes.INTEGER,
       allowNull: false,
       references: {
-        model: 'balance_sheet',
-        key: 'id'
-      }
+        model: "balanceSheet",
+        key: "id",
+      },
     },
     createdAt: {
       allowNull: false,
@@ -39,14 +39,14 @@ const Ledger = db.define(
       defaultValue: DataTypes.NOW,
     },
   },
-  { 
+  {
     tableName: "ledger",
     timestamps: true,
     indexes: [
       {
-        fields: ['balanceSheetId']
-      }
-    ]
+        fields: ["balanceSheetId"],
+      },
+    ],
   }
 );
 

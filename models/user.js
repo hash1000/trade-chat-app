@@ -80,7 +80,7 @@ const User = sequelize.define(
     orderId: {
       type: DataTypes.INTEGER,
       allowNull: true, // Allow null because the order might not be created yet
-    },    
+    },
     createdAt: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW,
@@ -151,11 +151,11 @@ User.prototype.toJSON = function () {
   delete values.otp;
   return values;
 };
-User.associate = function(models) {
-  User.belongsToMany(models.Role, { 
+User.associate = function (models) {
+  User.belongsToMany(models.Role, {
     through: models.UserRole,
-    foreignKey: 'userId',
-    as: 'roles'
+    foreignKey: "userId",
+    as: "roles",
   });
 };
 

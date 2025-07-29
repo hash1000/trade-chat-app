@@ -12,7 +12,6 @@ const PaymentType = db.define(
     name: {
       type: DataTypes.STRING,
       allowNull: false,
-      unique: true,
     },
     userId: {
       type: DataTypes.INTEGER,
@@ -32,14 +31,14 @@ const PaymentType = db.define(
       defaultValue: DataTypes.NOW,
     },
   },
-  { 
+  {
     tableName: "payment_types",
     indexes: [
       {
         unique: true,
-        fields: ['name', 'userId'] // Ensure name is unique per user
-      }
-    ]
+        fields: ["name", "userId"], // Ensure name is unique per user
+      },
+    ],
   }
 );
 
