@@ -26,7 +26,8 @@ const Expense = db.define(
       allowNull: false,
     },
   },
-  { tableName: "expenses" }
+  { tableName: "expenses", timestamps: true }
 );
+
 
 module.exports = Expense;

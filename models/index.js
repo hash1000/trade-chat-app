@@ -1,3 +1,4 @@
+// models/index.js
 const db = require("../config/database");
 
 // Import all models
@@ -9,11 +10,10 @@ const Role = require("./role");
 const UserRole = require("./userRole");
 const Permission = require("./permission");
 const Transaction = require("./transaction");
-const BalanceSheet = require("./balanceSheet");
 const Ledger = require("./ledger");
 const Income = require("./ledgerIncome");
 const Expense = require("./ledgerExpense");
-const PaymentType = require("./paymentType"); // Make sure to import PaymentType
+const PaymentType = require("./paymentType");
 
 // Define all associations
 function defineAssociations() {
@@ -62,50 +62,25 @@ function defineAssociations() {
   Order.hasMany(Transaction, { foreignKey: "orderId", as: "transactions" });
   Transaction.belongsTo(Order, { foreignKey: "orderId", as: "order" });
 
-  // Balance Sheet associations
-  User.hasMany(BalanceSheet, { foreignKey: "userId", as: "balanceSheets" });
-  BalanceSheet.belongsTo(User, { foreignKey: "userId", as: "user" });
+  // Ledger associations (replaces BalanceSheet)
+  User.hasMany(Ledger, { foreignKey: "userId", as: "ledgers" });
+  Ledger.belongsTo(User, { foreignKey: "userId", as: "user" });
 
-  BalanceSheet.hasMany(Ledger, {
-    foreignKey: "balanceSheetId",
-    as: "ledgers",
-  });
-  Ledger.belongsTo(BalanceSheet, {
-    foreignKey: "balanceSheetId",
-    as: "balanceSheet",
-  });
+  Ledger.hasMany(Income, { foreignKey: "ledgerId", as: "incomes" });
+  Income.belongsTo(Ledger, { foreignKey: "ledgerId", as: "ledger" });
 
-  // Ledger associations
-  Ledger.hasMany(Income, {
-    foreignKey: "ledgerId",
-    as: "incomes",
-  });
-  Income.belongsTo(Ledger, {
-    foreignKey: "ledgerId",
-    as: "ledger",
-  });
-
-  Ledger.hasMany(Expense, {
-    foreignKey: "ledgerId",
-    as: "expenses",
-  });
-  Expense.belongsTo(Ledger, {
-    foreignKey: "ledgerId",
-    as: "ledger",
-  });
+  Ledger.hasMany(Expense, { foreignKey: "ledgerId", as: "expenses" });
+  Expense.belongsTo(Ledger, { foreignKey: "ledgerId", as: "ledger" });
 
   // Payment Type associations
   PaymentType.belongsTo(User, { foreignKey: "userId", as: "user" });
   User.hasMany(PaymentType, { foreignKey: "userId", as: "paymentTypes" });
 
-  Income.belongsTo(PaymentType, {
-    foreignKey: "paymentTypeId",
-    as: "paymentType",
-  });
-  Expense.belongsTo(PaymentType, {
-    foreignKey: "paymentTypeId",
-    as: "paymentType",
-  });
+  Income.belongsTo(PaymentType, { foreignKey: "paymentTypeId", as: "paymentType" });
+  Expense.belongsTo(PaymentType, { foreignKey: "paymentTypeId", as: "paymentType" });
+
+  PaymentType.hasMany(Income, { foreignKey: "paymentTypeId", as: "incomes" });
+  PaymentType.hasMany(Expense, { foreignKey: "paymentTypeId", as: "expenses" });
 }
 
 // Initialize associations
@@ -122,7 +97,6 @@ module.exports = {
   Document,
   Permission,
   Transaction,
-  BalanceSheet,
   Ledger,
   Income,
   Expense,

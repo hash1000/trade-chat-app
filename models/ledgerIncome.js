@@ -26,7 +26,7 @@ const Income = db.define(
       allowNull: false,
     },
   },
-  { tableName: "incomes" }
+  { tableName: "incomes", timestamps: true }
 );
 
 module.exports = Income;

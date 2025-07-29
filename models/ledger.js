@@ -1,5 +1,7 @@
+// models/Ledger.js
 const { DataTypes } = require("sequelize");
 const db = require("../config/database");
+const User = require("./user");
 
 const Ledger = db.define(
   "Ledger",
@@ -11,20 +13,20 @@ const Ledger = db.define(
     },
     title: {
       type: DataTypes.STRING,
-      allowNull: true,
+      allowNull: false,
       validate: {
-        len: [0, 100], // Limit title length to 100 characters
+        len: [1, 100],
       },
     },
     description: {
       type: DataTypes.STRING,
       allowNull: true,
     },
-    balanceSheetId: {
+    userId: {
       type: DataTypes.INTEGER,
       allowNull: false,
       references: {
-        model: "balanceSheet",
+        model: User,
         key: "id",
       },
     },
@@ -42,11 +44,7 @@ const Ledger = db.define(
   {
     tableName: "ledger",
     timestamps: true,
-    indexes: [
-      {
-        fields: ["balanceSheetId"],
-      },
-    ],
+    indexes: [{ fields: ["userId"] }],
   }
 );
 

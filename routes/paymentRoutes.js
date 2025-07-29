@@ -15,6 +15,7 @@ const {
   addIncomeValidator,
   addExpenseValidator,
   bulkLedgerTransactionValidator,
+  bulkLedgerCreateValidator,
 } = require("../middlewares/paymentValidation");
 const authorize = require("../middlewares/authorization");
 const checkIntegerParam = require("../middlewares/paramIntegerValidation");
@@ -102,136 +103,165 @@ router.post(
   paymentController.handleStripeWebhook.bind(paymentController)
 );
 
-// BALANCE SHEET
+// ------------------ LEDGER ------------------
+
+// Bulk create ledgers with nested incomes/expenses
 router.post(
-  "/balance-sheet",
+  "/bulk-ledgers",
   authMiddleware,
-  createBalanceSheetValidator,
-  paymentController.createBalanceSheet.bind(paymentController)
-);
-router.get(
-  "/balance-sheets",
-  authMiddleware,
-  paymentController.getBalanceSheets.bind(paymentController)
-);
-router.get(
-  "/balance-sheet/:id",
-  authMiddleware,
-  paymentController.getBalanceSheetById.bind(paymentController)
-);
-router.put(
-  "/balance-sheet/:id",
-  authMiddleware,
-  paymentController.updateBalanceSheet.bind(paymentController)
-);
-router.delete(
-  "/balance-sheet/:id",
-  authMiddleware,
-  paymentController.deleteBalanceSheet.bind(paymentController)
+  bulkLedgerCreateValidator,
+  paymentController.bulkCreateLedgers.bind(paymentController)
 );
 
-// LEDGER
+// Create single ledger (no nested incomes/expenses)
 router.post(
-  "/add-ledger",
+  "/ledgers",
   authMiddleware,
   addLedgerValidator,
   paymentController.addLedger.bind(paymentController)
 );
+
+// Add incomes/expenses to existing ledger
 router.post(
-  "/ledger/:id/income-expense",
+  "/ledgers/:id/income-expense",
   authMiddleware,
   bulkLedgerTransactionValidator,
   paymentController.addBulkLedgerTransactions.bind(paymentController)
 );
+
+// Get all ledgers for logged-in user
 router.get(
-  "/ledger/:id",
+  "/ledgers",
+  authMiddleware,
+  paymentController.getUserLedgers.bind(paymentController)
+);
+
+// Get ledger by ID
+router.get(
+  "/ledgers/:id",
   authMiddleware,
   paymentController.getLedgerById.bind(paymentController)
 );
+
+// Update ledger by ID
 router.put(
-  "/ledger/:id",
+  "/ledgers/:id",
   authMiddleware,
+  addLedgerValidator,
   paymentController.updateLedger.bind(paymentController)
 );
+
+// Delete ledger by ID
 router.delete(
-  "/ledger/:id",
+  "/ledgers/:id",
   authMiddleware,
   paymentController.deleteLedger.bind(paymentController)
 );
 
-// INCOME
 router.post(
-  "/add-income-qrm",
+  "/ledgers/:id/duplicate",
+  authMiddleware,
+  paymentController.duplicateLedger.bind(paymentController)
+);
+
+// ------------------ INCOME ------------------
+
+// Create income for a ledger
+router.post(
+  "/incomes",
   authMiddleware,
   addIncomeValidator,
   paymentController.addIncomeQRM.bind(paymentController)
 );
+
+// Get income by ID
 router.get(
-  "/income/:id",
+  "/incomes/:id",
   authMiddleware,
   paymentController.getIncomeById.bind(paymentController)
 );
+
+// Update income
 router.put(
-  "/income/:id",
+  "/incomes/:id",
   authMiddleware,
   addIncomeValidator,
   paymentController.updateIncome.bind(paymentController)
 );
+
+// Delete income
 router.delete(
-  "/income/:id",
+  "/incomes/:id",
   authMiddleware,
   paymentController.deleteIncome.bind(paymentController)
 );
 
-// EXPENSE
+
+
+// ------------------ EXPENSE ------------------
+
+// Create expense for a ledger
 router.post(
-  "/add-expense-qrm",
+  "/expenses",
   authMiddleware,
   addExpenseValidator,
   paymentController.addExpenseQRM.bind(paymentController)
 );
+
+// Get expense by ID
 router.get(
-  "/expense/:id",
+  "/expenses/:id",
   authMiddleware,
   paymentController.getExpenseById.bind(paymentController)
 );
+
+// Update expense
 router.put(
-  "/expense/:id",
+  "/expenses/:id",
   authMiddleware,
   addExpenseValidator,
   paymentController.updateExpense.bind(paymentController)
 );
+
+// Delete expense
 router.delete(
-  "/expense/:id",
+  "/expenses/:id",
   authMiddleware,
   paymentController.deleteExpense.bind(paymentController)
 );
 
-// PAYMENT TYPE
+
+
+// ------------------ PAYMENT TYPE ------------------
+
 router.post(
-  "/paymentType",
+  "/paymentTypes",
   authMiddleware,
   validatePaymentType,
   paymentController.createPaymentType.bind(paymentController)
 );
+
 router.get(
-  "/paymentType",
+  "/paymentTypes",
   authMiddleware,
   paymentController.getAllPaymentTypes.bind(paymentController)
 );
+
 router.get(
-  "/paymentType/:id",
+  "/paymentTypes/:id",
   authMiddleware,
   paymentController.getPaymentType.bind(paymentController)
 );
+
 router.put(
-  "/paymentType/:id",
+  "/paymentTypes/:id",
   authMiddleware,
   validatePaymentType,
   paymentController.updatePaymentType.bind(paymentController)
 );
+
 router.delete(
-  "/paymentType/:id",
+  "/paymentTypes/:id",
   authMiddleware,
   paymentController.deletePaymentType.bind(paymentController)
 );
