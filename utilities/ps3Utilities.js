@@ -88,7 +88,7 @@ const streamToBuffer = (stream) => {
 const getCompressionSettings = (fileSize, fileType) => {
   if (fileType === "video") {
     if (fileSize > 100 * 1024 * 1024) {
-      return { crf: 32, preset: "ultrafast", resolution: "256x144" };
+      return { crf: 32, preset: "ultrafast", resolution: "256x180" };
     } else if (fileSize > 50 * 1024 * 1024) {
       return { crf: 28, preset: "superfast", resolution: "426x240" };
     } else if (fileSize > 20 * 1024 * 1024) {

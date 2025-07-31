@@ -34,7 +34,7 @@ const extractVideoFrame = async (filePath) => {
     await new Promise((resolve, reject) => {
       ffmpeg(filePath)
         .seekInput(1)
-        .outputOptions(["-vframes 1", "-vf scale=144:144", "-q:v 4"])
+        .outputOptions(["-vframes 1", "-vf scale=180:180", "-q:v 4"])
         .output(outputPath)
         .on("end", resolve)
         .on("error", reject)
@@ -50,7 +50,7 @@ const extractVideoFrame = async (filePath) => {
 const processThumbnail = async (buffer) => {
   return (
     sharp(buffer)
-      .resize(144, 144, { fit: "inside", withoutEnlargement: true })
+      .resize(180, 180, { fit: "inside", withoutEnlargement: true })
       // .blur(1)
       .jpeg({ quality: 40, mozjpeg: true })
       .toBuffer()

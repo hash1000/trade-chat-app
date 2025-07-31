@@ -61,7 +61,7 @@ const determineCompression = (size) => {
 const processImage = async (buffer) => {
   try {
     return await sharp(buffer)
-      .resize(144, 144, {
+      .resize(180, 180, {
         fit: "inside",
         withoutEnlargement: true,
       })
@@ -87,7 +87,7 @@ const processVideo = async (buffer) => {
     await new Promise((resolve, reject) => {
       ffmpeg(tmpInputPath)
         .seekInput(1)
-        .outputOptions(["-vframes", "1", "-vf", "scale=144:144", "-q:v", "4"])
+        .outputOptions(["-vframes", "1", "-vf", "scale=180:180", "-q:v", "4"])
         .output(tmpOutputPath)
         .on("start", (cmd) => console.log("FFmpeg video command:", cmd))
         .on("end", resolve)
@@ -126,7 +126,7 @@ const processVideoStream = async (buffer) => {
       console.log("Starting FFmpeg thumbnail extraction");
       ffmpeg(tmpInputPath)
         .seekInput(1)
-        .outputOptions(["-vframes", "1", "-vf", "scale=144:144", "-q:v", "4"])
+        .outputOptions(["-vframes", "1", "-vf", "scale=180:180", "-q:v", "4"])
         .output(tmpOutputPath)
         .on("start", (cmd) => console.log("FFmpeg command:", cmd))
         .on("end", () => {
