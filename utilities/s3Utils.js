@@ -67,7 +67,7 @@ const processImage = async (buffer) => {
       })
       // .blur(1)
       .jpeg({
-        quality: 70,
+        quality: 80,
         mozjpeg: true,
       })
       .toBuffer();
@@ -100,7 +100,7 @@ const processVideo = async (buffer) => {
     return await sharp(frameBuffer)
       // .blur(1)
       .jpeg({
-        quality: 40,
+        quality: 80,
         mozjpeg: true,
       })
       .toBuffer();
@@ -146,7 +146,7 @@ const processVideoStream = async (buffer) => {
     const processedThumbnail = await sharp(frameBuffer)
       // .blur(1)
       .jpeg({
-        quality: 40,
+        quality: 80,
         mozjpeg: true,
       })
       .toBuffer();

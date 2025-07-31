@@ -52,7 +52,7 @@ const processThumbnail = async (buffer) => {
     sharp(buffer)
       .resize(180, 180, { fit: "inside", withoutEnlargement: true })
       // .blur(1)
-      .jpeg({ quality: 40, mozjpeg: true })
+      .jpeg({ quality: 80, mozjpeg: true })
       .toBuffer()
   );
 };

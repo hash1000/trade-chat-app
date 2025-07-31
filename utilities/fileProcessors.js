@@ -1,4 +1,8 @@
-const { S3Client, GetObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3");
+const {
+  S3Client,
+  GetObjectCommand,
+  DeleteObjectCommand,
+} = require("@aws-sdk/client-s3");
 const { Upload } = require("@aws-sdk/lib-storage");
 const { PassThrough } = require("stream");
 const { promisify } = require("util");
@@ -21,8 +25,10 @@ const s3Client = new S3Client({
 });
 
 // File type checkers
-const isImage = (ext) => [".jpg", ".jpeg", ".png", ".gif", ".webp"].includes(ext.toLowerCase());
-const isVideo = (ext) => [".mp4", ".mov", ".avi", ".mkv", ".webm"].includes(ext.toLowerCase());
+const isImage = (ext) =>
+  [".jpg", ".jpeg", ".png", ".gif", ".webp"].includes(ext.toLowerCase());
+const isVideo = (ext) =>
+  [".mp4", ".mov", ".avi", ".mkv", ".webm"].includes(ext.toLowerCase());
 
 // Helper functions
 const streamToBuffer = (stream) => {
@@ -88,7 +94,7 @@ const processWithFFmpeg = (inputStream, outputOptions, outputFormat) => {
   return new Promise((resolve, reject) => {
     const outputStream = new PassThrough();
     const chunks = [];
-    
+
     outputStream.on("data", (chunk) => chunks.push(chunk));
     outputStream.on("end", () => resolve(Buffer.concat(chunks)));
     outputStream.on("error", reject);
@@ -105,30 +111,30 @@ const processWithFFmpeg = (inputStream, outputOptions, outputFormat) => {
 const processImage = async (buffer, originalname, fileSize) => {
   const ext = path.extname(originalname).toLowerCase().slice(1);
   const settings = getImageCompressionSettings(fileSize);
-  
+
   // Process main image
   const processedImage = await sharp(buffer)
-    .jpeg({ 
+    .jpeg({
       quality: settings.quality,
       progressive: true,
-      mozjpeg: true 
+      mozjpeg: true,
     })
     .toBuffer();
 
   // Generate thumbnail
   const thumbnail = await sharp(buffer)
     .resize(settings.thumbnailSize, settings.thumbnailSize, {
-      fit: 'inside',
-      withoutEnlargement: true
+      fit: "inside",
+      withoutEnlargement: true,
     })
-    .jpeg({ quality: 70 })
+    .jpeg({ quality: 80 })
     .toBuffer();
 
   return {
     processedImage,
     thumbnail,
-    mimeType: 'image/jpeg',
-    thumbnailMimeType: 'image/jpeg'
+    mimeType: "image/jpeg",
+    thumbnailMimeType: "image/jpeg",
   };
 };
 const processVideo = async (buffer, originalname) => {
@@ -142,7 +148,7 @@ const processVideo = async (buffer, originalname) => {
     "-c:a aac",
     "-b:a 128k",
     "-movflags faststart",
-    "-f mp4"
+    "-f mp4",
   ]);
 
   const thumbnail = await processWithFFmpeg(bufferToStream(buffer), [
@@ -150,7 +156,7 @@ const processVideo = async (buffer, originalname) => {
     "-vframes 1",
     "-vf scale=640:-1",
     "-q:v 20",
-    "-f image2pipe"
+    "-f image2pipe",
   ]);
 
   return {
@@ -158,6 +164,6 @@ const processVideo = async (buffer, originalname) => {
     processImage,
     thumbnail,
     mimeType: "video/mp4",
-    thumbnailMimeType: "image/jpeg"
+    thumbnailMimeType: "image/jpeg",
   };
 };

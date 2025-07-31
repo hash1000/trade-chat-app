@@ -147,7 +147,7 @@ const generateImageThumbnail = async (inputStream, filename, size) => {
         withoutEnlargement: true,
       })
       .jpeg({
-        quality: 70,
+        quality: 80,
         progressive: true,
         mozjpeg: true,
       });
