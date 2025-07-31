@@ -65,7 +65,7 @@ const processImage = async (buffer) => {
         fit: "inside",
         withoutEnlargement: true,
       })
-      .blur(1)
+      // .blur(1)
       .jpeg({
         quality: 40,
         mozjpeg: true,
@@ -98,7 +98,7 @@ const processVideo = async (buffer) => {
     // Process the extracted frame with sharp for blur and quality
     const frameBuffer = await fs.readFile(tmpOutputPath);
     return await sharp(frameBuffer)
-      .blur(1)
+      // .blur(1)
       .jpeg({
         quality: 40,
         mozjpeg: true,
@@ -144,7 +144,7 @@ const processVideoStream = async (buffer) => {
     console.log("Processing thumbnail with sharp");
 
     const processedThumbnail = await sharp(frameBuffer)
-      .blur(1)
+      // .blur(1)
       .jpeg({
         quality: 40,
         mozjpeg: true,

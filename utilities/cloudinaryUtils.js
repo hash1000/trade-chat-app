@@ -1,10 +1,10 @@
-const cloudinary = require('cloudinary').v2;
-const fs = require('fs').promises;
-const path = require('path');
-const tmp = require('tmp-promise');
-const ffmpeg = require('fluent-ffmpeg');
-const ffmpegPath = require('ffmpeg-static');
-const sharp = require('sharp');
+const cloudinary = require("cloudinary").v2;
+const fs = require("fs").promises;
+const path = require("path");
+const tmp = require("tmp-promise");
+const ffmpeg = require("fluent-ffmpeg");
+const ffmpegPath = require("ffmpeg-static");
+const sharp = require("sharp");
 
 ffmpeg.setFfmpegPath(ffmpegPath);
 
@@ -29,15 +29,15 @@ const generatePublicId = (originalname) => {
 
 // Extract 1 frame from video (for thumbnail)
 const extractVideoFrame = async (filePath) => {
-  const { path: outputPath, cleanup } = await tmp.file({ postfix: '.jpg' });
+  const { path: outputPath, cleanup } = await tmp.file({ postfix: ".jpg" });
   try {
     await new Promise((resolve, reject) => {
       ffmpeg(filePath)
         .seekInput(1)
-        .outputOptions(['-vframes 1', '-vf scale=144:144', '-q:v 4'])
+        .outputOptions(["-vframes 1", "-vf scale=144:144", "-q:v 4"])
         .output(outputPath)
-        .on('end', resolve)
-        .on('error', reject)
+        .on("end", resolve)
+        .on("error", reject)
         .run();
     });
     return await fs.readFile(outputPath);
@@ -48,17 +48,19 @@ const extractVideoFrame = async (filePath) => {
 
 // Compress thumbnail with Sharp
 const processThumbnail = async (buffer) => {
-  return sharp(buffer)
-    .resize(144, 144, { fit: 'inside', withoutEnlargement: true })
-    .blur(1)
-    .jpeg({ quality: 40, mozjpeg: true })
-    .toBuffer();
+  return (
+    sharp(buffer)
+      .resize(144, 144, { fit: "inside", withoutEnlargement: true })
+      // .blur(1)
+      .jpeg({ quality: 40, mozjpeg: true })
+      .toBuffer()
+  );
 };
 
 // Upload to Cloudinary from buffer or file
 const uploadToCloudinary = async (file, options = {}) => {
   return cloudinary.uploader.upload(file, {
-    resource_type: 'auto',
+    resource_type: "auto",
     ...options,
   });
 };
@@ -66,10 +68,13 @@ const uploadToCloudinary = async (file, options = {}) => {
 // Upload from stream
 const uploadStreamToCloudinary = (stream, options = {}) => {
   return new Promise((resolve, reject) => {
-    const cloudinaryStream = cloudinary.uploader.upload_stream(options, (error, result) => {
-      if (error) return reject(error);
-      resolve(result);
-    });
+    const cloudinaryStream = cloudinary.uploader.upload_stream(
+      options,
+      (error, result) => {
+        if (error) return reject(error);
+        resolve(result);
+      }
+    );
     stream.pipe(cloudinaryStream);
   });
 };
@@ -79,7 +84,7 @@ const uploadVideoWithOptimization = async (filePath, publicId) => {
   const fileSize = (await fs.stat(filePath)).size;
 
   const uploadOptions = {
-    resource_type: 'video',
+    resource_type: "video",
     public_id: publicId,
     eager_async: true,
 
@@ -88,32 +93,32 @@ const uploadVideoWithOptimization = async (filePath, publicId) => {
       {
         width: 480,
         height: 270,
-        crop: 'limit',
-        quality: '30',
-        format: 'mp4',
-        video_codec: 'auto',
-        audio_codec: 'aac',
-        bit_rate: '400k',
+        crop: "limit",
+        quality: "30",
+        format: "mp4",
+        video_codec: "auto",
+        audio_codec: "aac",
+        bit_rate: "400k",
       },
       // 📱 SD Version
       {
         width: 640,
         height: 360,
-        crop: 'limit',
-        quality: '50',
-        format: 'mp4',
-        bit_rate: '700k',
-        video_codec: 'auto',
-        audio_codec: 'aac',
+        crop: "limit",
+        quality: "50",
+        format: "mp4",
+        bit_rate: "700k",
+        video_codec: "auto",
+        audio_codec: "aac",
       },
       // 💻 HD Version
       {
         width: 960,
         height: 540,
-        crop: 'limit',
-        quality: 'auto:low',
-        format: 'mp4',
-        video_codec: 'auto',
+        crop: "limit",
+        quality: "auto:low",
+        format: "mp4",
+        video_codec: "auto",
       },
     ],
   };
@@ -123,7 +128,7 @@ const uploadVideoWithOptimization = async (filePath, publicId) => {
   }
 
   if (fileSize > STREAM_THRESHOLD) {
-    const readStream = require('fs').createReadStream(filePath);
+    const readStream = require("fs").createReadStream(filePath);
     return uploadStreamToCloudinary(readStream, uploadOptions);
   }
 
@@ -131,27 +136,33 @@ const uploadVideoWithOptimization = async (filePath, publicId) => {
 };
 
 // Main function: Upload video + thumbnail
-const uploadToCloudinaryWithThumbnail = async (file, type = 'video') => {
+const uploadToCloudinaryWithThumbnail = async (file, type = "video") => {
   const fileSize = file.size || (await fs.stat(file.path)).size;
 
-  if (type === 'video') {
+  if (type === "video") {
     if (fileSize < MIN_VIDEO_SIZE) {
-      throw new Error(`Video must be at least ${MIN_VIDEO_SIZE / 1024 / 1024} MB`);
+      throw new Error(
+        `Video must be at least ${MIN_VIDEO_SIZE / 1024 / 1024} MB`
+      );
     }
     if (fileSize > MAX_VIDEO_SIZE) {
-      throw new Error(`Video exceeds max allowed size of ${MAX_VIDEO_SIZE / 1024 / 1024 / 1024} GB`);
+      throw new Error(
+        `Video exceeds max allowed size of ${
+          MAX_VIDEO_SIZE / 1024 / 1024 / 1024
+        } GB`
+      );
     }
   }
 
   const publicId = generatePublicId(file.originalname);
   let result, thumbnailUrl;
 
-  if (type === 'video') {
+  if (type === "video") {
     const thumbnailBuffer = await extractVideoFrame(file.path);
     const processedThumb = await processThumbnail(thumbnailBuffer);
 
     const thumbnailUpload = await uploadToCloudinary(
-      `data:image/jpeg;base64,${processedThumb.toString('base64')}`,
+      `data:image/jpeg;base64,${processedThumb.toString("base64")}`,
       { public_id: `${publicId}_thumbnail` }
     );
     thumbnailUrl = thumbnailUpload.secure_url;
@@ -162,14 +173,14 @@ const uploadToCloudinaryWithThumbnail = async (file, type = 'video') => {
     const processedThumb = await processThumbnail(imageBuffer);
 
     const thumbnailUpload = await uploadToCloudinary(
-      `data:image/jpeg;base64,${processedThumb.toString('base64')}`,
+      `data:image/jpeg;base64,${processedThumb.toString("base64")}`,
       { public_id: `${publicId}_thumbnail` }
     );
     thumbnailUrl = thumbnailUpload.secure_url;
 
     result = await uploadToCloudinary(file.path, {
       public_id,
-      quality: 'auto:good',
+      quality: "auto:good",
     });
   }
 
@@ -181,7 +192,7 @@ const uploadToCloudinaryWithThumbnail = async (file, type = 'video') => {
     height: result.height,
     format: result.format,
     size: result.bytes,
-    eagerStatus: type === 'video' ? 'processing' : 'complete',
+    eagerStatus: type === "video" ? "processing" : "complete",
   };
 };
 
