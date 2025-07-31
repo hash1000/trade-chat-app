@@ -67,7 +67,7 @@ const processImage = async (buffer) => {
       })
       // .blur(1)
       .jpeg({
-        quality: 40,
+        quality: 70,
         mozjpeg: true,
       })
       .toBuffer();
