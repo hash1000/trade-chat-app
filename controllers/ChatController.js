@@ -211,13 +211,13 @@ class ChatController {
       }
 
       // Check if requester has sufficient balance
-      // if (requester.personalWalletBalance < amount) {
-      //   return res.status(400).json({
-      //     error: "Insufficient funds",
-      //     currentBalance: requester.personalWalletBalance,
-      //     requiredAmount: amount,
-      //   });
-      // }
+      if (requester.personalWalletBalance < amount) {
+        return res.status(400).json({
+          error: "Insufficient funds",
+          currentBalance: requester.personalWalletBalance,
+          requiredAmount: amount,
+        });
+      }
 
       // Get recipient
       const recipient = await userRepository.getById(requesteeId);

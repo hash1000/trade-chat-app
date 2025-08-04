@@ -250,7 +250,6 @@ class CartService {
     try {
       const sender = await userService.getUserById(fromUserId);
       if (fromUserId === toUserId && sender.roles[0].name === "admin") {
-        console.log("hjsjdhdja");
         sender.personalWalletBalance += amount;
         await sender.save();
         console.log(`Added ${amount} units to user's own wallet.`);
@@ -263,6 +262,7 @@ class CartService {
 
         // Add balance to the receiver
         const receiver = await User.findByPk(toUserId);
+        console.log("Receiver found:", receiver);
         receiver.personalWalletBalance += amount;
         await receiver.save();
         console.log(`Successfully transferred ${amount} units.`);

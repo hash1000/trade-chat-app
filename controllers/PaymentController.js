@@ -2,10 +2,11 @@ const sequelize = require("../config/database");
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const CurrencyService = require("../services/CurrencyService");
 const PaymentService = require("../services/PaymentService");
+const UserService = require("../services/UserService");
 
 const paymentService = new PaymentService();
 const currencyService = new CurrencyService();
-const User = require("../models/user");
+const userService = new UserService();
 
 class PaymentController {
   async createPayment(req, res, next) {
@@ -80,37 +81,17 @@ class PaymentController {
         status: "confirmed",
       });
       if (updatedPayment) {
-        await this.addBalance(payment.userId, amount, payment.accountType);
+        await paymentService.addBalance(
+          payment.userId,
+          amount,
+          payment.accountType
+        );
       }
       // Return the updated payment as a response
       return res.json(await updatedPayment);
     } catch (error) {
       console.error("Error updating payment:", error);
       res.status(500).json({ error: "Internal server error" });
-    }
-  }
-
-  async addBalance(toUserId, amount, walletType) {
-    const t = await sequelize.transaction();
-
-    try {
-      // Add balance to the receiver
-      const receiver = await User.findByPk(toUserId, { transaction: t });
-      if (walletType === "personal") {
-        receiver.personalWalletBalance += amount;
-      } else {
-        receiver.companyWalletBalance += amount;
-      }
-      await receiver.save({ transaction: t });
-      // Commit the transaction
-      await t.commit();
-
-      console.log(`Successfully transferred ${amount} units.`);
-    } catch (error) {
-      // If any error occurs, roll back the transaction
-      await t.rollback();
-      console.error("Error transferring balance:", error);
-      throw error;
     }
   }
 
@@ -246,7 +227,7 @@ class PaymentController {
         data: {
           checkoutUrl: result.checkoutUrl,
           amount: result.amount,
-        }
+        },
       });
     } catch (error) {
       console.error("Topup error:", error);
@@ -254,6 +235,75 @@ class PaymentController {
         success: false,
         message: error.message,
         code: error.code || "payment_error",
+      });
+    }
+  }
+
+  async sendPayment(req, res) {
+    try {
+      const { amount, requesteeId } = req.body;
+      const { id: requesterId } = req.user;
+
+      // Validate input
+      if (!amount || isNaN(amount) || amount <= 0) {
+        return res
+          .status(400)
+          .json({ success: false, error: "Invalid amount" });
+      }
+      if (!requesteeId) {
+        return res
+          .status(400)
+          .json({ success: false, error: "Recipient ID is required" });
+      }
+
+      const requester = await userService.getUserById(requesterId);
+      if (!requester) {
+        return res
+          .status(404)
+          .json({ success: false, error: "Requester not found" });
+      }
+
+      if (requester.personalWalletBalance < amount) {
+        return res.status(400).json({
+          success: false,
+          error: "Insufficient funds",
+          currentBalance: requester.personalWalletBalance,
+          requiredAmount: amount,
+        });
+      }
+
+      const recipient = await userService.getUserById(requesteeId);
+      if (!recipient) {
+        return res
+          .status(404)
+          .json({ success: false, error: "Recipient not found" });
+      }
+
+      // Initiate payment
+      const result = await paymentService.sendPayment(
+        requesterId,
+        requesteeId,
+        amount
+      );
+
+      if (!result || result.success === false) {
+        return res.status(400).json({
+          success: false,
+          error: result.message || "Payment failed",
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        payment: result,
+        newBalance: requester.personalWalletBalance - amount,
+      });
+    } catch (error) {
+      console.error("Payment error:", error);
+      return res.status(500).json({
+        success: false,
+        error: error.message,
+        stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
       });
     }
   }

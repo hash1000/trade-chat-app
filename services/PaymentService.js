@@ -2,15 +2,17 @@ const sequelize = require("../config/database");
 const WalletService = require("./WalletService");
 const PaymentRepository = require("../repositories/PaymentRepository");
 const PaymentRequest = require("../models/payment_request");
-const { Transaction, PaymentType } = require("../models");
+const { Transaction } = require("../models");
 const User = require("../models/user");
 const CurrencyService = require("./CurrencyService");
+const UserRepository = require("../repositories/UserRepository");
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
 const currencyService = new CurrencyService();
 class PaymentService {
   constructor() {
     this.paymentRepository = new PaymentRepository();
+    this.userRepository = new UserRepository();
   }
 
   // Create a Stripe customer when user registers
@@ -42,6 +44,30 @@ class PaymentService {
   async deletePayment(paymentId) {
     // Add any additional business logic or validation before deleting the payment
     return this.paymentRepository.delete(paymentId);
+  }
+
+  async addBalance(toUserId, amount, walletType) {
+    const t = await sequelize.transaction();
+
+    try {
+      // Add balance to the receiver
+      const receiver = await User.findByPk(toUserId, { transaction: t });
+      if (walletType === "personal") {
+        receiver.personalWalletBalance += amount;
+      } else {
+        receiver.companyWalletBalance += amount;
+      }
+      await receiver.save({ transaction: t });
+      // Commit the transaction
+      await t.commit();
+
+      console.log(`Successfully transferred ${amount} units.`);
+    } catch (error) {
+      // If any error occurs, roll back the transaction
+      await t.rollback();
+      console.error("Error transferring balance:", error);
+      throw error;
+    }
   }
 
   async cancelPaymentRelation(requesterId, requesteeId) {
@@ -82,6 +108,46 @@ class PaymentService {
   async unfavouritePayment(paymentId, userId) {
     // Add any additional business logic or validation before unfavouriting the payment
     return this.paymentRepository.unfavouritePayment(paymentId, userId);
+  }
+
+  async sendPayment(requesterId, requesteeId, amount) {
+    const recipient = await this.userRepository.getById(requesteeId);
+    if (!recipient) {
+      return {
+        success: false,
+        message: `User with ID ${requesteeId} not found`,
+      };
+    }
+
+    if (requesterId === requesteeId && recipient.roles[0].name !== "admin") {
+      return {
+        success: false,
+        message: "Regular users cannot transfer balance to themselves.",
+      };
+    }
+
+    try {
+      const paymentRequest = await this.paymentRepository.createPaymentRequest(
+        requesterId,
+        requesteeId,
+        amount,
+        "accepted"
+      );
+
+      await this.paymentRepository.transferBalance(
+        requesterId,
+        requesteeId,
+        amount
+      );
+
+      const transaction = await this.paymentRepository.getTransactionById(
+        paymentRequest.id
+      );
+      return transaction;
+    } catch (error) {
+      console.error("Error in sendPayment:", error);
+      return { success: false, message: error.message };
+    }
   }
 
   // Inside paymentService.js

@@ -17,7 +17,7 @@ const PaymentType = require("./paymentType");
 
 // Define all associations
 function defineAssociations() {
-  // User associations
+  // User associations  
   User.hasMany(Address, { foreignKey: "userId", as: "addresses" });
   Address.belongsTo(User, { foreignKey: "userId", as: "user" });
 

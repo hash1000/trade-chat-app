@@ -75,6 +75,12 @@ router.put(
   paymentController.unfavouritePayment.bind(paymentController)
 );
 
+router.post(
+  "/create-payment",
+  authMiddleware,
+  paymentController.sendPayment.bind(paymentController)
+);
+
 //  stripe
 router.post(
   "/adjust-rate",
@@ -196,8 +202,6 @@ router.delete(
   paymentController.deleteIncome.bind(paymentController)
 );
 
-
-
 // ------------------ EXPENSE ------------------
 
 // Create expense for a ledger
@@ -229,8 +233,6 @@ router.delete(
   authMiddleware,
   paymentController.deleteExpense.bind(paymentController)
 );
-
-
 
 // ------------------ PAYMENT TYPE ------------------
 

@@ -8,12 +8,20 @@ const Transaction = sequelize.define("Transaction", {
     primaryKey: true,
     autoIncrement: true,
   },
-  orderId: {
-    type: DataTypes.STRING,
-    allowNull: false,
-  },
   userId: {
     type: DataTypes.INTEGER,
+    allowNull: false,
+  },
+  fromUserId: {
+    type: DataTypes.INTEGER,
+    allowNull: true, // Only used for transfers
+  },
+  toUserId: {
+    type: DataTypes.INTEGER,
+    allowNull: true, // Only used for transfers
+  },
+  orderId: {
+    type: DataTypes.STRING,
     allowNull: false,
   },
   amount: {
@@ -22,35 +30,52 @@ const Transaction = sequelize.define("Transaction", {
   },
   usdAmount: {
     type: DataTypes.FLOAT,
-    allowNull: false,
+    allowNull: true, // Make nullable for P2P
   },
   rate: {
     type: DataTypes.FLOAT,
-    allowNull: false,
+    allowNull: true, // Make nullable for P2P
   },
   currency: {
     type: DataTypes.STRING,
     allowNull: false,
+    defaultValue: "CNY",
   },
   type: {
-    type: DataTypes.STRING,
+    type: DataTypes.ENUM(
+      "wallet_topup",
+      "wallet_transfer",
+      "wallet_receive",
+      "wallet_refund",
+      "wallet_bonus",
+      "wallet_deduct",
+      "admin_adjustment"
+    ),
     allowNull: false,
   },
   status: {
     type: DataTypes.ENUM("pending", "completed", "failed"),
-    defaultValue: "pending",
+    defaultValue: "completed",
+  },
+  source: {
+    type: DataTypes.STRING, // 'stripe', 'paypal', 'peer', 'admin'
+    allowNull: true,
   },
   paymentMethod: {
     type: DataTypes.STRING,
-    allowNull: false,
+    allowNull: true,
+  },
+  description: {
+    type: DataTypes.STRING,
+    allowNull: true,
   },
   metadata: {
-    type: DataTypes.JSON,
+    type: DataTypes.JSONB,
     allowNull: true,
-  }
+  },
 }, {
-  tableName: "transaction",
-  timestamps: true
+  tableName: "transactions",
+  timestamps: true,
 });
 
 module.exports = Transaction;

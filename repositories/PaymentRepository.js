@@ -94,6 +94,51 @@ class PaymentRepository {
     });
   }
 
+  
+    async getTransactionById(transactionId) {
+      return await PaymentRequest.findByPk(transactionId, {
+        order: [["createdAt", "DESC"]],
+        include: [
+          {
+            model: User,
+            as: "requester",
+            attributes: [
+              "id",
+              "username",
+              "phoneNumber",
+              "profilePic",
+              "email",
+              "settings",
+            ],
+            include: [
+              {
+                model: Role,
+                as: "roles",
+              },
+            ],
+          },
+          {
+            model: User,
+            as: "requestee",
+            attributes: [
+              "id",
+              "username",
+              "phoneNumber",
+              "profilePic",
+              "email",
+              "settings",
+            ],
+            include: [
+              {
+                model: Role,
+                as: "roles",
+              },
+            ],
+          },
+        ],
+      });
+    }
+
   async createPaymentRequest(requesterId, requesteeId, amount, status) {
     const paymentRequest = await PaymentRequest.create({
       requesterId,
@@ -128,14 +173,41 @@ class PaymentRepository {
     });
   }
 
+  async transferBalance(fromUserId, toUserId, amount) {
+    const sender = await User.findByPk(fromUserId);
+    if (!sender) throw new Error("Sender not found");
+
+    if (fromUserId === toUserId && sender.roles[0].name === "admin") {
+      sender.personalWalletBalance += amount;
+      await sender.save();
+      console.log(`Admin added ${amount} to own wallet.`);
+      return;
+    }
+
+    if (sender.personalWalletBalance < amount) {
+      throw new Error("Insufficient balance");
+    }
+
+    sender.personalWalletBalance -= amount;
+    await sender.save();
+
+    const receiver = await User.findByPk(toUserId);
+    if (!receiver) throw new Error("Receiver not found");
+
+    receiver.personalWalletBalance += amount;
+    await receiver.save();
+
+    console.log(`Transferred ${amount} from ${fromUserId} to ${toUserId}.`);
+  }
+
   // Transaction-related methods
   async createTransaction(transactionData) {
     return Transaction.create(transactionData);
   }
 
-  async getTransactionById(transactionId) {
-    return Transaction.findByPk(transactionId);
-  }
+  // async getTransactionById(transactionId) {
+  //   return Transaction.findByPk(transactionId);
+  // }
 
   async getTransactionsByUserId(userId, options = {}) {
     // return Transaction.findAll({
