@@ -246,7 +246,7 @@ class PaymentController {
         data: {
           checkoutUrl: result.checkoutUrl,
           amount: result.amount,
-        }
+        },
       });
     } catch (error) {
       console.error("Topup error:", error);
@@ -425,18 +425,28 @@ class PaymentController {
     try {
       const { id } = req.params;
       const { id: userId } = req.user;
-      const result = await paymentService.deletePaymentType(id);
-      if (!result)
+      const result = await paymentService.deletePaymentType(id, userId);
+
+      if (!result) {
         return res
           .status(404)
           .json({ success: false, message: "Payment type not found" });
+      }
+
       res.json({ success: true, message: "Payment type deleted" });
     } catch (error) {
-      const isUsed = error.message?.toLowerCase().includes("in use");
+      const lowerMsg = error.message?.toLowerCase() || "";
+
+      const knownError =
+        lowerMsg.includes("in use") ||
+        lowerMsg.includes("permanent payment type") ||
+        lowerMsg.includes("already exists");
+
       console.error("Delete payment type error:", error);
-      res.status(isUsed ? 400 : 500).json({
+
+      res.status(knownError ? 400 : 500).json({
         success: false,
-        message: isUsed ? error.message : "Internal server error",
+        message: knownError ? error.message : "Internal server error",
       });
     }
   }
