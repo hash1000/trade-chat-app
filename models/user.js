@@ -1,5 +1,7 @@
 const { DataTypes } = require("sequelize");
 const sequelize = require("../config/database");
+const { PaymentTypes } = require("../constants");
+const PaymentType = require("./paymentType");
 
 const User = sequelize.define(
   "User",
@@ -125,10 +127,6 @@ const User = sequelize.define(
       type: DataTypes.INTEGER,
       defaultValue: 0,
     },
-    // stripeCustomerId: {
-    //   type: DataTypes.STRING,
-    //   allowNull: true,
-    // },
     otp: {
       type: DataTypes.STRING,
       allowNull: true,
@@ -158,5 +156,17 @@ User.associate = function (models) {
     as: "roles",
   });
 };
+
+// Hook to insert default permanent payment types
+User.afterCreate(async (user, options) => {
+
+  const records = PaymentTypes.map((type) => ({
+    name: type,
+    userId: user.id
+  }));
+
+  await PaymentType.bulkCreate(records);
+});
+
 
 module.exports = User;
