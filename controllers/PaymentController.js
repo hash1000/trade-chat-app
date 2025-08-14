@@ -424,6 +424,7 @@ class PaymentController {
   async deletePaymentType(req, res) {
     try {
       const { id } = req.params;
+      const { id: userId } = req.user;
       const result = await paymentService.deletePaymentType(id);
       if (!result)
         return res

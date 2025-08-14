@@ -5,6 +5,7 @@ const PaymentRequest = require("../models/payment_request");
 const { Transaction, PaymentType } = require("../models");
 const User = require("../models/user");
 const CurrencyService = require("./CurrencyService");
+const { PaymentTypes } = require("../constants");
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
 const currencyService = new CurrencyService();
@@ -568,7 +569,15 @@ class PaymentService {
     return this.paymentRepository.updatePaymentType(id, updateData);
   }
 
-  async deletePaymentType(id) {
+  async deletePaymentType(id, userId) {
+    const paymentType = await this.paymentRepository.getPaymentTypeById(id);
+
+    if (!paymentType) throw new Error("Payment type not found");
+
+    if (PaymentTypes.includes(paymentType.name)) {
+      throw new Error("Cannot delete permanent payment type");
+    }
+
     const inUse = await this.paymentRepository.isPaymentTypeInUse(id);
     if (inUse) {
       throw new Error("Cannot delete - payment type is in use");
