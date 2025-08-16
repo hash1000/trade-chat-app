@@ -455,7 +455,6 @@ class UserController {
       //Check if verification key is altered or not and store it in variable decoded after decryption
       try {
         decoded = await decode(verification_key);
-        console.log("Decoded verification key:", decoded);
       } catch (err) {
         const response = { Status: "Failure", Details: "verification Failed" };
         return res.status(400).send(response);
