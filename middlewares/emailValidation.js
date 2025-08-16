@@ -2,9 +2,7 @@ const crypto = require("crypto");
 
 // Retrieve password from environment variable
 const password = process.env["CRYPT_PASSWORD"];
-
-// Use a secure random value for IV
-const iv = crypto.randomBytes(16);
+const EXPIRY_TIME = 2 * 60 * 1000;
 
 function sha1(input) {
   return crypto.createHash("sha1").update(input).digest();
@@ -29,24 +27,41 @@ function password_derive_bytes(password, salt, iterations, len) {
 
 async function encode(string) {
   const timestamp = Date.now();
-  const data = JSON.stringify({ data: string, timestamp: timestamp });
-  var key = password_derive_bytes(password, "", 100, 32);
-  var cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
-  var part1 = cipher.update(data, "utf8");
-  var part2 = cipher.final();
-  const encrypted = Buffer.concat([part1, part2]).toString("base64");
-  return encrypted;
+  const data = JSON.stringify({ data: string, timestamp });
+
+  // Generate new IV each time
+  const iv = crypto.randomBytes(16);
+
+  const key = password_derive_bytes(password, "", 100, 32);
+  const cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
+
+  const encrypted = Buffer.concat([cipher.update(data, "utf8"), cipher.final()]);
+
+  // Store iv + encrypted together (base64)
+  return Buffer.concat([iv, encrypted]).toString("base64");
 }
 
 async function decode(string) {
-  var key = password_derive_bytes(password, "", 100, 32);
-  var decipher = crypto.createDecipheriv("aes-256-cbc", key, iv);
-  var decrypted = decipher.update(string, "base64", "utf8");
-  decrypted += decipher.final();
+  const input = Buffer.from(string, "base64");
+
+  // Extract iv (first 16 bytes)
+  const iv = input.subarray(0, 16);
+  const encrypted = input.subarray(16);
+
+  const key = password_derive_bytes(password, "", 100, 32);
+  const decipher = crypto.createDecipheriv("aes-256-cbc", key, iv);
+
+  let decrypted = decipher.update(encrypted, "base64", "utf8");
+  decrypted += decipher.final("utf8");
+
   const parsedData = JSON.parse(decrypted);
-  // Check if the token is still valid (1 minute = 60,000 milliseconds)
+
+  if (!parsedData.timestamp) {
+    throw new Error("Invalid token format");
+  }
+
   const currentTime = Date.now();
-  if (currentTime - parsedData.timestamp > 80000) {
+  if (currentTime - parsedData.timestamp > EXPIRY_TIME) {
     throw new Error("Token has expired");
   }
 
