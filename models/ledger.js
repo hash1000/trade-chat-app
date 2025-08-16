@@ -19,7 +19,7 @@ const Ledger = db.define(
       },
     },
     description: {
-      type: DataTypes.STRING,
+      type: DataTypes.TEXT,
       allowNull: true,
     },
     userId: {
