@@ -364,7 +364,7 @@ class UserController {
 
       // Encrypt the details object
       const encoded = await encode(JSON.stringify(details));
-
+console.log("Encoded details:", encoded);
       // Choose message template according to type requested
       let email_message, email_subject;
       if (type === "VERIFICATION") {
@@ -374,6 +374,7 @@ class UserController {
         } = require("../templates/email/email_verification");
         email_message = message(otp);
         email_subject = subject_mail;
+        console.log("Using verification template");
       } else if (type === "FORGET") {
         const {
           message,
