@@ -364,7 +364,7 @@ class UserController {
 
       // Encrypt the details object
       const encoded = await encode(JSON.stringify(details));
-console.log("Encoded details:", encoded);
+      console.log("Encoded details:", encoded);
       // Choose message template according to type requested
       let email_message, email_subject;
       if (type === "VERIFICATION") {
@@ -395,7 +395,7 @@ console.log("Encoded details:", encoded);
           .send({ Status: "Failure", Details: "Incorrect Type Provided" });
       }
 
-      console.log(process.env.EMAIL_ADDRESS,process.env.EMAIL_PASSWORD);
+      console.log(process.env.EMAIL_ADDRESS, process.env.EMAIL_PASSWORD);
 
       // Create nodemailer transporter
       const transporter = nodemailer.createTransport({
@@ -408,6 +408,8 @@ console.log("Encoded details:", encoded);
 
       const mailOptions = {
         from: `"Nasko China" <${process.env.EMAIL_ADDRESS}>`,
+        port: 465,
+        secure: true,
         to: email,
         subject: email_subject,
         html: email_message, // Ensure the email content is sent as HTML
