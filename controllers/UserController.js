@@ -345,12 +345,14 @@ class UserController {
       const now = new Date();
       const expiration_time = AddMinutesToDate(now, 10);
 
+      console.log("Generated OTP:", otp, expiration_time);
       // Create OTP instance in DB
       const otp_instance = await EmailOtp.create({
         otp: otp,
         expiration_time: expiration_time,
       });
 
+      console.log("OTP instance created:", otp_instance);
       // Create details object containing the email and otp id
       const details = {
         timestamp: now,
