@@ -395,6 +395,8 @@ console.log("Encoded details:", encoded);
           .send({ Status: "Failure", Details: "Incorrect Type Provided" });
       }
 
+      console.log(process.env.EMAIL_ADDRESS,process.env.EMAIL_PASSWORD);
+
       // Create nodemailer transporter
       const transporter = nodemailer.createTransport({
         service: "gmail",
