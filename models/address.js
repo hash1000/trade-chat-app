@@ -64,7 +64,7 @@ const Address = sequelize.define(
       type: DataTypes.STRING,
     },
     deliveryNote: {
-      type: DataTypes.STRING,
+      type: DataTypes.TEXT,
       allowNull: true,
     },
     userId: {

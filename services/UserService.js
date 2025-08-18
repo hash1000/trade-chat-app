@@ -165,12 +165,7 @@ class UserService {
               return self.indexOf(value) === index;
             })
             .join(",");
-          // Combine tags from profileData and existing user settings
-          // tagArr.push(...incomingTags, ...existingTags);
-
-          // Remove duplicates
-          // tagArr = [...new Set(tagArr)];
-
+            
           // Save or update the UserTags table
           if (userTag) {
             await userTag.update(

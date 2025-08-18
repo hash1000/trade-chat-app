@@ -13,6 +13,7 @@ const {
   BalanceSheet,
 } = require("../models");
 const PaymentType = require("../models/paymentType");
+const { PaymentTypes } = require("../constants");
 
 class PaymentRepository {
   async createPayment(paymentData) {
@@ -303,6 +304,25 @@ class PaymentRepository {
 
   getPaymentTypeById(id) {
     return PaymentType.findByPk(id);
+  }
+
+  async getDefaultPaymentTypeById(id) {
+    const paymentType = await PaymentType.findByPk(id);
+
+    if (!paymentType) {
+      return null; // handled by controller
+    }
+
+    const isDefault = PaymentTypes.includes(paymentType.name);
+
+    return {
+      id: paymentType.id,
+      name: paymentType.name,
+      userId: paymentType.userId,
+      createdAt: paymentType.createdAt,
+      updatedAt: paymentType.updatedAt,
+      isDefault,
+    };
   }
 
   updatePaymentType(id, data) {

@@ -554,10 +554,18 @@ class PaymentService {
   }
 
   async getPaymentTypeById(id) {
-    return this.paymentRepository.getPaymentTypeById(id);
+    return this.paymentRepository.getDefaultPaymentTypeById(id);
   }
 
   async updatePaymentType(id, updateData) {
+    const paymentType = await this.paymentRepository.getPaymentTypeById(id);
+
+    if (!paymentType) throw new Error("Payment type not found");
+
+    if (PaymentTypes.includes(paymentType.name)) {
+      throw new Error("Cannot delete permanent payment type");
+    }
+
     if (updateData.name) {
       const existing = await this.paymentRepository.getPaymentTypeByName(
         updateData.name
