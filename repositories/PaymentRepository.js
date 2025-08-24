@@ -221,8 +221,13 @@ class PaymentRepository {
           model: User,
           as: "user",
           attributes: ["id", "username"],
+          include: [
+            {
+              model: PaymentType,
+              as: "paymentTypes", // 👈 make sure you defined User.hasMany(PaymentType, { as: "paymentTypes" })
+            },
+          ],
         },
-        { model: PaymentType, as: "paymentType" }
       ],
     });
   }
