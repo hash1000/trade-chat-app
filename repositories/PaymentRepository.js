@@ -222,6 +222,7 @@ class PaymentRepository {
           as: "user",
           attributes: ["id", "username"],
         },
+        { model: PaymentType, as: "paymentType" }
       ],
     });
   }
