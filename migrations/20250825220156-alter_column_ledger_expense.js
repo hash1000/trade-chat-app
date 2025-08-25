@@ -2,7 +2,7 @@
 
 module.exports = {
   up: async (queryInterface, Sequelize) => {
-    await queryInterface.changeColumn("users", "description", {
+    await queryInterface.changeColumn("expenses", "description", {
       type: Sequelize.TEXT,
       allowNull: true,
     });
@@ -10,7 +10,7 @@ module.exports = {
 
   down: async (queryInterface, Sequelize) => {
     // Revert back to STRING in case you roll back
-    await queryInterface.changeColumn("users", "description", {
+    await queryInterface.changeColumn("expenses", "description", {
       type: Sequelize.STRING,
       allowNull: true,
     });
