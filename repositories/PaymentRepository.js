@@ -215,18 +215,20 @@ class PaymentRepository {
   getLedgerById(id) {
     return Ledger.findByPk(id, {
       include: [
-        { model: Income, as: "incomes" },
-        { model: Expense, as: "expenses" },
+        {
+          model: Income,
+          as: "incomes",
+          include: [{ model: PaymentType, as: "paymentType" }],
+        },
+        {
+          model: Expense,
+          as: "expenses",
+          include: [{ model: PaymentType, as: "paymentType" }],
+        },
         {
           model: User,
           as: "user",
           attributes: ["id", "username"],
-          include: [
-            {
-              model: PaymentType,
-              as: "paymentTypes", // 👈 make sure you defined User.hasMany(PaymentType, { as: "paymentTypes" })
-            },
-          ],
         },
       ],
     });
