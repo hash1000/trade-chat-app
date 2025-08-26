@@ -15,7 +15,7 @@ const Income = db.define(
       allowNull: false,
     },
     description: {
-      type: DataTypes.STRING,
+      type: DataTypes.TEXT,
     },
     ledgerId: {
       type: DataTypes.INTEGER,
