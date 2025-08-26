@@ -15,7 +15,6 @@ const userFavourite = new UserFavouriteRepository();
 const paymentService = new PaymentService();
 
 class UserService {
-
   async createUser(userData) {
     let transaction;
     try {
@@ -165,7 +164,7 @@ class UserService {
               return self.indexOf(value) === index;
             })
             .join(",");
-            
+
           // Save or update the UserTags table
           if (userTag) {
             await userTag.update(
@@ -320,12 +319,19 @@ class UserService {
     return userRepository.getByEmail(email);
   }
 
-  async deleteUser(userId) {
-    // Call the UserRepository to get a user by email
-    await PaymentService.cancelPaymentRelation(userId, userId);
-    await userFavourite.cancelUserFavourite(userId, userId);
-    await chat.cancelInvite(userId, userId);
-    return userRepository.delete(userId);
+  async deleteUser(userId, deletedById) {
+    const user = await userRepository.findById(userId);
+    if (!user) return null;
+
+    // Mark who deleted and when
+    await user.update({
+      deletedBy: deletedById,
+      deletedByTime: new Date(),
+    });
+
+    await user.destroy();
+
+    return user;
   }
 
   async getUserByPhoneNumber(country_code, phoneNumber) {

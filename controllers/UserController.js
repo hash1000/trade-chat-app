@@ -686,9 +686,11 @@ class UserController {
 
   async userDelete(req, res) {
     const { userId } = req.params;
+    const deletedById = req.user.id; // ✅ get ID of deleter
+
     try {
-      // Attempt to delete the user
-      const user = await userService.deleteUser(userId);
+      // Attempt to delete the user (soft delete)
+      const user = await userService.deleteUser(userId, deletedById);
 
       // If user is not found, respond with an error
       if (!user) {
@@ -696,14 +698,17 @@ class UserController {
       }
 
       // Respond with success message
-      return res
-        .status(200)
-        .json({ message: "User deleted successfully", user });
+      return res.status(200).json({
+        message: "User soft-deleted successfully",
+        deletedBy: deletedById,
+        user,
+      });
     } catch (error) {
       // Handle unexpected errors
-      return res
-        .status(500)
-        .json({ message: "An error occurred", error: error.message });
+      return res.status(500).json({
+        message: "An error occurred",
+        error: error.message,
+      });
     }
   }
 

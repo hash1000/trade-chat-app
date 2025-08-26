@@ -77,7 +77,6 @@ router.post(
   userController.verifySmsOtp.bind(userController)
 );
 
-
 // Forgot password route
 router.post(
   "/forgot-password",
@@ -102,11 +101,11 @@ router.put(
   userController.updateUser.bind(userController)
 );
 
-//update  role 
+//update  role
 router.patch(
   "/update-role",
   authenticate,
-  authorize(['admin']),
+  authorize(["admin"]),
   userRoleUpdateValidation,
   userController.updateUserRole.bind(userController)
 );
@@ -160,8 +159,10 @@ router.post(
   authenticate,
   userController.makePrimary.bind(userController)
 );
-router.delete('/delete-user/:userId', 
+router.delete(
+  "/delete-user/:userId",
   authenticate,
   userController.userDelete.bind(userController)
 );
+
 module.exports = router;
