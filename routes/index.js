@@ -10,6 +10,7 @@ const invoiceRoutes = require('./invoiceRoutes')
 const fileRoutes = require('./fileRoutes')
 const chatRoutes = require('./chatRoutes')
 const userRoutes = require('./userRoutes')
+const versionRoutes = require('./versionRoutes')
 
 // Signup route
 router.use('/auth', authRoutes)
@@ -22,5 +23,6 @@ router.use('/invoice', invoiceRoutes)
 router.use('/file', fileRoutes)
 router.use('/chat', chatRoutes)
 router.use('/user', userRoutes)
+router.use('/version', versionRoutes)
 
 module.exports = router
