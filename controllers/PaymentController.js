@@ -258,6 +258,25 @@ class PaymentController {
     }
   }
 
+   async getUserTopupTransactions(req, res) {
+    try {
+      const { id: userId } = req.user;
+
+      const transactions = await paymentService.getUserTopupTransactions(userId);
+
+      return res.json({
+        success: true,
+        data: transactions,
+      });
+    } catch (error) {
+      console.error("Fetch transactions error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to fetch transactions",
+      });
+    }
+  }
+
   async priceAdjust(req, res) {
     try {
       const { adjustment, currency = "CNY" } = req.body;

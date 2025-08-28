@@ -121,6 +121,13 @@ class PaymentService {
     };
   }
 
+  async getUserTopupTransactions(userId) {
+    return await Transaction.findAll({
+      where: { userId, type: "wallet_topup" },
+      order: [["createdAt", "DESC"]],
+    });
+  }
+
   async handlePaymentCheckoutSucceeded(session) {
     console.log("✅ Checkout session completed:", session);
 

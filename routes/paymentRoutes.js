@@ -97,6 +97,12 @@ router.post(
   paymentController.initiateTopup.bind(paymentController)
 );
 
+router.get(
+  "/topup/transactions",
+  authMiddleware,
+  paymentController.getUserTopupTransactions.bind(paymentController)
+);
+
 router.post(
   "/webhook",
   bodyParser.raw({ type: "application/json" }),
