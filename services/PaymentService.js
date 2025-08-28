@@ -124,6 +124,13 @@ class PaymentService {
   async getUserTopupTransactions(userId) {
     return await Transaction.findAll({
       where: { userId, type: "wallet_topup" },
+      include: [
+        {
+          model: User,
+          as: "user",
+          attributes: ["id", "username"],
+        },
+      ],
       order: [["createdAt", "DESC"]],
     });
   }
