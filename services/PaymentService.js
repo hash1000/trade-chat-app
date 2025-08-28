@@ -128,7 +128,7 @@ class PaymentService {
         {
           model: User,
           as: "user",
-          attributes: ["id", "username"],
+          attributes: ["id", "username", "firstname", "lastname", "profilePicture"],
         },
       ],
       order: [["createdAt", "DESC"]],
