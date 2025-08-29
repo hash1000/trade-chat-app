@@ -122,13 +122,14 @@ class PaymentService {
   }
 
   async getUserTopupTransactions(userId) {
+    console.log("Fetching top-up transactions for user:", userId);
     return await Transaction.findAll({
       where: { userId, type: "wallet_topup" },
       include: [
         {
           model: User,
           as: "user",
-          attributes: ["id", "username", "firstname", "lastname", "profilePicture"],
+          attributes: ["id", "username", "firstname", "lastname", "profilePic"],
         },
       ],
       order: [["createdAt", "DESC"]],
