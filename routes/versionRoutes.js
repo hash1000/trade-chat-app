@@ -8,15 +8,15 @@ const { versionValidator } = require('../middlewares/versionValidation');
 const versionController = new VersionController();
 
 // GET all versions
-router.get('/', authMiddleware, versionController.getAll.bind(versionController));
+router.get('/',  versionController.getAll.bind(versionController));
 
 // POST create a new version
-router.post('/add', authMiddleware, versionValidator, versionController.add.bind(versionController));
+router.post('/add', versionValidator, versionController.add.bind(versionController));
 
 // PATCH update a version
-router.patch('/update/:versionId', authMiddleware, versionValidator, versionController.update.bind(versionController));
+router.patch('/update/:versionId',  versionValidator, versionController.update.bind(versionController));
 
 // DELETE remove a version
-router.delete('/remove/:versionId', authMiddleware, versionController.remove.bind(versionController));
+router.delete('/remove/:versionId',  versionController.remove.bind(versionController));
 
 module.exports = router;
