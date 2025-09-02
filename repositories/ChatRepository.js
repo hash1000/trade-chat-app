@@ -75,6 +75,24 @@ class ChatRepository {
     });
   }
 
+  async deleteInvite(userId) {
+    const chats = await Chat.findAll({
+      where: {
+        [Op.or]: [{ user1Id: userId }, { user2Id: userId }],
+      },
+    });
+
+    if (chats.length > 0) {
+      await Chat.destroy({
+        where: {
+          [Op.or]: [{ user1Id: userId }, { user2Id: userId }],
+        },
+      });
+    }
+
+    return chats;
+  }
+
   async cancelInvite(requesterId, requesteeId) {
     return Chat.destroy({
       where: {

@@ -1,3 +1,4 @@
+const { Op } = require("sequelize");
 const sequelize = require("../config/database");
 const WalletService = require("./WalletService");
 const PaymentRepository = require("../repositories/PaymentRepository");
@@ -45,12 +46,27 @@ class PaymentService {
     return this.paymentRepository.delete(paymentId);
   }
 
-  async cancelPaymentRelation(requesterId, requesteeId) {
-    return PaymentRequest.destroy({
+  async cancelPaymentRelation(userId) {
+    // 1. Find all payment relations for this user
+    const relations = await PaymentRequest.findAll({
       where: {
-        [Op.or]: [{ requesterId: requesterId }, { requesteeId: requesteeId }],
+        [Op.or]: [{ requesterId: userId }, { requesteeId: userId }],
       },
     });
+
+    // 2. If none found, just return []
+    if (!relations || relations.length === 0) {
+      return [];
+    }
+
+    // 3. Delete all found relations
+    await PaymentRequest.destroy({
+      where: {
+        [Op.or]: [{ requesterId: userId }, { requesteeId: userId }],
+      },
+    });
+
+    return relations;
   }
 
   async getUserPayments(userId) {

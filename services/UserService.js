@@ -15,7 +15,6 @@ const userFavourite = new UserFavouriteRepository();
 const paymentService = new PaymentService();
 
 class UserService {
-
   async createUser(userData) {
     let transaction;
     try {
@@ -165,7 +164,7 @@ class UserService {
               return self.indexOf(value) === index;
             })
             .join(",");
-            
+
           // Save or update the UserTags table
           if (userTag) {
             await userTag.update(
@@ -321,10 +320,17 @@ class UserService {
   }
 
   async deleteUser(userId) {
-    // Call the UserRepository to get a user by email
-    await PaymentService.cancelPaymentRelation(userId, userId);
-    await userFavourite.cancelUserFavourite(userId, userId);
-    await chat.cancelInvite(userId, userId);
+    console.log("Deleting user with ID:", userId);
+    // First cancel all related payments
+    await paymentService.cancelPaymentRelation(userId);
+
+    // Then cancel user favourites
+    await userFavourite.deleteUserFavourite(userId);
+
+    // Then cancel chat invites
+    await chat.deleteInvite(userId);
+
+    // Finally delete the user
     return userRepository.delete(userId);
   }
 
