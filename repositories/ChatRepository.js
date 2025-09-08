@@ -106,9 +106,9 @@ class ChatRepository {
     return chat ? chat : await this.createChat(requesterId, requesteeId);
   }
 
-  async getUserChat(userId, page, pageSize) {
-    const limit = parseInt(pageSize);
-    const offset = (page - 1) * limit;
+  async getUserChat(userId) {
+    // const limit = parseInt(pageSize);
+    // const offset = (page - 1) * limit;
     const { Op } = require("sequelize");
 
     // Fetch chats with the latest message
@@ -116,8 +116,8 @@ class ChatRepository {
       where: {
         [Op.or]: [{ user1Id: userId }],
       },
-      limit,
-      offset,
+      // limit,
+      // offset,
       include: [
         {
           model: User,

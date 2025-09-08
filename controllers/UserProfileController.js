@@ -131,12 +131,12 @@ class UserProfileController {
 
   async getContacts(req, res) {
     const userId = req.user.id;
-    const { page = 1, pageSize = 10 } = req.body;
+    // const { page = 1, pageSize = 10 } = req.body;
     try {
       const data = await userProfileService.getUserContacts(
-        userId,
-        page,
-        pageSize
+        userId
+        // page,
+        // pageSize
       );
       res.json({ data });
     } catch (error) {

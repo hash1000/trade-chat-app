@@ -188,9 +188,9 @@ class UserService {
     return friendsRepository.remove(userId, profileId);
   }
 
-  async getUserContacts(userId, page, pageSize) {
+  async getUserContacts(userId) {
     const favourites = await userFavouriteRepository.getFavourites(userId);
-    const invite = await chatRepository.getUserChat(userId, page, pageSize);
+    const invite = await chatRepository.getUserChat(userId);
     // Iterate through the favourites array
     for (let i = 0; i < favourites.length; i++) {
       const fav = favourites[i];
