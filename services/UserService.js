@@ -78,7 +78,7 @@ class UserService {
       if (userData.profilePic) {
         user.profilePic = userData.profilePic;
       }
-      if (userData.description) {
+      if (userData.hasOwnProperty("description")) {
         user.description = userData.description;
       }
 
@@ -202,8 +202,8 @@ class UserService {
       if (profileData.profilePic) {
         user.profilePic = profileData.profilePic;
       }
-      if (profileData.description) {
-        user.description = profileData.description;
+      if (profileData.hasOwnProperty("description")) {
+         user.description = profileData.description ;
       }
       if (profileData.stripeCustomerId) {
         user.stripeCustomerId = profileData.stripeCustomerId;
