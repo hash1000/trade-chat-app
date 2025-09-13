@@ -540,6 +540,9 @@ class UserController {
                 );
               }
               otp_instance.verified = true;
+              await userService.updateUserProfile(user, {
+                email_verified: true,
+              });
               otp_instance.save();
               const response = {
                 Status: "Success",
@@ -706,7 +709,9 @@ class UserController {
           Details: "OTP has expired",
         });
       }
-
+      await userService.updateUserProfile(user, {
+        email_verified: true,
+      });
       // Mark as verified and clear OTPs
       otpInstance.verified = true;
       otpInstance.otp = null; // Clear the OTP array
