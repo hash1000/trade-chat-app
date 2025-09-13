@@ -114,107 +114,117 @@ class UserService {
   }
 
   async updateUserProfile(user, profileData, requesteeUser) {
-    try {
-      if (profileData.phoneNumber) {
-        user.phoneNumber = profileData.phoneNumber;
-      }
-      if (profileData.country_code) {
-        user.country_code = profileData.country_code;
-      }
-      if (profileData.username) {
-        user.username = profileData.username;
-      }
-      if (profileData.firstName) {
-        user.firstName = profileData.firstName;
-      }
-      if (profileData.lastName) {
-        user.lastName = profileData.lastName;
-      }
-      if (profileData.gender) {
-        user.gender = profileData.gender;
-      }
-      if (profileData.country) {
-        user.country = profileData.country;
-      }
-      if (profileData.age) {
-        user.age = profileData.age;
-      }
-      if (profileData.role) {
-        user.role = profileData.role;
-      }
-      if (profileData.settings) {
-        // Check if tags exist in the incoming data or user settings
-        if (profileData.settings.tags || user.settings?.tags?.length > 0) {
-          // Fetch the existing UserTags entry
-          let userTag = await UserTags.findOne({
-            where: { userId: user.id },
-          });
-
-          let tagArr = ""; // Array to hold all tags
-
-          const existingTags = user.settings?.tags || "";
-          const incomingTags = profileData.settings.tags || "";
-
-          tagArr = existingTags + "," + incomingTags;
-
-          const repeatedArr = tagArr.split(","); // string to array seperated with ,
-
-          tagArr = repeatedArr
-            .filter(function (value, index, self) {
-              return self.indexOf(value) === index;
-            })
-            .join(",");
-
-          // Save or update the UserTags table
-          if (userTag) {
-            await userTag.update(
-              {
-                tags: tagArr,
-                updatedAt: new Date(),
-              },
-              {
-                where: {
-                  userId: user.id,
-                },
-              }
-            );
-          } else {
-            await UserTags.create({
-              userId: user.id,
-              tags: tagArr,
-              createdAt: new Date(),
-              updatedAt: new Date(),
-            });
-          }
-
-          // Update user settings with merged tags
-          //dectructure only which has more key value in object
-          user.settings = {
-            ...user.settings, // Keep existing settings
-            ...profileData.settings, // Update with profileData settings
-            tags: tagArr, // Set updated tags
-          };
-
-          // Save the updated user object (ensure you have a save method for the user entity)
-          await user.save();
-        }
-      }
-      if (profileData.profilePic) {
-        user.profilePic = profileData.profilePic;
-      }
-      if (profileData.hasOwnProperty("description")) {
-         user.description = profileData.description ;
-      }
-      if (profileData.stripeCustomerId) {
-        user.stripeCustomerId = profileData.stripeCustomerId;
-      }
-      // Save both user and requesteeUser
-      await user.save(); // Save the main user
-
-      return user;
-    } catch (error) {
-      throw new Error(`Failed to update user profile: ${error.message}`);
+  try {
+    if (profileData.phoneNumber) {
+      user.phoneNumber = profileData.phoneNumber;
     }
+    if (profileData.country_code) {
+      user.country_code = profileData.country_code;
+    }
+    if (profileData.username) {
+      user.username = profileData.username;
+    }
+    if (profileData.firstName) {
+      user.firstName = profileData.firstName;
+    }
+    if (profileData.lastName) {
+      user.lastName = profileData.lastName;
+    }
+    if (profileData.gender) {
+      user.gender = profileData.gender;
+    }
+    if (profileData.country) {
+      user.country = profileData.country;
+    }
+    if (profileData.age) {
+      user.age = profileData.age;
+    }
+    if (profileData.role) {
+      user.role = profileData.role;
+    }
+
+    if (profileData.settings) {
+      // Check if tags exist in the incoming data or user settings
+      if (profileData.settings.tags || user.settings?.tags?.length > 0) {
+        // Fetch the existing UserTags entry
+        let userTag = await UserTags.findOne({
+          where: { userId: user.id },
+        });
+
+        let tagArr = ""; // Array to hold all tags
+        const existingTags = user.settings?.tags || "";
+        const incomingTags = profileData.settings.tags || "";
+
+        tagArr = existingTags + "," + incomingTags;
+        const repeatedArr = tagArr.split(",");
+
+        tagArr = repeatedArr
+          .filter((value, index, self) => self.indexOf(value) === index)
+          .join(",");
+
+        // Save or update the UserTags table
+        if (userTag) {
+          await userTag.update(
+            { tags: tagArr, updatedAt: new Date() },
+            { where: { userId: user.id } }
+          );
+        } else {
+          await UserTags.create({
+            userId: user.id,
+            tags: tagArr,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          });
+        }
+
+        // Update user settings with merged tags
+        user.settings = {
+          ...user.settings,
+          ...profileData.settings,
+          tags: tagArr,
+        };
+
+        await user.save();
+      }
+    }
+
+    if (profileData.profilePic) {
+      user.profilePic = profileData.profilePic;
+    }
+    if (profileData.email_verified) {
+      user.email_verified = profileData.email_verified;
+    }
+    if (profileData.hasOwnProperty("description")) {
+      user.description = profileData.description;
+    }
+    if (profileData.stripeCustomerId) {
+      user.stripeCustomerId = profileData.stripeCustomerId;
+    }
+
+    // ✅ Auto-check if profile is completed
+    const requiredFields = [
+      "firstName",
+      "lastName",
+      "username",
+      "country_code",
+      "phoneNumber",
+      "gender",
+      "country",
+      "age",
+      "profilePic",
+    ];
+
+    const isCompleted = requiredFields.every((field) => user[field]);
+
+    user.is_completed = isCompleted;
+
+    // Save user
+    await user.save();
+
+    return user;
+  } catch (error) {
+    throw new Error(`Failed to update user profile: ${error.message}`);
+  }
   }
 
   async updateUserRole(user, roleName) {
@@ -329,6 +339,9 @@ class UserService {
 
     // Then cancel chat invites
     await chat.deleteInvite(userId);
+
+    // 1. Delete user tags
+    await userRepository.deleteUserTags(userId);
 
     // Finally delete the user
     return userRepository.delete(userId);

@@ -6,19 +6,21 @@ const UserTags = require("../models/userTags");
 const { Role, UserRole } = require("../models");
 
 class UserRepository {
-
   async assignRoleToUser(userId, roleName, transaction = null) {
     try {
-      const role = await Role.findOne({ where: { name: roleName }, transaction });
+      const role = await Role.findOne({
+        where: { name: roleName },
+        transaction,
+      });
       if (!role) {
         throw new Error(`Role ${roleName} not found`);
       }
-  
+
       const user = await User.findByPk(userId, { transaction });
       if (!user) {
         throw new Error(`User with id ${userId} not found`);
       }
-  
+
       const userRole = await UserRole.create(
         {
           userId: user.id,
@@ -35,7 +37,7 @@ class UserRepository {
 
   // Create a new user
   async create(user) {
-    console.log("user",user);
+    console.log("user", user);
     return User.create(user);
   }
 
@@ -70,9 +72,9 @@ class UserRepository {
         include: [
           {
             model: Role,
-            as: "roles"
+            as: "roles",
           },
-        ]
+        ],
       });
       return users.map((user) => user.toJSON());
     } catch (error) {
@@ -87,9 +89,9 @@ class UserRepository {
       include: [
         {
           model: Role,
-          as: "roles"
+          as: "roles",
         },
-      ]
+      ],
     });
   }
 
@@ -101,7 +103,7 @@ class UserRepository {
           as: "roles",
         },
       ],
-      attributes: ["id", "name", "fcm"]
+      attributes: ["id", "name", "fcm"],
     });
   }
 
@@ -137,9 +139,9 @@ class UserRepository {
       include: [
         {
           model: Role,
-          as: "roles"
+          as: "roles",
         },
-      ]
+      ],
     });
     return user ? user.toJSON() : null;
   }
@@ -176,9 +178,9 @@ class UserRepository {
       include: [
         {
           model: Role,
-          as: "roles"
+          as: "roles",
         },
-      ]
+      ],
     });
     return user ? user.toJSON() : null;
   }
@@ -190,9 +192,9 @@ class UserRepository {
       include: [
         {
           model: Role,
-          as: "roles"
+          as: "roles",
         },
-      ]
+      ],
     });
 
     return user ? user.toJSON() : null;
@@ -211,41 +213,41 @@ class UserRepository {
       include: [
         {
           model: Role,
-          as: "roles"
+          as: "roles",
         },
-      ]
+      ],
     });
   }
 
   // Get a user by email
   async getByEmail(email) {
-    return User.findOne({ 
+    return User.findOne({
       where: { email },
       include: [
         {
           model: Role,
-          as: "roles"
+          as: "roles",
         },
-      ]
+      ],
     });
   }
 
   // Get a user by phoneNumber
   async getByPhoneNumber(country_code, phoneNumber) {
-    return User.findOne({ 
+    return User.findOne({
       where: { country_code, phoneNumber },
       include: [
         {
           model: Role,
-          as: "roles"
+          as: "roles",
         },
-      ]
+      ],
     });
   }
 
   // Update a user
   async update(userId, updates) {
-    console.log("userId, updates",userId, updates);
+    console.log("userId, updates", userId, updates);
     const user = await this.getById(userId);
     if (!user) {
       throw new Error("User not found");
@@ -274,14 +276,14 @@ class UserRepository {
 
   async getUserByResetToken(resetToken) {
     // Find a user by the reset token in the database
-    return User.findOne({ 
+    return User.findOne({
       where: { resetToken },
       include: [
         {
           model: Role,
-          as: "roles"
+          as: "roles",
         },
-      ]
+      ],
     });
   }
 
@@ -313,9 +315,9 @@ class UserRepository {
       include: [
         {
           model: Role,
-          as: "roles"
+          as: "roles",
         },
-      ]
+      ],
     });
 
     const userIds = users.rows.map((user) => user.id);
@@ -380,9 +382,9 @@ class UserRepository {
       include: [
         {
           model: Role,
-          as: "roles"
+          as: "roles",
         },
-      ]
+      ],
     });
 
     users = users.filter((user) => {
@@ -435,6 +437,24 @@ class UserRepository {
       console.error("Error fetching tags:", error);
       throw new Error("Error while fetching tags: " + error.message);
     }
+  }
+
+  // Delete all tags for a user
+  async deleteUserTags(userId) {
+    const userTag = await UserTags.findOne({
+      where: { userId },
+    });
+
+    if (!userTag) {
+      return { message: "No tags found for this user" };
+    }
+
+    // Delete only this user's tags
+    await UserTags.destroy({
+      where: { userId },
+    });
+
+    return { message: "User tags deleted successfully" };
   }
 }
 

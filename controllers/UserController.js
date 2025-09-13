@@ -25,35 +25,47 @@ class UserController {
       const userData = {
         username: displayName,
         email,
-        photoURL,
+        profilePic: photoURL, // mapped properly
+        email_verified: true,
       };
-      // Check if the user already exists with the provided email
-      const userByEmail = await userService.getUserByEmail(email);
-      if (userByEmail) {
-        await userService.updateTokenVersion(userByEmail);
+
+      // Check if user exists
+      let user = await userService.getUserByEmail(email);
+
+      if (user) {
+        await userService.updateTokenVersion(user);
+
+        // Always update profile with email_verified = true (and run is_completed check)
+        user = await userService.updateUserProfile(user, {
+          email_verified: true,
+          profilePic: photoURL, // keep updated with Google photo
+          username: displayName,
+        });
+
         const token = jwt.sign(
-          {
-            userId: userByEmail.id,
-            tokenVersion: userByEmail.tokenVersion,
-          },
+          { userId: user.id, tokenVersion: user.tokenVersion },
           process.env.JWT_SECRET_KEY
         );
+
         return res.status(200).json({
-          message:
-            "A user with this email already exists. Authentication successful.",
+          message: "User exists. Authentication successful.",
           token,
-          user: userByEmail,
+          user,
         });
       } else {
+        // New Google user
         const newUser = await userService.createGoogleUser(userData);
+
+        // Ensure profile completeness check runs at least once
+        await userService.updateUserProfile(newUser, { email_verified: true });
+
         const token = jwt.sign(
           { userId: newUser.id, tokenVersion: 0 },
           process.env.JWT_SECRET_KEY
         );
 
         return res.status(201).json({
-          message:
-            "A new user has been successfully created with this email and phone number.",
+          message: "A new user has been successfully created.",
           token,
           user: newUser,
         });
@@ -61,7 +73,7 @@ class UserController {
     } catch (error) {
       console.error("Error during Google sign-in:", error);
       res.status(500).json({
-        message: "An error occurred while processing the sign-up data.",
+        message: "An error occurred while processing Google sign-in.",
       });
     }
   }
@@ -272,6 +284,7 @@ class UserController {
     try {
       const { email, password, country_code, phoneNumber } = req.body;
       let user = null;
+
       if (email && password) {
         // Login with email and password
         user = await userService.getUserByEmail(email);
@@ -303,7 +316,32 @@ class UserController {
         return res.status(400).json({ message: "Invalid request parameters." });
       }
 
+      // Update token version
       await userService.updateTokenVersion(user);
+
+      // Check if profile is incomplete
+      const requiredFields = [
+        "firstName",
+        "lastName",
+        "username",
+        "country_code",
+        "phoneNumber",
+        "gender",
+        "country",
+        "age",
+        "profilePic",
+      ];
+
+      const missingFields = requiredFields.filter((field) => !user[field]);
+
+      if (missingFields.length > 0) {
+        return res.json({
+          message: "Your profile is not completed",
+          missingFields,
+        });
+      }
+
+      // Generate JWT token
       const token = jwt.sign(
         { userId: user.id, tokenVersion: user.tokenVersion },
         process.env.JWT_SECRET_KEY

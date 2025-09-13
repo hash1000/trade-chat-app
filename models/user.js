@@ -111,7 +111,15 @@ const User = sequelize.define(
       type: DataTypes.INTEGER,
       defaultValue: 0,
     },
-    is_online: {
+    email_verified: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+    },
+    phoneNumber_verified: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+    },
+    is_completed: {
       type: DataTypes.BOOLEAN,
       defaultValue: false,
     },

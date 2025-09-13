@@ -11,7 +11,6 @@ const {
   validateEmailOtp,
   validateVerifyEmailOtp,
   emailPhoneNumberValidation,
-  userDeleteValidation,
   validateVerifySmsOtp,
   validatePhoneOtp,
 } = require("../middlewares/userValidation");
