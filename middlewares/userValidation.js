@@ -24,8 +24,8 @@ exports.emailPhoneNumberValidation = [
 ];
 // Validation middleware for verify
 exports.validateVerify = [
-  body("country_code").notEmpty().withMessage("Country code is required"),
-  body("phoneNumber").notEmpty().withMessage("Phone number is required"),
+  body("country_code").withMessage("Country code is required"),
+  body("phoneNumber").withMessage("Phone number is required"),
   body("email").isEmail().withMessage("Invalid email"),
   body("password").notEmpty().withMessage("Password is required"),
   body("username").notEmpty().withMessage("Username is required"),
@@ -40,16 +40,26 @@ exports.validateVerify = [
     .optional()
     .isString()
     .withMessage("Profile picture must be a string"),
-  body("settings.paymentCode").optional()
-  .isString().withMessage("Payment code must be a string"),
-  body("settings.tags").optional()
-  .isArray().withMessage("Tags must be an array"),
-  body("settings.emails").optional()
-  .isArray().withMessage("Emails must be an array"),
-  body("settings.phoneNumbers").optional()
-  .isArray().withMessage("Phone numbers must be an array"),
-  body("settings.description").optional()
-  .isString().withMessage("Description must be a string"),  
+  body("settings.paymentCode")
+    .optional()
+    .isString()
+    .withMessage("Payment code must be a string"),
+  body("settings.tags")
+    .optional()
+    .isArray()
+    .withMessage("Tags must be an array"),
+  body("settings.emails")
+    .optional()
+    .isArray()
+    .withMessage("Emails must be an array"),
+  body("settings.phoneNumbers")
+    .optional()
+    .isArray()
+    .withMessage("Phone numbers must be an array"),
+  body("settings.description")
+    .optional()
+    .isString()
+    .withMessage("Description must be a string"),
   body("description")
     .optional()
     .isString()
@@ -97,7 +107,9 @@ exports.validatePhoneOtp = [
     .notEmpty()
     .withMessage("Country code is required")
     .matches(/^\+\d{1,4}$/)
-    .withMessage("Invalid country code format. Use a format like +1, +91, etc."),
+    .withMessage(
+      "Invalid country code format. Use a format like +1, +91, etc."
+    ),
   body("phoneNumber")
     .notEmpty()
     .withMessage("Phone number is required")
@@ -117,12 +129,14 @@ exports.validateVerifySmsOtp = [
     .withMessage("OTP must be a numeric value")
     .isLength({ min: 6, max: 6 })
     .withMessage("OTP must be 6 digits"),
-    body("country_code")
+  body("country_code")
     .notEmpty()
     .withMessage("Country code is required")
     .matches(/^\+\d{1,4}$/)
-    .withMessage("Invalid country code format. Use a format like +1, +91, etc."),
-    body("phoneNumber")
+    .withMessage(
+      "Invalid country code format. Use a format like +1, +91, etc."
+    ),
+  body("phoneNumber")
     .notEmpty()
     .withMessage("Phone number is required")
     .matches(/^\+?[1-9]\d{1,14}$/)
@@ -154,13 +168,9 @@ exports.validateUpdateContact = [
     .optional()
     .isString()
     .withMessage("Profile picture must be a string"),
-  body("tags")
-    .optional()
-    .isString()
-    .withMessage("Tags must be an array"),
+  body("tags").optional().isString().withMessage("Tags must be an array"),
   handleValidationErrors,
 ];
-
 
 // Validation middleware for forgot-password
 exports.forgotPasswordValidation = [
@@ -207,16 +217,26 @@ exports.validateUpdateProfile = [
     .optional()
     .isString()
     .withMessage("Profile picture must be a string"),
-  body("settings.paymentCode").optional()
-    .isString().withMessage("Payment code must be a string"),
-  body("settings.tags").optional()
-    .isArray().withMessage("Tags must be an array"),
-  body("settings.emails").optional()
-    .isArray().withMessage("Emails must be an array"),
-  body("settings.phoneNumbers").optional()
-    .isArray().withMessage("Phone numbers must be an array"),
-  body("settings.description").optional()
-    .isString().withMessage("Description must be a string"),  
+  body("settings.paymentCode")
+    .optional()
+    .isString()
+    .withMessage("Payment code must be a string"),
+  body("settings.tags")
+    .optional()
+    .isArray()
+    .withMessage("Tags must be an array"),
+  body("settings.emails")
+    .optional()
+    .isArray()
+    .withMessage("Emails must be an array"),
+  body("settings.phoneNumbers")
+    .optional()
+    .isArray()
+    .withMessage("Phone numbers must be an array"),
+  body("settings.description")
+    .optional()
+    .isString()
+    .withMessage("Description must be a string"),
   body("description")
     .optional()
     .isString()
