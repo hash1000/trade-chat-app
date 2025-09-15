@@ -95,33 +95,39 @@ class UserController {
         profilePic,
         description,
       } = req.body;
+      
+      let userByPhoneNumber = null;
 
-      const userByPhoneNumber = await userService.getUserByPhoneNumber(
+      if (country_code && phoneNumber) {
+      userByPhoneNumber = await userService.getUserByPhoneNumber(
         country_code,
         phoneNumber
       );
+      }
+      
       const userByEmail = await userService.getUserByEmail(email);
 
-      if (
-        userByPhoneNumber &&
-        userByEmail &&
-        userByPhoneNumber.id === userByEmail.id
-      ) {
-        await userService.updateTokenVersion(userByPhoneNumber);
-        const token = jwt.sign(
-          {
-            userId: userByPhoneNumber.id,
-            tokenVersion: userByPhoneNumber.tokenVersion,
-          },
-          process.env.JWT_SECRET_KEY
-        );
-        return res.status(200).json({
-          message:
-            "User with this email and phone number already exists. Authentication successful.",
-          token,
-          user: userByPhoneNumber,
-        });
-      } else if (userByEmail) {
+      // if (
+      //   userByPhoneNumber &&
+      //   userByEmail &&
+      //   userByPhoneNumber.id === userByEmail.id
+      // ) {
+      //   await userService.updateTokenVersion(userByPhoneNumber);
+      //   const token = jwt.sign(
+      //     {
+      //       userId: userByPhoneNumber.id,
+      //       tokenVersion: userByPhoneNumber.tokenVersion,
+      //     },
+      //     process.env.JWT_SECRET_KEY
+      //   );
+      //   return res.status(200).json({
+      //     message:
+      //       "User with this email and phone number already exists. Authentication successful.",
+      //     token,
+      //     user: userByPhoneNumber,
+      //   });
+      // } else 
+      if (userByEmail) {
         if (
           (userByEmail &&
             userByEmail.firstName === null &&
@@ -231,6 +237,10 @@ class UserController {
         profilePic,
         description,
       } = req.body;
+
+      if(!country_code || !phoneNumber){
+        return res.status(404).json({ message: "Country code and phone number are required" });
+      }
       const userByEmail = await userService.getUserByEmail(email);
       if (!userByEmail) {
         return res.status(404).json({ message: "User not found" });

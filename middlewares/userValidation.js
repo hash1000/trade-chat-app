@@ -24,8 +24,8 @@ exports.emailPhoneNumberValidation = [
 ];
 // Validation middleware for verify
 exports.validateVerify = [
-  body("country_code").notEmpty().withMessage("Country code is required"),
-  body("phoneNumber").notEmpty().withMessage("Phone number is required"),
+  body("country_code").optional().isString().withMessage("Country code must be a string"),
+  body("phoneNumber").optional().isString().withMessage("Phone number must be a string"),
   body("email").isEmail().withMessage("Invalid email"),
   body("password").notEmpty().withMessage("Password is required"),
   body("username").notEmpty().withMessage("Username is required"),
