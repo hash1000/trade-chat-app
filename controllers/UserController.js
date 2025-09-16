@@ -25,7 +25,7 @@ class UserController {
       const userData = {
         username: displayName,
         email,
-        profilePic: photoURL, // mapped properly
+        profilePic: photoURL,
         email_verified: true,
       };
 
