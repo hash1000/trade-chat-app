@@ -95,39 +95,33 @@ class UserController {
         profilePic,
         description,
       } = req.body;
-      
-      let userByPhoneNumber = null;
 
-      if (country_code && phoneNumber) {
-      userByPhoneNumber = await userService.getUserByPhoneNumber(
+      const userByPhoneNumber = await userService.getUserByPhoneNumber(
         country_code,
         phoneNumber
       );
-      }
-      
       const userByEmail = await userService.getUserByEmail(email);
 
-      // if (
-      //   userByPhoneNumber &&
-      //   userByEmail &&
-      //   userByPhoneNumber.id === userByEmail.id
-      // ) {
-      //   await userService.updateTokenVersion(userByPhoneNumber);
-      //   const token = jwt.sign(
-      //     {
-      //       userId: userByPhoneNumber.id,
-      //       tokenVersion: userByPhoneNumber.tokenVersion,
-      //     },
-      //     process.env.JWT_SECRET_KEY
-      //   );
-      //   return res.status(200).json({
-      //     message:
-      //       "User with this email and phone number already exists. Authentication successful.",
-      //     token,
-      //     user: userByPhoneNumber,
-      //   });
-      // } else 
-      if (userByEmail) {
+      if (
+        userByPhoneNumber &&
+        userByEmail &&
+        userByPhoneNumber.id === userByEmail.id
+      ) {
+        await userService.updateTokenVersion(userByPhoneNumber);
+        const token = jwt.sign(
+          {
+            userId: userByPhoneNumber.id,
+            tokenVersion: userByPhoneNumber.tokenVersion,
+          },
+          process.env.JWT_SECRET_KEY
+        );
+        return res.status(200).json({
+          message:
+            "User with this email and phone number already exists. Authentication successful.",
+          token,
+          user: userByPhoneNumber,
+        });
+      } else if (userByEmail) {
         if (
           (userByEmail &&
             userByEmail.firstName === null &&
@@ -237,14 +231,14 @@ class UserController {
         profilePic,
         description,
       } = req.body;
-
       const userByEmail = await userService.getUserByEmail(email);
       if (!userByEmail) {
         return res.status(404).json({ message: "User not found" });
       }
-
       const userData = {
         password,
+        phoneNumber,
+        country_code,
         username,
         firstName,
         lastName,
@@ -252,38 +246,34 @@ class UserController {
         country,
         age,
       };
-
-      // Only add phone if provided
-      if (country_code && phoneNumber) {
-        const userByPhoneNumber = await userService.getUserByPhoneNumber(
-          country_code,
-          phoneNumber
-        );
-        if (userByPhoneNumber) {
-          return res
-            .status(409)
-            .json({ message: "A user with this phone number already exists." });
-        }
-        userData.country_code = country_code;
-        userData.phoneNumber = phoneNumber;
-      }
-
-      if (profilePic) userData.profilePic = profilePic;
-      if (description) userData.description = description;
-      if (settings) userData.settings = settings;
-
-      const updateUser = await userService.updateGoogleUser(userByEmail, userData);
-
-      const token = jwt.sign(
-        { userId: updateUser.id, tokenVersion: 0 },
-        process.env.JWT_SECRET_KEY
+      const userByPhoneNumber = await userService.getUserByPhoneNumber(
+        country_code,
+        phoneNumber
       );
+      if (userByPhoneNumber) {
+        return res
+          .status(409)
+          .json({ message: "A user with this phone number already exists." });
+      } else {
+        if (profilePic) userData.profilePic = profilePic;
+        if (description) userData.description = description;
+        if (settings) userData.settings = settings;
 
-      return res.json({
-        message: "User profile updated successfully",
-        token,
-        user: updateUser,
-      });
+        const updateUser = await userService.updateGoogleUser(
+          userByEmail,
+          userData
+        );
+        const token = jwt.sign(
+          { userId: updateUser.id, tokenVersion: 0 },
+          process.env.JWT_SECRET_KEY
+        );
+
+        return res.json({
+          message: "User profile updated successfully",
+          token,
+          user: updateUser,
+        });
+      }
     } catch (error) {
       console.error("Error during Google profile update:", error);
       res.status(500).json({ message: "Failed to update Google profile" });
