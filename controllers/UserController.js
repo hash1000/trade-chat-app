@@ -96,22 +96,22 @@ class UserController {
         description,
       } = req.body;
 
-      const userByPhoneNumber = await userService.getUserByPhoneNumber(
-        country_code,
-        phoneNumber
-      );
+      // const userByPhoneNumber = await userService.getUserByPhoneNumber(
+      //   country_code,
+      //   phoneNumber
+      // );
       const userByEmail = await userService.getUserByEmail(email);
 
       if (
-        userByPhoneNumber &&
-        userByEmail &&
-        userByPhoneNumber.id === userByEmail.id
+        // userByPhoneNumber &&
+        userByEmail
+        // userByPhoneNumber.id === userByEmail.id
       ) {
-        await userService.updateTokenVersion(userByPhoneNumber);
+        await userService.updateTokenVersion(userByEmail);
         const token = jwt.sign(
           {
-            userId: userByPhoneNumber.id,
-            tokenVersion: userByPhoneNumber.tokenVersion,
+            userId: userByEmail.id,
+            tokenVersion: userByEmail.tokenVersion,
           },
           process.env.JWT_SECRET_KEY
         );
@@ -119,7 +119,7 @@ class UserController {
           message:
             "User with this email and phone number already exists. Authentication successful.",
           token,
-          user: userByPhoneNumber,
+          user: userByEmail,
         });
       } else if (userByEmail) {
         if (
@@ -172,11 +172,13 @@ class UserController {
             User: userByEmail,
           });
         }
-      } else if (userByPhoneNumber) {
-        return res
-          .status(409)
-          .json({ message: "User with this phone number already exists." });
-      } else {
+      } 
+      // else if (userByPhoneNumber) {
+      //   return res
+      //     .status(409)
+      //     .json({ message: "User with this phone number already exists." });
+      // } 
+      else {
         const userData = {
           email,
           password,
