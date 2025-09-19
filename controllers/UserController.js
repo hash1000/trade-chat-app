@@ -326,8 +326,6 @@ class UserController {
         "firstName",
         "lastName",
         "username",
-        "country_code",
-        "phoneNumber",
         "gender",
         "country",
         "age",
