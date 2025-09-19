@@ -290,6 +290,8 @@ class UserController {
       if (email && password) {
         // Login with email and password
         user = await userService.getUserByEmail(email);
+
+        console.log("user found by email:", user);
         if (!user) {
           return res
             .status(401)
