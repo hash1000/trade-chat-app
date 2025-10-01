@@ -191,10 +191,9 @@ class CartService {
   }
 
   // services/chatService.js
-  async sendPaymentRequest(requesterId, requesteeId, amount) {
+  async sendPaymentRequest(requesterId, requesteeId, amount, description) {
     try {
       const users = await userService.getUsersByIds([requesterId, requesteeId]);
-      console.log("users",users);
       if (users.length !== 2) {
         throw new Error("One or both users not found");
       }
@@ -202,7 +201,8 @@ class CartService {
       const paymentRequest = await this.paymentRepository.createPaymentRequest(
         requesterId,
         requesteeId,
-        amount
+        amount,
+        description
       );
 
       return paymentRequest;
@@ -212,7 +212,7 @@ class CartService {
     }
   }
 
-  async sendPayment(requesterId, requesteeId, amount) {
+  async sendPayment(requesterId, requesteeId, amount, description) {
     const user = await userService.getUserById(requesteeId);
     if (!user) {
       return { message: `User with ID ${requesteeId} not found` };
@@ -228,6 +228,7 @@ class CartService {
       requesterId,
       requesteeId,
       amount,
+      description,
       "accepted"
     );
 

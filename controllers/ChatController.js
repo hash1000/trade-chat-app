@@ -193,15 +193,12 @@ class ChatController {
 
   async sendPayment(req, res) {
     try {
-      const { amount, requesteeId } = req.body;
+      const { amount, description, requesteeId } = req.body;
       const { id: requesterId } = req.user;
 
       // Validate input
       if (!amount || isNaN(amount) || amount <= 0) {
         return res.status(400).json({ error: "Invalid amount" });
-      }
-      if (!requesteeId) {
-        return res.status(400).json({ error: "Recipient ID is required" });
       }
 
       // Get requester's balance
@@ -229,7 +226,8 @@ class ChatController {
       const payment = await chatService.sendPayment(
         Number(requesterId),
         Number(requesteeId),
-        Number(amount)
+        Number(amount),
+        description
       );
 
       res.status(200).json({
@@ -253,11 +251,15 @@ class ChatController {
     try {
       // Check requester's balance
       const requester = await userRepository.getById(requesterId);
+      if (!requester) {
+        return res.status(404).json({ error: "User not found" });
+      }
       // Create payment request
       const paymentRequest = await chatService.sendPaymentRequest(
         Number(requesterId),
         Number(requesteeId),
-        amount
+        amount,
+        description
       );
 
       res.json(paymentRequest);

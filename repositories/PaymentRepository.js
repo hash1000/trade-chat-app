@@ -95,11 +95,12 @@ class PaymentRepository {
     });
   }
 
-  async createPaymentRequest(requesterId, requesteeId, amount, status) {
+  async createPaymentRequest(requesterId, requesteeId, amount, description, status) {
     const paymentRequest = await PaymentRequest.create({
       requesterId,
       requesteeId,
       amount,
+      description,
       status: status || "pending",
     });
 

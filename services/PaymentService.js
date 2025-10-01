@@ -102,7 +102,7 @@ class PaymentService {
   }
 
   // Inside paymentService.js
-  async processTopupPayment(userId, amount) {
+  async processTopupPayment(userId, amount, description) {
     const user = await WalletService.getUserWalletById(userId);
     const roundedAmount = Math.round(amount * 100); // cents
 
@@ -115,7 +115,7 @@ class PaymentService {
             currency: "usd",
             product_data: {
               name: "Wallet Top-up",
-              description: `Wallet top-up for ${user.email}`,
+              description: description,
             },
             unit_amount: roundedAmount,
           },
@@ -145,7 +145,7 @@ class PaymentService {
         {
           model: User,
           as: "user",
-          attributes: ["id", "username", "firstname", "lastname", "profilePic"],
+          attributes: ["id", "username", "firstname", "lastname", "profilePic", "description"],
         },
       ],
       order: [["createdAt", "DESC"]],

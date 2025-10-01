@@ -231,14 +231,14 @@ class PaymentController {
 
   async initiateTopup(req, res) {
     try {
-      const { amount } = req.body;
+      const { amount, description } = req.body;
       const { id: userId } = req.user;
 
       if (!amount || isNaN(amount) || amount <= 0) {
         return res.status(400).json({ message: "Invalid amount" });
       }
 
-      const result = await paymentService.processTopupPayment(userId, amount);
+      const result = await paymentService.processTopupPayment(userId, amount, description);
 
       return res.json({
         success: true,
