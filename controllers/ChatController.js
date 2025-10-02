@@ -245,7 +245,7 @@ class ChatController {
   }
 
   async sendPaymentRequest(req, res) {
-    const { amount, requesteeId } = req.body;
+    const { amount, description, requesteeId } = req.body;
     const { id: requesterId } = req.user;
 
     try {

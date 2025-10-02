@@ -268,11 +268,12 @@ class PaymentService {
       for (const {
         title,
         description,
+        addNote,
         incomes = [],
         expenses = [],
       } of ledgers) {
         const ledger = await this.paymentRepository.addLedger(
-          { title, description, userId },
+          { title, description, addNote, userId },
           { transaction }
         );
 
