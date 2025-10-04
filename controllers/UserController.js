@@ -97,12 +97,6 @@ class UserController {
         fromLogin
       } = req.body;
 
-<<<<<<< Updated upstream
-      // const userByPhoneNumber = await userService.getUserByPhoneNumber(
-      //   country_code,
-      //   phoneNumber
-      // );
-=======
       let userByPhoneNumber;
       if (country_code && phoneNumber) {
         userByPhoneNumber = await userService.getUserByPhoneNumber(
@@ -111,7 +105,6 @@ class UserController {
         );
       }
 
->>>>>>> Stashed changes
       const userByEmail = await userService.getUserByEmail(email);
 
       if (
@@ -180,22 +173,12 @@ class UserController {
             User: userByEmail,
           });
         }
-<<<<<<< Updated upstream
-      } 
-      // else if (userByPhoneNumber) {
-      //   return res
-      //     .status(409)
-      //     .json({ message: "User with this phone number already exists." });
-      // } 
-      else {
-=======
       } else if (userByPhoneNumber) {
         return res
           .status(409)
           .json({ message: "User with this phone number already exists." });
       } else {
         // Create a new user if neither email nor phone number exists
->>>>>>> Stashed changes
         const userData = {
           email,
           password,
@@ -347,11 +330,8 @@ console.log("user",user,password)
         "firstName",
         "lastName",
         "username",
-<<<<<<< Updated upstream
-=======
         // "country_code",
         // "phoneNumber",
->>>>>>> Stashed changes
         "gender",
         "country",
         "age",
