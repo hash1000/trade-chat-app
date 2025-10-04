@@ -226,15 +226,15 @@ class UserService {
   async getAllUsersProfile() {
     try {
       const users = await userRepository.getAllUsers();
-
+  console.log("users",users);
       // Filter users to only include those with non-null values for the specified keys
       const filteredUsers = users.filter((user) => {
         const { firstName, lastName, phoneNumber, country_code, gender } = user;
         return (
           firstName !== null &&
           lastName !== null &&
-          phoneNumber !== null &&
-          country_code !== null &&
+          // phoneNumber !== null &&
+          // country_code !== null &&
           gender !== null
         );
       });
