@@ -133,6 +133,10 @@ class UserService {
       if (profileData.gender) {
         user.gender = profileData.gender;
       }
+      if (profileData.password) {
+        const hashedPassword = await bcrypt.hash(profileData.password, 10);
+        user.password = hashedPassword;
+      }
       if (profileData.country) {
         user.country = profileData.country;
       }
@@ -362,8 +366,10 @@ class UserService {
 
   async verifyUserPassword(user, password) {
     try {
+      console.log("password, user.password",password, user.password, typeof(user.password), typeof(password));
       // Compare the password
       const isPasswordValid = await bcrypt.compare(password, user.password);
+      console.log("isPasswordValid",isPasswordValid)
       if (isPasswordValid) {
         // Password is valid, return the user
         return user;

@@ -94,12 +94,24 @@ class UserController {
         age,
         profilePic,
         description,
+        fromLogin
       } = req.body;
 
+<<<<<<< Updated upstream
       // const userByPhoneNumber = await userService.getUserByPhoneNumber(
       //   country_code,
       //   phoneNumber
       // );
+=======
+      let userByPhoneNumber;
+      if (country_code && phoneNumber) {
+        userByPhoneNumber = await userService.getUserByPhoneNumber(
+          country_code,
+          phoneNumber
+        );
+      }
+
+>>>>>>> Stashed changes
       const userByEmail = await userService.getUserByEmail(email);
 
       if (
@@ -116,30 +128,30 @@ class UserController {
           process.env.JWT_SECRET_KEY
         );
         return res.status(200).json({
-          message:
-            "User with this email and phone number already exists. Authentication successful.",
+          message: "User with this email and phone number already exists. Authentication successful.",
           token,
           user: userByEmail,
         });
       } else if (userByEmail) {
+        // Check if user exists but some required fields are missing
         if (
-          (userByEmail &&
-            userByEmail.firstName === null &&
-            userByEmail.lastName === null &&
-            userByEmail.country_code === null &&
-            userByEmail.phoneNumber === null &&
-            userByEmail.gender === null &&
-            userByEmail.country === null &&
-            userByEmail.age === null &&
-            country_code,
-          phoneNumber,
-          email,
-          password,
-          firstName,
-          lastName,
-          gender,
-          country,
-          age)
+          userByEmail.firstName === null &&
+          userByEmail.lastName === null &&
+          userByEmail.country_code === null &&
+          userByEmail.phoneNumber === null &&
+          userByEmail.gender === null &&
+          userByEmail.country === null &&
+          userByEmail.age === null &&
+          country_code &&
+          phoneNumber &&
+          email &&
+          password &&
+          firstName &&
+          lastName &&
+          gender &&
+          country &&
+          fromLogin &&
+          age
         ) {
           let googleUser = {
             country_code,
@@ -150,20 +162,16 @@ class UserController {
             lastName,
             gender,
             country,
+            fromLogin,
             age,
           };
-          if (username) {
-            googleUser.username = username;
-          }
-          if (profilePic) {
-            googleUser.profilePic = profilePic;
-          }
-          if (description) {
-            googleUser.description = description;
-          }
-          if (settings) {
-            googleUser.settings = settings;
-          }
+
+          if (username) googleUser.username = username;
+          if (profilePic) googleUser.profilePic = profilePic;
+          if (description) googleUser.description = description;
+          if (settings) googleUser.settings = settings;
+          if (fromLogin === 'EMAIL' ) userData.email_verified = true;
+
           req.body.googleUser = googleUser;
           return this.GoogleProfile(req, res);
         } else {
@@ -172,6 +180,7 @@ class UserController {
             User: userByEmail,
           });
         }
+<<<<<<< Updated upstream
       } 
       // else if (userByPhoneNumber) {
       //   return res
@@ -179,6 +188,14 @@ class UserController {
       //     .json({ message: "User with this phone number already exists." });
       // } 
       else {
+=======
+      } else if (userByPhoneNumber) {
+        return res
+          .status(409)
+          .json({ message: "User with this phone number already exists." });
+      } else {
+        // Create a new user if neither email nor phone number exists
+>>>>>>> Stashed changes
         const userData = {
           email,
           password,
@@ -190,13 +207,14 @@ class UserController {
           gender,
           settings,
           country,
+          fromLogin,
           age,
         };
 
         if (profilePic) userData.profilePic = profilePic;
         if (description) userData.description = description;
-        if (settings) userData.settings = settings;
-
+        if (fromLogin === 'EMAIL' ) userData.email_verified = true;
+        
         const newUser = await userService.createUser(userData);
         const token = jwt.sign(
           { userId: newUser.id, tokenVersion: 0 },
@@ -204,8 +222,7 @@ class UserController {
         );
 
         return res.status(201).json({
-          message:
-            "Successfully created a new user with this email and phone number.",
+          message: "Successfully created a new user with this email and phone number.",
           token,
           user: newUser,
         });
@@ -215,6 +232,7 @@ class UserController {
       res.status(500).json({ message: "Failed to verify user." });
     }
   }
+
 
   async GoogleProfile(req, res) {
     try {
@@ -297,11 +315,12 @@ class UserController {
             .status(401)
             .json({ message: "Invalid email or password." });
         }
-
+console.log("user",user,password)
         const validatedUser = await userService.verifyUserPassword(
           user,
           password
         );
+        console.log("validatedUser",validatedUser);
         if (!validatedUser) {
           return res
             .status(401)
@@ -328,6 +347,11 @@ class UserController {
         "firstName",
         "lastName",
         "username",
+<<<<<<< Updated upstream
+=======
+        // "country_code",
+        // "phoneNumber",
+>>>>>>> Stashed changes
         "gender",
         "country",
         "age",
@@ -1016,8 +1040,10 @@ class UserController {
         age,
         settings,
         profilePic,
+        password,
         description,
       } = req.body;
+      
       const user = req.user;
       if (country_code && phoneNumber) {
         const userByPhoneNumber = await userService.getUserByPhoneNumber(
@@ -1040,6 +1066,7 @@ class UserController {
             gender,
             age,
             profilePic,
+            password,
             settings,
             description,
           });
@@ -1054,6 +1081,7 @@ class UserController {
           gender,
           age,
           profilePic,
+          password,
           settings,
           description,
         });

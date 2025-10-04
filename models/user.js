@@ -115,6 +115,10 @@ const User = sequelize.define(
       type: DataTypes.BOOLEAN,
       defaultValue: false,
     },
+    fromLogin: {
+      type: DataTypes.ENUM('EMAIL', 'SIMPLE', 'TWITTER' , 'IOS', 'FACEBOOK'),
+      allowNull: false,
+    },
     phoneNumber_verified: {
       type: DataTypes.BOOLEAN,
       defaultValue: false,

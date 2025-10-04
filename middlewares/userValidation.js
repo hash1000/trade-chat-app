@@ -54,6 +54,9 @@ exports.validateVerify = [
     .optional()
     .isString()
     .withMessage("Description must be a string"),
+  body("fromLogin")
+    .isIn(['EMAIL', 'SIMPLE', 'TWITTER' , 'IOS', 'FACEBOOK'])
+    .withMessage("Invalid login type. Must be 'EMAIL', 'SIMPLE', 'TWITTER' , 'IOS', 'FACEBOOK'"),
   handleValidationErrors,
 ];
 
@@ -203,6 +206,7 @@ exports.validateUpdateProfile = [
     .withMessage("Invalid gender"),
   body("country").optional().notEmpty().withMessage("Country is required"),
   body("age").optional().isInt({ min: 2 }).withMessage("Invalid age"),
+  body("password").optional().isString().withMessage("Password is required"),
   body("profilePic")
     .optional()
     .isString()
