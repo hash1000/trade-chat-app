@@ -298,7 +298,7 @@ class UserController {
             .status(401)
             .json({ message: "Invalid email or password." });
         }
-console.log("user",user,password)
+
         const validatedUser = await userService.verifyUserPassword(
           user,
           password
@@ -326,26 +326,26 @@ console.log("user",user,password)
       await userService.updateTokenVersion(user);
 
       // Check if profile is incomplete
-      const requiredFields = [
-        "firstName",
-        "lastName",
-        "username",
-        // "country_code",
-        // "phoneNumber",
-        "gender",
-        "country",
-        "age",
-        "profilePic",
-      ];
+      // const requiredFields = [
+      //   "firstName",
+      //   "lastName",
+      //   "username",
+      //   // "country_code",
+      //   // "phoneNumber",
+      //   "gender",
+      //   "country",
+      //   "age",
+      //   "profilePic",
+      // ];
 
-      const missingFields = requiredFields.filter((field) => !user[field]);
+      // const missingFields = requiredFields.filter((field) => !user[field]);
 
-      if (missingFields.length > 0) {
-        return res.json({
-          message: "Your profile is not completed",
-          missingFields,
-        });
-      }
+      // if (missingFields.length > 0) {
+      //   return res.json({
+      //     message: "Your profile is not completed",
+      //     missingFields,
+      //   });
+      // }
 
       // Generate JWT token
       const token = jwt.sign(
