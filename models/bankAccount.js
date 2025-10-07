@@ -32,7 +32,7 @@ const BankAccount = sequelize.define(
       type: DataTypes.STRING,
       allowNull: false,
     },
-    bicSwift: {
+    bic: {
       type: DataTypes.STRING,
       allowNull: false,
     },
@@ -43,7 +43,7 @@ const BankAccount = sequelize.define(
     },
   },
   {
-    timestamps: true, // adds createdAt and updatedAt
+    timestamps: true,
     tableName: 'bank_accounts',
   }
 );

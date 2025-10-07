@@ -6,14 +6,11 @@ const UserRepository = require("../repositories/UserRepository");
 const socket = require("../config/socket");
 const InSufficientBalance = require("../errors/InSufficientBalance");
 const { User } = require("../models");
-const sequelize = require("../config/database");
 const path = require("path");
 
 const {
   PutObjectCommand,
-  S3Client,
-  DeleteObjectCommand,
-  GetObjectCommand,
+  S3Client
 } = require("@aws-sdk/client-s3");
 
 const s3Client = new S3Client({
@@ -25,12 +22,6 @@ const s3Client = new S3Client({
     secretAccessKey: process.env.SPACES_SECRET, // Secret access key defined through an environment variable.
   },
 });
-const {
-  PaymentReceivedNotification,
-  PaymentRequestNotification,
-  NewMessageNotification,
-} = require("../notifications");
-const { message } = require("../templates/email/email_verification");
 const userService = new UserService();
 
 class CartService {
