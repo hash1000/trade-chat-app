@@ -36,6 +36,14 @@ const BankAccount = sequelize.define(
       type: DataTypes.STRING,
       allowNull: false,
     },
+    intermediateBank: {
+      type: DataTypes.STRING,
+      allowNull: true, 
+    },
+    beneficiaryAddress: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
     sequence: {
       type: DataTypes.INTEGER,
       allowNull: false,

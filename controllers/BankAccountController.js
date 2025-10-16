@@ -34,7 +34,15 @@ class BankAccountController {
   async createBankAccount(req, res) {
     try {
       const { id: userId } = req.user;
-      const { accountName, iban, accountHolder, accountCurrency, bic } = req.body;
+      const { 
+        accountName, 
+        iban, 
+        accountHolder, 
+        accountCurrency, 
+        bic,
+        intermediateBank, 
+        beneficiaryAddress 
+      } = req.body;
 
       const newAccount = await bankAccountService.createBankAccount(userId, {
         accountName,
@@ -42,6 +50,8 @@ class BankAccountController {
         accountHolder,
         accountCurrency,
         bic,
+        intermediateBank, // Added
+        beneficiaryAddress, // Added
       });
 
       res.status(201).json(newAccount);
