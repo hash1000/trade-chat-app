@@ -75,6 +75,9 @@ exports.bulkLedgerCreateValidator = [
   body("ledgers.*.addNote")
     .optional()
     .isString(),
+  body("ledgers.*.customerNote")
+    .optional()
+    .isString(),
   body("ledgers.*.incomes")
     .optional()
     .isArray(),

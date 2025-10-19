@@ -41,6 +41,7 @@ class BankAccountController {
         accountCurrency, 
         bic,
         intermediateBank, 
+        note,
         beneficiaryAddress 
       } = req.body;
 
@@ -50,8 +51,9 @@ class BankAccountController {
         accountHolder,
         accountCurrency,
         bic,
-        intermediateBank, // Added
-        beneficiaryAddress, // Added
+        note,
+        intermediateBank,
+        beneficiaryAddress,
       });
 
       res.status(201).json(newAccount);

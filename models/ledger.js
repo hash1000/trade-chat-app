@@ -26,6 +26,10 @@ const Ledger = db.define(
       type: DataTypes.TEXT,
       allowNull: true,
     },
+    customerNote: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
     userId: {
       type: DataTypes.INTEGER,
       allowNull: false,

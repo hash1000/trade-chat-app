@@ -44,6 +44,10 @@ const BankAccount = sequelize.define(
       type: DataTypes.STRING,
       allowNull: true,
     },
+    note: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
     sequence: {
       type: DataTypes.INTEGER,
       allowNull: false,
