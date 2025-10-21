@@ -43,7 +43,7 @@ class UserController {
         });
 
         const token = jwt.sign(
-          { userId: user.id, tokenVersion: user.tokenVersion },
+          { userId: user.id },
           process.env.JWT_SECRET_KEY
         );
 
@@ -115,8 +115,7 @@ class UserController {
         await userService.updateTokenVersion(userByEmail);
         const token = jwt.sign(
           {
-            userId: userByEmail.id,
-            tokenVersion: userByEmail.tokenVersion,
+            userId: userByEmail.id
           },
           process.env.JWT_SECRET_KEY
         );
@@ -349,7 +348,7 @@ console.log("user",user,password)
 
       // Generate JWT token
       const token = jwt.sign(
-        { userId: user.id, tokenVersion: user.tokenVersion },
+        { userId: user.id },
         process.env.JWT_SECRET_KEY
       );
 
@@ -541,7 +540,7 @@ console.log("user",user,password)
               } else {
                 await userService.updateTokenVersion(user);
                 token = jwt.sign(
-                  { userId: user.id, tokenVersion: user.tokenVersion },
+                  { userId: user.id },
                   process.env.JWT_SECRET_KEY
                 );
               }
