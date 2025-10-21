@@ -60,7 +60,7 @@ class UserController {
         await userService.updateUserProfile(newUser, { email_verified: true });
 
         const token = jwt.sign(
-          { userId: newUser.id, tokenVersion: 0 },
+          { userId: newUser.id },
           process.env.JWT_SECRET_KEY
         );
 
@@ -199,7 +199,7 @@ class UserController {
         
         const newUser = await userService.createUser(userData);
         const token = jwt.sign(
-          { userId: newUser.id, tokenVersion: 0 },
+          { userId: newUser.id },
           process.env.JWT_SECRET_KEY
         );
 
@@ -266,7 +266,7 @@ class UserController {
           userData
         );
         const token = jwt.sign(
-          { userId: updateUser.id, tokenVersion: 0 },
+          { userId: updateUser.id },
           process.env.JWT_SECRET_KEY
         );
 
@@ -876,7 +876,7 @@ console.log("user",user,password)
         newPassword
       );
       const token = jwt.sign(
-        { userId: updateduser.id, tokenVersion: updateduser.tokenVersion },
+        { userId: updateduser.id },
         process.env.JWT_SECRET_KEY
       );
       // Respond with the token and user data
@@ -973,12 +973,12 @@ console.log("user",user,password)
     const { resetToken, password } = req.body;
     let userId = null;
     try {
-      if (req.userId && req.tokenVersion) {
+      if (req.userId ) {
         userId = req.userId;
         const userById = await userService.getUserById(userId);
-        if (userById.tokenVersion !== req.tokenVersion) {
-          throw new UnauthorizedError("Unauthorized");
-        }
+        // if (userById.tokenVersion !== req.tokenVersion) {
+        //   throw new UnauthorizedError("Unauthorized");
+        // }
       } else if (resetToken) {
         const userByToken = await userService.getUserByResetToken(resetToken);
         if (!userByToken) {
@@ -989,7 +989,7 @@ console.log("user",user,password)
       if (userId) {
         const user = await userService.updateUserPassword(userId, password);
         const token = jwt.sign(
-          { userId: user.id, tokenVersion: user.tokenVersion },
+          { userId: user.id },
           process.env.JWT_SECRET_KEY
         );
         // Respond with the token and user data
