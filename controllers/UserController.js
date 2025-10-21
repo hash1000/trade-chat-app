@@ -286,7 +286,6 @@ class UserController {
     try {
       const { email, password, country_code, phoneNumber } = req.body;
       let user = null;
-
       if (email && password) {
         // Login with email and password
         user = await userService.getUserByEmail(email);
@@ -297,12 +296,12 @@ class UserController {
             .status(401)
             .json({ message: "Invalid email or password." });
         }
-console.log("user",user,password)
+
         const validatedUser = await userService.verifyUserPassword(
           user,
           password
         );
-        console.log("validatedUser",validatedUser);
+
         if (!validatedUser) {
           return res
             .status(401)
