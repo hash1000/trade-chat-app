@@ -4,7 +4,7 @@ const aiService = new AiService();
 class AiController {
   async AiMessages(req, res) {
     try {
-      const messages = await aiService.AiMessages(req.body.payload);
+      const messages = await aiService.AiMessages(req.body);
       res.status(200).json(messages);
     } catch (error) {
       console.error(error);
