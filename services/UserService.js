@@ -443,7 +443,7 @@ class UserService {
         throw new Error("User not found");
       }
       user.password = await bcrypt.hash(newPassword, 10);
-      user.tokenVersion += 1;
+      // user.tokenVersion += 1;
       user.resetToken = null;
       return await user.save();
     } catch (error) {

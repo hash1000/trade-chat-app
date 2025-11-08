@@ -43,7 +43,7 @@ class UserController {
         });
 
         const token = jwt.sign(
-          { userId: user.id, tokenVersion: user.tokenVersion },
+          { userId: user.id },
           process.env.JWT_SECRET_KEY
         );
 
@@ -60,7 +60,7 @@ class UserController {
         await userService.updateUserProfile(newUser, { email_verified: true });
 
         const token = jwt.sign(
-          { userId: newUser.id, tokenVersion: 0 },
+          { userId: newUser.id },
           process.env.JWT_SECRET_KEY
         );
 
@@ -115,8 +115,7 @@ class UserController {
         await userService.updateTokenVersion(userByEmail);
         const token = jwt.sign(
           {
-            userId: userByEmail.id,
-            tokenVersion: userByEmail.tokenVersion,
+            userId: userByEmail.id
           },
           process.env.JWT_SECRET_KEY
         );
@@ -200,7 +199,7 @@ class UserController {
         
         const newUser = await userService.createUser(userData);
         const token = jwt.sign(
-          { userId: newUser.id, tokenVersion: 0 },
+          { userId: newUser.id },
           process.env.JWT_SECRET_KEY
         );
 
@@ -267,7 +266,7 @@ class UserController {
           userData
         );
         const token = jwt.sign(
-          { userId: updateUser.id, tokenVersion: 0 },
+          { userId: updateUser.id },
           process.env.JWT_SECRET_KEY
         );
 
@@ -287,7 +286,6 @@ class UserController {
     try {
       const { email, password, country_code, phoneNumber } = req.body;
       let user = null;
-
       if (email && password) {
         // Login with email and password
         user = await userService.getUserByEmail(email);
@@ -298,12 +296,12 @@ class UserController {
             .status(401)
             .json({ message: "Invalid email or password." });
         }
-console.log("user",user,password)
+
         const validatedUser = await userService.verifyUserPassword(
           user,
           password
         );
-        console.log("validatedUser",validatedUser);
+
         if (!validatedUser) {
           return res
             .status(401)
@@ -349,7 +347,7 @@ console.log("user",user,password)
 
       // Generate JWT token
       const token = jwt.sign(
-        { userId: user.id, tokenVersion: user.tokenVersion },
+        { userId: user.id },
         process.env.JWT_SECRET_KEY
       );
 
@@ -541,7 +539,7 @@ console.log("user",user,password)
               } else {
                 await userService.updateTokenVersion(user);
                 token = jwt.sign(
-                  { userId: user.id, tokenVersion: user.tokenVersion },
+                  { userId: user.id },
                   process.env.JWT_SECRET_KEY
                 );
               }
@@ -877,7 +875,7 @@ console.log("user",user,password)
         newPassword
       );
       const token = jwt.sign(
-        { userId: updateduser.id, tokenVersion: updateduser.tokenVersion },
+        { userId: updateduser.id },
         process.env.JWT_SECRET_KEY
       );
       // Respond with the token and user data
@@ -974,12 +972,12 @@ console.log("user",user,password)
     const { resetToken, password } = req.body;
     let userId = null;
     try {
-      if (req.userId && req.tokenVersion) {
+      if (req.userId ) {
         userId = req.userId;
         const userById = await userService.getUserById(userId);
-        if (userById.tokenVersion !== req.tokenVersion) {
-          throw new UnauthorizedError("Unauthorized");
-        }
+        // if (userById.tokenVersion !== req.tokenVersion) {
+        //   throw new UnauthorizedError("Unauthorized");
+        // }
       } else if (resetToken) {
         const userByToken = await userService.getUserByResetToken(resetToken);
         if (!userByToken) {
@@ -990,7 +988,7 @@ console.log("user",user,password)
       if (userId) {
         const user = await userService.updateUserPassword(userId, password);
         const token = jwt.sign(
-          { userId: user.id, tokenVersion: user.tokenVersion },
+          { userId: user.id },
           process.env.JWT_SECRET_KEY
         );
         // Respond with the token and user data

@@ -14,7 +14,7 @@ const authenticate = async (req, res, next) => {
     try {
       const decoded =  jwt.verify(token, process.env.JWT_SECRET_KEY)
       console.log("decode",decoded);
-      const { userId, tokenVersion } = decoded
+      const { userId } = decoded
       // Check if the user exists
       // console.log("authentication");
       const userService = new UserService();
@@ -23,9 +23,9 @@ const authenticate = async (req, res, next) => {
       if (!user) {
         return res.status(401).json({ message: 'Invalid or expired token' })
       }
-      if (user.tokenVersion !== tokenVersion) {
-        return res.status(401).json({ message: 'Unauthorized' })
-      }
+      // if (user.tokenVersion !== tokenVersion) {
+      //   return res.status(401).json({ message: 'Unauthorized' })
+      // }
       // Token is valid, attach the decoded user information to the request object
       req.user = user
       next()

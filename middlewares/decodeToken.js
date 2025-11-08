@@ -12,10 +12,10 @@ const decodeToken = async (req, res, next) => {
   // Verify the token
   try {
     const decoded = await jwt.verify(token, process.env.JWT_SECRET_KEY)
-    const { userId, tokenVersion } = decoded
+    const { userId } = decoded
     // Token is valid, attach the decoded user information to the request object
     req.userId = userId
-    req.tokenVersion = tokenVersion
+    // req.tokenVersion = tokenVersion
   } catch (error) {
     console.error('Error during token verification:', error)
     req.userId = null
