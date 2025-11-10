@@ -5,5 +5,6 @@ const AiController = require("../controllers/AiController");
 const aiController = new AiController();
 
 router.post("/assistant", authMiddleware, aiController.AiMessages.bind(aiController));
+router.post("/chatgpt", authMiddleware, aiController.ChatGPT.bind(aiController));
 
 module.exports = router;

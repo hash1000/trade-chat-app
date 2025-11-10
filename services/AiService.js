@@ -115,6 +115,43 @@ class AiService {
       },
     };
   }
+
+   async ChatGPT(payload) {
+    const { message, history = [] } = payload;
+    if (!message) {
+      return this.createErrorResponse("No message provided");
+    }
+
+    try {
+      console.log("💬 ChatGPT-5 message received:", message);
+
+      const chatMessages = [
+        { role: "system", content: "You are a helpful AI assistant for QRM app." },
+        ...history,
+        { role: "user", content: message },
+      ];
+
+      // Use GPT-4o (ChatGPT-5 equivalent model)
+      const completion = await this.client.chat.completions.create({
+        model: "gpt-4o-mini", // fast & latest
+        messages: chatMessages,
+      });
+
+      const reply = completion.choices[0].message.content;
+
+      return {
+        success: true,
+        message: "ChatGPT responded successfully",
+        data: {
+          reply,
+          timestamp: new Date().toISOString(),
+        },
+      };
+    } catch (error) {
+      console.error("❌ ChatGPT Service Error:", error);
+      return this.createErrorResponse(error.message);
+    }
+  }
 }
 
 module.exports = AiService;
