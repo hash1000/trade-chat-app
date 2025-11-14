@@ -1,9 +1,11 @@
+const { User } = require("../models");
 const OpenAI = require("openai");
 
 class AiService {
   constructor() {
     this.client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     this.assistantId = process.env.OPENAI_ASSISTANT_ID;
+    this.gptAssistantId = process.env.OPENAI_GPT_ASSISTANT_ID;
   }
 
   /**
@@ -16,7 +18,9 @@ class AiService {
     if (!userQuestion) return this.createErrorResponse("No question provided");
 
     if (!this.assistantId?.startsWith("asst_")) {
-      return this.createErrorResponse(`Invalid Assistant ID: ${this.assistantId}`);
+      return this.createErrorResponse(
+        `Invalid Assistant ID: ${this.assistantId}`
+      );
     }
 
     try {
@@ -51,7 +55,6 @@ class AiService {
         message: "AI successfully processed your question",
         data: responseJson || this.defaultResponse(),
       };
-
     } catch (error) {
       console.error("❌ AI Service Error:", error);
       return this.createErrorResponse(error.message);
@@ -110,48 +113,64 @@ class AiService {
       data: {
         status: "error",
         category: "SYSTEM_ERROR",
-        assistant_greeting: message || "Sorry, service temporarily unavailable.",
+        assistant_greeting:
+          message || "Sorry, service temporarily unavailable.",
         timestamp: new Date().toISOString(),
       },
     };
   }
 
-   async ChatGPT(payload) {
-    const { message, history = [] } = payload;
+  async chatWithAI(userId, message) {
     if (!message) {
-      return this.createErrorResponse("No message provided");
+      return { success: false, message: "No message provided" };
     }
 
-    try {
-      console.log("💬 ChatGPT-5 message received:", message);
+    // 1️⃣ Get user
+    const user = await User.findOne({ where: { id: userId } });
 
-      const chatMessages = [
-        { role: "system", content: "You are a helpful AI assistant for QRM app." },
-        ...history,
-        { role: "user", content: message },
-      ];
+    let threadId = user.ai_thread_id;
 
-      // Use GPT-4o (ChatGPT-5 equivalent model)
-      const completion = await this.client.chat.completions.create({
-        model: "gpt-4o-mini", // fast & latest
-        messages: chatMessages,
-      });
+    // 2️⃣ Create thread if not exists
+    if (!threadId) {
+      const thread = await this.client.beta.threads.create();
+      threadId = thread.id;
 
-      const reply = completion.choices[0].message.content;
+      console.log("Created new AI thread:", threadId);
 
-      return {
-        success: true,
-        message: "ChatGPT responded successfully",
-        data: {
-          reply,
-          timestamp: new Date().toISOString(),
-        },
-      };
-    } catch (error) {
-      console.error("❌ ChatGPT Service Error:", error);
-      return this.createErrorResponse(error.message);
+      await User.update(
+        { ai_thread_id: threadId },
+        { where: { id: userId } }
+      );
     }
+
+    // 3️⃣ Add user message to thread
+    await this.client.beta.threads.messages.create(threadId, {
+      role: "user",
+      content: message,
+    });
+
+    // 4️⃣ Run assistant and wait until done
+    await this.client.beta.threads.runs.createAndPoll(threadId, {
+      assistant_id: this.gptAssistantId,
+    });
+
+    // 6️⃣ Fetch messages
+    const messages = await this.client.beta.threads.messages.list(threadId);
+
+    const last = messages.data.find((msg) => msg.role === "assistant");
+
+    const reply = last?.content[0]?.text?.value || "";
+
+    return {
+      success: true,
+      message: "AI responded successfully",
+      data: {
+        reply,
+        threadId,
+      },
+    };
   }
+
 }
 
 module.exports = AiService;

@@ -83,6 +83,10 @@ const User = sequelize.define(
       type: DataTypes.INTEGER,
       allowNull: true, // Allow null because the order might not be created yet
     },
+    ai_thread_id: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
     createdAt: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW,
