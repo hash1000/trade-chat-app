@@ -18,9 +18,9 @@ class AiController {
 async ChatGPT(req, res) {
   try {
     const userId = req.user.id;
-    const { message } = req.body;
+    const { message , image } = req.body;
 
-    const response = await aiService.chatWithAI(userId, message);
+    const response = await aiService.chatWithAI(userId, message,image);
 
     res.status(200).json(response);
   } catch (error) {

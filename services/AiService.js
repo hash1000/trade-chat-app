@@ -120,56 +120,60 @@ class AiService {
     };
   }
 
-  async chatWithAI(userId, message) {
-    if (!message) {
-      return { success: false, message: "No message provided" };
-    }
+async chatWithAI(userId, message, image) {
+  if (!message) {
+    return { success: false, message: "No message provided" };
+  }
 
-    // 1️⃣ Get user
-    const user = await User.findOne({ where: { id: userId } });
-
-    let threadId = user.ai_thread_id;
-
-    // 2️⃣ Create thread if not exists
-    if (!threadId) {
-      const thread = await this.client.beta.threads.create();
-      threadId = thread.id;
-
-      console.log("Created new AI thread:", threadId);
-
-      await User.update(
-        { ai_thread_id: threadId },
-        { where: { id: userId } }
-      );
-    }
-
-    // 3️⃣ Add user message to thread
-    await this.client.beta.threads.messages.create(threadId, {
-      role: "user",
-      content: message,
+  // ✨ 2️⃣ If it's an image request → Generate image
+  if (image) {
+    const image = await this.client.images.generate({
+      model: "gpt-image-1",
+      prompt: message,
+      size: "1024x1024",
     });
 
-    // 4️⃣ Run assistant and wait until done
-    await this.client.beta.threads.runs.createAndPoll(threadId, {
-      assistant_id: this.gptAssistantId,
-    });
-
-    // 6️⃣ Fetch messages
-    const messages = await this.client.beta.threads.messages.list(threadId);
-
-    const last = messages.data.find((msg) => msg.role === "assistant");
-
-    const reply = last?.content[0]?.text?.value || "";
+    console.log("✅ Image generated.",image);
 
     return {
       success: true,
-      message: "AI responded successfully",
-      data: {
-        reply,
-        threadId,
-      },
+      message: "Image generated",
+      type: "image",
+      url: image.data[0].url,
     };
   }
+
+  // 🧠 3️⃣ Otherwise → Continue assistant conversation
+  const user = await User.findOne({ where: { id: userId } });
+  let threadId = user.ai_thread_id;
+
+  if (!threadId) {
+    const thread = await this.client.beta.threads.create();
+    threadId = thread.id;
+    await User.update({ ai_thread_id: threadId }, { where: { id: userId } });
+  }
+
+  await this.client.beta.threads.messages.create(threadId, {
+    role: "user",
+    content: message,
+  });
+
+  await this.client.beta.threads.runs.createAndPoll(threadId, {
+    assistant_id: this.gptAssistantId,
+  });
+
+  const messages = await this.client.beta.threads.messages.list(threadId);
+  const last = messages.data.find((msg) => msg.role === "assistant");
+  const reply = last?.content[0]?.text?.value || "";
+
+  return {
+    success: true,
+    type: "text",
+    message: "AI responded successfully",
+    data: { reply, threadId },
+  };
+}
+
 
 }
 
