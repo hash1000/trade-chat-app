@@ -120,61 +120,80 @@ class AiService {
     };
   }
 
-async chatWithAI(userId, message, image) {
-  if (!message) {
-    return { success: false, message: "No message provided" };
+  async chatWithAI(userId, message, image) {
+    if (!message) {
+      return { success: false, message: "No message provided" };
+    }
+
+    try {
+      // ✨ 1️⃣ If it's an image request → Generate image
+      if (image) {
+        const generatedImage = await this.client.images.generate({
+          model: "gpt-image-1",
+          prompt: message,
+          size: "1024x1024",
+        });
+
+        console.log("✅ Image generated.", generatedImage);
+
+        return {
+          success: true,
+          message: "Image generated",
+          type: "image",
+          url: generatedImage.data[0].url,
+        };
+      }
+
+      // 🧠 2️⃣ Continue assistant conversation
+      const user = await User.findOne({ where: { id: userId } });
+      let threadId = user.ai_thread_id;
+
+      if (!threadId) {
+        const thread = await this.client.beta.threads.create();
+        threadId = thread.id;
+
+        await User.update(
+          { ai_thread_id: threadId },
+          { where: { id: userId } }
+        );
+      }
+
+      // Add message
+      await this.client.beta.threads.messages.create(threadId, {
+        role: "user",
+        content: message,
+      });
+
+      // Run assistant
+      await this.client.beta.threads.runs.createAndPoll(threadId, {
+        assistant_id: this.gptAssistantId,
+      });
+
+      // Fetch response
+      const messages = await this.client.beta.threads.messages.list(threadId);
+      const last = messages.data.find((msg) => msg.role === "assistant");
+      const reply = last?.content[0]?.text?.value || "";
+
+      return {
+        success: true,
+        type: "text",
+        message: "AI responded successfully",
+        data: { reply, threadId },
+      };
+    } catch (error) {
+      console.error("❌ ChatGPT API Error:", error);
+
+      // ⚠️ Billing limit check
+      if (error.code === "billing_hard_limit_reached") {
+        return this.createErrorResponse(
+          "Your OpenAI billing limit is reached. Please upgrade your plan."
+        );
+      }
+
+      // Other errors
+      return this.createErrorResponse(error.message);
+    }
   }
-
-  // ✨ 2️⃣ If it's an image request → Generate image
-  if (image) {
-    const image = await this.client.images.generate({
-      model: "gpt-image-1",
-      prompt: message,
-      size: "1024x1024",
-    });
-
-    console.log("✅ Image generated.",image);
-
-    return {
-      success: true,
-      message: "Image generated",
-      type: "image",
-      url: image.data[0].url,
-    };
-  }
-
-  // 🧠 3️⃣ Otherwise → Continue assistant conversation
-  const user = await User.findOne({ where: { id: userId } });
-  let threadId = user.ai_thread_id;
-
-  if (!threadId) {
-    const thread = await this.client.beta.threads.create();
-    threadId = thread.id;
-    await User.update({ ai_thread_id: threadId }, { where: { id: userId } });
-  }
-
-  await this.client.beta.threads.messages.create(threadId, {
-    role: "user",
-    content: message,
-  });
-
-  await this.client.beta.threads.runs.createAndPoll(threadId, {
-    assistant_id: this.gptAssistantId,
-  });
-
-  const messages = await this.client.beta.threads.messages.list(threadId);
-  const last = messages.data.find((msg) => msg.role === "assistant");
-  const reply = last?.content[0]?.text?.value || "";
-
-  return {
-    success: true,
-    type: "text",
-    message: "AI responded successfully",
-    data: { reply, threadId },
-  };
-}
-
-
 }
 
 module.exports = AiService;
