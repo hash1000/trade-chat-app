@@ -1,8 +1,7 @@
-// Payment.js
+// ListItem.js
 const { DataTypes } = require("sequelize");
 const sequelize = require("../config/database");
-const User = require("./user");
-const Category = require("./models/category");
+const Category = require("./category");
 
 const ListItem = sequelize.define(
   "listItem",

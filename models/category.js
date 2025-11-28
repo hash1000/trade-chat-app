@@ -1,8 +1,8 @@
-// Payment.js
+// Category.js
 const { DataTypes } = require("sequelize");
 const sequelize = require("../config/database");
-const User = require("./user");
 const PaymentType = require("./paymentType");
+const User = require("./user");
 
 const Category = sequelize.define(
   "category",
@@ -36,6 +36,14 @@ const Category = sequelize.define(
       type: DataTypes.INTEGER,
       references: {
         model: PaymentType,
+        key: "id",
+      },
+    },
+    userId: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      references: {
+        model: User,
         key: "id",
       },
     },

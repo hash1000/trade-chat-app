@@ -1,10 +1,17 @@
-const Category = require('../models/Category');
+const Category = require('../models/category');
 const { Op } = require('sequelize');
+const ListItem = require('../models/listItem');
 
 class CategoryRepository {
   async getCategoriesByUserId(userId) {
     return await Category.findAll({
       where: { userId },
+      include: [
+        {
+          model: ListItem,
+          as: "listItems",
+        },
+      ],
       order: [['sequence', 'ASC']],
     });
   }
@@ -16,13 +23,11 @@ class CategoryRepository {
   }
 
   async createCategory(userId, data) {
+    console.log('Creating category for userId:', userId, 'with data:', data);
     const lastItem = await Category.findOne({
-      where: { userId },
-      order: [['sequence', 'DESC']],
+      where: { userId }
     });
-
     const nextSequence = lastItem ? lastItem.sequence + 1 : 1;
-
     return await Category.create({
       userId,
       sequence: nextSequence,
@@ -31,16 +36,55 @@ class CategoryRepository {
   }
 
   async updateCategory(userId, categoryId, updateData) {
-    const category = await Category.findOne({
-      where: { id: categoryId, userId },
-    });
-    if (!category) return null;
+    const transaction = await Category.sequelize.transaction();
 
-    const { sequence, ...safeData } = updateData; // prevent sequence hacking
-    await category.update(safeData);
+    try {
+      const category = await Category.findOne({
+        where: { id: categoryId, userId },
+        transaction,
+      });
 
-    return category;
+      if (!category) {
+        await transaction.rollback();
+        return null;
+      }
+
+      // Extract listItems from payload
+      const { listItems, sequence, ...safeData } = updateData;
+
+      // Update category fields (without sequence)
+      await category.update(safeData, { transaction });
+
+      /** ------------------------------
+       *  HANDLE LIST ITEMS
+       * ------------------------------ */
+
+      if (Array.isArray(listItems)) {
+        // Delete old list items
+        await ListItem.destroy({
+          where: { categoryId },
+          transaction,
+        });
+
+        // Insert new list items
+        const newItems = listItems.map((item) => ({
+          categoryId,
+          title: item.title,
+          description: item.description,
+        }));
+
+        await ListItem.bulkCreate(newItems, { transaction });
+      }
+
+      await transaction.commit();
+      return category;
+
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
   }
+
 
   async deleteCategory(userId, categoryId) {
     const transaction = await Category.sequelize.transaction();
