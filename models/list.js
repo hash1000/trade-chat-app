@@ -1,10 +1,10 @@
-// Category.js
+// ShortList.js
 const { DataTypes } = require("sequelize");
 const sequelize = require("../config/database");
-const User = require("./user");
+const ShortList = require("./shortList");
 
-const Category = sequelize.define(
-  "category",
+const List = sequelize.define(
+  "list",
   {
     id: {
       type: DataTypes.INTEGER,
@@ -18,19 +18,28 @@ const Category = sequelize.define(
         len: [1, 100],
       },
     },
-    userId: {
-      type: DataTypes.INTEGER,
+    description: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    shortListId: {
       allowNull: false,
+      type: DataTypes.INTEGER,
       references: {
-        model: User,
+        model: ShortList,
         key: "id",
       },
+    },
+    sequence: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
     }
   },
   {
     timestamps: true,
-    tableName: "category",
+    tableName: "list",
   }
 );
 
-module.exports = Category;
+module.exports = List;

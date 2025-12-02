@@ -1,6 +1,6 @@
 // repositories/ListItemRepository.js
 
-const ListItem = require('../models/listItem');
+const ListItem = require('../models/shortList');
 
 class ListItemRepository {
   

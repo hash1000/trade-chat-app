@@ -15,7 +15,7 @@ const Income = require("./ledgerIncome");
 const Expense = require("./ledgerExpense");
 const PaymentType = require("./paymentType");
 const Category = require("./category");
-const ListItem = require("./listItem");
+const ListItem = require("./shortList");
 
 // Define all associations
 function defineAssociations() {

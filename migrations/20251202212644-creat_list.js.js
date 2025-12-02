@@ -2,7 +2,7 @@
 
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable("category", {
+    await queryInterface.createTable("list", {
       id: {
         type: Sequelize.INTEGER,
         autoIncrement: true,
@@ -12,15 +12,24 @@ module.exports = {
         type: Sequelize.STRING(100),
         allowNull: false,
       },
-      userId: {
+      description: {
+        type: Sequelize.TEXT,
+        allowNull: true,
+      },
+      shortListId: {
         type: Sequelize.INTEGER,
         allowNull: false,
         references: {
-          model: "users", // table name
+          model: "shortList",
           key: "id",
         },
         onUpdate: "CASCADE",
         onDelete: "CASCADE",
+      },
+      sequence: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
       },
       createdAt: {
         allowNull: false,
@@ -36,6 +45,6 @@ module.exports = {
   },
 
   async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable("category");
+    await queryInterface.dropTable("list");
   },
 };

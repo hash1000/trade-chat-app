@@ -1,10 +1,10 @@
-// ListItem.js
+// ShortList.js
 const { DataTypes } = require("sequelize");
 const sequelize = require("../config/database");
 const Category = require("./category");
 
-const ListItem = sequelize.define(
-  "listItem",
+const ShortList = sequelize.define(
+  "shortList",
   {
     id: {
       type: DataTypes.INTEGER,
@@ -22,6 +22,22 @@ const ListItem = sequelize.define(
       type: DataTypes.TEXT,
       allowNull: true,
     },
+    adminNote: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    customerNote: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    userId: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      references: {
+        model: User,
+        key: "id",
+      },
+    },
     categoryId: {
       allowNull: false,
       type: DataTypes.INTEGER,
@@ -33,8 +49,8 @@ const ListItem = sequelize.define(
   },
   {
     timestamps: true,
-    tableName: "listItem",
+    tableName: "shortList",
   }
 );
 
-module.exports = ListItem;
+module.exports = ShortList;

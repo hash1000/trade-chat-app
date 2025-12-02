@@ -1,6 +1,6 @@
 const Category = require('../models/category');
 const { Op } = require('sequelize');
-const ListItem = require('../models/listItem');
+const ListItem = require('../models/shortList');
 
 class CategoryRepository {
   async getCategoriesByUserId(userId) {
