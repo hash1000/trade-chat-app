@@ -4,7 +4,7 @@ const categoryService = new CategoryService();
 class CategoryController {
   async getCategories(req, res) {
     try {
-      const userId = req.user?.id;
+      const { id: userId } = req.user;
       const categories = await categoryService.getCategoriesByUserId(userId);
 
       return res.status(200).json({
@@ -20,7 +20,7 @@ class CategoryController {
 
   async getCategoryById(req, res) {
     try {
-      const userId = req.user?.id;
+      const { id: userId } = req.user;
       const { id } = req.params;
 
       const category = await categoryService.getCategoryById(userId, id);
@@ -40,247 +40,109 @@ class CategoryController {
     }
   }
 
+  
   async createCategory(req, res) {
     try {
-      const userId = req.user?.id;
-      const { title, description, adminNote, customerNote, paymentTypeId } = req.body;
+      const { id: userId } = req.user;
+      const { title } = req.body;
 
-      if (!title) {
-        return res.status(400).json({ success: false, error: "Title is required" });
-      }
+      console.log("title", title, userId);
 
-      const category = await categoryService.createCategory(userId, {
-        title,
-        description,
-        adminNote,
-        customerNote,
-        paymentTypeId,
-      });
+      // Attempt to create the category
+      const category = await categoryService.createCategory(userId, title);
 
       return res.status(201).json({
         success: true,
         message: "Category created successfully",
         data: category,
       });
-
     } catch (error) {
       console.error("createCategory Error:", error);
+
+      // Check for unique constraint error or custom error thrown for duplicate title
+      if (error.message === "Category with this title already exists") {
+        return res.status(400).json({
+          success: false,
+          error: "Category title already exists for this user",
+        });
+      }
+
+      // For any other errors, return a generic server error
       return res.status(500).json({ success: false, error: "Server Error" });
     }
   }
 
+// category.controller.js
+
   async updateCategory(req, res) {
     try {
-      const userId = req.user?.id;
-      const { id } = req.params;
-      const updateData = req.body;
+      const { id: userId } = req.user;
+      const categoryId = req.params.id;
+      const { title } = req.body;
 
-      const updated = await categoryService.updateCategory(userId, id, updateData);
-
-      if (!updated) {
-        return res.status(404).json({ success: false, error: "Category not found" });
-      }
+      const updated = await categoryService.updateCategory(
+        userId,
+        categoryId,
+        title
+      );
 
       return res.status(200).json({
         success: true,
-        message: "Category updated",
+        message: "Category updated successfully",
         data: updated,
       });
 
     } catch (error) {
       console.error("updateCategory Error:", error);
+
+      if (error.message.includes("already exists")) {
+        return res.status(400).json({
+          success: false,
+          error: "Category with this title already exists for this user",
+        });
+      }
+
+      if (error.message.includes("not found")) {
+        return res.status(404).json({
+          success: false,
+          error: "Category not found",
+        });
+      }
+
       return res.status(500).json({ success: false, error: "Server Error" });
     }
   }
 
+  // Delete category by userId and categoryId
   async deleteCategory(req, res) {
     try {
-      const userId = req.user?.id;
-      const { id } = req.params;
+      const { id: userId } = req.user;
+      const categoryId = req.params.id;
 
-      const deleted = await categoryService.deleteCategory(userId, id);
-
-      if (!deleted) {
-        return res.status(404).json({ success: false, error: "Category not found" });
-      }
+      const result = await categoryService.deleteCategory(userId, categoryId);
 
       return res.status(200).json({
         success: true,
-        message: "Category deleted successfully",
+        message: result.message
       });
 
     } catch (error) {
       console.error("deleteCategory Error:", error);
-      return res.status(500).json({ success: false, error: "Server Error" });
-    }
-  }
 
-  async reorderCategory(req, res) {
-    try {
-      const userId = req.user?.id;
-      const { id } = req.params;
-      const { newPosition } = req.body;
-
-      if (!newPosition || newPosition < 1) {
-        return res.status(400).json({ success: false, error: "Valid newPosition is required" });
+      if (error.message === "Category not found") {
+        return res.status(404).json({
+          success: false,
+          error: "Category not found"
+        });
       }
 
-      const reordered = await categoryService.reorderCategory(userId, id, newPosition);
-
-      if (!reordered) {
-        return res.status(404).json({ success: false, error: "Category not found" });
-      }
-
-      return res.status(200).json({
-        success: true,
-        message: "Category reordered",
-        data: reordered,
+      return res.status(500).json({
+        success: false,
+        error: "Server Error"
       });
-
-    } catch (error) {
-      console.error("reorderCategory Error:", error);
-      return res.status(500).json({ success: false, error: "Server Error" });
     }
   }
 
-
-  // -----------------
-  // LIST ITEM METHODS
-  // -----------------
-
-  async createListItem(req, res) {
-    try {
-      const userId = req.user?.id;
-      const { id: categoryId } = req.params;
-      const { title, description } = req.body;
-
-      if (!title) {
-        return res.status(400).json({ success: false, error: "Title is required" });
-      }
-
-      const category = await categoryService.getCategoryById(userId, categoryId);
-      if (!category) {
-        return res.status(404).json({ success: false, error: "Category not found" });
-      }
-
-      const item = await categoryService.createListItem(categoryId, { title, description });
-
-      return res.status(201).json({
-        success: true,
-        message: "Item added successfully",
-        data: item,
-      });
-
-    } catch (error) {
-      console.error("createListItem Error:", error);
-      return res.status(500).json({ success: false, error: "Server Error" });
-    }
-  }
-
-  async getListItems(req, res) {
-    try {
-      const userId = req.user?.id;
-      const { id: categoryId } = req.params;
-
-      const category = await categoryService.getCategoryById(userId, categoryId);
-      if (!category) {
-        return res.status(404).json({ success: false, error: "Category not found" });
-      }
-
-      const items = await categoryService.getListItems(categoryId);
-
-      return res.status(200).json({
-        success: true,
-        data: items,
-      });
-
-    } catch (error) {
-      console.error("getListItems Error:", error);
-      return res.status(500).json({ success: false, error: "Server Error" });
-    }
-  }
-
-  async getListItem(req, res) {
-    try {
-      const userId = req.user?.id;
-      const { id: categoryId, itemId } = req.params;
-
-      const category = await categoryService.getCategoryById(userId, categoryId);
-      if (!category) {
-        return res.status(404).json({ success: false, error: "Category not found" });
-      }
-
-      const item = await categoryService.getListItem(categoryId, itemId);
-
-      if (!item) {
-        return res.status(404).json({ success: false, error: "List item not found" });
-      }
-
-      return res.status(200).json({
-        success: true,
-        data: item,
-      });
-
-    } catch (error) {
-      console.error("getListItem Error:", error);
-      return res.status(500).json({ success: false, error: "Server Error" });
-    }
-  }
-
-  async updateListItem(req, res) {
-    try {
-      const userId = req.user?.id;
-      const { id: categoryId, itemId } = req.params;
-
-      const category = await categoryService.getCategoryById(userId, categoryId);
-      if (!category) {
-        return res.status(404).json({ success: false, error: "Category not found" });
-      }
-
-      const updated = await categoryService.updateListItem(categoryId, itemId, req.body);
-
-      if (!updated) {
-        return res.status(404).json({ success: false, error: "List item not found" });
-      }
-
-      return res.status(200).json({
-        success: true,
-        message: "List item updated",
-        data: updated,
-      });
-
-    } catch (error) {
-      console.error("updateListItem Error:", error);
-      return res.status(500).json({ success: false, error: "Server Error" });
-    }
-  }
-
-  async deleteListItem(req, res) {
-    try {
-      const userId = req.user?.id;
-      const { id: categoryId, itemId } = req.params;
-
-      const category = await categoryService.getCategoryById(userId, categoryId);
-      if (!category) {
-        return res.status(404).json({ success: false, error: "Category not found" });
-      }
-
-      const deleted = await categoryService.deleteListItem(categoryId, itemId);
-
-      if (!deleted) {
-        return res.status(404).json({ success: false, error: "List item not found" });
-      }
-
-      return res.status(200).json({
-        success: true,
-        message: "List item deleted",
-      });
-
-    } catch (error) {
-      console.error("deleteListItem Error:", error);
-      return res.status(500).json({ success: false, error: "Server Error" });
-    }
-  }
 }
 
 module.exports = CategoryController;

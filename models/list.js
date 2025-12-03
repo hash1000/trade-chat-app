@@ -1,10 +1,10 @@
-// ShortList.js
+// models/List.js
 const { DataTypes } = require("sequelize");
 const sequelize = require("../config/database");
 const ShortList = require("./shortList");
 
 const List = sequelize.define(
-  "list",
+  "lists",
   {
     id: {
       type: DataTypes.INTEGER,
@@ -15,7 +15,7 @@ const List = sequelize.define(
       type: DataTypes.STRING,
       allowNull: false,
       validate: {
-        len: [1, 100],
+        len: [1, 200],
       },
     },
     description: {
@@ -38,8 +38,11 @@ const List = sequelize.define(
   },
   {
     timestamps: true,
-    tableName: "list",
+    tableName: "lists",
   }
 );
 
 module.exports = List;
+
+
+

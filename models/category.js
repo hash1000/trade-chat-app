@@ -4,7 +4,7 @@ const sequelize = require("../config/database");
 const User = require("./user");
 
 const Category = sequelize.define(
-  "category",
+  "categories",
   {
     id: {
       type: DataTypes.INTEGER,
@@ -15,7 +15,7 @@ const Category = sequelize.define(
       type: DataTypes.STRING,
       allowNull: false,
       validate: {
-        len: [1, 100],
+        len: [1, 200],
       },
     },
     userId: {
@@ -29,7 +29,13 @@ const Category = sequelize.define(
   },
   {
     timestamps: true,
-    tableName: "category",
+    tableName: "categories",
+    indexes: [
+      {
+        unique: true,
+        fields: ["userId", "title"], // <<< UNIQUE per-user title
+      },
+    ],
   }
 );
 

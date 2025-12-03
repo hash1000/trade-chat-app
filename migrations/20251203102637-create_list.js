@@ -2,14 +2,14 @@
 
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable("list", {
+    await queryInterface.createTable("lists", {  // Use plural table names
       id: {
         type: Sequelize.INTEGER,
         autoIncrement: true,
         primaryKey: true,
       },
       title: {
-        type: Sequelize.STRING(100),
+        type: Sequelize.STRING(200),
         allowNull: false,
       },
       description: {
@@ -20,7 +20,7 @@ module.exports = {
         type: Sequelize.INTEGER,
         allowNull: false,
         references: {
-          model: "shortList",
+          model: "shortLists", // referencing shortLists table
           key: "id",
         },
         onUpdate: "CASCADE",
@@ -45,6 +45,6 @@ module.exports = {
   },
 
   async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable("list");
+    await queryInterface.dropTable("lists");
   },
 };

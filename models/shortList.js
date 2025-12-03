@@ -1,10 +1,10 @@
-// ShortList.js
+// models/shortList.js
 const { DataTypes } = require("sequelize");
 const sequelize = require("../config/database");
-const Category = require("./category");
+const User = require("./user");
 
 const ShortList = sequelize.define(
-  "shortList",
+  "shortLists",  // plural table name
   {
     id: {
       type: DataTypes.INTEGER,
@@ -15,7 +15,7 @@ const ShortList = sequelize.define(
       type: DataTypes.STRING,
       allowNull: false,
       validate: {
-        len: [1, 100],
+        len: [1, 200],
       },
     },
     description: {
@@ -30,26 +30,18 @@ const ShortList = sequelize.define(
       type: DataTypes.TEXT,
       allowNull: true,
     },
-    userId: {
-      type: DataTypes.INTEGER,
+    userId: {  // Add userId
       allowNull: false,
+      type: DataTypes.INTEGER,
       references: {
         model: User,
-        key: "id",
-      },
-    },
-    categoryId: {
-      allowNull: false,
-      type: DataTypes.INTEGER,
-      references: {
-        model: Category,
         key: "id",
       },
     }
   },
   {
     timestamps: true,
-    tableName: "shortList",
+    tableName: "shortLists",
   }
 );
 

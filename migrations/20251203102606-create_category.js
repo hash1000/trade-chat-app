@@ -2,43 +2,22 @@
 
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable("shortList", {
+    await queryInterface.createTable("categories", {  // Use plural table names
       id: {
         type: Sequelize.INTEGER,
         autoIncrement: true,
         primaryKey: true,
       },
       title: {
-        type: Sequelize.STRING(100),
+        type: Sequelize.STRING(200),
         allowNull: false,
-      },
-      description: {
-        type: Sequelize.TEXT,
-        allowNull: true,
-      },
-      adminNote: {
-        type: Sequelize.TEXT,
-        allowNull: true,
-      },
-      customerNote: {
-        type: Sequelize.TEXT,
-        allowNull: true,
+        unique: true, // Ensuring that the title is unique across categories
       },
       userId: {
         type: Sequelize.INTEGER,
         allowNull: false,
         references: {
-          model: "users", // table name
-          key: "id",
-        },
-        onUpdate: "CASCADE",
-        onDelete: "CASCADE",
-      },
-      categoryId: {
-        type: Sequelize.INTEGER,
-        allowNull: false,
-        references: {
-          model: "category",
+          model: "users", // referencing users table
           key: "id",
         },
         onUpdate: "CASCADE",
@@ -58,6 +37,6 @@ module.exports = {
   },
 
   async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable("shortList");
+    await queryInterface.dropTable("categories");
   },
 };

@@ -1,49 +1,49 @@
-// repositories/ListItemRepository.js
+// repositories/ListRepository.js
 
-const ListItem = require('../models/shortList');
+const List = require("../models/list");
 
-class ListItemRepository {
-  
-  // ➤ CREATE
-  async create(categoryId, data) {
-    return await ListItem.create({
-      categoryId,
+class ListRepository {
+
+  // ➤ CREATE a new list item
+  async create(shortListId, data) {
+    return await List.create({
+      shortListId,
       ...data,
     });
   }
 
-  // ➤ GET ALL ITEMS OF CATEGORY
-  async findAll(categoryId) {
-    return await ListItem.findAll({
-      where: { categoryId },
-      order: [["createdAt", "ASC"]],
+  // ➤ GET all lists for a specific ShortList
+  async findAll(shortListId) {
+    return await List.findAll({
+      where: { shortListId },
+      order: [["sequence", "ASC"]],  // Optional: Order by sequence
     });
   }
 
-  // ➤ GET SINGLE ITEM
-  async findOne(categoryId, itemId) {
-    return await ListItem.findOne({
-      where: { id: itemId, categoryId },
+  // ➤ GET a single list by shortListId and listId
+  async findOne(id) {
+    return await List.findOne({
+      where: { id },
     });
   }
 
-  // ➤ UPDATE
-  async update(categoryId, itemId, updateData) {
-    const item = await this.findOne(categoryId, itemId);
-    if (!item) return null;
+  // ➤ UPDATE a list item by id
+  async update(shortListId, listId, updateData) {
+    const list = await this.findOne(shortListId, listId);
+    if (!list) return null;
 
-    await item.update(updateData);
-    return item;
+    await list.update(updateData);
+    return list;
   }
 
-  // ➤ DELETE
-  async delete(categoryId, itemId) {
-    const item = await this.findOne(categoryId, itemId);
-    if (!item) return null;
+  // ➤ DELETE a list item by id
+   async delete(listId) {
 
-    await item.destroy();
+    const list = await this.findOne(listId);
+
+    await list.destroy();
     return true;
   }
 }
 
-module.exports = ListItemRepository;
+module.exports = ListRepository;

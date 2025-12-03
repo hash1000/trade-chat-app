@@ -16,6 +16,8 @@ const Expense = require("./ledgerExpense");
 const PaymentType = require("./paymentType");
 const Category = require("./category");
 const ListItem = require("./shortList");
+const ShortList = require("./shortList");
+const List = require("./list");
 
 // Define all associations
 function defineAssociations() {
@@ -83,25 +85,15 @@ function defineAssociations() {
 
   PaymentType.hasMany(Income, { foreignKey: "paymentTypeId", as: "incomes" });
   PaymentType.hasMany(Expense, { foreignKey: "paymentTypeId", as: "expenses" });
-  // 👉 PaymentType → Category
-  PaymentType.hasMany(Category, {
-    foreignKey: "paymentTypeId",
-    as: "categories",
-  });
-  Category.belongsTo(PaymentType, {
-    foreignKey: "paymentTypeId",
-    as: "paymentType",
-  });
 
-  // 👉 Category → ListItem
-  Category.hasMany(ListItem, {
-    foreignKey: "categoryId",
-    as: "listItems",
-  });
-  ListItem.belongsTo(Category, {
-    foreignKey: "categoryId",
-    as: "category",
-  });
+  // // Category to ShortList association
+  // Category.hasMany(ShortList, { foreignKey: "categoryId", as: "shortLists" });
+  // ShortList.belongsTo(Category, { foreignKey: "categoryId", as: "category" });
+
+  // ShortList to List association
+  ShortList.hasMany(List, { foreignKey: "shortListId", as: "lists" });
+  List.belongsTo(ShortList, { foreignKey: "shortListId", as: "shortList" });
+
 }
 
 // Initialize associations
