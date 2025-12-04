@@ -1,4 +1,3 @@
-// controllers/ShortListController.js
 const ShortListService = require("../services/ShortListService");
 const shortListService = new ShortListService();
 
@@ -7,12 +6,13 @@ class ShortListController {
   // Create new shortlist item
   async createListItem(req, res) {
     try {
-     const { id: userId } = req.user; 
-        // Assuming `userId` is available in `req.user`
-      const { title, description, adminNote, customerNote } = req.body;
-console.log("title, description, adminNote, customerNote", userId,title, description, adminNote, customerNote);
+      const { id: userId } = req.user; // Assuming `userId` is available in `req.user`
+      const { title, categoryId, description, adminNote, customerNote } = req.body;
+
+      console.log("title, description, adminNote, customerNote", userId, title, description, adminNote, customerNote);
+
       // Call service to create shortlist item
-      const item = await shortListService.createListItem(userId, { title, description, adminNote, customerNote });
+      const item = await shortListService.createListItem(userId, { title, categoryId, description, adminNote, customerNote });
 
       return res.status(201).json({
         success: true,
@@ -21,15 +21,14 @@ console.log("title, description, adminNote, customerNote", userId,title, descrip
       });
     } catch (error) {
       console.error("createListItem Error:", error);
-      return res.status(500).json({ success: false, error: "Server Error" });
+      return res.status(500).json({ success: false, error: error.message || "Server Error" });
     }
   }
 
   // Get all shortlist items for a user
   async getListItems(req, res) {
     try {
-     const { id: userId } = req.user; 
-      // Get all shortlist items for the logged-in user
+      const { id: userId } = req.user; // Assuming `userId` is available in `req.user`
       const items = await shortListService.getListItems(userId);
 
       return res.status(200).json({
@@ -38,17 +37,17 @@ console.log("title, description, adminNote, customerNote", userId,title, descrip
       });
     } catch (error) {
       console.error("getListItems Error:", error);
-      return res.status(500).json({ success: false, error: "Server Error" });
+      return res.status(500).json({ success: false, error: error.message || "Server Error" });
     }
   }
 
   // Get a single shortlist item by ID
   async getListItem(req, res) {
     try {
-     const { id: userId } = req.user;  // Assuming `userId` is available in `req.user`
+      const { id: userId } = req.user; // Assuming `userId` is available in `req.user`
       const { id } = req.params;
 
-      console.log("userId",userId,id);
+      console.log("userId", userId, "itemId", id);
 
       // Get shortlist item for the logged-in user
       const item = await shortListService.getListItem(userId, id);
@@ -63,14 +62,14 @@ console.log("title, description, adminNote, customerNote", userId,title, descrip
       });
     } catch (error) {
       console.error("getListItem Error:", error);
-      return res.status(500).json({ success: false, error: "Server Error" });
+      return res.status(500).json({ success: false, error: error.message || "Server Error" });
     }
   }
 
   // Update shortlist item
   async updateListItem(req, res) {
     try {
-     const { id: userId } = req.user;  // Assuming `userId` is available in `req.user`
+      const { id: userId } = req.user;  // Assuming `userId` is available in `req.user`
       const { id } = req.params;
       const updateData = req.body;
 
@@ -88,14 +87,17 @@ console.log("title, description, adminNote, customerNote", userId,title, descrip
       });
     } catch (error) {
       console.error("updateListItem Error:", error);
-      return res.status(500).json({ success: false, error: "Server Error" });
+      return res.status(500).json({
+        success: false,
+        error: error.message || "Server Error",  // Send proper error message back
+      });
     }
   }
 
   // Delete shortlist item
   async deleteListItem(req, res) {
     try {
-     const { id: userId } = req.user;  // Assuming `userId` is available in `req.user`
+      const { id: userId } = req.user;  // Assuming `userId` is available in `req.user`
       const { id } = req.params;
 
       // Delete shortlist item for the logged-in user
@@ -111,7 +113,7 @@ console.log("title, description, adminNote, customerNote", userId,title, descrip
       });
     } catch (error) {
       console.error("deleteListItem Error:", error);
-      return res.status(500).json({ success: false, error: "Server Error" });
+      return res.status(500).json({ success: false, error: error.message || "Server Error" });
     }
   }
 }

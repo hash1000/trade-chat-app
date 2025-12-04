@@ -8,6 +8,9 @@ exports.addShortItemValidator = [
     .isLength({ max: 100 })
     .withMessage("Title cannot exceed 100 characters"),
 
+  body("categoryId")
+    .notEmpty()
+    .withMessage("Category ID is required"),
   // Optional fields
   body("description").optional().isString(),
 

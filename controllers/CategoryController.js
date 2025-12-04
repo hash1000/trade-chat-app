@@ -80,35 +80,15 @@ class CategoryController {
       const categoryId = req.params.id;
       const { title } = req.body;
 
-      const updated = await categoryService.updateCategory(
-        userId,
-        categoryId,
-        title
-      );
+      const updated = await categoryService.updateCategory(userId, categoryId, title);
 
       return res.status(200).json({
         success: true,
         message: "Category updated successfully",
         data: updated,
       });
-
     } catch (error) {
       console.error("updateCategory Error:", error);
-
-      if (error.message.includes("already exists")) {
-        return res.status(400).json({
-          success: false,
-          error: "Category with this title already exists for this user",
-        });
-      }
-
-      if (error.message.includes("not found")) {
-        return res.status(404).json({
-          success: false,
-          error: "Category not found",
-        });
-      }
-
       return res.status(500).json({ success: false, error: "Server Error" });
     }
   }

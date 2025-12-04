@@ -30,7 +30,15 @@ const ShortList = sequelize.define(
       type: DataTypes.TEXT,
       allowNull: true,
     },
-    userId: {  // Add userId
+    categoryId: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      references: {
+         model: "categories",
+          key: "id",       // Column that the foreign key points to
+      }
+    },
+    userId: { 
       allowNull: false,
       type: DataTypes.INTEGER,
       references: {

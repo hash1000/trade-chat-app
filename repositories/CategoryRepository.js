@@ -66,6 +66,12 @@ class CategoryRepository {
     );
   }
 
+  async exists(categoryId) {
+    const category = await Category.findOne({
+      where: { id: categoryId }
+    });
+    return !!category;  // Returns true if category exists, otherwise false
+  }
 
 }
 

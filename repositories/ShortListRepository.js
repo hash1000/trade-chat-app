@@ -1,4 +1,6 @@
 // repositories/ShortListRepository.js
+const Category = require("../models/category");
+const List = require("../models/list");
 const ShortList = require("../models/shortList");
 
 class ShortListRepository {
@@ -6,7 +8,7 @@ class ShortListRepository {
   // ➤ CREATE - Create a new shortlist item
   async create(userId, data) {
 
-    console.log("userId",userId,data);
+    console.log("userId", userId, data);
     return await ShortList.create({
       userId,  // Add userId to the data
       ...data,
@@ -18,14 +20,35 @@ class ShortListRepository {
     return await ShortList.findAll({
       where: { userId },  // Filter by userId
       order: [["createdAt", "ASC"]],
+      include: [
+        {
+          model: Category,
+          as: "category", // The alias defined in the ShortList model
+        },
+        {
+          model: List,
+          as: "lists", // The alias defined in the List model
+        }
+      ]
     });
   }
 
   // ➤ GET SINGLE ITEM
   async findOne(userId, id) {
-    console.log("userId, itemId",userId, id);
+    console.log("userId, itemId", userId, id);
+
     return await ShortList.findOne({
       where: { id, userId },  // Ensure that the item belongs to the user
+      include: [
+        {
+          model: Category,
+          as: "category", // The alias defined in the ShortList model
+        },
+        {
+          model: List,
+          as: "lists", // The alias defined in the List model
+        }
+      ]
     });
   }
 

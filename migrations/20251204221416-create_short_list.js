@@ -24,6 +24,16 @@ module.exports = {
         type: Sequelize.TEXT,
         allowNull: true,
       },
+      categoryId: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
+        references: {
+          model: "categories",
+          key: "id",
+        },
+        onUpdate: "CASCADE",
+        onDelete: "RESTRICT",
+      },
       userId: {
         type: Sequelize.INTEGER,
         allowNull: false, // New userId field
