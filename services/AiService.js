@@ -1,7 +1,7 @@
 const { User } = require("../models");
 const OpenAI = require("openai");
 
-const MODEL = "gpt-5";   // or gpt-5-chat-latest, gpt-5-mini
+const MODEL = "gpt-5"; // or gpt-5-chat-latest, gpt-5-mini
 const MAX_HISTORY = 12;
 class AiService {
   constructor() {
@@ -197,41 +197,64 @@ class AiService {
   //   }
   // }
 
-async chatWithAI(userId, message, image) {
-  try {
+  async chatWithAI(userId, message, image = false) {
     if (!message) {
       return { success: false, message: "No message provided" };
     }
 
-  const response = await this.client.responses.create({
-    model: "gpt-5.1",
-    input: message,
-    reasoning: {
-      "effort": "none"
-    }
-  });
+    try {
+      if (image) {
+        // Generate image using OpenAI
+        const imageResponse = await this.client.images.generate({
+          model: "gpt-image-1",
+          prompt: message,
+          size: "1024x1024",
+        });
 
-    return {
-      success: true,
-      type: "text",
-      message: "AI responded successfully",
-      data: response.output_text,
-    };
-  } catch (error) {
-    console.error("❌ ChatGPT API Error:", error);
+        if (
+          !imageResponse?.data?.[0]?.b64_json
+        ) {
+          throw new Error("Image generation failed");
+        }
 
-      // ⚠️ Billing limit check
+        // Convert base64 JSON to data URL for direct viewing
+        const imageDataUrl = `data:image/png;base64,${imageResponse.data[0].b64_json}`;
+
+        return {
+          success: true,
+          type: "image",
+          url: imageDataUrl,
+          message: "Image generated successfully",
+        };
+      }
+
+      // Generate text response using GPT-5
+      const response = await this.client.responses.create({
+        model: "gpt-5.1",
+        input: message,
+        reasoning: { effort: "medium" },
+      });
+
+      return {
+        success: true,
+        type: "text",
+        message: "AI responded successfully",
+        data: response.output_text,
+      };
+    } catch (error) {
+      console.error("❌ OpenAI API Error:", error);
+
+      // Handle billing limit error
       if (error.code === "billing_hard_limit_reached") {
         return this.createErrorResponse(
           "Your OpenAI billing limit is reached. Please upgrade your plan."
         );
       }
 
-      // Other errors
-      return this.createErrorResponse(error.message);
+      // Generic error
+      return this.createErrorResponse(error.message || "Service temporarily unavailable.");
     }
   }
-
 
 }
 
