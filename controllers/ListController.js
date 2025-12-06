@@ -83,11 +83,11 @@ class ListController {
 
     async updateListItem(req, res) {
     try {
-      const { listId, id } = req.params;
+      const { shortListId, id } = req.params;
       const { title, description, sequence } = req.body;
 
       // Update the list item
-      const updatedItem = await listService.updateListItem(listId, id, { title, description, sequence });
+      const updatedItem = await listService.updateListItem(shortListId, id, { title, description, sequence });
 
       if (!updatedItem) {
         return res.status(404).json({

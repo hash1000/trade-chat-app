@@ -12,7 +12,7 @@ router.post("/:id", authenticate, addListValidator, listController.createListIte
 router.post("/reorder/:id", authenticate, listController.reorderListItems);  // New route for reordering
 router.get("/:id", authenticate, listController.getListItems);
 router.get("/single/:listId", authenticate, listController.getSingleListItems);
-router.put("/:listId/:id", authenticate, listController.updateListItem);
+router.put("/:shortListId/:id", authenticate, listController.updateListItem);
 router.delete("/:id", authenticate, listController.deleteListItem);
 
 module.exports = router;
