@@ -198,12 +198,10 @@ class AiService {
   // }
 
 async chatWithAI(userId, message, image) {
-  try{
-
-    
-  if (!message) {
-    return { success: false, message: "No message provided" };
-  }
+  try {
+    if (!message) {
+      return { success: false, message: "No message provided" };
+    }
 
   const response = await this.client.responses.create({
     model: "gpt-5.1",
@@ -214,13 +212,13 @@ async chatWithAI(userId, message, image) {
   });
 
     return {
-        success: true,
-        type: "text",
-        message: "AI responded successfully",
-        data:  response.output_text ,
-      };
-    } catch (error) {
-      console.error("❌ ChatGPT API Error:", error);
+      success: true,
+      type: "text",
+      message: "AI responded successfully",
+      data: response.output_text,
+    };
+  } catch (error) {
+    console.error("❌ ChatGPT API Error:", error);
 
       // ⚠️ Billing limit check
       if (error.code === "billing_hard_limit_reached") {
