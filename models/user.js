@@ -120,7 +120,7 @@ const User = sequelize.define(
       defaultValue: false,
     },
     fromLogin: {
-      type: DataTypes.ENUM('EMAIL', 'SIMPLE', 'TWITTER' , 'IOS', 'FACEBOOK'),
+      type: DataTypes.ENUM("EMAIL", "SIMPLE", "TWITTER", "IOS", "FACEBOOK"),
       allowNull: false,
     },
     phoneNumber_verified: {
@@ -145,6 +145,10 @@ const User = sequelize.define(
     },
     otp: {
       type: DataTypes.STRING,
+      allowNull: true,
+    },
+    chatHistory: {
+      type: DataTypes.TEXT, // or JSON if PostgreSQL
       allowNull: true,
     },
     expiration_time: {
@@ -175,14 +179,12 @@ User.associate = function (models) {
 
 // Hook to insert default permanent payment types
 User.afterCreate(async (user, options) => {
-
   const records = PaymentTypes.map((type) => ({
     name: type,
-    userId: user.id
+    userId: user.id,
   }));
 
   await PaymentType.bulkCreate(records);
 });
-
 
 module.exports = User;
