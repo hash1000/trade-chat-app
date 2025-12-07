@@ -19,7 +19,7 @@ class ShortListRepository {
     return await ShortList.findAll({
       where: { userId }, // Filter by userId
       order: [["createdAt", "ASC"]],
-      include: [
+       include: [
         {
           model: Category,
           as: "category", // The alias defined in the ShortList model
@@ -27,6 +27,17 @@ class ShortListRepository {
         {
           model: List,
           as: "lists", // The alias defined in the List model
+        },
+        {
+          model: User,
+          as: "user",
+          attributes: ["username"],
+          include: [
+            {
+              model: Role,
+              as: "roles",
+            },
+          ],
         },
       ],
     });
