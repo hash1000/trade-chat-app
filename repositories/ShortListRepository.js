@@ -1,16 +1,15 @@
 // repositories/ShortListRepository.js
+const { User, Role } = require("../models");
 const Category = require("../models/category");
 const List = require("../models/list");
 const ShortList = require("../models/shortList");
 
 class ShortListRepository {
-
   // ➤ CREATE - Create a new shortlist item
   async create(userId, data) {
-
     console.log("userId", userId, data);
     return await ShortList.create({
-      userId,  // Add userId to the data
+      userId, // Add userId to the data
       ...data,
     });
   }
@@ -18,7 +17,7 @@ class ShortListRepository {
   // ➤ GET ALL ITEMS OF A USER
   async findAll(userId) {
     return await ShortList.findAll({
-      where: { userId },  // Filter by userId
+      where: { userId }, // Filter by userId
       order: [["createdAt", "ASC"]],
       include: [
         {
@@ -28,8 +27,8 @@ class ShortListRepository {
         {
           model: List,
           as: "lists", // The alias defined in the List model
-        }
-      ]
+        },
+      ],
     });
   }
 
@@ -38,7 +37,7 @@ class ShortListRepository {
     console.log("userId, itemId", userId, id);
 
     return await ShortList.findOne({
-      where: { id, userId },  // Ensure that the item belongs to the user
+      where: { id, userId }, // Ensure that the item belongs to the user
       include: [
         {
           model: Category,
@@ -47,15 +46,15 @@ class ShortListRepository {
         {
           model: List,
           as: "lists", // The alias defined in the List model
-        }
-      ]
+        },
+      ],
     });
   }
 
   async findById(id) {
     return await ShortList.findOne({
-      where: { id },  // Ensure that the item belongs to the user
-       include: [
+      where: { id }, // Ensure that the item belongs to the user
+      include: [
         {
           model: Category,
           as: "category", // The alias defined in the ShortList model
@@ -63,8 +62,19 @@ class ShortListRepository {
         {
           model: List,
           as: "lists", // The alias defined in the List model
-        }
-      ]
+        },
+        {
+          model: User,
+          as: "user",
+          attributes: ["username"],
+          include: [
+            {
+              model: Role,
+              as: "roles",
+            },
+          ],
+        },
+      ],
     });
   }
 

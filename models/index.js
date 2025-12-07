@@ -88,11 +88,15 @@ function defineAssociations() {
 
   // // Category to ShortList association
   Category.hasMany(ShortList, { foreignKey: "categoryId", as: "shortLists" });
-ShortList.belongsTo(Category, { foreignKey: "categoryId", as: "category" });
+  ShortList.belongsTo(Category, { foreignKey: "categoryId", as: "category" });
 
   // ShortList to List association
   ShortList.hasMany(List, { foreignKey: "shortListId", as: "lists" });
   List.belongsTo(ShortList, { foreignKey: "shortListId", as: "shortList" });
+
+  
+  ShortList.belongsTo(User, { foreignKey: "userId", as: "user" });
+  User.hasMany(ShortList, { foreignKey: "userId", as: "shortLists" });
 
 }
 
