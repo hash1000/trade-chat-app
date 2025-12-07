@@ -24,8 +24,8 @@ class ShortListService {
   }
 
   // Get a single shortlist item by ID for a user
-  async getListItem(userId, id) {
-    return await shortListRepository.findOne(id);
+  async getShortListItem(id) {
+    return await shortListRepository.findById(id);
   }
 
   // Update a shortlist item

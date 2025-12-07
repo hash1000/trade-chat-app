@@ -53,9 +53,18 @@ class ShortListRepository {
   }
 
   async findById(id) {
-    console.log("userId, itemId", id);
     return await ShortList.findOne({
       where: { id },  // Ensure that the item belongs to the user
+       include: [
+        {
+          model: Category,
+          as: "category", // The alias defined in the ShortList model
+        },
+        {
+          model: List,
+          as: "lists", // The alias defined in the List model
+        }
+      ]
     });
   }
 

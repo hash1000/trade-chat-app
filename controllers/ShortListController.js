@@ -47,10 +47,8 @@ class ShortListController {
       const { id: userId } = req.user; // Assuming `userId` is available in `req.user`
       const { id } = req.params;
 
-      console.log("userId", userId, "itemId", id);
-
       // Get shortlist item for the logged-in user
-      const item = await shortListService.getListItem(userId, id);
+      const item = await shortListService.getShortListItem(id);
 
       if (!item) {
         return res.status(404).json({ success: false, error: "List item not found" });
