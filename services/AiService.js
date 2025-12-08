@@ -211,9 +211,7 @@ class AiService {
           size: "1024x1024",
         });
 
-        if (
-          !imageResponse?.data?.[0]?.b64_json
-        ) {
+        if (!imageResponse?.data?.[0]?.b64_json) {
           throw new Error("Image generation failed");
         }
 
@@ -231,8 +229,17 @@ class AiService {
       // Generate text response using GPT-5
       const response = await this.client.responses.create({
         model: "gpt-5.1",
-        input: message,
-        reasoning: { effort: "medium" },
+        input: [
+          {
+            role: "system",
+            content:
+              "You are GPT-5.1. When asked which model you are, reply GPT-5.1. and always used the most recent knowledge you have.and use GPT-5.1 model",
+          },
+          {
+            role: "user",
+            content: message,
+          },
+        ],
       });
 
       return {
@@ -252,10 +259,11 @@ class AiService {
       }
 
       // Generic error
-      return this.createErrorResponse(error.message || "Service temporarily unavailable.");
+      return this.createErrorResponse(
+        error.message || "Service temporarily unavailable."
+      );
     }
   }
-
 }
 
 module.exports = AiService;
