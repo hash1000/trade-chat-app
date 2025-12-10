@@ -17,8 +17,7 @@ class ShortListRepository {
   // ➤ GET ALL ITEMS OF A USER
   async findAll(userId) {
     return await ShortList.findAll({
-      where: { userId }, // Filter by userId
-      order: [["createdAt", "ASC"]],
+      where: { userId }, 
        include: [
         {
           model: Category,
@@ -39,6 +38,13 @@ class ShortListRepository {
             },
           ],
         },
+      ],// Filter by userId
+       order: [
+      // Order parent ShortList by createdAt
+        ["createdAt", "ASC"],
+
+        // Order child Lists by sequence
+        [{ model: List, as: "lists" }, "sequence", "ASC"],
       ],
     });
   }
@@ -59,6 +65,7 @@ class ShortListRepository {
           as: "lists", // The alias defined in the List model
         },
       ],
+      order: [[{ model: List, as: "lists" }, "sequence", "ASC"]],
     });
   }
 
@@ -86,6 +93,7 @@ class ShortListRepository {
           ],
         },
       ],
+      order: [[{ model: List, as: "lists" }, "sequence", "ASC"]],
     });
   }
 

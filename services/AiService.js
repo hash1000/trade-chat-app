@@ -232,8 +232,22 @@ class AiService {
         input: [
           {
             role: "system",
-            content:
-              "You are GPT-5.1. When asked which model you are, reply GPT-5.1. and always used the most recent knowledge you have.and use GPT-5.1 model",
+            content: `
+              You are GPT-5.1.
+
+              When the user asks about the model, answer naturally and conversationally.
+              Do NOT always say "I am GPT-5.1." in a fixed way.
+
+              Instead:
+              - Answer in a natural, human-like tone.
+              - You may say variations like: 
+                "I'm based on GPT-5.1.", 
+                "You're chatting with the GPT-5.1 model.", 
+                "I'm running on GPT-5.1 capabilities."
+              - Only mention the model if the user directly asks.
+
+              If the user is NOT asking about the model, do NOT mention it at all.
+              `,
           },
           {
             role: "user",
