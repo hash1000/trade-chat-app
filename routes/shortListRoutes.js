@@ -12,6 +12,7 @@ router.post("/", authenticate, addShortItemValidator, shortListController.create
 router.get("/", authenticate, shortListController.getListItems);
 router.get("/:id", authenticate, shortListController.getListItem);
 router.put("/:id", authenticate, addShortItemValidator, shortListController.updateListItem);
+router.post("/:id", authenticate, shortListController.duplicateListItem);
 router.delete("/:id", authenticate, shortListController.deleteListItem);
 
 module.exports = router;

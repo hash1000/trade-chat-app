@@ -11,6 +11,10 @@ class ListRepository {
     });
   }
 
+  async bulkCreateList(data) {
+    return await List.bulkCreate(data);
+  }
+
   // ➤ GET all lists for a specific ShortList
   async findAll(shortListId) {
     return await List.findAll({

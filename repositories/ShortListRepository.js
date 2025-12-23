@@ -7,7 +7,6 @@ const ShortList = require("../models/shortList");
 class ShortListRepository {
   // ➤ CREATE - Create a new shortlist item
   async create(userId, data) {
-    console.log("userId", userId, data);
     return await ShortList.create({
       userId, // Add userId to the data
       ...data,

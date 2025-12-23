@@ -92,6 +92,26 @@ class ShortListController {
     }
   }
 
+    // Create new shortlist item
+  async duplicateListItem(req, res) {
+    try {
+      const { id: userId } = req.user;
+      const { id } = req.params;
+
+      // Call service to create shortlist item
+      const item = await shortListService.duplicateListItem(userId, id);
+
+      return res.status(201).json({
+        success: true,
+        message: "Item added successfully",
+        data: item,
+      });
+    } catch (error) {
+      console.error("createListItem Error:", error);
+      return res.status(500).json({ success: false, error: error.message || "Server Error" });
+    }
+  }
+
   // Delete shortlist item
   async deleteListItem(req, res) {
     try {
