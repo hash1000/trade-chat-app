@@ -47,17 +47,39 @@ class ShortListService {
   }
 
   async duplicateListItem(userId, id) {
+    let data = {};
     // Ensure that the item belongs to the user before duplicating
     const item = await shortListRepository.findOne(userId, id);
     if (!item) return null;
 
-    const data = {
-      title: item.title,
-      categoryId: item.categoryId,
-      description: item.description,
-      adminNote: item.adminNote,
-      customerNote: item.customerNote,
-    };
+    const category = await categoryRepository.getCategoryById(
+      userId,
+      item.categoryId
+    );
+
+    if (category) {
+      data = {
+        title: item.title,
+        categoryId: item.categoryId,
+        description: item.description,
+        adminNote: item.adminNote,
+        customerNote: item.customerNote,
+      };
+    } else {
+      const category = await categoryRepository.findOne(item.categoryId);
+      if (!category) return null;
+      const newCategory = await categoryRepository.createCategory(
+        userId,
+        category.title
+      );
+      data = {
+        title: item.title,
+        categoryId: newCategory.id,
+        description: item.description,
+        adminNote: item.adminNote,
+        customerNote: item.customerNote,
+      };
+    }
 
     // Create a duplicate item
     const duplicate = await shortListRepository.create(userId, data);

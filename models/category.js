@@ -34,6 +34,7 @@ const Category = sequelize.define(
       {
         unique: true,
         fields: ["userId", "title"], // <<< UNIQUE per-user title
+        name: "unique_user_category_title"
       },
     ],
   }

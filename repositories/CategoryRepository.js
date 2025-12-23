@@ -17,13 +17,19 @@ class CategoryRepository {
 
   async getCategoryById(userId, categoryId) {
     return await Category.findOne({
-      where: { id: categoryId, userId },
+      where: { id: categoryId, userId }
     });
   }
 
     async findById(id, userId) {
     return await Category.findOne({
       where: { id, userId }
+    });
+  }
+
+    async findOne(id) {
+    return await Category.findOne({
+      where: { id }
     });
   }
 
@@ -36,7 +42,6 @@ class CategoryRepository {
 
   // Find category by title
   async findByTitle(userId, title) {
-    console.log("userId, title, findByTitle",userId, title);
     return await Category.findOne({
       where: { userId, title }
     });
@@ -52,7 +57,6 @@ class CategoryRepository {
   }
 
   async createCategory(userId, title) {
-    console.log('Creating category for userId:', userId, 'with data:', title);
     return await Category.create({
       userId,
       title
