@@ -9,6 +9,8 @@ const FavouritePayment = require("../models/favourite_payments");
 const UserFavourite = require("../models/user_favourites");
 const UserTags = require("../models/userTags");
 const { Role } = require("../models");
+const UserService = require("../services/UserService");
+const userService = new UserService();
 
 class ChatRepository {
   async findChat(requesterId, requesteeId) {
@@ -134,7 +136,7 @@ class ChatRepository {
             "description",
             "settings",
             "phoneNumber",
-            "rating", 
+            "rating",
           ],
           include: [
             {
@@ -297,12 +299,18 @@ class ChatRepository {
         userName: userName,
         profilePic: profilePic,
         description: description,
+        rating: rating,
         tags: tags,
       },
       {
         where: { user1Id: requesterId, user2Id: requesteeId },
       }
     );
+
+    if (rating) {
+      const user = await userService.getUserById(requesteeId);
+      await userService.updateUserProfile(user, { rating });
+    }
     let newTag = "";
     let userTag = await UserTags.findOne({
       where: { userId: requesterId },
