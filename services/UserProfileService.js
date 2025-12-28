@@ -206,7 +206,6 @@ class UserService {
             tags: inv.settings.tags,
           },
           roles: inv.role,
-          rating: inv.rating,
           createdAt: inv.createdAt,
           updatedAt: inv.updatedAt,
           phoneNumber: inv.phoneNumber,
