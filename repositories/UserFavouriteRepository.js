@@ -87,6 +87,7 @@ class UserFavouriteRepository {
         "age",
         "profilePic",
         "description",
+        "rating",
         "settings",
         "phoneNumber",
       ],
