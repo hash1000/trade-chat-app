@@ -289,6 +289,7 @@ class ChatRepository {
     userName,
     profilePic,
     description,
+    rating,
     tags
   ) {
     let updateFriend = await Chat.update(

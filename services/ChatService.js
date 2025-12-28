@@ -119,6 +119,7 @@ class CartService {
     userName,
     profilePic,
     description,
+    rating,
     tags
   ) {
     let chat = await this.chatRepository.findInvite(requesterId, requesteeId);
@@ -133,6 +134,7 @@ class CartService {
         userName,
         profilePic,
         description,
+        rating,
         tags
       );
     }

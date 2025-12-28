@@ -83,6 +83,7 @@ class ChatController {
         userName,
         profilePic,
         description,
+        rating,
         tags
       );
 
