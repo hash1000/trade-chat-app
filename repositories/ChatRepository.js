@@ -9,8 +9,8 @@ const FavouritePayment = require("../models/favourite_payments");
 const UserFavourite = require("../models/user_favourites");
 const UserTags = require("../models/userTags");
 const { Role } = require("../models");
-const UserService = require("../services/UserService");
-const userService = new UserService();
+const UserRepository = require("./UserRepository");
+const userRepository = new UserRepository();
 
 class ChatRepository {
   async findChat(requesterId, requesteeId) {
@@ -308,8 +308,7 @@ class ChatRepository {
     );
 
     if (rating) {
-      const user = await userService.getUserById(requesteeId);
-      await userService.updateUserProfile(user, { rating });
+      await userRepository.update(requesteeId, { rating });
     }
     let newTag = "";
     let userTag = await UserTags.findOne({
