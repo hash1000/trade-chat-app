@@ -68,6 +68,15 @@ class ShortListRepository {
     });
   }
 
+    // ➤ GET SINGLE ITEM
+  async findPinned(userId, id) {
+    console.log("userId, itemId", userId, id);
+
+    return await ShortList.findOne({
+      where: { id, userId, pin: 1 }
+    });
+  }
+
   async findById(id) {
     return await ShortList.findOne({
       where: { id }, // Ensure that the item belongs to the user

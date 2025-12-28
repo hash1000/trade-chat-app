@@ -4,6 +4,7 @@ const router = express.Router();
 const ShortListController = require("../controllers/ShortListController");
 const authenticate = require('../middlewares/authenticate');  // Assuming you have an authentication middleware
 const { addShortItemValidator } = require("../middlewares/shortListValidation");
+const checkIntegerParam = require("../middlewares/paramIntegerValidation");
 
 const shortListController = new ShortListController();
 
@@ -11,6 +12,7 @@ const shortListController = new ShortListController();
 router.post("/", authenticate, addShortItemValidator, shortListController.createListItem);
 router.get("/", authenticate, shortListController.getListItems);
 router.get("/:id", authenticate, shortListController.getListItem);
+router.patch("/pin/:shortListId",authenticate,checkIntegerParam("shortListId"),shortListController.pinShortListItem.bind(shortListController));
 router.put("/:id", authenticate, addShortItemValidator, shortListController.updateListItem);
 router.post("/:id", authenticate, shortListController.duplicateListItem);
 router.delete("/:id", authenticate, shortListController.deleteListItem);

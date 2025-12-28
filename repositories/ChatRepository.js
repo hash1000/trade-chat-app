@@ -134,6 +134,7 @@ class ChatRepository {
             "description",
             "settings",
             "phoneNumber",
+            "rating", 
           ],
           include: [
             {

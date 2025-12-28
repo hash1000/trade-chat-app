@@ -8,6 +8,8 @@
     "migrate:prod": "npx sequelize-cli db:migrate --env production",
     "migration:generate": "npx sequelize-cli migration:generate --name",
     "seed": "npx sequelize-cli db:seed:all",
+    "seed:generate": "npx sequelize-cli seed:generate --name",
+    "seed:file": "npx sequelize-cli db:seed --seed",
     "seed:prod": "npx sequelize-cli db:seed:all --env production",
     "rollback": "npx sequelize-cli db:migrate:undo",
     "check:deps": "madge --circular --extensions js ./"

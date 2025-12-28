@@ -147,17 +147,17 @@ const User = sequelize.define(
       type: DataTypes.STRING,
       allowNull: true,
     },
-    // chatHistory: {
-    //   type: DataTypes.TEXT, // or JSON if PostgreSQL
-    //   allowNull: true,
-    // },
+    rating: {
+      type: DataTypes.FLOAT, 
+      allowNull: true,
+    },
     expiration_time: {
       type: DataTypes.DATE,
       allowNull: true,
     },
   },
   {
-    tableName: "users", // Specify the table name
+    tableName: "users",
   }
 );
 

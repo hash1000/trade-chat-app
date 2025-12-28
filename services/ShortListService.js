@@ -2,6 +2,7 @@
 const ShortListRepository = require("../repositories/ShortListRepository");
 const CategoryRepository = require("../repositories/CategoryRepository"); // Add CategoryRepository to check for category existence
 const ListRepository = require("../repositories/ListRepository");
+const ShortList = require("../models/shortList");
 const shortListRepository = new ShortListRepository();
 const listRepository = new ListRepository();
 const categoryRepository = new CategoryRepository();
@@ -27,6 +28,63 @@ class ShortListService {
   // Get a single shortlist item by ID for a user
   async getShortListItem(id) {
     return await shortListRepository.findById(id);
+  }
+
+  async pinShortListItem(userId, id) {
+    let transaction;
+    try {
+      // Check if there is a currently pinned address for the user
+      const hasPinnedShortList = await shortListRepository.findPinned(
+        userId,
+        id
+      );
+
+      if (hasPinnedShortList) {
+        // If the already pinned shortlist is the same as the one being pinned, return an error
+        if (hasPinnedShortList.id === id) {
+          console.log("condition true");
+          return {
+            success: false,
+            message: "This shortlist is already pinned.",
+          };
+        }
+      }
+
+      // Start a transaction
+      transaction = await sequelize.transaction();
+
+      // Unpin any previously pinned shortlists for this user
+      await ShortList.update(
+        { pin: 0 },
+        { where: { userId: userId }, transaction }
+      );
+
+      // Pin the new shortlist
+      const [affectedRows] = await ShortList.update(
+        { pin: 1 },
+        {
+          where: { id: id, userId: userId },
+          transaction,
+        }
+      );
+
+      // Check if the row was updated successfully
+      if (affectedRows === 0) {
+        throw new Error(`No shortlist found to update.`);
+      }
+
+      // Commit the transaction
+      await transaction.commit();
+      return { success: true, message: "Shortlist pinned successfully!" };
+    } catch (error) {
+      if (transaction) await transaction.rollback(); // Rollback in case of error
+      console.error("Error pinning shortlist:", error.message || error);
+      return {
+        success: false,
+        message: "Failed to pin shortlist.",
+        error: error.message || error,
+      };
+    }
   }
 
   // Update a shortlist item

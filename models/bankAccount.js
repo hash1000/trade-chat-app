@@ -24,6 +24,10 @@ const BankAccount = sequelize.define(
       allowNull: false,
       unique: true,
     },
+    swift_code: {
+      type: DataTypes.STRING,
+      allowNull: false
+    },
     accountHolder: {
       type: DataTypes.STRING,
       allowNull: false,

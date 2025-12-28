@@ -4,7 +4,7 @@ const sequelize = require("../config/database");
 const User = require("./user");
 
 const ShortList = sequelize.define(
-  "shortLists",  // plural table name
+  "shortLists", // plural table name
   {
     id: {
       type: DataTypes.INTEGER,
@@ -13,10 +13,7 @@ const ShortList = sequelize.define(
     },
     title: {
       type: DataTypes.STRING,
-      allowNull: false,
-      validate: {
-        len: [1, 200],
-      },
+      allowNull: false
     },
     description: {
       type: DataTypes.TEXT,
@@ -34,18 +31,22 @@ const ShortList = sequelize.define(
       type: DataTypes.INTEGER,
       allowNull: false,
       references: {
-         model: "categories",
-          key: "id",       // Column that the foreign key points to
-      }
+        model: "categories",
+        key: "id", // Column that the foreign key points to
+      },
     },
-    userId: { 
+    userId: {
       allowNull: false,
       type: DataTypes.INTEGER,
       references: {
         model: User,
         key: "id",
       },
-    }
+    },
+    pin: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+    },
   },
   {
     timestamps: true,

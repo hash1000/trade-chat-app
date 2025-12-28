@@ -146,6 +146,9 @@ class UserService {
       if (profileData.role) {
         user.role = profileData.role;
       }
+      if (profileData.rating){
+        user.rating = profileData.rating;
+      }
 
       if (profileData.settings) {
         // Check if tags exist in the incoming data or user settings

@@ -64,6 +64,29 @@ class ShortListController {
     }
   }
 
+    // Get a single shortlist item by ID
+  async pinShortListItem(req, res) {
+    try {
+      const { id: userId } = req.user; // Assuming `userId` is available in `req.user`
+      const { id } = req.params;
+
+      // Get shortlist item for the logged-in user
+      const item = await shortListService.pinShortListItem(userId, id);
+
+      if (!item) {
+        return res.status(404).json({ success: false, error: "List item not found" });
+      }
+
+      return res.status(200).json({
+        success: true,
+        data: item,
+      });
+    } catch (error) {
+      console.error("getListItem Error:", error);
+      return res.status(500).json({ success: false, error: error.message || "Server Error" });
+    }
+  }
+
   // Update shortlist item
   async updateListItem(req, res) {
     try {
