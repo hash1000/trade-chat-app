@@ -11,7 +11,6 @@ class CategoryController {
         success: true,
         data: categories,
       });
-
     } catch (error) {
       console.error("getCategories Error:", error);
       return res.status(500).json({ success: false, error: "Server Error" });
@@ -26,21 +25,21 @@ class CategoryController {
       const category = await categoryService.getCategoryById(userId, id);
 
       if (!category) {
-        return res.status(404).json({ success: false, error: "Category not found" });
+        return res
+          .status(404)
+          .json({ success: false, error: "Category not found" });
       }
 
       return res.status(200).json({
         success: true,
         data: category,
       });
-
     } catch (error) {
       console.error("getCategoryById Error:", error);
       return res.status(500).json({ success: false, error: "Server Error" });
     }
   }
 
-  
   async createCategory(req, res) {
     try {
       const { id: userId } = req.user;
@@ -72,7 +71,7 @@ class CategoryController {
     }
   }
 
-// category.controller.js
+  // category.controller.js
 
   async updateCategory(req, res) {
     try {
@@ -80,7 +79,11 @@ class CategoryController {
       const categoryId = req.params.id;
       const { title } = req.body;
 
-      const updated = await categoryService.updateCategory(userId, categoryId, title);
+      const updated = await categoryService.updateCategory(
+        userId,
+        categoryId,
+        title
+      );
 
       return res.status(200).json({
         success: true,
@@ -89,6 +92,24 @@ class CategoryController {
       });
     } catch (error) {
       console.error("updateCategory Error:", error);
+      return res.status(500).json({ success: false, error: "Server Error" });
+    }
+  }
+
+  async pinCategory(req, res) {
+    try {
+      const { id: userId } = req.user;
+      const { categoryId } = req.params;
+
+      const result = await categoryService.pinCategory(userId, categoryId);
+
+      if (!result.success) {
+        return res.status(400).json(result);
+      }
+
+      return res.status(200).json(result);
+    } catch (error) {
+      console.error("pinCategory Error:", error);
       return res.status(500).json({ success: false, error: "Server Error" });
     }
   }
@@ -103,26 +124,24 @@ class CategoryController {
 
       return res.status(200).json({
         success: true,
-        message: result.message
+        message: result.message,
       });
-
     } catch (error) {
       console.error("deleteCategory Error:", error);
 
       if (error.message === "Category not found") {
         return res.status(404).json({
           success: false,
-          error: "Category not found"
+          error: "Category not found",
         });
       }
 
       return res.status(500).json({
         success: false,
-        error: "Server Error"
+        error: "Server Error",
       });
     }
   }
-
 }
 
 module.exports = CategoryController;

@@ -1,5 +1,5 @@
-const Category = require('../models/category');
-const ShortList = require('../models/shortList');
+const Category = require("../models/category");
+const ShortList = require("../models/shortList");
 
 class CategoryRepository {
   async findAll(userId) {
@@ -11,72 +11,76 @@ class CategoryRepository {
           as: "shortList",
         },
       ],
-      order: [['sequence', 'ASC']],
+      order: [["sequence", "ASC"]],
     });
   }
 
   async getCategoryById(userId, categoryId) {
     return await Category.findOne({
-      where: { id: categoryId, userId }
+      where: { id: categoryId, userId },
     });
   }
 
-    async findById(id, userId) {
+  async findById(id, userId) {
     return await Category.findOne({
-      where: { id, userId }
+      where: { id, userId },
     });
   }
 
-    async findOne(id) {
+  async findOne(id) {
     return await Category.findOne({
-      where: { id }
+      where: { id },
     });
   }
 
   // Find all categories for a user
   async findAll(userId) {
     return await Category.findAll({
-      where: { userId }
+      where: { userId },
     });
   }
 
   // Find category by title
   async findByTitle(userId, title) {
     return await Category.findOne({
-      where: { userId, title }
+      where: { userId, title },
     });
   }
 
-   // Delete category by userId and categoryId
+  // Delete category by userId and categoryId
   async deleteCategory(id, userId) {
     const result = await Category.destroy({
-      where: { id, userId }
+      where: { id, userId },
     });
 
-    return result > 0;  // Returns true if deletion was successful
+    return result > 0; // Returns true if deletion was successful
   }
 
   async createCategory(userId, title) {
     return await Category.create({
       userId,
-      title
+      title,
+    });
+  }
+
+  // ➤ GET SINGLE ITEM
+  // Find currently pinned category for user
+  async findPinned(userId) {
+    return await Category.findOne({
+      where: { userId, pin: 1 },
     });
   }
 
   async updateCategory(id, userId, title) {
-    return await Category.update(
-      { title },
-      { where: { id, userId } }
-    );
+    return await Category.update({ title }, { where: { id, userId } });
   }
 
   async exists(categoryId) {
     const category = await Category.findOne({
-      where: { id: categoryId }
+      where: { id: categoryId },
     });
-    return !!category;  // Returns true if category exists, otherwise false
+    return !!category; // Returns true if category exists, otherwise false
   }
-
 }
 
 module.exports = CategoryRepository;

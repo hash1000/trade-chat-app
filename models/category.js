@@ -14,9 +14,10 @@ const Category = sequelize.define(
     title: {
       type: DataTypes.STRING,
       allowNull: false,
-      validate: {
-        len: [1, 200],
-      },
+    },
+    pin: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
     },
     userId: {
       type: DataTypes.INTEGER,
@@ -25,7 +26,7 @@ const Category = sequelize.define(
         model: User,
         key: "id",
       },
-    }
+    },
   },
   {
     timestamps: true,
@@ -34,7 +35,7 @@ const Category = sequelize.define(
       {
         unique: true,
         fields: ["userId", "title"], // <<< UNIQUE per-user title
-        name: "unique_user_category_title"
+        name: "unique_user_category_title",
       },
     ],
   }
