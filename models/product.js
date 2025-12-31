@@ -40,7 +40,7 @@ const Product = sequelize.define('Product', {
     allowNull: false
   }
 }, {
-  tableName: 'products' // Specify the table name
+  tableName: 'products'
 })
 
 module.exports = Product

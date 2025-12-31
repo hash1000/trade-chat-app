@@ -18,7 +18,6 @@ const {
   bulkLedgerCreateValidator,
 } = require("../middlewares/paymentValidation");
 const authorize = require("../middlewares/authorization");
-const checkIntegerParam = require("../middlewares/paramIntegerValidation");
 
 const paymentController = new PaymentController();
 

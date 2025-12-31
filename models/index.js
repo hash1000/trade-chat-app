@@ -16,6 +16,9 @@ const Expense = require("./ledgerExpense");
 const PaymentType = require("./paymentType");
 const Category = require("./category");
 const ListItem = require("./listItem");
+const Shop = require("./shop");
+const ShopProduct = require("./shopProduct");
+const AddToCart = require("./AddToCart");
 
 // Define all associations
 function defineAssociations() {
@@ -102,6 +105,42 @@ function defineAssociations() {
     foreignKey: "categoryId",
     as: "category",
   });
+
+  // 👉 User → Shops
+  User.hasMany(Shop, {
+    foreignKey: "userId",
+    as: "shops",
+  });
+  Shop.belongsTo(User, {
+    foreignKey: "userId",
+    as: "user",
+  });
+
+  // 👉 Shops → ShopProducts
+  Shop.hasMany(ShopProduct, {
+    foreignKey: "shopId",
+    as: "shopProducts",
+  });
+  ShopProduct.belongsTo(Shop, {
+    foreignKey: "shopId",
+    as: "shop",
+  });
+
+// User ↔ Cart
+User.hasMany(AddToCart, { foreignKey: "userId", as: "addToCarts" });
+AddToCart.belongsTo(User, { foreignKey: "userId", as: "user" });
+
+// Product ↔ Cart
+
+ShopProduct.hasMany(AddToCart, {
+  foreignKey: "shopProductId",
+  as: "addToCarts",
+});
+
+AddToCart.belongsTo(ShopProduct, {
+  foreignKey: "shopProductId",
+  as: "product",
+});
 }
 
 // Initialize associations
