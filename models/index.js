@@ -19,7 +19,6 @@ const ListItem = require("./listItem");
 const Shop = require("./shop");
 const ShopProduct = require("./shopProduct");
 const AddToCart = require("./AddToCart");
-const ListItem = require("./shortList");
 const ShortList = require("./shortList");
 const List = require("./list");
 
