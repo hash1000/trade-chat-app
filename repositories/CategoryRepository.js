@@ -1,18 +1,17 @@
-const Category = require('../models/category');
-const { Op } = require('sequelize');
-const ListItem = require('../models/listItem');
+const Category = require("../models/category");
+const ShortList = require("../models/shortList");
 
 class CategoryRepository {
-  async getCategoriesByUserId(userId) {
+  async findAll(userId) {
     return await Category.findAll({
       where: { userId },
       include: [
         {
-          model: ListItem,
-          as: "listItems",
+          model: ShortList,
+          as: "shortList",
         },
       ],
-      order: [['sequence', 'ASC']],
+      order: [["sequence", "ASC"]],
     });
   }
 
@@ -22,160 +21,65 @@ class CategoryRepository {
     });
   }
 
-  async createCategory(userId, data) {
-    console.log('Creating category for userId:', userId, 'with data:', data);
-    const lastItem = await Category.findOne({
-      where: { userId }
+  async findById(id, userId) {
+    return await Category.findOne({
+      where: { id, userId },
     });
-    const nextSequence = lastItem ? lastItem.sequence + 1 : 1;
+  }
+
+  async findOne(id) {
+    return await Category.findOne({
+      where: { id },
+    });
+  }
+
+  // Find all categories for a user
+  async findAll(userId) {
+    return await Category.findAll({
+      where: { userId },
+    });
+  }
+
+  // Find category by title
+  async findByTitle(userId, title) {
+    return await Category.findOne({
+      where: { userId, title },
+    });
+  }
+
+  // Delete category by userId and categoryId
+  async deleteCategory(id, userId) {
+    const result = await Category.destroy({
+      where: { id, userId },
+    });
+
+    return result > 0; // Returns true if deletion was successful
+  }
+
+  async createCategory(userId, title) {
     return await Category.create({
       userId,
-      sequence: nextSequence,
-      ...data,
+      title,
     });
   }
 
-  async updateCategory(userId, categoryId, updateData) {
-    const transaction = await Category.sequelize.transaction();
-
-    try {
-      const category = await Category.findOne({
-        where: { id: categoryId, userId },
-        transaction,
-      });
-
-      if (!category) {
-        await transaction.rollback();
-        return null;
-      }
-
-      // Extract listItems from payload
-      const { listItems, sequence, ...safeData } = updateData;
-
-      // Update category fields (without sequence)
-      await category.update(safeData, { transaction });
-
-      /** ------------------------------
-       *  HANDLE LIST ITEMS
-       * ------------------------------ */
-
-      if (Array.isArray(listItems)) {
-        // Delete old list items
-        await ListItem.destroy({
-          where: { categoryId },
-          transaction,
-        });
-
-        // Insert new list items
-        const newItems = listItems.map((item) => ({
-          categoryId,
-          title: item.title,
-          description: item.description,
-        }));
-
-        await ListItem.bulkCreate(newItems, { transaction });
-      }
-
-      await transaction.commit();
-      return category;
-
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
-    }
+  // ➤ GET SINGLE ITEM
+  // Find currently pinned category for user
+  async findPinned(userId) {
+    return await Category.findOne({
+      where: { userId, pin: 1 },
+    });
   }
 
-
-  async deleteCategory(userId, categoryId) {
-    const transaction = await Category.sequelize.transaction();
-
-    try {
-      const category = await Category.findOne({
-        where: { id: categoryId, userId },
-        transaction,
-      });
-
-      if (!category) {
-        await transaction.rollback();
-        return null;
-      }
-
-      const deletedSeq = category.sequence;
-
-      await Category.destroy({
-        where: { id: categoryId, userId },
-        transaction,
-      });
-
-      await Category.update(
-        { sequence: Category.sequelize.literal('sequence - 1') },
-        {
-          where: { userId, sequence: { [Op.gt]: deletedSeq } },
-          transaction,
-        }
-      );
-
-      await transaction.commit();
-      return true;
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
-    }
+  async updateCategory(id, userId, title) {
+    return await Category.update({ title }, { where: { id, userId } });
   }
 
-  async reorderCategory(userId, categoryId, newPosition) {
-    const transaction = await Category.sequelize.transaction();
-
-    try {
-      const category = await Category.findOne({
-        where: { id: categoryId, userId },
-        transaction,
-      });
-
-      if (!category) {
-        await transaction.rollback();
-        return null;
-      }
-
-      const currentPos = category.sequence;
-
-      if (currentPos === newPosition) {
-        await transaction.commit();
-        return this.getCategoriesByUserId(userId);
-      }
-
-      if (newPosition < currentPos) {
-        await Category.update(
-          { sequence: Category.sequelize.literal('sequence + 1') },
-          {
-            where: {
-              userId,
-              sequence: { [Op.between]: [newPosition, currentPos - 1] },
-            },
-            transaction,
-          }
-        );
-      } else {
-        await Category.update(
-          { sequence: Category.sequelize.literal('sequence - 1') },
-          {
-            where: {
-              userId,
-              sequence: { [Op.between]: [currentPos + 1, newPosition] },
-            },
-            transaction,
-          }
-        );
-      }
-
-      await category.update({ sequence: newPosition }, { transaction });
-      await transaction.commit();
-
-      return this.getCategoriesByUserId(userId);
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
-    }
+  async exists(categoryId) {
+    const category = await Category.findOne({
+      where: { id: categoryId },
+    });
+    return !!category; // Returns true if category exists, otherwise false
   }
 }
 

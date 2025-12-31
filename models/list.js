@@ -1,10 +1,10 @@
-// ListItem.js
+// models/List.js
 const { DataTypes } = require("sequelize");
 const sequelize = require("../config/database");
-const Category = require("./category");
+const ShortList = require("./shortList");
 
-const ListItem = sequelize.define(
-  "listItem",
+const List = sequelize.define(
+  "lists",
   {
     id: {
       type: DataTypes.INTEGER,
@@ -15,26 +15,34 @@ const ListItem = sequelize.define(
       type: DataTypes.STRING,
       allowNull: false,
       validate: {
-        len: [1, 100],
+        len: [1, 200],
       },
     },
     description: {
       type: DataTypes.TEXT,
       allowNull: true,
     },
-    categoryId: {
+    shortListId: {
       allowNull: false,
       type: DataTypes.INTEGER,
       references: {
-        model: Category,
+        model: ShortList,
         key: "id",
       },
+    },
+    sequence: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
     }
   },
   {
     timestamps: true,
-    tableName: "listItem",
+    tableName: "lists",
   }
 );
 
-module.exports = ListItem;
+module.exports = List;
+
+
+

@@ -1,62 +1,49 @@
 "use strict";
 
-/** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable("category", {
+    await queryInterface.createTable("shortLists", {  // Use plural table names
       id: {
         type: Sequelize.INTEGER,
         autoIncrement: true,
         primaryKey: true,
       },
-
       title: {
-        type: Sequelize.STRING,
+        type: Sequelize.STRING(200),
         allowNull: false,
       },
-
       description: {
         type: Sequelize.TEXT,
         allowNull: true,
       },
-
       adminNote: {
         type: Sequelize.TEXT,
         allowNull: true,
       },
-
       customerNote: {
         type: Sequelize.TEXT,
         allowNull: true,
       },
-
-      paymentTypeId: {
+      categoryId: {
         type: Sequelize.INTEGER,
         allowNull: false,
         references: {
-          model: "payment_types",
+          model: "categories",
           key: "id",
         },
-        onDelete: "CASCADE",
         onUpdate: "CASCADE",
-      },
-
-      sequence: {
-        type: Sequelize.INTEGER,
-        allowNull: false,
-        defaultValue: 0,
+        onDelete: "RESTRICT",
       },
       userId: {
         type: Sequelize.INTEGER,
-        allowNull: false,
+        allowNull: false, // New userId field
         references: {
-          model: "users",
+          model: "users", // Assuming you're referencing a 'users' table
           key: "id",
         },
         onUpdate: "CASCADE",
         onDelete: "CASCADE",
       },
-
       createdAt: {
         allowNull: false,
         type: Sequelize.DATE,
@@ -70,7 +57,7 @@ module.exports = {
     });
   },
 
-  async down(queryInterface) {
-    await queryInterface.dropTable("category");
+  async down(queryInterface, Sequelize) {
+    await queryInterface.dropTable("shortLists");
   },
 };

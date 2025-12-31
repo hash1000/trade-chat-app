@@ -157,6 +157,10 @@ exports.validateUpdateContact = [
     .optional()
     .isString()
     .withMessage("Profile picture must be a string"),
+  body("rating")
+    .optional()
+    .isNumeric()
+    .withMessage("Rating must be a number"),
   body("tags")
     .optional()
     .isString()

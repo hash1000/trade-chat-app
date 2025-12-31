@@ -1,11 +1,10 @@
 // Category.js
 const { DataTypes } = require("sequelize");
 const sequelize = require("../config/database");
-const PaymentType = require("./paymentType");
 const User = require("./user");
 
 const Category = sequelize.define(
-  "category",
+  "categories",
   {
     id: {
       type: DataTypes.INTEGER,
@@ -15,29 +14,10 @@ const Category = sequelize.define(
     title: {
       type: DataTypes.STRING,
       allowNull: false,
-      validate: {
-        len: [1, 100],
-      },
     },
-    description: {
-      type: DataTypes.TEXT,
+    pin: {
+      type: DataTypes.BOOLEAN,
       allowNull: true,
-    },
-    adminNote: {
-      type: DataTypes.TEXT,
-      allowNull: true,
-    },
-    customerNote: {
-      type: DataTypes.TEXT,
-      allowNull: true,
-    },
-    paymentTypeId: {
-      allowNull: false,
-      type: DataTypes.INTEGER,
-      references: {
-        model: PaymentType,
-        key: "id",
-      },
     },
     userId: {
       type: DataTypes.INTEGER,
@@ -47,15 +27,17 @@ const Category = sequelize.define(
         key: "id",
       },
     },
-    sequence: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-      defaultValue: 0,
-    },
   },
   {
     timestamps: true,
-    tableName: "category",
+    tableName: "categories",
+    indexes: [
+      {
+        unique: true,
+        fields: ["userId", "title"], // <<< UNIQUE per-user title
+        name: "unique_user_category_title",
+      },
+    ],
   }
 );
 

@@ -1,36 +1,28 @@
 "use strict";
 
-/** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable("listItem", {
+    await queryInterface.createTable("categories", {  // Use plural table names
       id: {
         type: Sequelize.INTEGER,
         autoIncrement: true,
         primaryKey: true,
       },
-
       title: {
-        type: Sequelize.STRING,
+        type: Sequelize.STRING(200),
         allowNull: false,
+        unique: true, // Ensuring that the title is unique across categories
       },
-
-      description: {
-        type: Sequelize.TEXT,
-        allowNull: true,
-      },
-
-      categoryId: {
+      userId: {
         type: Sequelize.INTEGER,
         allowNull: false,
         references: {
-          model: "category",
+          model: "users", // referencing users table
           key: "id",
         },
-        onDelete: "CASCADE",
         onUpdate: "CASCADE",
+        onDelete: "CASCADE",
       },
-
       createdAt: {
         allowNull: false,
         type: Sequelize.DATE,
@@ -44,7 +36,7 @@ module.exports = {
     });
   },
 
-  async down(queryInterface) {
-    await queryInterface.dropTable("listItem");
+  async down(queryInterface, Sequelize) {
+    await queryInterface.dropTable("categories");
   },
 };

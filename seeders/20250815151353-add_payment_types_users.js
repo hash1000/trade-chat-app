@@ -7,7 +7,7 @@ module.exports = {
     const [users] = await queryInterface.sequelize.query(`
       SELECT id FROM users
     `);
-
+console.log("users", users);
     for (const user of users) {
       // Check if user already has payment types
       const [existing] = await queryInterface.sequelize.query(

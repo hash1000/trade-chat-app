@@ -1,0 +1,127 @@
+// repositories/ShortListRepository.js
+const { User, Role } = require("../models");
+const Category = require("../models/category");
+const List = require("../models/list");
+const ShortList = require("../models/shortList");
+
+class ShortListRepository {
+  // ➤ CREATE - Create a new shortlist item
+  async create(userId, data) {
+    return await ShortList.create({
+      userId, // Add userId to the data
+      ...data,
+    });
+  }
+
+  // ➤ GET ALL ITEMS OF A USER
+  async findAll(userId) {
+    return await ShortList.findAll({
+      where: { userId }, 
+       include: [
+        {
+          model: Category,
+          as: "category", // The alias defined in the ShortList model
+        },
+        {
+          model: List,
+          as: "lists", // The alias defined in the List model
+        },
+        {
+          model: User,
+          as: "user",
+          attributes: ["username"],
+          include: [
+            {
+              model: Role,
+              as: "roles",
+            },
+          ],
+        },
+      ],// Filter by userId
+       order: [
+      // Order parent ShortList by createdAt
+        ["createdAt", "ASC"],
+
+        // Order child Lists by sequence
+        [{ model: List, as: "lists" }, "sequence", "ASC"],
+      ],
+    });
+  }
+
+  // ➤ GET SINGLE ITEM
+  async findOne(userId, id) {
+    console.log("userId, itemId", userId, id);
+
+    return await ShortList.findOne({
+      where: { id, userId }, // Ensure that the item belongs to the user
+      include: [
+        {
+          model: Category,
+          as: "category", // The alias defined in the ShortList model
+        },
+        {
+          model: List,
+          as: "lists", // The alias defined in the List model
+        },
+      ],
+      order: [[{ model: List, as: "lists" }, "sequence", "ASC"]],
+    });
+  }
+
+    // ➤ GET SINGLE ITEM
+  async findPinned(userId, id) {
+    console.log("userId, itemId", userId, id);
+
+    return await ShortList.findOne({
+      where: { id, userId, pin: 1 }
+    });
+  }
+
+  async findById(id) {
+    return await ShortList.findOne({
+      where: { id }, // Ensure that the item belongs to the user
+      include: [
+        {
+          model: Category,
+          as: "category", // The alias defined in the ShortList model
+        },
+        {
+          model: List,
+          as: "lists", // The alias defined in the List model
+        },
+        {
+          model: User,
+          as: "user",
+          attributes: ["username"],
+          include: [
+            {
+              model: Role,
+              as: "roles",
+            },
+          ],
+        },
+      ],
+      order: [[{ model: List, as: "lists" }, "sequence", "ASC"]],
+    });
+  }
+
+  // ➤ UPDATE - Update a shortlist item
+  async update(userId, id, updateData) {
+    const item = await this.findOne(userId, id);
+    if (!item) return null;
+
+    await item.update(updateData);
+    return item;
+  }
+
+  // ➤ DELETE - Delete a shortlist item
+  async delete(userId, id) {
+    const item = await this.findOne(userId, id);
+    if (!item) return null;
+
+    await item.destroy();
+    return true;
+  }
+}
+
+module.exports = ShortListRepository;

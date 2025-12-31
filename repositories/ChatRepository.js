@@ -9,6 +9,8 @@ const FavouritePayment = require("../models/favourite_payments");
 const UserFavourite = require("../models/user_favourites");
 const UserTags = require("../models/userTags");
 const { Role } = require("../models");
+const UserRepository = require("./UserRepository");
+const userRepository = new UserRepository();
 
 class ChatRepository {
   async findChat(requesterId, requesteeId) {
@@ -134,6 +136,7 @@ class ChatRepository {
             "description",
             "settings",
             "phoneNumber",
+            "rating",
           ],
           include: [
             {
@@ -154,6 +157,7 @@ class ChatRepository {
       country: chat.user2.country,
       gender: chat.user2.gender,
       age: chat.user2.age,
+      rating: chat.user2.rating,
       roles: chat.user2.roles,
       profilePic: chat.profilePic || chat.user2.profilePic,
       description: chat.description || chat.user2.description,
@@ -287,6 +291,7 @@ class ChatRepository {
     userName,
     profilePic,
     description,
+    rating,
     tags
   ) {
     let updateFriend = await Chat.update(
@@ -294,12 +299,17 @@ class ChatRepository {
         userName: userName,
         profilePic: profilePic,
         description: description,
+        rating: rating,
         tags: tags,
       },
       {
         where: { user1Id: requesterId, user2Id: requesteeId },
       }
     );
+
+    if (rating) {
+      await userRepository.update(requesteeId, { rating });
+    }
     let newTag = "";
     let userTag = await UserTags.findOne({
       where: { userId: requesterId },

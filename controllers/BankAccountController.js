@@ -40,6 +40,7 @@ class BankAccountController {
         accountHolder, 
         accountCurrency, 
         bic,
+        swift_code,
         intermediateBank, 
         note,
         beneficiaryAddress 
@@ -51,6 +52,7 @@ class BankAccountController {
         accountHolder,
         accountCurrency,
         bic,
+        swift_code,
         note,
         intermediateBank,
         beneficiaryAddress,

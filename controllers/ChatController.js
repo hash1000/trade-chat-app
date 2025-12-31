@@ -74,7 +74,7 @@ class ChatController {
 
   async updateChats(req, res) {
     try {
-      const { requesteeId, userName, profilePic, description, tags } = req.body;
+      const { requesteeId, userName, profilePic, description, rating, tags } = req.body;
       const { id: userId } = req.user;
 
       const friendUpdate = await chatService.updateChats(
@@ -83,6 +83,7 @@ class ChatController {
         userName,
         profilePic,
         description,
+        rating,
         tags
       );
 

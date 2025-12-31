@@ -1,6 +1,8 @@
 const { User } = require("../models");
 const OpenAI = require("openai");
 
+const MODEL = "gpt-5"; // or gpt-5-chat-latest, gpt-5-mini
+const MAX_HISTORY = 12;
 class AiService {
   constructor() {
     this.client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -120,78 +122,160 @@ class AiService {
     };
   }
 
-  async chatWithAI(userId, message, image) {
+  // async chatWithAI(userId, message, image) {
+  //   if (!message) {
+  //     return { success: false, message: "No message provided" };
+  //   }
+
+  //   try {
+  //     // ✨ 1️⃣ If it's an image request → Generate image
+  //     if (image) {
+  //       const generatedImage = await this.client.images.generate({
+  //         model: "gpt-image-1",
+  //         prompt: message,
+  //         size: "1024x1024",
+  //       });
+
+  //       console.log("✅ Image generated.", generatedImage);
+
+  //       return {
+  //         success: true,
+  //         message: "Image generated",
+  //         type: "image",
+  //         url: generatedImage.data[0].url,
+  //       };
+  //     }
+
+  //     // 🧠 2️⃣ Continue assistant conversation
+  //     const user = await User.findOne({ where: { id: userId } });
+  //     let threadId = user.ai_thread_id;
+
+  //     if (!threadId) {
+  //       const thread = await this.client.beta.threads.create();
+  //       threadId = thread.id;
+
+  //       await User.update(
+  //         { ai_thread_id: threadId },
+  //         { where: { id: userId } }
+  //       );
+  //     }
+
+  //     // Add message
+  //     await this.client.beta.threads.messages.create(threadId, {
+  //       role: "user",
+  //       content: message,
+  //     });
+
+  //     // Run assistant
+  //     await this.client.beta.threads.runs.createAndPoll(threadId, {
+  //       assistant_id: this.gptAssistantId,
+  //     });
+
+  //     // Fetch response
+  //     const messages = await this.client.beta.threads.messages.list(threadId);
+  //     const last = messages.data.find((msg) => msg.role === "assistant");
+  //     const reply = last?.content[0]?.text?.value || "";
+
+  //     return {
+  //       success: true,
+  //       type: "text",
+  //       message: "AI responded successfully",
+  //       data: { reply, threadId },
+  //     };
+  //   } catch (error) {
+  //     console.error("❌ ChatGPT API Error:", error);
+
+  //     // ⚠️ Billing limit check
+  //     if (error.code === "billing_hard_limit_reached") {
+  //       return this.createErrorResponse(
+  //         "Your OpenAI billing limit is reached. Please upgrade your plan."
+  //       );
+  //     }
+
+  //     // Other errors
+  //     return this.createErrorResponse(error.message);
+  //   }
+  // }
+
+  async chatWithAI(userId, message, image = false) {
     if (!message) {
       return { success: false, message: "No message provided" };
     }
 
     try {
-      // ✨ 1️⃣ If it's an image request → Generate image
       if (image) {
-        const generatedImage = await this.client.images.generate({
+        // Generate image using OpenAI
+        const imageResponse = await this.client.images.generate({
           model: "gpt-image-1",
           prompt: message,
           size: "1024x1024",
         });
 
-        console.log("✅ Image generated.", generatedImage);
+        if (!imageResponse?.data?.[0]?.b64_json) {
+          throw new Error("Image generation failed");
+        }
+
+        // Convert base64 JSON to data URL for direct viewing
+        const imageDataUrl = `data:image/png;base64,${imageResponse.data[0].b64_json}`;
 
         return {
           success: true,
-          message: "Image generated",
           type: "image",
-          url: generatedImage.data[0].url,
+          url: imageDataUrl,
+          message: "Image generated successfully",
         };
       }
 
-      // 🧠 2️⃣ Continue assistant conversation
-      const user = await User.findOne({ where: { id: userId } });
-      let threadId = user.ai_thread_id;
+      // Generate text response using GPT-5
+      const response = await this.client.responses.create({
+        model: "gpt-5.1",
+        input: [
+          {
+            role: "system",
+            content: `
+              You are GPT-5.1.
 
-      if (!threadId) {
-        const thread = await this.client.beta.threads.create();
-        threadId = thread.id;
+              When the user asks about the model, answer naturally and conversationally.
+              Do NOT always say "I am GPT-5.1." in a fixed way.
 
-        await User.update(
-          { ai_thread_id: threadId },
-          { where: { id: userId } }
-        );
-      }
+              Instead:
+              - Answer in a natural, human-like tone.
+              - You may say variations like: 
+                "I'm based on GPT-5.1.", 
+                "You're chatting with the GPT-5.1 model.", 
+                "I'm running on GPT-5.1 capabilities."
+              - Only mention the model if the user directly asks.
 
-      // Add message
-      await this.client.beta.threads.messages.create(threadId, {
-        role: "user",
-        content: message,
+              If the user is NOT asking about the model, do NOT mention it at all.
+              `,
+          },
+          {
+            role: "user",
+            content: message,
+          },
+        ],
       });
-
-      // Run assistant
-      await this.client.beta.threads.runs.createAndPoll(threadId, {
-        assistant_id: this.gptAssistantId,
-      });
-
-      // Fetch response
-      const messages = await this.client.beta.threads.messages.list(threadId);
-      const last = messages.data.find((msg) => msg.role === "assistant");
-      const reply = last?.content[0]?.text?.value || "";
 
       return {
         success: true,
         type: "text",
         message: "AI responded successfully",
-        data: { reply, threadId },
+        data: response.output_text,
       };
     } catch (error) {
-      console.error("❌ ChatGPT API Error:", error);
+      console.error("❌ OpenAI API Error:", error);
 
-      // ⚠️ Billing limit check
+      // Handle billing limit error
       if (error.code === "billing_hard_limit_reached") {
         return this.createErrorResponse(
           "Your OpenAI billing limit is reached. Please upgrade your plan."
         );
       }
 
-      // Other errors
-      return this.createErrorResponse(error.message);
+      // Generic error
+      return this.createErrorResponse(
+        error.message || "Service temporarily unavailable."
+      );
     }
   }
 }

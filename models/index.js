@@ -19,6 +19,9 @@ const ListItem = require("./listItem");
 const Shop = require("./shop");
 const ShopProduct = require("./shopProduct");
 const AddToCart = require("./AddToCart");
+const ListItem = require("./shortList");
+const ShortList = require("./shortList");
+const List = require("./list");
 
 // Define all associations
 function defineAssociations() {
@@ -81,20 +84,17 @@ function defineAssociations() {
   PaymentType.belongsTo(User, { foreignKey: "userId", as: "user" });
   User.hasMany(PaymentType, { foreignKey: "userId", as: "paymentTypes" });
 
-  Income.belongsTo(PaymentType, { foreignKey: "paymentTypeId", as: "paymentType" });
-  Expense.belongsTo(PaymentType, { foreignKey: "paymentTypeId", as: "paymentType" });
-
-  PaymentType.hasMany(Income, { foreignKey: "paymentTypeId", as: "incomes" });
-  PaymentType.hasMany(Expense, { foreignKey: "paymentTypeId", as: "expenses" });
-  // 👉 PaymentType → Category
-  PaymentType.hasMany(Category, {
-    foreignKey: "paymentTypeId",
-    as: "categories",
-  });
-  Category.belongsTo(PaymentType, {
+  Income.belongsTo(PaymentType, {
     foreignKey: "paymentTypeId",
     as: "paymentType",
   });
+  Expense.belongsTo(PaymentType, {
+    foreignKey: "paymentTypeId",
+    as: "paymentType",
+  });
+
+  PaymentType.hasMany(Income, { foreignKey: "paymentTypeId", as: "incomes" });
+  PaymentType.hasMany(Expense, { foreignKey: "paymentTypeId", as: "expenses" });
 
   // 👉 Category → ListItem
   Category.hasMany(ListItem, {
@@ -126,21 +126,31 @@ function defineAssociations() {
     as: "shop",
   });
 
-// User ↔ Cart
-User.hasMany(AddToCart, { foreignKey: "userId", as: "addToCarts" });
-AddToCart.belongsTo(User, { foreignKey: "userId", as: "user" });
+  // User ↔ Cart
+  User.hasMany(AddToCart, { foreignKey: "userId", as: "addToCarts" });
+  AddToCart.belongsTo(User, { foreignKey: "userId", as: "user" });
 
-// Product ↔ Cart
+  // Product ↔ Cart
 
-ShopProduct.hasMany(AddToCart, {
-  foreignKey: "shopProductId",
-  as: "addToCarts",
-});
+  ShopProduct.hasMany(AddToCart, {
+    foreignKey: "shopProductId",
+    as: "addToCarts",
+  });
 
-AddToCart.belongsTo(ShopProduct, {
-  foreignKey: "shopProductId",
-  as: "product",
-});
+  AddToCart.belongsTo(ShopProduct, {
+    foreignKey: "shopProductId",
+    as: "product",
+  });
+  // // Category to ShortList association
+  Category.hasMany(ShortList, { foreignKey: "categoryId", as: "shortLists" });
+  ShortList.belongsTo(Category, { foreignKey: "categoryId", as: "category" });
+
+  // ShortList to List association
+  ShortList.hasMany(List, { foreignKey: "shortListId", as: "lists" });
+  List.belongsTo(ShortList, { foreignKey: "shortListId", as: "shortList" });
+
+  ShortList.belongsTo(User, { foreignKey: "userId", as: "user" });
+  User.hasMany(ShortList, { foreignKey: "userId", as: "shortLists" });
 }
 
 // Initialize associations

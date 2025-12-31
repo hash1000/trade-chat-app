@@ -8,7 +8,10 @@
     "migrate:prod": "npx sequelize-cli db:migrate --env production",
     "migration:generate": "npx sequelize-cli migration:generate --name",
     "seed": "npx sequelize-cli db:seed:all",
+    "seed:generate": "npx sequelize-cli seed:generate --name",
+    "seed:file": "npx sequelize-cli db:seed --seed",
     "seed:prod": "npx sequelize-cli db:seed:all --env production",
+    "seed:single": "npx sequelize-cli db:seed --seed  --env production",
     "rollback": "npx sequelize-cli db:migrate:undo",
     "check:deps": "madge --circular --extensions js ./"
   },
@@ -40,7 +43,7 @@
     "nodemon": "^3.1.0",
     "openai": "^6.8.1",
     "otp-generator": "^4.0.1",
-    "sequelize": "^6.32.1",
+    "sequelize": "^6.37.7",
     "sharp": "^0.34.2",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1",
@@ -49,7 +52,7 @@
     "twilio": "^5.4.0"
   },
   "devDependencies": {
-    "sequelize-cli": "^6.6.2",
+    "sequelize-cli": "^6.6.3",
     "standard": "^17.1.0"
   }
 }

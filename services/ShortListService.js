@@ -1,0 +1,166 @@
+// services/ShortListService.js
+const ShortListRepository = require("../repositories/ShortListRepository");
+const CategoryRepository = require("../repositories/CategoryRepository"); // Add CategoryRepository to check for category existence
+const ListRepository = require("../repositories/ListRepository");
+const ShortList = require("../models/shortList");
+const shortListRepository = new ShortListRepository();
+const listRepository = new ListRepository();
+const categoryRepository = new CategoryRepository();
+
+class ShortListService {
+  // Create a shortlist item
+  async createListItem(userId, data) {
+    // Check if the categoryId exists
+    const categoryExists = await categoryRepository.exists(data.categoryId);
+    if (!categoryExists) {
+      throw new Error("Category not found");
+    }
+
+    // Add userId to the data before saving it to the repository
+    return await shortListRepository.create(userId, data);
+  }
+
+  // Get all shortlist items for a user
+  async getListItems(userId) {
+    return await shortListRepository.findAll(userId);
+  }
+
+  // Get a single shortlist item by ID for a user
+  async getShortListItem(id) {
+    return await shortListRepository.findById(id);
+  }
+
+  async pinShortListItem(userId, id) {
+    let transaction;
+    try {
+      // Check if there is a currently pinned address for the user
+      const hasPinnedShortList = await shortListRepository.findPinned(
+        userId,
+        id
+      );
+
+      if (hasPinnedShortList) {
+        // If the already pinned shortlist is the same as the one being pinned, return an error
+        if (hasPinnedShortList.id === id) {
+          console.log("condition true");
+          return {
+            success: false,
+            message: "This shortlist is already pinned.",
+          };
+        }
+      }
+
+      // Start a transaction
+      transaction = await sequelize.transaction();
+
+      // Unpin any previously pinned shortlists for this user
+      await ShortList.update(
+        { pin: 0 },
+        { where: { userId: userId }, transaction }
+      );
+
+      // Pin the new shortlist
+      const [affectedRows] = await ShortList.update(
+        { pin: 1 },
+        {
+          where: { id: id, userId: userId },
+          transaction,
+        }
+      );
+
+      // Check if the row was updated successfully
+      if (affectedRows === 0) {
+        throw new Error(`No shortlist found to update.`);
+      }
+
+      // Commit the transaction
+      await transaction.commit();
+      return { success: true, message: "Shortlist pinned successfully!" };
+    } catch (error) {
+      if (transaction) await transaction.rollback(); // Rollback in case of error
+      console.error("Error pinning shortlist:", error.message || error);
+      return {
+        success: false,
+        message: "Failed to pin shortlist.",
+        error: error.message || error,
+      };
+    }
+  }
+
+  // Update a shortlist item
+  async updateListItem(userId, id, updateData) {
+    // Ensure that the item belongs to the user before updating
+    const item = await shortListRepository.findOne(userId, id);
+    if (!item) return null;
+
+    // Check if the categoryId exists before updating
+    const categoryExists = await categoryRepository.exists(
+      updateData.categoryId
+    );
+    if (!categoryExists) {
+      throw new Error("Category not found");
+    }
+
+    return await shortListRepository.update(userId, id, updateData);
+  }
+
+  async duplicateListItem(userId, id) {
+    let data = {};
+    // Ensure that the item belongs to the user before duplicating
+    const item = await shortListRepository.findOne(userId, id);
+    if (!item) return null;
+
+    const category = await categoryRepository.getCategoryById(
+      userId,
+      item.categoryId
+    );
+
+    if (category) {
+      data = {
+        title: item.title,
+        categoryId: item.categoryId,
+        description: item.description,
+        adminNote: item.adminNote,
+        customerNote: item.customerNote,
+      };
+    } else {
+      const category = await categoryRepository.findOne(item.categoryId);
+      if (!category) return null;
+      const newCategory = await categoryRepository.createCategory(
+        userId,
+        category.title
+      );
+      data = {
+        title: item.title,
+        categoryId: newCategory.id,
+        description: item.description,
+        adminNote: item.adminNote,
+        customerNote: item.customerNote,
+      };
+    }
+
+    // Create a duplicate item
+    const duplicate = await shortListRepository.create(userId, data);
+    if (item.lists && item.lists.length > 0) {
+      const listData = item.lists.map((listData) => ({
+        title: listData.title,
+        sequence: listData.sequence,
+        description: listData.description,
+        shortListId: duplicate.id,
+      }));
+      listRepository.bulkCreateList(listData);
+    }
+    return duplicate;
+  }
+
+  // Delete a shortlist item
+  async deleteListItem(userId, id) {
+    // Ensure that the item belongs to the user before deleting
+    const item = await shortListRepository.findOne(userId, id);
+    if (!item) return null;
+
+    return await shortListRepository.delete(userId, id);
+  }
+}
+
+module.exports = ShortListService;

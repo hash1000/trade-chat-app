@@ -15,22 +15,23 @@ class AiController {
     }
   }
 
-async ChatGPT(req, res) {
-  try {
-    const userId = req.user.id;
-    const { message , image } = req.body;
+  async ChatGPT(req, res) {
+    try {
+      const userId = req.user.id;
+      const { message, image } = req.body;
 
-    const response = await aiService.chatWithAI(userId, message,image);
+      const result = await aiService.chatWithAI(userId, message, image);
 
-    res.status(200).json(response);
-  } catch (error) {
-    console.error("ChatGPT API Error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Internal Server Error",
-    });
+      res.status(200).json(result);
+    } catch (error) {
+      console.error("ChatGPT API Error:", error);
+
+      res.status(500).json({
+        success: false,
+        message: "Internal Server Error",
+      });
+    }
   }
-}
 
 }
 

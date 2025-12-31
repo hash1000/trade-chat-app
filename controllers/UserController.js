@@ -1016,6 +1016,7 @@ class UserController {
         lastName,
         gender,
         age,
+        rating,
         settings,
         profilePic,
         password,
@@ -1047,6 +1048,7 @@ class UserController {
             password,
             settings,
             description,
+            rating,
           });
           res.json({ user: updatedUser });
         }
@@ -1062,6 +1064,7 @@ class UserController {
           password,
           settings,
           description,
+            rating,
         });
         res.json({ user: updatedUser });
       }
