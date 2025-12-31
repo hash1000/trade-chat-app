@@ -15,7 +15,6 @@ const Income = require("./ledgerIncome");
 const Expense = require("./ledgerExpense");
 const PaymentType = require("./paymentType");
 const Category = require("./category");
-const ListItem = require("./listItem");
 const Shop = require("./shop");
 const ShopProduct = require("./shopProduct");
 const AddToCart = require("./AddToCart");
@@ -95,15 +94,6 @@ function defineAssociations() {
   PaymentType.hasMany(Income, { foreignKey: "paymentTypeId", as: "incomes" });
   PaymentType.hasMany(Expense, { foreignKey: "paymentTypeId", as: "expenses" });
 
-  // 👉 Category → ListItem
-  Category.hasMany(ListItem, {
-    foreignKey: "categoryId",
-    as: "listItems",
-  });
-  ListItem.belongsTo(Category, {
-    foreignKey: "categoryId",
-    as: "category",
-  });
 
   // 👉 User → Shops
   User.hasMany(Shop, {
