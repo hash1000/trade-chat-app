@@ -228,7 +228,7 @@ class AiService {
 
       // Generate text response using GPT-5
       const response = await this.client.responses.create({
-        model: "gpt-5.1",
+        model: "gpt-5.2",
         input: [
           {
             role: "system",
