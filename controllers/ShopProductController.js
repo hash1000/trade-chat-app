@@ -53,7 +53,11 @@ class ShopProductController {
       const { id: userId } = req.user
 
       const products = await productService.getProductsByShop(shopId, userId)
-      return res.json(products)
+      return res.json({
+        status: true,
+        message: "Successfully fetched product",
+        data: products
+      })
     } catch (error) {
       return res
         .status(error.statusCode || 500)
@@ -67,7 +71,11 @@ class ShopProductController {
       const { id: userId } = req.user
 
       const product = await productService.getProductById(productId, userId)
-      return res.json(product)
+      return res.json({
+        status: true,
+        message: "Successfully fetched product",
+        data: product
+      })
     } catch (error) {
       return res
         .status(error.statusCode || 500)
@@ -85,7 +93,11 @@ class ShopProductController {
         name,
         shopId
       )
-      return res.json(products)
+      return res.json({
+        status: true,
+        message: "Successfully fetched  products",
+        data: products
+      })
     } catch (error) {
       return res.status(500).json({ message: 'Failed to list products' })
     }

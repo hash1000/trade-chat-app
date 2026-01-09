@@ -233,10 +233,10 @@ class AiService {
           {
             role: "system",
             content: `
-              You are GPT-5.1.
+              You are GPT-5.2,
 
               When the user asks about the model, answer naturally and conversationally.
-              Do NOT always say "I am GPT-5.1." in a fixed way.
+              Do NOT always say "I am GPT-5.2." in a fixed way.
 
               Instead:
               - Answer in a natural, human-like tone.

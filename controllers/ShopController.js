@@ -43,7 +43,11 @@ class ShopController {
     try {
       const { id: userId } = req.user
       const shops = await shopService.getShopsByUserId(userId)
-      return res.json(shops)
+       return res.json({
+        status: true,
+        message: "Successfully fetched shops",
+        data: shops
+      })
     } catch (error) {
       console.error(error)
       return res.status(500).json({ message: 'Failed to retrieve shops' })
@@ -56,7 +60,11 @@ class ShopController {
       const { id: userId } = req.user
       const { id } = req.params
       const shops = await shopService.getShopsById(userId,id)
-      return res.json(shops)
+       return res.json({
+        status: true,
+        message: "Successfully fetched shops",
+        data: shops
+      })
     } catch (error) {
       console.error(error)
       return res.status(500).json({ message: 'Failed to retrieve shops' })
@@ -67,7 +75,11 @@ class ShopController {
     try {
       const { page = 1, limit = 10, shop_name, country } = req.query
       const data = await shopService.getPaginatedShops(page, limit, shop_name, country)
-      return res.json(data)
+      return res.json({
+        status: true,
+        message: "Successfully fetched shops",
+        data
+      })
     } catch (error) {
       console.error(error)
       return res.status(500).json({ message: 'Failed to list shops' })
