@@ -15,6 +15,11 @@ const ShortList = sequelize.define(
       type: DataTypes.STRING,
       allowNull: false
     },
+    type: {
+      type: DataTypes.ENUM("CHECKMARK", "NUMBERS", "BULLETS", "STEPS", "TASK"),
+      allowNull: false,
+      defaultValue: "NUMBERS",
+    },
     description: {
       type: DataTypes.TEXT,
       allowNull: true,
