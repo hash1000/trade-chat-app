@@ -7,12 +7,10 @@ class ShortListController {
   async createListItem(req, res) {
     try {
       const { id: userId } = req.user; // Assuming `userId` is available in `req.user`
-      const { title, categoryId, description, adminNote, customerNote } = req.body;
-
-      console.log("title, description, adminNote, customerNote", userId, title, description, adminNote, customerNote);
+      const { title, categoryId, description, adminNote, customerNote, type } = req.body;
 
       // Call service to create shortlist item
-      const item = await shortListService.createListItem(userId, { title, categoryId, description, adminNote, customerNote });
+      const item = await shortListService.createListItem(userId, { title, categoryId, description, adminNote, customerNote, type });
 
       return res.status(201).json({
         success: true,

@@ -10,7 +10,7 @@ const {
   getProductsByShopValidation,
   getPaginatedProductsValidation,
   getProductValidation,
-} = require('../middlewares/shopProduct.validator')
+} = require('../middlewares/shopProductValidator')
 
 const controller = new ShopProductController()
 

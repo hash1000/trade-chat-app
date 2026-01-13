@@ -8,21 +8,32 @@ exports.addShortItemValidator = [
     .isLength({ max: 100 })
     .withMessage("Title cannot exceed 100 characters"),
 
-  body("categoryId")
-    .notEmpty()
-    .withMessage("Category ID is required"),
+  // "CHECKMARK", "NUMBERS", "BULLETS", "STEPS", "TASK"
+
+  body("type")
+    .optional()
+    .custom((value) => {
+      const validType = ["CHECKMARK", "NUMBERS", "BULLETS", "STEPS", "TASK"];
+      const isValid = validType.includes(value);
+      if (value && !isValid) {
+        throw new Error("Invalid type in the array");
+      }
+      return true;
+    })
+    .withMessage(
+      "Type must be one of the following: CHECKMARK, NUMBERS, BULLETS, STEPS, TASK"
+    )
+    .bail(),
+
+  body("categoryId").notEmpty().withMessage("Category ID is required"),
   // Optional fields
   body("description").optional().isString(),
 
-  body("adminNote")
-    .optional()
-    .isString(),
+  body("adminNote").optional().isString(),
 
-  body("customerNote")
-    .optional()
-    .isString(),
+  body("customerNote").optional().isString(),
 
-  handleValidationErrors
+  handleValidationErrors,
 ];
 
 // Function to handle validation errors

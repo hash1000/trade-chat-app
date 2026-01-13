@@ -2,10 +2,11 @@ const ShopProduct = require("../models/shopProduct");
 const { Op } = require("sequelize");
 const CustomError = require("../errors/CustomError");
 const Shop = require("../models/shop");
+const ProductImage = require("../models/productImage");
 
 class ShopProductRepository {
-  async createProduct(data) {
-    return ShopProduct.create(data);
+  async createProduct(data, transaction) {
+    return ShopProduct.create(data, { transaction });
   }
 
   async updateProduct(productId, productData) {
@@ -22,13 +23,30 @@ class ShopProductRepository {
   }
 
   async getById(productId) {
-    const product = await ShopProduct.findByPk(productId);
+    const product = await ShopProduct.findOne({
+      where: { id: productId }, // Ensure you're querying the correct product ID
+      include: [
+        {
+          model: ProductImage,
+          as: "productImages", // Use the alias defined in the association
+        },
+      ],
+    });
     if (!product) throw new CustomError("Product not found", 404);
     return product;
   }
 
   async getByShopId(shopId) {
-    return ShopProduct.findAll({ where: { shopId } });
+    const product = await ShopProduct.findAll({
+      where: { shopId }, // Ensure you're querying the correct product ID
+      include: [
+        {
+          model: ProductImage,
+          as: "productImages", // Use the alias defined in the association
+        },
+      ],
+    });
+    return product;
   }
 
   async getProductById(productId, userId) {

@@ -20,6 +20,7 @@ const ShopProduct = require("./shopProduct");
 const AddToCart = require("./AddToCart");
 const ShortList = require("./shortList");
 const List = require("./list");
+const ProductImage = require("./productImage");
 
 // Define all associations
 function defineAssociations() {
@@ -94,7 +95,6 @@ function defineAssociations() {
   PaymentType.hasMany(Income, { foreignKey: "paymentTypeId", as: "incomes" });
   PaymentType.hasMany(Expense, { foreignKey: "paymentTypeId", as: "expenses" });
 
-
   // 👉 User → Shops
   User.hasMany(Shop, {
     foreignKey: "userId",
@@ -130,7 +130,7 @@ function defineAssociations() {
     foreignKey: "shopProductId",
     as: "product",
   });
-  // // Category to ShortList association
+  // Category to ShortList association
   Category.hasMany(ShortList, { foreignKey: "categoryId", as: "shortLists" });
   ShortList.belongsTo(Category, { foreignKey: "categoryId", as: "category" });
 
@@ -140,6 +140,16 @@ function defineAssociations() {
 
   ShortList.belongsTo(User, { foreignKey: "userId", as: "user" });
   User.hasMany(ShortList, { foreignKey: "userId", as: "shortLists" });
+
+  // product to image association
+  ShopProduct.hasMany(ProductImage, {
+    foreignKey: "shopProductId",
+    as: "productImages",
+  });
+  ProductImage.belongsTo(ShopProduct, {
+    foreignKey: "shopProductId",
+    as: "shopProduct",
+  });
 }
 
 // Initialize associations

@@ -67,7 +67,7 @@ class CategoryController {
       }
 
       // For any other errors, return a generic server error
-      return res.status(500).json({ success: false, error: "Server Error" });
+      return res.status(500).json({ success: false, error: error.errors || "Server Error" });
     }
   }
 
