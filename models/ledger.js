@@ -38,6 +38,16 @@ const Ledger = db.define(
         key: "id",
       },
     },
+    archived: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
+    sequence: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
+    },
     createdAt: {
       allowNull: false,
       type: DataTypes.DATE,
@@ -47,7 +57,7 @@ const Ledger = db.define(
       allowNull: false,
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW,
-    },
+    }
   },
   {
     tableName: "ledger",

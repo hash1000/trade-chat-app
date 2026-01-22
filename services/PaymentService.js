@@ -145,7 +145,14 @@ class PaymentService {
         {
           model: User,
           as: "user",
-          attributes: ["id", "username", "firstname", "lastname", "profilePic", "description"],
+          attributes: [
+            "id",
+            "username",
+            "firstname",
+            "lastname",
+            "profilePic",
+            "description",
+          ],
         },
       ],
       order: [["createdAt", "DESC"]],
@@ -191,7 +198,7 @@ class PaymentService {
       const convertedAmount = Math.floor(amountInUsd * rate);
 
       console.log(
-        `Converting $${amountInUsd} → ¥${convertedAmount} at rate ${rate}`
+        `Converting $${amountInUsd} → ¥${convertedAmount} at rate ${rate}`,
       );
 
       await sequelize.transaction(async (t) => {
@@ -219,12 +226,12 @@ class PaymentService {
               name: customer_details?.name || null,
             },
           },
-          { transaction: t }
+          { transaction: t },
         );
       });
 
       console.log(
-        `💰 Wallet top-up successful: $${amountInUsd} → ¥${convertedAmount}`
+        `💰 Wallet top-up successful: $${amountInUsd} → ¥${convertedAmount}`,
       );
     } catch (err) {
       console.error("❌ Payment processing failed:", err);
@@ -249,14 +256,13 @@ class PaymentService {
       const allPaymentTypeIds = [
         ...ledgers.flatMap((l) => l.incomes?.map((i) => i.paymentTypeId) || []),
         ...ledgers.flatMap(
-          (l) => l.expenses?.map((e) => e.paymentTypeId) || []
+          (l) => l.expenses?.map((e) => e.paymentTypeId) || [],
         ),
       ];
 
       const uniqueIds = [...new Set(allPaymentTypeIds)];
-      const validIds = await this.paymentRepository.findExistingPaymentTypeIds(
-        uniqueIds
-      );
+      const validIds =
+        await this.paymentRepository.findExistingPaymentTypeIds(uniqueIds);
       const invalidIds = uniqueIds.filter((id) => !validIds.includes(id));
 
       if (invalidIds.length > 0) {
@@ -275,20 +281,20 @@ class PaymentService {
       } of ledgers) {
         const ledger = await this.paymentRepository.addLedger(
           { title, description, addNote, customerNote, userId },
-          { transaction }
+          { transaction },
         );
 
         if (incomes.length > 0) {
           await this.paymentRepository.bulkCreateIncome(
             incomes.map((i) => ({ ...i, ledgerId: ledger.id })),
-            { transaction }
+            { transaction },
           );
         }
 
         if (expenses.length > 0) {
           await this.paymentRepository.bulkCreateExpense(
             expenses.map((e) => ({ ...e, ledgerId: ledger.id })),
-            { transaction }
+            { transaction },
           );
         }
 
@@ -307,9 +313,11 @@ class PaymentService {
     return this.paymentRepository.addLedger(data);
   }
 
-  async getUserLedgers(userId) {
-    const ledgers = await this.paymentRepository.getLedgersByUser(userId);
-
+  async getUserLedgers(userId, archived = true) {
+    const ledgers = await this.paymentRepository.getLedgersByUser(
+      userId,
+      archived,
+    );
     if (!ledgers || ledgers.length === 0)
       return {
         ledgers: [],
@@ -329,11 +337,11 @@ class PaymentService {
 
       const totalIncome = incomes.reduce(
         (sum, inc) => sum + parseFloat(inc.amount || 0),
-        0
+        0,
       );
       const totalExpense = expenses.reduce(
         (sum, exp) => sum + parseFloat(exp.amount || 0),
-        0
+        0,
       );
       const balance = totalIncome - totalExpense;
 
@@ -367,12 +375,12 @@ class PaymentService {
     const totalIncome =
       ledger.incomes?.reduce(
         (sum, inc) => sum + parseFloat(inc.amount || 0),
-        0
+        0,
       ) || 0;
     const totalExpense =
       ledger.expenses?.reduce(
         (sum, exp) => sum + parseFloat(exp.amount || 0),
-        0
+        0,
       ) || 0;
     const balance = totalIncome - totalExpense;
 
@@ -388,10 +396,13 @@ class PaymentService {
     return this.paymentRepository.updateLedger(id, data);
   }
 
+  async reorderLedger(userId, ledgerId, newPosition) {
+    return this.paymentRepository.reorderLedger(userId, ledgerId, newPosition);
+  }
+
   async duplicateLedger(originalLedgerId, userId) {
-    const original = await this.paymentRepository.getLedgerWithTransactions(
-      originalLedgerId
-    );
+    const original =
+      await this.paymentRepository.getLedgerWithTransactions(originalLedgerId);
     if (!original) throw new Error("Ledger not found");
 
     // Create new ledger with "(Copy)" in title
@@ -426,6 +437,13 @@ class PaymentService {
     return this.paymentRepository.getLedgerById(newLedger.id);
   }
 
+  async archiveLedger(ledgerId, userId, archived) {
+    return this.paymentRepository.updateLedger(
+      { id: ledgerId, userId },
+      { archived },
+    );
+  }
+
   async deleteLedger(id) {
     return this.paymentRepository.deleteLedger(id);
   }
@@ -445,9 +463,8 @@ class PaymentService {
     ].filter(Boolean);
 
     console.log(paymentTypeIds);
-    const validIds = await this.paymentRepository.findExistingPaymentTypeIds(
-      paymentTypeIds
-    );
+    const validIds =
+      await this.paymentRepository.findExistingPaymentTypeIds(paymentTypeIds);
     const invalidIds = paymentTypeIds.filter((id) => !validIds.includes(id));
     if (invalidIds.length > 0) {
       throw new Error(`Invalid paymentTypeId(s): ${invalidIds.join(", ")}`);
@@ -487,9 +504,8 @@ class PaymentService {
     const ledger = await this.paymentRepository.getLedgerById(ledgerId);
     if (!ledger) throw new Error("Invalid ledgerId: not found");
 
-    const paymentType = await this.paymentRepository.getPaymentTypeById(
-      paymentTypeId
-    );
+    const paymentType =
+      await this.paymentRepository.getPaymentTypeById(paymentTypeId);
     if (!paymentType) throw new Error("Invalid paymentTypeId: not found");
 
     return this.paymentRepository.addIncomeQRM(data);
@@ -504,7 +520,7 @@ class PaymentService {
   async updateIncome(id, data) {
     if (data.paymentTypeId) {
       const pt = await this.paymentRepository.getPaymentTypeById(
-        data.paymentTypeId
+        data.paymentTypeId,
       );
       if (!pt) throw new Error("Invalid paymentTypeId: not found");
     }
@@ -529,9 +545,8 @@ class PaymentService {
     const ledger = await this.paymentRepository.getLedgerById(ledgerId);
     if (!ledger) throw new Error("Invalid ledgerId: not found");
 
-    const paymentType = await this.paymentRepository.getPaymentTypeById(
-      paymentTypeId
-    );
+    const paymentType =
+      await this.paymentRepository.getPaymentTypeById(paymentTypeId);
     if (!paymentType) throw new Error("Invalid paymentTypeId: not found");
 
     return this.paymentRepository.addExpenseQRM(data);
@@ -546,7 +561,7 @@ class PaymentService {
   async updateExpense(id, data) {
     if (data.paymentTypeId) {
       const pt = await this.paymentRepository.getPaymentTypeById(
-        data.paymentTypeId
+        data.paymentTypeId,
       );
       if (!pt) throw new Error("Invalid paymentTypeId: not found");
     }
@@ -569,11 +584,11 @@ class PaymentService {
   async createPaymentType(data) {
     const exists = await this.paymentRepository.getPaymentTypeByNameAndUser(
       data.name,
-      data.userId
+      data.userId,
     );
     if (exists)
       throw new Error(
-        "Payment type with this name already exists for your account"
+        "Payment type with this name already exists for your account",
       );
     return this.paymentRepository.createPaymentType(data);
   }
@@ -601,7 +616,7 @@ class PaymentService {
 
     if (updateData.name) {
       const existing = await this.paymentRepository.getPaymentTypeByName(
-        updateData.name
+        updateData.name,
       );
       if (existing && existing.id !== parseInt(id)) {
         throw new Error("Payment type with this name already exists");

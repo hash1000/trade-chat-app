@@ -95,7 +95,13 @@ class PaymentRepository {
     });
   }
 
-  async createPaymentRequest(requesterId, requesteeId, amount, description, status) {
+  async createPaymentRequest(
+    requesterId,
+    requesteeId,
+    amount,
+    description,
+    status,
+  ) {
     const paymentRequest = await PaymentRequest.create({
       requesterId,
       requesteeId,
@@ -186,13 +192,28 @@ class PaymentRepository {
     });
   }
   // ---------------- LEDGER ----------------
-  addLedger(data, options = {}) {
-    return Ledger.create(data, options);
+  async addLedger(data, options = {}) {
+    const maxSequence = await Ledger.max("sequence", {
+      where: { userId: data.userId },
+      transaction: options.transaction,
+    });
+
+    return Ledger.create(
+      {
+        ...data,
+        sequence: (maxSequence || 0) + 1,
+      },
+      options,
+    );
   }
 
-  getLedgersByUser(userId) {
+  getLedgersByUser(userId, archived = false) {
     return Ledger.findAll({
-      where: { userId },
+      where: {
+        userId,
+        archived,
+      },
+      order: [["sequence", "ASC"]],
       include: [
         {
           model: Income,
@@ -237,6 +258,63 @@ class PaymentRepository {
 
   updateLedger(id, data) {
     return Ledger.update(data, { where: { id } });
+  }
+
+  async reorderLedger(userId, ledgerId, newPosition) {
+
+    const transaction = await Ledger.sequelize.transaction();
+
+    try {
+      const ledgerToMove = await Ledger.findOne({
+        where: { id: ledgerId, userId },
+        transaction,
+      });
+
+      if (!ledgerToMove) {
+        await transaction.rollback();
+        return null;
+      }
+
+      const currentPosition = ledgerToMove.sequence;
+    console.log("Reordering ledger:", ledgerId, "to position:", newPosition,currentPosition , newPosition);
+
+      if (currentPosition === newPosition) {
+        await transaction.commit();
+        return this.getLedgersByUser(userId);
+      }
+
+      if (newPosition < currentPosition) {
+        await Ledger.update(
+          { sequence: Ledger.sequelize.literal("sequence + 1") },
+          {
+            where: {
+              userId,
+              sequence: { [Op.between]: [newPosition, currentPosition - 1] },
+            },
+            transaction,
+          },
+        );
+      } else {
+        await Ledger.update(
+          { sequence: Ledger.sequelize.literal("sequence - 1") },
+          {
+            where: {
+              userId,
+              sequence: { [Op.between]: [currentPosition + 1, newPosition] },
+            },
+            transaction,
+          },
+        );
+      }
+
+      await ledgerToMove.update({ sequence: newPosition }, { transaction });
+      await transaction.commit();
+
+      return this.getLedgersByUser(userId);
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
   }
 
   getLedgerWithTransactions(id) {

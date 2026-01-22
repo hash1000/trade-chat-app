@@ -64,7 +64,7 @@ exports.createProductValidation = [
     .notEmpty()
     .withMessage("URL for each image is required"),
 
-  handleValidationErrors, // Make sure this is the last function to handle errors
+  handleValidationErrors,
 ];
 /**
  * UPDATE PRODUCT

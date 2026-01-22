@@ -25,53 +25,53 @@ router.post(
   "/",
   authMiddleware,
   createPaymentValidator,
-  paymentController.createPayment.bind(paymentController)
+  paymentController.createPayment.bind(paymentController),
 );
 router.put(
   "/:id",
   authMiddleware,
   updatePaymentValidator,
-  paymentController.updatePayment.bind(paymentController)
+  paymentController.updatePayment.bind(paymentController),
 );
 router.post(
   "/:id/confirm",
   authMiddleware,
-  paymentController.confirmPayment.bind(paymentController)
+  paymentController.confirmPayment.bind(paymentController),
 );
 router.delete(
   "/:id",
   authMiddleware,
-  paymentController.deletePayment.bind(paymentController)
+  paymentController.deletePayment.bind(paymentController),
 );
 router.get(
   "/",
   authMiddleware,
-  paymentController.getUserPayments.bind(paymentController)
+  paymentController.getUserPayments.bind(paymentController),
 );
 router.get(
   "/cards",
   authMiddleware,
-  paymentController.getUserCards.bind(paymentController)
+  paymentController.getUserCards.bind(paymentController),
 );
 router.post(
   "/cards",
   authMiddleware,
-  paymentController.addUserCard.bind(paymentController)
+  paymentController.addUserCard.bind(paymentController),
 );
 router.delete(
   "/cards/:id",
   authMiddleware,
-  paymentController.deleteUserCard.bind(paymentController)
+  paymentController.deleteUserCard.bind(paymentController),
 );
 router.put(
   "/favourite/:id",
   authMiddleware,
-  paymentController.favouritePayment.bind(paymentController)
+  paymentController.favouritePayment.bind(paymentController),
 );
 router.put(
   "/unfavourite/:id",
   authMiddleware,
-  paymentController.unfavouritePayment.bind(paymentController)
+  paymentController.unfavouritePayment.bind(paymentController),
 );
 
 //  stripe
@@ -80,32 +80,32 @@ router.post(
   authMiddleware,
   authorize(["admin"]),
   currencyAdjustmentValidator,
-  paymentController.priceAdjust.bind(paymentController)
+  paymentController.priceAdjust.bind(paymentController),
 );
 
 // Public endpoint to get current rate
 router.get(
   "/current-rate",
-  paymentController.getCurrentRate.bind(paymentController)
+  paymentController.getCurrentRate.bind(paymentController),
 );
 
 router.post(
   "/topup/initiate",
   authMiddleware,
   createTopupValidator,
-  paymentController.initiateTopup.bind(paymentController)
+  paymentController.initiateTopup.bind(paymentController),
 );
 
 router.get(
   "/topup/transactions",
   authMiddleware,
-  paymentController.getUserTopupTransactions.bind(paymentController)
+  paymentController.getUserTopupTransactions.bind(paymentController),
 );
 
 router.post(
   "/webhook",
   bodyParser.raw({ type: "application/json" }),
-  paymentController.handleStripeWebhook.bind(paymentController)
+  paymentController.handleStripeWebhook.bind(paymentController),
 );
 
 // ------------------ LEDGER ------------------
@@ -115,7 +115,7 @@ router.post(
   "/bulk-ledgers",
   authMiddleware,
   bulkLedgerCreateValidator,
-  paymentController.bulkCreateLedgers.bind(paymentController)
+  paymentController.bulkCreateLedgers.bind(paymentController),
 );
 
 // Create single ledger (no nested incomes/expenses)
@@ -123,7 +123,7 @@ router.post(
   "/ledgers",
   authMiddleware,
   addLedgerValidator,
-  paymentController.addLedger.bind(paymentController)
+  paymentController.addLedger.bind(paymentController),
 );
 
 // Add incomes/expenses to existing ledger
@@ -131,21 +131,29 @@ router.post(
   "/ledgers/:id/income-expense",
   authMiddleware,
   bulkLedgerTransactionValidator,
-  paymentController.addBulkLedgerTransactions.bind(paymentController)
+  paymentController.addBulkLedgerTransactions.bind(paymentController),
 );
 
 // Get all ledgers for logged-in user
 router.get(
   "/ledgers",
   authMiddleware,
-  paymentController.getUserLedgers.bind(paymentController)
+  paymentController.getUserLedgers.bind(paymentController),
 );
 
 // Get ledger by ID
 router.get(
   "/ledgers/:id",
   authMiddleware,
-  paymentController.getLedgerById.bind(paymentController)
+  paymentController.getLedgerById.bind(paymentController),
+);
+
+// Sequence ledger by ID
+
+router.put(
+  "/ledgers/:id/reorder",
+  authMiddleware,
+  paymentController.reorderLedger.bind(paymentController),
 );
 
 // Update ledger by ID
@@ -153,20 +161,26 @@ router.put(
   "/ledgers/:id",
   authMiddleware,
   addLedgerValidator,
-  paymentController.updateLedger.bind(paymentController)
+  paymentController.updateLedger.bind(paymentController),
 );
 
 // Delete ledger by ID
 router.delete(
   "/ledgers/:id",
   authMiddleware,
-  paymentController.deleteLedger.bind(paymentController)
+  paymentController.deleteLedger.bind(paymentController),
 );
 
 router.post(
   "/ledgers/:id/duplicate",
   authMiddleware,
-  paymentController.duplicateLedger.bind(paymentController)
+  paymentController.duplicateLedger.bind(paymentController),
+);
+
+router.patch(
+  "/ledgers/:id/archive",
+  authMiddleware,
+  paymentController.archiveLedger.bind(paymentController),
 );
 
 // ------------------ INCOME ------------------
@@ -176,14 +190,14 @@ router.post(
   "/incomes",
   authMiddleware,
   addIncomeValidator,
-  paymentController.addIncomeQRM.bind(paymentController)
+  paymentController.addIncomeQRM.bind(paymentController),
 );
 
 // Get income by ID
 router.get(
   "/incomes/:id",
   authMiddleware,
-  paymentController.getIncomeById.bind(paymentController)
+  paymentController.getIncomeById.bind(paymentController),
 );
 
 // Update income
@@ -191,17 +205,15 @@ router.put(
   "/incomes/:id",
   authMiddleware,
   addIncomeValidator,
-  paymentController.updateIncome.bind(paymentController)
+  paymentController.updateIncome.bind(paymentController),
 );
 
 // Delete income
 router.delete(
   "/incomes/:id",
   authMiddleware,
-  paymentController.deleteIncome.bind(paymentController)
+  paymentController.deleteIncome.bind(paymentController),
 );
-
-
 
 // ------------------ EXPENSE ------------------
 
@@ -210,14 +222,14 @@ router.post(
   "/expenses",
   authMiddleware,
   addExpenseValidator,
-  paymentController.addExpenseQRM.bind(paymentController)
+  paymentController.addExpenseQRM.bind(paymentController),
 );
 
 // Get expense by ID
 router.get(
   "/expenses/:id",
   authMiddleware,
-  paymentController.getExpenseById.bind(paymentController)
+  paymentController.getExpenseById.bind(paymentController),
 );
 
 // Update expense
@@ -225,17 +237,15 @@ router.put(
   "/expenses/:id",
   authMiddleware,
   addExpenseValidator,
-  paymentController.updateExpense.bind(paymentController)
+  paymentController.updateExpense.bind(paymentController),
 );
 
 // Delete expense
 router.delete(
   "/expenses/:id",
   authMiddleware,
-  paymentController.deleteExpense.bind(paymentController)
+  paymentController.deleteExpense.bind(paymentController),
 );
-
-
 
 // ------------------ PAYMENT TYPE ------------------
 
@@ -243,32 +253,32 @@ router.post(
   "/paymentTypes",
   authMiddleware,
   validatePaymentType,
-  paymentController.createPaymentType.bind(paymentController)
+  paymentController.createPaymentType.bind(paymentController),
 );
 
 router.get(
   "/paymentTypes",
   authMiddleware,
-  paymentController.getAllPaymentTypes.bind(paymentController)
+  paymentController.getAllPaymentTypes.bind(paymentController),
 );
 
 router.get(
   "/paymentTypes/:id",
   authMiddleware,
-  paymentController.getPaymentType.bind(paymentController)
+  paymentController.getPaymentType.bind(paymentController),
 );
 
 router.put(
   "/paymentTypes/:id",
   authMiddleware,
   validatePaymentType,
-  paymentController.updatePaymentType.bind(paymentController)
+  paymentController.updatePaymentType.bind(paymentController),
 );
 
 router.delete(
   "/paymentTypes/:id",
   authMiddleware,
-  paymentController.deletePaymentType.bind(paymentController)
+  paymentController.deletePaymentType.bind(paymentController),
 );
 
 module.exports = router;

@@ -202,7 +202,7 @@ class PaymentController {
       // Favourite the payment using the payment service
       const favourite = await paymentService.favouritePayment(
         paymentId,
-        userId
+        userId,
       );
 
       // Return the favourite as a response
@@ -238,7 +238,11 @@ class PaymentController {
         return res.status(400).json({ message: "Invalid amount" });
       }
 
-      const result = await paymentService.processTopupPayment(userId, amount, description);
+      const result = await paymentService.processTopupPayment(
+        userId,
+        amount,
+        description,
+      );
 
       return res.json({
         success: true,
@@ -258,11 +262,12 @@ class PaymentController {
     }
   }
 
-   async getUserTopupTransactions(req, res) {
+  async getUserTopupTransactions(req, res) {
     try {
       const { id: userId } = req.user;
 
-      const transactions = await paymentService.getUserTopupTransactions(userId);
+      const transactions =
+        await paymentService.getUserTopupTransactions(userId);
 
       return res.json({
         success: true,
@@ -285,7 +290,7 @@ class PaymentController {
       const result = await currencyService.setRateAdjustment(
         userId,
         currency,
-        parseFloat(adjustment)
+        parseFloat(adjustment),
       );
 
       return res.json({
@@ -347,7 +352,7 @@ class PaymentController {
         case "checkout.session.completed":
         case "checkout.session.async_payment_succeeded":
           await paymentService.handlePaymentCheckoutSucceeded(
-            event.data.object
+            event.data.object,
           );
           break;
 
@@ -510,10 +515,15 @@ class PaymentController {
   async getUserLedgers(req, res) {
     try {
       const { id: userId } = req.user;
-      const result = await paymentService.getUserLedgers(userId);
+      const { archived } = req.query;
+
+      // archived is OPTIONAL
+      const isArchived = archived === "true";
+
+      const result = await paymentService.getUserLedgers(userId, isArchived);
+
       res.json({ success: true, data: result });
     } catch (error) {
-      console.error("Get ledgers error:", error);
       res.status(500).json({ success: false, message: error.message });
     }
   }
@@ -543,6 +553,30 @@ class PaymentController {
     } catch (error) {
       console.error("Update ledger error:", error);
       res.status(500).json({ success: false, message: error.message });
+    }
+  }
+
+  async reorderLedger(req, res) {
+    try {
+      const { id: userId } = req.user;
+      const { id } = req.params;
+      const { newPosition } = req.body;
+
+      if (!newPosition || newPosition < 1) {
+        return res.status(400).json({ error: "Valid newPosition is required" });
+      }
+
+      const reorderedLedgers = await paymentService.reorderLedger(
+        userId,
+        id,
+        newPosition,
+      );
+      if (!reorderedLedgers)
+        return res.status(404).json({ error: "Ledger not found" });
+  res.json({ success: true, message: "Ledger sequence updated", data: reorderedLedgers });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: "Server Error" });
     }
   }
 
@@ -619,31 +653,6 @@ class PaymentController {
     }
   }
 
-  async getUserLedgers(req, res) {
-    try {
-      const { id: userId } = req.user;
-      const result = await paymentService.getUserLedgers(userId);
-      res.json({ success: true, data: result });
-    } catch (error) {
-      console.error("Get ledgers error:", error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  }
-
-  async getLedgerById(req, res) {
-    try {
-      const result = await paymentService.getLedgerById(req.params.id);
-      if (!result)
-        return res
-          .status(404)
-          .json({ success: false, message: "Ledger not found" });
-      res.json({ success: true, data: result });
-    } catch (error) {
-      console.error("Get ledger by ID error:", error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  }
-
   async updateLedger(req, res) {
     try {
       const result = await paymentService.updateLedger(req.params.id, req.body);
@@ -665,7 +674,7 @@ class PaymentController {
 
       const duplicated = await paymentService.duplicateLedger(
         originalLedgerId,
-        userId
+        userId,
       );
       res.json({
         success: true,
@@ -676,6 +685,18 @@ class PaymentController {
       console.error("Ledger duplication failed:", error);
       res.status(500).json({ success: false, message: error.message });
     }
+  }
+
+  async archiveLedger(req, res) {
+    const { id } = req.params;
+    const { archived } = req.body;
+
+    await paymentService.archiveLedger(id, req.user.id, archived);
+
+    res.json({
+      success: true,
+      message: archived ? "Ledger archived" : "Ledger restored",
+    });
   }
 
   async deleteLedger(req, res) {
@@ -796,7 +817,7 @@ class PaymentController {
     try {
       const result = await paymentService.updateExpense(
         req.params.id,
-        req.body
+        req.body,
       );
       res.json({ success: true, message: "Expense updated", data: result });
     } catch (error) {
