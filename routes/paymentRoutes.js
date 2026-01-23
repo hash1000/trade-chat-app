@@ -16,6 +16,7 @@ const {
   addExpenseValidator,
   bulkLedgerTransactionValidator,
   bulkLedgerCreateValidator,
+  validateUpdatePaymentType,
 } = require("../middlewares/paymentValidation");
 const authorize = require("../middlewares/authorization");
 
@@ -271,7 +272,7 @@ router.get(
 router.put(
   "/paymentTypes/:id",
   authMiddleware,
-  validatePaymentType,
+  validateUpdatePaymentType,
   paymentController.updatePaymentType.bind(paymentController),
 );
 

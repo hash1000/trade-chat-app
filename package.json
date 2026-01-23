@@ -11,7 +11,7 @@
     "seed:generate": "npx sequelize-cli seed:generate --name",
     "seed:file": "npx sequelize-cli db:seed --seed",
     "seed:prod": "npx sequelize-cli db:seed:all --env production",
-    "seed:single": "npx sequelize-cli db:seed --seed  --env production",
+    "seed:single": "npx sequelize-cli db:seed --env production --seed",
     "rollback": "npx sequelize-cli db:migrate:undo",
     "check:deps": "madge --circular --extensions js ./"
   },

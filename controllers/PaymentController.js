@@ -573,7 +573,11 @@ class PaymentController {
       );
       if (!reorderedLedgers)
         return res.status(404).json({ error: "Ledger not found" });
-  res.json({ success: true, message: "Ledger sequence updated", data: reorderedLedgers });
+      res.json({
+        success: true,
+        message: "Ledger sequence updated",
+        data: reorderedLedgers,
+      });
     } catch (error) {
       console.error(error);
       res.status(500).json({ error: "Server Error" });

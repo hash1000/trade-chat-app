@@ -186,3 +186,17 @@ exports.validatePaymentType = [
   handleValidationErrors,
 ];
 
+exports.validateUpdatePaymentType = [
+  body("name")
+    .trim()
+    .notEmpty()
+    .withMessage("Name is required")
+    .isLength({ max: 50 })
+    .withMessage("Name must be less than 50 characters"),
+    body("pin")
+    .optional()
+    .isBoolean()
+    .withMessage("Pin must be a boolean value"),
+  handleValidationErrors,
+];
+

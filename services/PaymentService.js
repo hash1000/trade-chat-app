@@ -581,6 +581,19 @@ class PaymentService {
 
   // ------------------- PAYMENT TYPE -------------------
 
+  // utility function to  payment type
+  async validatePaymentTypePin(userId) {
+    const paymentType =
+      await this.paymentRepository.getPaymentTypeByUserId(userId);
+    if (!paymentType) throw new Error("Payment type not found");
+    for (let pt of paymentType) {
+      if (pt.pin) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   async createPaymentType(data) {
     const exists = await this.paymentRepository.getPaymentTypeByNameAndUser(
       data.name,
@@ -590,7 +603,13 @@ class PaymentService {
       throw new Error(
         "Payment type with this name already exists for your account",
       );
-    return this.paymentRepository.createPaymentType(data);
+    if (await this.validatePaymentTypePin(data.userId)) {
+      data.pin = false;
+      return this.paymentRepository.createPaymentType(data);
+    } else {
+      data.pin = true;
+      return this.paymentRepository.createPaymentType(data);
+    }
   }
 
   async getAllPaymentTypes({ search, userId }) {
@@ -606,23 +625,51 @@ class PaymentService {
   }
 
   async updatePaymentType(id, updateData) {
-    const paymentType = await this.paymentRepository.getPaymentTypeById(id);
+    try {
+      const paymentType = await this.paymentRepository.getPaymentTypeById(id);
 
-    if (!paymentType) throw new Error("Payment type not found");
-
-    if (PaymentTypes.includes(paymentType.name)) {
-      throw new Error("Cannot delete permanent payment type");
-    }
-
-    if (updateData.name) {
-      const existing = await this.paymentRepository.getPaymentTypeByName(
-        updateData.name,
-      );
-      if (existing && existing.id !== parseInt(id)) {
-        throw new Error("Payment type with this name already exists");
+      if (!paymentType) {
+        throw new Error("Payment type not found");
       }
+      console.log(
+        "Updating payment type:",
+        id,
+        updateData,
+        PaymentTypes.includes(paymentType.name),
+      );
+      if (PaymentTypes.includes(paymentType.name)) {
+        throw new Error(
+          "Cannot update permanent payment type this is default name",
+        );
+      }
+
+      if (updateData.name) {
+        const existing = await this.paymentRepository.getPaymentTypeByName(
+          updateData.name,
+        );
+
+        if (existing && existing.id !== parseInt(id)) {
+          throw new Error("Payment type with this name already exists");
+        }
+      }
+
+      // ✅ If pin is being set to true
+      if (updateData.pin === true) {
+        await this.paymentRepository.unpinAllPaymentTypes(
+          paymentType.userId,
+          id, // exclude current id
+        );
+      }
+
+      const updated = await this.paymentRepository.updatePaymentType(
+        id,
+        updateData,
+      );
+
+      return updated;
+    } catch (error) {
+      throw error;
     }
-    return this.paymentRepository.updatePaymentType(id, updateData);
   }
 
   async deletePaymentType(id, userId) {

@@ -261,7 +261,6 @@ class PaymentRepository {
   }
 
   async reorderLedger(userId, ledgerId, newPosition) {
-
     const transaction = await Ledger.sequelize.transaction();
 
     try {
@@ -276,7 +275,14 @@ class PaymentRepository {
       }
 
       const currentPosition = ledgerToMove.sequence;
-    console.log("Reordering ledger:", ledgerId, "to position:", newPosition,currentPosition , newPosition);
+      console.log(
+        "Reordering ledger:",
+        ledgerId,
+        "to position:",
+        newPosition,
+        currentPosition,
+        newPosition,
+      );
 
       if (currentPosition === newPosition) {
         await transaction.commit();
@@ -393,6 +399,10 @@ class PaymentRepository {
     return PaymentType.findByPk(id);
   }
 
+  getPaymentTypeByUserId(userId) {
+    return PaymentType.findAll({ where: { userId } });
+  }
+
   async getDefaultPaymentTypeById(id) {
     const paymentType = await PaymentType.findByPk(id);
 
@@ -414,6 +424,20 @@ class PaymentRepository {
 
   updatePaymentType(id, data) {
     return PaymentType.update(data, { where: { id } });
+  }
+
+  async unpinAllPaymentTypes(userId, excludeId) {
+    return PaymentType.update(
+      { pin: false },
+      {
+        where: {
+          userId: userId,
+          id: {
+            [Op.ne]: excludeId, // exclude current record
+          },
+        },
+      }
+    );
   }
 
   deletePaymentType(id) {
