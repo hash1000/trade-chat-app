@@ -626,24 +626,19 @@ class PaymentService {
 
   async updatePaymentType(id, updateData) {
     try {
-      const paymentType = await this.paymentRepository.getPaymentTypeById(id);
+        let paymentType = await this.paymentRepository.getPaymentTypeById(id);
 
       if (!paymentType) {
         throw new Error("Payment type not found");
       }
-      console.log(
-        "Updating payment type:",
-        id,
-        updateData,
-        PaymentTypes.includes(paymentType.name),
-      );
+
+      if (updateData.name) {
       if (PaymentTypes.includes(paymentType.name)) {
         throw new Error(
           "Cannot update permanent payment type this is default name",
         );
       }
 
-      if (updateData.name) {
         const existing = await this.paymentRepository.getPaymentTypeByName(
           updateData.name,
         );
@@ -653,9 +648,10 @@ class PaymentService {
         }
       }
 
+
       // ✅ If pin is being set to true
       if (updateData.pin === true) {
-        await this.paymentRepository.unpinAllPaymentTypes(
+        return await this.paymentRepository.unpinAllPaymentTypes(
           paymentType.userId,
           id, // exclude current id
         );

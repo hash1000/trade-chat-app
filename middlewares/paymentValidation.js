@@ -188,6 +188,7 @@ exports.validatePaymentType = [
 
 exports.validateUpdatePaymentType = [
   body("name")
+    .optional()
     .trim()
     .notEmpty()
     .withMessage("Name is required")

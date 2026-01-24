@@ -415,6 +415,7 @@ class PaymentRepository {
     return {
       id: paymentType.id,
       name: paymentType.name,
+      pin: paymentType.pin,
       userId: paymentType.userId,
       createdAt: paymentType.createdAt,
       updatedAt: paymentType.updatedAt,
@@ -427,6 +428,16 @@ class PaymentRepository {
   }
 
   async unpinAllPaymentTypes(userId, excludeId) {
+    await PaymentType.update(
+      { pin: true },
+      {
+        where: {
+          userId: userId,
+          id: excludeId
+        },
+      }
+    );
+
     return PaymentType.update(
       { pin: false },
       {
