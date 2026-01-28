@@ -250,85 +250,101 @@ class PaymentService {
   }
   // ------------------- LEDGER -------------------
 
-async bulkCreateLedgers({ ledgers, userId }) {
-  const transaction = await sequelize.transaction();
-  try {
-    const allPaymentTypeIds = [
-      ...ledgers.flatMap((l) => l.incomes?.map((i) => i.paymentTypeId) || []),
-      ...ledgers.flatMap((l) => l.expenses?.map((e) => e.paymentTypeId) || []),
-    ];
+  async bulkCreateLedgers({ ledgers, userId }) {
+    const transaction = await sequelize.transaction();
+    try {
+      const allPaymentTypeIds = [
+        ...ledgers.flatMap((l) => l.incomes?.map((i) => i.paymentTypeId) || []),
+        ...ledgers.flatMap(
+          (l) => l.expenses?.map((e) => e.paymentTypeId) || [],
+        ),
+      ];
 
-    const uniqueIds = [...new Set(allPaymentTypeIds)];
-    const validIds = await this.paymentRepository.findExistingPaymentTypeIds(uniqueIds);
-    const invalidIds = uniqueIds.filter((id) => !validIds.includes(id));
+      const uniqueIds = [...new Set(allPaymentTypeIds)];
+      const validIds =
+        await this.paymentRepository.findExistingPaymentTypeIds(uniqueIds);
+      const invalidIds = uniqueIds.filter((id) => !validIds.includes(id));
 
-    if (invalidIds.length > 0) {
-      throw new Error(`Invalid paymentTypeId(s): ${invalidIds.join(", ")}`);
-    }
-
-    const results = [];
-
-    // Iterate over each ledger to create it along with associated incomes and expenses
-    for (const { title, description, addNote, customerNote, incomes = [], expenses = [] } of ledgers) {
-      // Create Ledger
-      const ledger = await this.paymentRepository.addLedger(
-        { title, description, addNote, customerNote, userId },
-        { transaction },
-      );
-
-      // If there are incomes to be added
-      if (incomes.length > 0) {
-        // Get the current max sequence of incomes for this ledger
-        const maxIncomeSequence = await Income.max('sequence', {
-          where: { ledgerId: ledger.id },
-          transaction,
-        }) || 0;  // Default to 0 if no income entries exist
-
-        // Assign sequence to incomes
-        const incomesWithSequence = incomes.map((i, index) => ({
-          ...i,
-          ledgerId: ledger.id,
-          sequence: maxIncomeSequence + index + 1,  // Increment the sequence for each new income
-        }));
-        console.log("incomesWithSequence", incomesWithSequence);
-        
-        // Bulk create incomes
-        await this.paymentRepository.bulkCreateIncome(incomesWithSequence, { transaction });
+      if (invalidIds.length > 0) {
+        throw new Error(`Invalid paymentTypeId(s): ${invalidIds.join(", ")}`);
       }
 
-      // If there are expenses to be added
-      if (expenses.length > 0) {
-        // Get the current max sequence of expenses for this ledger
-        const maxExpenseSequence = await Expense.max('sequence', {
-          where: { ledgerId: ledger.id },
-          transaction,
-        }) || 0;  // Default to 0 if no expense entries exist
+      const results = [];
 
-        // Assign sequence to expenses
-        const expensesWithSequence = expenses.map((e, index) => ({
-          ...e,
-          ledgerId: ledger.id,
-          sequence: maxExpenseSequence + index + 1,  // Increment the sequence for each new expense
-        }));
-        console.log("expensesWithSequence", expensesWithSequence);
-        
-        // Bulk create expenses
-        await this.paymentRepository.bulkCreateExpense(expensesWithSequence, { transaction });
+      // Iterate over each ledger to create it along with associated incomes and expenses
+      for (const {
+        title,
+        description,
+        addNote,
+        customerNote,
+        incomes = [],
+        expenses = [],
+      } of ledgers) {
+        // Create Ledger
+        const ledger = await this.paymentRepository.addLedger(
+          { title, description, addNote, customerNote, userId },
+          { transaction },
+        );
+
+        // If there are incomes to be added
+        if (incomes.length > 0) {
+          // Get the current max sequence of incomes for this ledger
+          const maxIncomeSequence =
+            (await Income.max("sequence", {
+              where: { ledgerId: ledger.id },
+              transaction,
+            })) || 0; // Default to 0 if no income entries exist
+
+          // Assign sequence to incomes
+          const incomesWithSequence = incomes.map((i, index) => ({
+            ...i,
+            ledgerId: ledger.id,
+            sequence: maxIncomeSequence + index + 1, // Increment the sequence for each new income
+          }));
+          console.log("incomesWithSequence", incomesWithSequence);
+
+          // Bulk create incomes
+          await this.paymentRepository.bulkCreateIncome(incomesWithSequence, {
+            transaction,
+          });
+        }
+
+        // If there are expenses to be added
+        if (expenses.length > 0) {
+          // Get the current max sequence of expenses for this ledger
+          const maxExpenseSequence =
+            (await Expense.max("sequence", {
+              where: { ledgerId: ledger.id },
+              transaction,
+            })) || 0; // Default to 0 if no expense entries exist
+
+          // Assign sequence to expenses
+          const expensesWithSequence = expenses.map((e, index) => ({
+            ...e,
+            ledgerId: ledger.id,
+            sequence: maxExpenseSequence + index + 1, // Increment the sequence for each new expense
+          }));
+          console.log("expensesWithSequence", expensesWithSequence);
+
+          // Bulk create expenses
+          await this.paymentRepository.bulkCreateExpense(expensesWithSequence, {
+            transaction,
+          });
+        }
+
+        // Add the ledger to the results
+        results.push(ledger);
       }
 
-      // Add the ledger to the results
-      results.push(ledger);
+      // Commit the transaction if everything goes well
+      await transaction.commit();
+      return results;
+    } catch (error) {
+      // If any error occurs, rollback the transaction
+      await transaction.rollback();
+      throw error;
     }
-
-    // Commit the transaction if everything goes well
-    await transaction.commit();
-    return results;
-  } catch (error) {
-    // If any error occurs, rollback the transaction
-    await transaction.rollback();
-    throw error;
   }
-}
 
   async addLedger(data) {
     return this.paymentRepository.addLedger(data);
@@ -522,15 +538,14 @@ async bulkCreateLedgers({ ledgers, userId }) {
   // ------------------- INCOME -------------------
   async addIncomeQRM(data) {
     const { paymentTypeId, ledgerId } = data;
-console.log("data",data);
     const ledger = await this.paymentRepository.getLedgerById(ledgerId);
 
-    console.log("ledger",ledger);
+    console.log("ledger", ledger);
     if (!ledger) throw new Error("Invalid ledgerId: not found");
 
     const paymentType =
       await this.paymentRepository.getPaymentTypeById(paymentTypeId);
-      console.log("paymentType",paymentType);
+    console.log("paymentType", paymentType);
     if (!paymentType) throw new Error("Invalid paymentTypeId: not found");
 
     return this.paymentRepository.addIncomeQRM(data);
@@ -608,6 +623,10 @@ console.log("data",data);
     return true;
   }
 
+  async reorderExpense(expenseId, newPosition) {
+    return this.paymentRepository.reorderExpense(expenseId, newPosition);
+  }
+
   // ------------------- PAYMENT TYPE -------------------
 
   // utility function to  payment type
@@ -655,18 +674,18 @@ console.log("data",data);
 
   async updatePaymentType(id, updateData) {
     try {
-        let paymentType = await this.paymentRepository.getPaymentTypeById(id);
+      let paymentType = await this.paymentRepository.getPaymentTypeById(id);
 
       if (!paymentType) {
         throw new Error("Payment type not found");
       }
 
       if (updateData.name) {
-      if (PaymentTypes.includes(paymentType.name)) {
-        throw new Error(
-          "Cannot update permanent payment type this is default name",
-        );
-      }
+        if (PaymentTypes.includes(paymentType.name)) {
+          throw new Error(
+            "Cannot update permanent payment type this is default name",
+          );
+        }
 
         const existing = await this.paymentRepository.getPaymentTypeByName(
           updateData.name,
@@ -676,7 +695,6 @@ console.log("data",data);
           throw new Error("Payment type with this name already exists");
         }
       }
-
 
       // ✅ If pin is being set to true
       if (updateData.pin === true) {

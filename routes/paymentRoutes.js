@@ -255,6 +255,12 @@ router.delete(
   paymentController.deleteExpense.bind(paymentController),
 );
 
+router.put(
+  "/expense/:id/reorder",
+  authMiddleware,
+  paymentController.reorderExpense.bind(paymentController),
+);
+
 // ------------------ PAYMENT TYPE ------------------
 
 router.post(

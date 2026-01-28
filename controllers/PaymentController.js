@@ -860,6 +860,32 @@ class PaymentController {
       res.status(400).json({ success: false, message: error.message });
     }
   }
+
+  async reorderExpense(req, res) {
+  try {
+    const { id } = req.params;
+    const { newPosition } = req.body;
+
+    if (!newPosition || newPosition < 1) {
+      return res.status(400).json({ error: "Valid newPosition is required" });
+    }
+
+    const result = await paymentService.reorderExpense(id, newPosition);
+
+    if (!result)
+      return res.status(404).json({ error: "Expense not found" });
+
+    res.json({
+      success: true,
+      message: "Expense sequence updated",
+      data: result,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Server Error" });
+  }
+}
+
 }
 
 module.exports = PaymentController;
