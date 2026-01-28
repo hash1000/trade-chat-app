@@ -216,6 +216,13 @@ router.delete(
   paymentController.deleteIncome.bind(paymentController),
 );
 
+// Sequence income by ID
+router.put(
+  "/income/:id/reorder",
+  authMiddleware,
+  paymentController.reorderIncome.bind(paymentController),
+);
+
 // ------------------ EXPENSE ------------------
 
 // Create expense for a ledger

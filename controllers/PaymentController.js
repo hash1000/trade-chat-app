@@ -787,6 +787,29 @@ class PaymentController {
     }
   }
 
+    async reorderIncome(req, res) {
+    try {
+      const { id } = req.params;
+      const { newPosition } = req.body;
+
+      if (!newPosition || newPosition < 1) {
+        return res.status(400).json({ error: "Valid newPosition is required" });
+      }
+
+      const reorderedLedgers = await paymentService.reorderIncome(id, newPosition);
+      if (!reorderedLedgers)
+        return res.status(404).json({ error: "Ledger not found" });
+      res.json({
+        success: true,
+        message: "Income sequence updated",
+        data: reorderedLedgers,
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: "Server Error" });
+    }
+  }
+
   async addExpenseQRM(req, res) {
     try {
       const { amount, description, paymentTypeId, ledgerId } = req.body;

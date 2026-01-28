@@ -1,15 +1,22 @@
 const ProductRepository = require("../repositories/ProductRepository");
+const ProductImageRepository = require("../repositories/ProductImageRepository");
 
 class ProductService {
   constructor() {
     this.productRepository = new ProductRepository();
+    this.productImageRepository = new ProductImageRepository();
   }
 
   async createProduct(userId, productData) {
-    return this.productRepository.createProduct({
+    const {}= productData
+    const product=  this.productRepository.createProduct({
       ...productData,
       userId,
     });
+
+    await this.productImageRepository(productData)
+
+    return product
   }
 
   async updateProduct(productId, productData) {

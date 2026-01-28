@@ -3,7 +3,7 @@ const sequelize = require("../config/database");
 const WalletService = require("./WalletService");
 const PaymentRepository = require("../repositories/PaymentRepository");
 const PaymentRequest = require("../models/payment_request");
-const { Transaction, PaymentType } = require("../models");
+const { Transaction, PaymentType, Income, Expense } = require("../models");
 const User = require("../models/user");
 const CurrencyService = require("./CurrencyService");
 const { PaymentTypes } = require("../constants");
@@ -250,64 +250,85 @@ class PaymentService {
   }
   // ------------------- LEDGER -------------------
 
-  async bulkCreateLedgers({ ledgers, userId }) {
-    const transaction = await sequelize.transaction();
-    try {
-      const allPaymentTypeIds = [
-        ...ledgers.flatMap((l) => l.incomes?.map((i) => i.paymentTypeId) || []),
-        ...ledgers.flatMap(
-          (l) => l.expenses?.map((e) => e.paymentTypeId) || [],
-        ),
-      ];
+async bulkCreateLedgers({ ledgers, userId }) {
+  const transaction = await sequelize.transaction();
+  try {
+    const allPaymentTypeIds = [
+      ...ledgers.flatMap((l) => l.incomes?.map((i) => i.paymentTypeId) || []),
+      ...ledgers.flatMap((l) => l.expenses?.map((e) => e.paymentTypeId) || []),
+    ];
 
-      const uniqueIds = [...new Set(allPaymentTypeIds)];
-      const validIds =
-        await this.paymentRepository.findExistingPaymentTypeIds(uniqueIds);
-      const invalidIds = uniqueIds.filter((id) => !validIds.includes(id));
+    const uniqueIds = [...new Set(allPaymentTypeIds)];
+    const validIds = await this.paymentRepository.findExistingPaymentTypeIds(uniqueIds);
+    const invalidIds = uniqueIds.filter((id) => !validIds.includes(id));
 
-      if (invalidIds.length > 0) {
-        throw new Error(`Invalid paymentTypeId(s): ${invalidIds.join(", ")}`);
-      }
-
-      const results = [];
-
-      for (const {
-        title,
-        description,
-        addNote,
-        customerNote,
-        incomes = [],
-        expenses = [],
-      } of ledgers) {
-        const ledger = await this.paymentRepository.addLedger(
-          { title, description, addNote, customerNote, userId },
-          { transaction },
-        );
-
-        if (incomes.length > 0) {
-          await this.paymentRepository.bulkCreateIncome(
-            incomes.map((i) => ({ ...i, ledgerId: ledger.id })),
-            { transaction },
-          );
-        }
-
-        if (expenses.length > 0) {
-          await this.paymentRepository.bulkCreateExpense(
-            expenses.map((e) => ({ ...e, ledgerId: ledger.id })),
-            { transaction },
-          );
-        }
-
-        results.push(ledger);
-      }
-
-      await transaction.commit();
-      return results;
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
+    if (invalidIds.length > 0) {
+      throw new Error(`Invalid paymentTypeId(s): ${invalidIds.join(", ")}`);
     }
+
+    const results = [];
+
+    // Iterate over each ledger to create it along with associated incomes and expenses
+    for (const { title, description, addNote, customerNote, incomes = [], expenses = [] } of ledgers) {
+      // Create Ledger
+      const ledger = await this.paymentRepository.addLedger(
+        { title, description, addNote, customerNote, userId },
+        { transaction },
+      );
+
+      // If there are incomes to be added
+      if (incomes.length > 0) {
+        // Get the current max sequence of incomes for this ledger
+        const maxIncomeSequence = await Income.max('sequence', {
+          where: { ledgerId: ledger.id },
+          transaction,
+        }) || 0;  // Default to 0 if no income entries exist
+
+        // Assign sequence to incomes
+        const incomesWithSequence = incomes.map((i, index) => ({
+          ...i,
+          ledgerId: ledger.id,
+          sequence: maxIncomeSequence + index + 1,  // Increment the sequence for each new income
+        }));
+        console.log("incomesWithSequence", incomesWithSequence);
+        
+        // Bulk create incomes
+        await this.paymentRepository.bulkCreateIncome(incomesWithSequence, { transaction });
+      }
+
+      // If there are expenses to be added
+      if (expenses.length > 0) {
+        // Get the current max sequence of expenses for this ledger
+        const maxExpenseSequence = await Expense.max('sequence', {
+          where: { ledgerId: ledger.id },
+          transaction,
+        }) || 0;  // Default to 0 if no expense entries exist
+
+        // Assign sequence to expenses
+        const expensesWithSequence = expenses.map((e, index) => ({
+          ...e,
+          ledgerId: ledger.id,
+          sequence: maxExpenseSequence + index + 1,  // Increment the sequence for each new expense
+        }));
+        console.log("expensesWithSequence", expensesWithSequence);
+        
+        // Bulk create expenses
+        await this.paymentRepository.bulkCreateExpense(expensesWithSequence, { transaction });
+      }
+
+      // Add the ledger to the results
+      results.push(ledger);
+    }
+
+    // Commit the transaction if everything goes well
+    await transaction.commit();
+    return results;
+  } catch (error) {
+    // If any error occurs, rollback the transaction
+    await transaction.rollback();
+    throw error;
   }
+}
 
   async addLedger(data) {
     return this.paymentRepository.addLedger(data);
@@ -498,14 +519,18 @@ class PaymentService {
     }
   }
 
+  // ------------------- INCOME -------------------
   async addIncomeQRM(data) {
     const { paymentTypeId, ledgerId } = data;
-
+console.log("data",data);
     const ledger = await this.paymentRepository.getLedgerById(ledgerId);
+
+    console.log("ledger",ledger);
     if (!ledger) throw new Error("Invalid ledgerId: not found");
 
     const paymentType =
       await this.paymentRepository.getPaymentTypeById(paymentTypeId);
+      console.log("paymentType",paymentType);
     if (!paymentType) throw new Error("Invalid paymentTypeId: not found");
 
     return this.paymentRepository.addIncomeQRM(data);
@@ -536,6 +561,10 @@ class PaymentService {
     const deleted = await this.paymentRepository.deleteIncome(id);
     if (deleted === 0) throw new Error("Income not found or already deleted");
     return true;
+  }
+
+  async reorderIncome(incomeId, newPosition) {
+    return this.paymentRepository.reorderIncome(incomeId, newPosition);
   }
 
   // ------------------- EXPENSE -------------------

@@ -219,11 +219,13 @@ class PaymentRepository {
           model: Income,
           as: "incomes",
           include: [{ model: PaymentType, as: "paymentType" }],
+          order: [["sequence", "ASC"]], // Order incomes by sequence in ascending order
         },
         {
           model: Expense,
           as: "expenses",
           include: [{ model: PaymentType, as: "paymentType" }],
+          order: [["sequence", "ASC"]], // Order incomes by sequence in ascending order
         },
         {
           model: User,
@@ -235,17 +237,20 @@ class PaymentRepository {
   }
 
   getLedgerById(id) {
+    console.log("Getting ledger by ID:", id);
     return Ledger.findByPk(id, {
-      include: [
+       include: [
         {
           model: Income,
           as: "incomes",
           include: [{ model: PaymentType, as: "paymentType" }],
+          order: [["sequence", "ASC"]], // Order incomes by sequence in ascending order
         },
         {
           model: Expense,
           as: "expenses",
           include: [{ model: PaymentType, as: "paymentType" }],
+          order: [["sequence", "ASC"]], // Order incomes by sequence in ascending order
         },
         {
           model: User,
@@ -275,14 +280,6 @@ class PaymentRepository {
       }
 
       const currentPosition = ledgerToMove.sequence;
-      console.log(
-        "Reordering ledger:",
-        ledgerId,
-        "to position:",
-        newPosition,
-        currentPosition,
-        newPosition,
-      );
 
       if (currentPosition === newPosition) {
         await transaction.commit();
@@ -324,10 +321,13 @@ class PaymentRepository {
   }
 
   getLedgerWithTransactions(id) {
+    console.log("Getting ledger with transactions by ID:", id);
     return Ledger.findByPk(id, {
       include: [
-        { model: Income, as: "incomes" },
-        { model: Expense, as: "expenses" },
+        { model: Income, as: "incomes" ,
+          order: [["sequence", "ASC"]]},
+        { model: Expense, as: "expenses" ,
+          order: [["sequence", "ASC"]] },
       ],
     });
   }
@@ -341,16 +341,56 @@ class PaymentRepository {
   }
 
   // ---------------- INCOME ----------------
-  bulkCreateIncome(incomes, options = {}) {
-    return Income.bulkCreate(incomes, options);
+
+  async bulkCreateIncome(incomes, options = {}) {
+    // Get the maximum sequence for the ledgerIds in the incoming data
+    const ledgerIds = [...new Set(incomes.map((income) => income.ledgerId))]; // Extract unique ledgerIds
+    const maxSequences = await Promise.all(
+      ledgerIds.map(async (ledgerId) => {
+        const maxSequence = await Income.max("sequence", {
+          where: { ledgerId },
+          transaction: options.transaction,
+        });
+        return { ledgerId, maxSequence: maxSequence || 0 }; // Default to 0 if no sequence exists
+      }),
+    );
+
+    // Add sequence to each income based on its ledgerId
+    const incomesWithSequence = incomes.map((income) => {
+      const maxSequence = maxSequences.find(
+        (seq) => seq.ledgerId === income.ledgerId,
+      );
+      return {
+        ...income,
+        sequence: (maxSequence ? maxSequence.maxSequence : 0) + 1, // Increment sequence for this ledgerId
+      };
+    });
+
+    // Perform bulk create with the updated incomes
+    return Income.bulkCreate(incomesWithSequence, options);
   }
 
-  addIncomeQRM(data) {
-    return Income.create(data);
+  async addIncomeQRM(data) {
+    const maxSequence = await Income.max("sequence", {
+      where: { ledgerId: data.ledgerId },
+    });
+    return Income.create({
+      ...data,
+      sequence: (maxSequence || 0) + 1,
+    });
   }
 
   getIncomeById(id) {
     return Income.findByPk(id, {
+      include: [{ model: PaymentType, as: "paymentType" }],
+    });
+  }
+
+  getIncomeByLedgerId(ledgerId) {
+    return Income.findAll({
+      where: {
+        ledgerId: ledgerId,
+      },
       include: [{ model: PaymentType, as: "paymentType" }],
     });
   }
@@ -361,6 +401,58 @@ class PaymentRepository {
 
   deleteIncome(id) {
     return Income.destroy({ where: { id } });
+  }
+
+  async reorderIncome(incomeId, newPosition) {
+    const transaction = await Income.sequelize.transaction();
+
+    try {
+      const incomeToMove = await Income.findOne({
+        where: { id: incomeId },
+        transaction,
+      });
+
+      if (!incomeToMove) {
+        await transaction.rollback();
+        return null;
+      }
+
+      const currentPosition = incomeToMove.sequence;
+
+      if (currentPosition === newPosition) {
+        await transaction.commit();
+        return this.getIncomeById(incomeId);
+      }
+      if (newPosition < currentPosition) {
+        await Income.update(
+          { sequence: Income.sequelize.literal("sequence + 1") },
+          {
+            where: {
+              sequence: { [Op.between]: [newPosition, currentPosition - 1] },
+            },
+            transaction,
+          },
+        );
+      } else {
+        await Income.update(
+          { sequence: Income.sequelize.literal("sequence - 1") },
+          {
+            where: {
+              sequence: { [Op.between]: [currentPosition + 1, newPosition] },
+            },
+            transaction,
+          },
+        );
+      }
+
+      await incomeToMove.update({ sequence: newPosition }, { transaction });
+      await transaction.commit();
+
+      return this.getIncomeById(incomeId);
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
   }
 
   // ---------------- EXPENSE ----------------
@@ -433,9 +525,9 @@ class PaymentRepository {
       {
         where: {
           userId: userId,
-          id: excludeId
+          id: excludeId,
         },
-      }
+      },
     );
 
     return PaymentType.update(
@@ -447,7 +539,7 @@ class PaymentRepository {
             [Op.ne]: excludeId, // exclude current record
           },
         },
-      }
+      },
     );
   }
 

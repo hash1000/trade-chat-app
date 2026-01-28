@@ -25,8 +25,13 @@ const Income = db.define(
       type: DataTypes.INTEGER,
       allowNull: false,
     },
+    sequence: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
+    },
   },
-  { tableName: "incomes", timestamps: true }
+  { tableName: "incomes", timestamps: true },
 );
 
 module.exports = Income;
