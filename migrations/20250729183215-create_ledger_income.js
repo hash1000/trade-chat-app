@@ -10,7 +10,7 @@ module.exports = {
         autoIncrement: true,
       },
       amount: {
-        type: Sequelize.FLOAT,
+        type: Sequelize.DECIMAL(20, 5),
         allowNull: false,
       },
       description: {
