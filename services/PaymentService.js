@@ -569,7 +569,8 @@ class PaymentService {
       if (!ledger) throw new Error("Invalid ledgerId: not found");
     }
     await this.paymentRepository.updateIncome(id, data);
-    return await this.paymentRepository.getIncomeById(id);
+    const updatedIncome =  await this.paymentRepository.getIncomeById(id);
+    return updatedIncome;
   }
 
   async deleteIncome(id) {

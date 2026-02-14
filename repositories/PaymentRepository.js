@@ -408,6 +408,7 @@ class PaymentRepository {
   }
 
   updateIncome(id, data) {
+    console.log("Updating income ID:", id, "with data:", data);
     return Income.update(data, { where: { id } });
   }
 
