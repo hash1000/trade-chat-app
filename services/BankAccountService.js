@@ -5,8 +5,8 @@ class BankAccountService {
     this.bankAccountRepository = new BankAccountRepository();
   }
 
-  async getBankAccountsByUserId(userId) {
-    return this.bankAccountRepository.getBankAccountsByUserId(userId);
+  async getBankAccountsByUserId(userId, classification) {
+    return this.bankAccountRepository.getBankAccountsByUserId(userId, classification);
   }
 
   async getBankAccountById(userId, accountId) {

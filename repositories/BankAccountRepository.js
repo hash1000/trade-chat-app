@@ -2,9 +2,20 @@ const BankAccount = require('../models/bankAccount');
 const { Op } = require('sequelize');
 
 class BankAccountRepository {
-  async getBankAccountsByUserId(userId) {
+  // classification may be 'sender', 'receiver', 'both' or 'all' (or undefined)
+  async getBankAccountsByUserId(userId, classification) {
+    const where = { userId };
+
+    if (classification && classification !== 'all') {
+      // only include valid values
+      const allowed = ['sender', 'receiver', 'both'];
+      if (allowed.includes(classification)) {
+        where.classification = classification;
+      }
+    }
+
     return await BankAccount.findAll({
-      where: { userId },
+      where,
       order: [['sequence', 'ASC']],
     });
   }

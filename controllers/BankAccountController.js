@@ -6,7 +6,9 @@ class BankAccountController {
   async getBankAccounts(req, res) {
     try {
       const { id: userId } = req.user;
-      const accounts = await bankAccountService.getBankAccountsByUserId(userId);
+      // Optional classification filter: sender | receiver | both | all
+      const classification = req.query.classification;
+      const accounts = await bankAccountService.getBankAccountsByUserId(userId, classification);
       res.json(accounts);
     } catch (error) {
       console.error(error);
@@ -43,8 +45,10 @@ class BankAccountController {
         swift_code,
         intermediateBank, 
         note,
-        beneficiaryAddress 
+        beneficiaryAddress,
+        classification
       } = req.body;
+      console.log('Creating bank account with data:', req.body);
 
       const newAccount = await bankAccountService.createBankAccount(userId, {
         accountName,
@@ -56,6 +60,7 @@ class BankAccountController {
         note,
         intermediateBank,
         beneficiaryAddress,
+        classification
       });
 
       res.status(201).json(newAccount);
