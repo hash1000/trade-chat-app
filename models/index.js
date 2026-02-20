@@ -21,6 +21,8 @@ const AddToCart = require("./AddToCart");
 const ShortList = require("./shortList");
 const List = require("./list");
 const ProductImage = require("./productImage");
+const Receipt = require("./receipt");
+const BankAccount = require("./bankAccount");
 
 // Define all associations
 function defineAssociations() {
@@ -150,6 +152,9 @@ function defineAssociations() {
     foreignKey: "shopProductId",
     as: "shopProduct",
   });
+
+  Receipt.belongsTo(BankAccount, { foreignKey: "senderId", as: "sender" });
+  Receipt.belongsTo(BankAccount, { foreignKey: "receiverId", as: "receiver" });
 }
 
 // Initialize associations

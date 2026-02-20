@@ -19,6 +19,7 @@ const chatRoutes = require('./chatRoutes')
 const aiRoutes = require('./aiRoutes')
 const userRoutes = require('./userRoutes')
 const versionRoutes = require('./versionRoutes')
+const receiptRoutes = require('./receiptRoutes')
 
 // Signup route
 router.use('/auth', authRoutes)
@@ -40,5 +41,6 @@ router.use('/chat', chatRoutes)
 router.use('/ai', aiRoutes)
 router.use('/user', userRoutes)
 router.use('/version', versionRoutes)
+router.use('/receipt', receiptRoutes)
 
 module.exports = router
