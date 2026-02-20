@@ -11,10 +11,7 @@ exports.createBankAccountValidation = [
 
   // IBAN is optional; when provided, validate format
   body('iban')
-    .optional({ nullable: true })
-    .trim()
-    // .isIBAN()
-    .withMessage('Invalid IBAN'),
+    .optional({ nullable: true }),
 
   body('swift_code')
     .trim()
@@ -61,7 +58,7 @@ exports.updateBankAccountValidation = [
   param('id').isInt().withMessage('Invalid bank account id'),
 
   body('accountName').trim().optional().isLength({ min: 2, max: 100 }).withMessage('Account name must be between 2 and 100 characters'),
-  body('iban').optional({ nullable: true }).trim().isIBAN().withMessage('Invalid IBAN'),
+  body('iban').optional({ nullable: true }).trim(),
   body('swift_code').trim().optional().isLength({ min: 4, max: 11 }).withMessage('SWIFT/BIC seems invalid'),
   body('accountHolder').trim().optional().isLength({ min: 2, max: 100 }).withMessage('Account holder must be between 2 and 100 characters'),
   body('accountCurrency').trim().optional().isLength({ min: 3, max: 10 }).withMessage('Account currency seems invalid'),
