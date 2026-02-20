@@ -21,8 +21,8 @@ const BankAccount = sequelize.define(
     },
     iban: {
       type: DataTypes.STRING,
-      allowNull: false,
-      unique: true,
+      allowNull: true,
+      defaultValue: null,
     },
     swift_code: {
       type: DataTypes.STRING,
@@ -52,6 +52,13 @@ const BankAccount = sequelize.define(
       type: DataTypes.TEXT,
       allowNull: true,
     },
+    // classification: indicates whether this account is used for sending, receiving or both
+    classification: {
+      type: DataTypes.ENUM('sender', 'receiver', 'both'),
+      allowNull: false,
+      defaultValue: 'both',
+    },
+    
     sequence: {
       type: DataTypes.INTEGER,
       allowNull: false,
