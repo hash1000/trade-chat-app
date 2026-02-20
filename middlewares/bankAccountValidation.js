@@ -13,7 +13,7 @@ exports.createBankAccountValidation = [
   body('iban')
     .optional({ nullable: true })
     .trim()
-    .isIBAN()
+    // .isIBAN()
     .withMessage('Invalid IBAN'),
 
   body('swift_code')
