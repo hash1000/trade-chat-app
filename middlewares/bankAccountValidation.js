@@ -6,7 +6,7 @@ exports.createBankAccountValidation = [
     .trim()
     .notEmpty()
     .withMessage('Account name is required')
-    .isLength({ min: 2, max: 100 })
+    // .isLength({ min: 2, max: 100 })
     .withMessage('Account name must be between 2 and 100 characters'),
 
   // IBAN is optional; when provided, validate format
@@ -17,28 +17,28 @@ exports.createBankAccountValidation = [
     .trim()
     .notEmpty()
     .withMessage('SWIFT/BIC is required')
-    .isLength({ min: 4, max: 11 })
+    // .isLength({ min: 4, max: 11 })
     .withMessage('SWIFT/BIC seems invalid'),
 
   body('accountHolder')
     .trim()
     .notEmpty()
     .withMessage('Account holder is required')
-    .isLength({ min: 2, max: 100 })
+    // .isLength({ min: 2, max: 100 })
     .withMessage('Account holder must be between 2 and 100 characters'),
 
   body('accountCurrency')
     .trim()
     .notEmpty()
     .withMessage('Account currency is required')
-    .isLength({ min: 3, max: 10 })
+    // .isLength({ min: 3, max: 10 })
     .withMessage('Account currency seems invalid'),
 
   body('bic')
     .trim()
     .notEmpty()
     .withMessage('BIC is required')
-    .isLength({ min: 4, max: 11 })
+    // .isLength({ min: 4, max: 11 })
     .withMessage('BIC seems invalid'),
 
   body('intermediateBank').trim().optional().isLength({ max: 100 }).withMessage('Intermediate bank is too long'),

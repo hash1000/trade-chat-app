@@ -22,6 +22,7 @@ const BankAccount = sequelize.define(
     iban: {
       type: DataTypes.STRING,
       allowNull: true,
+      unique: false,
       defaultValue: null,
     },
     swift_code: {
