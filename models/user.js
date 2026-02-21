@@ -139,6 +139,10 @@ const User = sequelize.define(
       type: DataTypes.INTEGER,
       defaultValue: 0,
     },
+    usdWalletBalance: {
+      type:  DataTypes.DECIMAL(20, 5),
+      defaultValue: 0,
+    },
     companyWalletBalance: {
       type: DataTypes.INTEGER,
       defaultValue: 0,

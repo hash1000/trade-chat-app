@@ -133,6 +133,9 @@ class UserService {
       if (profileData.gender) {
         user.gender = profileData.gender;
       }
+      if (profileData.usdWalletBalance) {
+        user.usdWalletBalance = user.usdWalletBalance ? Number(profileData.usdWalletBalance) + Number(user.usdWalletBalance) : Number(profileData.usdWalletBalance);
+      }
       if (profileData.password) {
         const hashedPassword = await bcrypt.hash(profileData.password, 10);
         user.password = hashedPassword;

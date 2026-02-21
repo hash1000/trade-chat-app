@@ -1,15 +1,25 @@
-const Receipt = require('../models/receipt');
-const BankAccount = require('../models/bankAccount');
-const { Op } = require('sequelize');
+const Receipt = require("../models/receipt");
+const BankAccount = require("../models/bankAccount");
+const { Op } = require("sequelize");
 
 class ReceiptRepository {
   async getReceiptsByUserId(userId) {
     return await Receipt.findAll({
       where: { userId },
-      order: [['createdAt', 'DESC']],
+      order: [["createdAt", "DESC"]],
       include: [
-        { model: BankAccount, as: 'sender' },
-        { model: BankAccount, as: 'receiver' },
+        { model: BankAccount, as: "sender" },
+        { model: BankAccount, as: "receiver" },
+      ],
+    });
+  }
+
+  async getAdminReceipts() {
+    return await Receipt.findAll({
+      order: [["createdAt", "DESC"]],
+      include: [
+        { model: BankAccount, as: "sender" },
+        { model: BankAccount, as: "receiver" },
       ],
     });
   }
@@ -18,8 +28,8 @@ class ReceiptRepository {
     return await Receipt.findOne({
       where: { id: receiptId, userId },
       include: [
-        { model: BankAccount, as: 'sender' },
-        { model: BankAccount, as: 'receiver' },
+        { model: BankAccount, as: "sender" },
+        { model: BankAccount, as: "receiver" },
       ],
     });
   }
@@ -38,6 +48,13 @@ class ReceiptRepository {
   async deleteReceipt(userId, receiptId) {
     const deleted = await Receipt.destroy({ where: { id: receiptId, userId } });
     return deleted > 0;
+  }
+
+  async updateReceiptStatus(receiptId, status) {
+    const receipt = await Receipt.findByPk(receiptId);
+    if (!receipt) return null;
+    await receipt.update({ status });
+    return receipt;
   }
 }
 

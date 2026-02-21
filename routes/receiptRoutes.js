@@ -2,14 +2,23 @@ const express = require('express');
 const router = express.Router();
 const ReceiptController = require('../controllers/ReceiptController');
 const authenticate = require('../middlewares/authenticate');
-const { createReceiptValidation, updateReceiptValidation, idParamValidation } = require('../middlewares/receiptValidation');
+const authMiddleware = require("../middlewares/authenticate");
+const { createReceiptValidation, updateReceiptValidation, idParamValidation, getValidation } = require('../middlewares/receiptValidation');
+const authorize = require('../middlewares/authorization');
+const checkIntegerParam = require('../middlewares/paramIntegerValidation');
 
 const receiptController = new ReceiptController();
 
-router.get('/', authenticate, receiptController.getReceipts);
-router.get('/:id', authenticate, idParamValidation, receiptController.getReceiptById);
-router.post('/', authenticate, createReceiptValidation, receiptController.createReceipt);
-router.put('/:id', authenticate, updateReceiptValidation, receiptController.updateReceipt);
-router.delete('/:id', authenticate, idParamValidation, receiptController.deleteReceipt);
+router.get('/my', authenticate, receiptController.getReceipts);
+router.get('/my/:id', authenticate, idParamValidation, receiptController.getReceiptById);
+router.post('/my', authenticate, createReceiptValidation, receiptController.createReceipt);
+router.put('/my/:id', authenticate, updateReceiptValidation, receiptController.updateReceipt);
+router.delete('/my/:id', authenticate, idParamValidation, receiptController.deleteReceipt);
+
+// admin routes for approving or rejecting receipts
+router.put('/:id/approve', authMiddleware, authorize(["admin"]), checkIntegerParam("id"), receiptController.approveReceipt);
+router.put('/:id/reject', authMiddleware, authorize(["admin"]), checkIntegerParam("id"), receiptController.rejectReceipt);
+router.get('/', authMiddleware, authorize(["admin"]), getValidation, receiptController.getAdminReceipts);
+
 
 module.exports = router;

@@ -28,6 +28,11 @@ const Receipt = sequelize.define(
       type: DataTypes.UUID,
       allowNull: false,
     },
+    status: {
+      type: DataTypes.ENUM('pending', 'approved', 'rejected'),
+      allowNull: false,
+      defaultValue: 'pending',
+    }
   },
   {
     timestamps: true,

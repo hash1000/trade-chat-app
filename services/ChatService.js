@@ -244,7 +244,6 @@ class CartService {
     try {
       const sender = await userService.getUserById(fromUserId);
       if (fromUserId === toUserId && sender.roles[0].name === "admin") {
-        console.log("hjsjdhdja");
         sender.personalWalletBalance += amount;
         await sender.save();
         console.log(`Added ${amount} units to user's own wallet.`);
