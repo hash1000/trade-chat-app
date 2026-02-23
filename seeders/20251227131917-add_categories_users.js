@@ -39,7 +39,9 @@ module.exports = {
           .filter(type => !existingTitles.includes(type))
           .map(type => ({
             title: type,
-            userId: user.id
+            userId: user.id,
+            createdAt: new Date(),
+            updatedAt: new Date(),
           }));
         
         console.log("newRecords for user", user.id, newRecords);

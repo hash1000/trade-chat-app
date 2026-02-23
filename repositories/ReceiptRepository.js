@@ -1,5 +1,6 @@
 const Receipt = require("../models/receipt");
 const BankAccount = require("../models/bankAccount");
+const User = require("../models/user");
 const { Op } = require("sequelize");
 
 class ReceiptRepository {
@@ -10,6 +11,8 @@ class ReceiptRepository {
       include: [
         { model: BankAccount, as: "sender" },
         { model: BankAccount, as: "receiver" },
+        { model: User, as: 'user', attributes: ['id','firstName','lastName','email','usdWalletBalance','personalWalletBalance'] },
+        { model: User, as: 'approver', attributes: ['id','firstName','lastName','email'] },
       ],
     });
   }
@@ -20,6 +23,8 @@ class ReceiptRepository {
       include: [
         { model: BankAccount, as: "sender" },
         { model: BankAccount, as: "receiver" },
+        { model: User, as: 'user', attributes: ['id','firstName','lastName','email','usdWalletBalance','personalWalletBalance'] },
+        { model: User, as: 'approver', attributes: ['id','firstName','lastName','email'] },
       ],
     });
   }
@@ -30,6 +35,8 @@ class ReceiptRepository {
       include: [
         { model: BankAccount, as: "sender" },
         { model: BankAccount, as: "receiver" },
+        { model: User, as: 'user', attributes: ['id','firstName','lastName','email','usdWalletBalance','personalWalletBalance'] },
+        { model: User, as: 'approver', attributes: ['id','firstName','lastName','email'] },
       ],
     });
   }

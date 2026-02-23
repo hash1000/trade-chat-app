@@ -69,6 +69,7 @@ class ReceiptController {
         userId,
         id,
         updateData,
+        req.user,
       );
       if (!updated)
         return res
@@ -106,8 +107,9 @@ class ReceiptController {
   async approveReceipt(req, res) {
     try {
       const { id } = req.params;
-      const approved = await receiptService.approveReceipt(id);
-      
+      // allow optional newAmount in body to override credited amount
+      const { newAmount } = req.body || {};
+      const approved = await receiptService.approveReceipt(id, req.user, newAmount);
 
       console.log("Approved receipt:", approved.status);
       if (!approved)
@@ -122,7 +124,7 @@ class ReceiptController {
   async rejectReceipt(req, res) {
     try {
       const { id } = req.params;
-      const rejected = await receiptService.rejectReceipt(id);
+      const rejected = await receiptService.rejectReceipt(id, req.user);
       if (!rejected)
         return res.status(404).json({ error: "Receipt not found" });
       return res.json({ success: true, data: rejected });
@@ -135,7 +137,7 @@ class ReceiptController {
   async getAdminReceipts(req, res) {
     try {
       const { type } = req.query;
-       const { id: userId } = req.user;
+      const { id: userId } = req.user;
       let receipts;
 
       if (type === "my") {

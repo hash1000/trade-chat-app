@@ -16,9 +16,9 @@ router.put('/my/:id', authenticate, updateReceiptValidation, receiptController.u
 router.delete('/my/:id', authenticate, idParamValidation, receiptController.deleteReceipt);
 
 // admin routes for approving or rejecting receipts
-router.put('/:id/approve', authMiddleware, authorize(["admin"]), checkIntegerParam("id"), receiptController.approveReceipt);
-router.put('/:id/reject', authMiddleware, authorize(["admin"]), checkIntegerParam("id"), receiptController.rejectReceipt);
-router.get('/', authMiddleware, authorize(["admin"]), getValidation, receiptController.getAdminReceipts);
+router.put('/:id/approve', authMiddleware, authorize(["admin", "accountant"]), checkIntegerParam("id"), receiptController.approveReceipt);
+router.put('/:id/reject', authMiddleware, authorize(["admin", "accountant"]), checkIntegerParam("id"), receiptController.rejectReceipt);
+router.get('/', authMiddleware, authorize(["admin", "accountant"]), getValidation, receiptController.getAdminReceipts);
 
 
 module.exports = router;
