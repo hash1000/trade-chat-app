@@ -58,11 +58,17 @@ class ReceiptService {
     }
 
     // Fetch current receipt to detect transitions
-    const current = await this.receiptRepository.getReceiptById(userId, receiptId);
+    const current = await this.receiptRepository.getReceiptById(
+      userId,
+      receiptId,
+    );
     if (!current) return null;
 
-    const wasApproved = current.type === 'approved' || current.status === 'approved';
-    const willBeApproved = (updateData.type && updateData.type === 'approved') || (updateData.status && updateData.status === 'approved');
+    const wasApproved =
+      current.type === "approved" || current.status === "approved";
+    const willBeApproved =
+      (updateData.type && updateData.type === "approved") ||
+      (updateData.status && updateData.status === "approved");
 
     // If approving now (and wasn't approved before), record approver if provided.
     // Authorization is enforced by the `authorize` middleware on the route.
@@ -72,15 +78,22 @@ class ReceiptService {
       }
     }
 
-    const updated = await this.receiptRepository.updateReceipt(userId, receiptId, updateData);
+    const updated = await this.receiptRepository.updateReceipt(
+      userId,
+      receiptId,
+      updateData,
+    );
 
     // After updating, if we've just approved, credit the user's usdWalletBalance
     if (willBeApproved && !wasApproved && updated) {
       // compute amount to credit: prefer newAmount when present
-      const amountToCredit = updated.newAmount && Number(updated.newAmount) > 0 ? Number(updated.newAmount) : Number(updated.amount);
+      const amountToCredit =
+        updated.newAmount && Number(updated.newAmount) > 0
+          ? Number(updated.newAmount)
+          : Number(updated.amount);
       if (amountToCredit && amountToCredit > 0) {
         // load the user and increment usdWalletBalance
-        const User = require('../models/user');
+        const User = require("../models/user");
         const targetUser = await User.findByPk(updated.userId);
         if (targetUser) {
           const currentBalance = Number(targetUser.usdWalletBalance) || 0;
@@ -99,7 +112,11 @@ class ReceiptService {
 
   async approveReceipt(receiptId, approverUser = null, newAmount = null) {
     // fetch receipt
-    const receipt = await this.receiptRepository.updateReceiptStatus(
+    const receipt = await this.receiptRepository.findReceiptById(receiptId);
+    if (receipt.status === "approved") {
+      return { message: "Receipt already approved", receipt };
+    }
+    const updated = await this.receiptRepository.updateReceiptStatus(
       receiptId,
       "approved",
     );
@@ -119,22 +136,32 @@ class ReceiptService {
         receipt.newAmount = parsed;
       }
     }
-
     // compute amount to credit (prefer receipt.newAmount when present)
-    const amountToCredit = receipt.newAmount && Number(receipt.newAmount) > 0 ? Number(receipt.newAmount) : Number(receipt.amount);
+    const amountToCredit =
+      receipt.newAmount && Number(receipt.newAmount) > 0
+        ? Number(receipt.newAmount)
+        : Number(receipt.amount);
+
     if (amountToCredit && amountToCredit > 0) {
       const user = await userService.getUserById(receipt.userId);
       if (user) {
-        const newBalance = (Number(user.usdWalletBalance) || 0) + amountToCredit;
-        await userService.updateUserProfile(user, { usdWalletBalance: newBalance });
+        // const newBalance = (Number(user.usdWalletBalance) || 0) + amountToCredit;
+
+        console.log(`Crediting user ${user.id} with amount ${amountToCredit}`);
+        await userService.updateUserProfile(user, {
+          usdWalletBalance: amountToCredit,
+        });
       }
     }
 
-    return receipt;
+    return { message: "Receipt  approved", receipt };
   }
 
   async rejectReceipt(receiptId, approverUser = null) {
-    const receipt = await this.receiptRepository.updateReceiptStatus(receiptId, "rejected");
+    const receipt = await this.receiptRepository.updateReceiptStatus(
+      receiptId,
+      "rejected",
+    );
     if (!receipt) return null;
     // If approver provided, set approvedBy
     if (approverUser && approverUser.id) {

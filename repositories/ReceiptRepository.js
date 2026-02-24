@@ -11,8 +11,23 @@ class ReceiptRepository {
       include: [
         { model: BankAccount, as: "sender" },
         { model: BankAccount, as: "receiver" },
-        { model: User, as: 'user', attributes: ['id','firstName','lastName','email','usdWalletBalance','personalWalletBalance'] },
-        { model: User, as: 'approver', attributes: ['id','firstName','lastName','email'] },
+        {
+          model: User,
+          as: "user",
+          attributes: [
+            "id",
+            "firstName",
+            "lastName",
+            "email",
+            "usdWalletBalance",
+            "personalWalletBalance",
+          ],
+        },
+        {
+          model: User,
+          as: "approver",
+          attributes: ["id", "firstName", "lastName", "email"],
+        },
       ],
     });
   }
@@ -23,8 +38,23 @@ class ReceiptRepository {
       include: [
         { model: BankAccount, as: "sender" },
         { model: BankAccount, as: "receiver" },
-        { model: User, as: 'user', attributes: ['id','firstName','lastName','email','usdWalletBalance','personalWalletBalance'] },
-        { model: User, as: 'approver', attributes: ['id','firstName','lastName','email'] },
+        {
+          model: User,
+          as: "user",
+          attributes: [
+            "id",
+            "firstName",
+            "lastName",
+            "email",
+            "usdWalletBalance",
+            "personalWalletBalance",
+          ],
+        },
+        {
+          model: User,
+          as: "approver",
+          attributes: ["id", "firstName", "lastName", "email"],
+        },
       ],
     });
   }
@@ -35,9 +65,30 @@ class ReceiptRepository {
       include: [
         { model: BankAccount, as: "sender" },
         { model: BankAccount, as: "receiver" },
-        { model: User, as: 'user', attributes: ['id','firstName','lastName','email','usdWalletBalance','personalWalletBalance'] },
-        { model: User, as: 'approver', attributes: ['id','firstName','lastName','email'] },
+        {
+          model: User,
+          as: "user",
+          attributes: [
+            "id",
+            "firstName",
+            "lastName",
+            "email",
+            "usdWalletBalance",
+            "personalWalletBalance",
+          ],
+        },
+        {
+          model: User,
+          as: "approver",
+          attributes: ["id", "firstName", "lastName", "email"],
+        },
       ],
+    });
+  }
+
+  async findReceiptById(receiptId) {
+    return await Receipt.findOne({
+      where: { id: receiptId },
     });
   }
 

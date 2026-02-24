@@ -6,13 +6,10 @@ class ReceiptController {
     try {
       const { id: userId } = req.user;
       const receipts = await receiptService.getReceiptsByUserId(userId);
-      return res.status(200).json({
-        success: true,
-        data: receipts,
-      });
+      return res.status(200).json({ success: true, data: receipts });
     } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: "Server Error" });
+      console.error("getReceipts error:", error);
+      res.status(500).json({ success: false, error: "Server error. Please try again later." });
     }
   }
 
@@ -21,16 +18,14 @@ class ReceiptController {
       const { id: userId } = req.user;
       const { id } = req.params;
       const receipt = await receiptService.getReceiptById(userId, id);
-      if (!receipt)
-        return res.status(404).json({ error: "Receipt not found", data: null });
+      if (!receipt) {
+        return res.status(404).json({ success: false, error: "Receipt not found." });
+      }
 
-      return res.status(200).json({
-        success: true,
-        data: receipt,
-      });
+      return res.status(200).json({ success: true, data: receipt });
     } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: "Server Error" });
+      console.error("getReceiptById error:", error);
+      res.status(500).json({ success: false, error: "Server error. Please try again later." });
     }
   }
 
@@ -38,25 +33,21 @@ class ReceiptController {
     try {
       const { id: userId } = req.user;
       const { senderId, receiverId, amount } = req.body;
-      console.log("Creating receipt with data:", req.body);
-      const newReceipt = await receiptService.createReceipt(userId, {
-        senderId,
-        receiverId,
-        amount,
-      });
+      const newReceipt = await receiptService.createReceipt(userId, { senderId, receiverId, amount });
       return res.status(201).json({ success: true, data: newReceipt });
     } catch (error) {
-      console.error(error);
+      console.error("createReceipt error:", error);
       if (error.name === "InvalidBankAccountError") {
         return res.status(400).json({ success: false, error: error.message });
       }
-      // handle DB foreign key errors as a fallback
       if (error.name === "SequelizeForeignKeyConstraintError") {
-        return res
-          .status(400)
-          .json({ success: false, error: "Invalid bank account reference" });
+        return res.status(400).json({ success: false, error: "Invalid bank account reference." });
       }
-      res.status(500).json({ error: "Server Error" });
+      if (error.name === "SequelizeValidationError") {
+        return res.status(400).json({ success: false, error: error.message });
+      }
+
+      res.status(500).json({ success: false, error: "Server error. Please try again later." });
     }
   }
 
@@ -71,22 +62,24 @@ class ReceiptController {
         updateData,
         req.user,
       );
-      if (!updated)
-        return res
-          .status(404)
-          .json({ success: false, error: "Receipt not found" });
-      return res.json({ success: true, data: updated });
+      if (!updated) {
+        return res.status(404).json({ success: false, error: "Receipt not found." });
+      }
+
+      return res.status(200).json({ success: true, data: updated });
     } catch (error) {
-      console.error(error);
+      console.error("updateReceipt error:", error);
       if (error.name === "InvalidBankAccountError") {
         return res.status(400).json({ success: false, error: error.message });
       }
       if (error.name === "SequelizeForeignKeyConstraintError") {
-        return res
-          .status(400)
-          .json({ success: false, error: "Invalid bank account reference" });
+        return res.status(400).json({ success: false, error: "Invalid bank account reference." });
       }
-      res.status(500).json({ error: "Server Error" });
+      if (error.name === "SequelizeValidationError") {
+        return res.status(400).json({ success: false, error: error.message });
+      }
+
+      res.status(500).json({ success: false, error: "Server erro r. Please try again later." });
     }
   }
 
@@ -95,29 +88,34 @@ class ReceiptController {
       const { id: userId } = req.user;
       const { id } = req.params;
       const deleted = await receiptService.deleteReceipt(userId, id);
-      if (!deleted) return res.status(404).json({ error: "Receipt not found" });
-      res.json({ success: true, message: "Receipt deleted successfully" });
+      if (!deleted) return res.status(404).json({ success: false, error: "Receipt not found." });
+      return res.status(200).json({ success: true, message: "Receipt deleted successfully." });
     } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: "Server Error" });
+      console.error("deleteReceipt error:", error);
+      res.status(500).json({ success: false, error: "Server error. Please try again later." });
     }
   }
 
   // admin actions for approving or rejecting receipts
   async approveReceipt(req, res) {
     try {
+      console.log("Approving receipt with id:", req.params.id);
       const { id } = req.params;
       // allow optional newAmount in body to override credited amount
       const { newAmount } = req.body || {};
       const approved = await receiptService.approveReceipt(id, req.user, newAmount);
 
-      console.log("Approved receipt:", approved.status);
-      if (!approved)
-        return res.status(404).json({ error: "Receipt not found" });
-      return res.json({ success: true, data: approved });
+      if (!approved) {
+        return res.status(404).json({ success: false, error: "Receipt not found." });
+      }
+
+      return res.status(200).json({ success: true, data: approved });
     } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: "Server Error" });
+      console.error("approveReceipt error:", error);
+      if (error.name === "UnauthorizedError") {
+        return res.status(403).json({ success: false, error: "You do not have permission to approve this receipt." });
+      }
+      res.status(500).json({ success: false, error: "Server error. Please try again later." });
     }
   }
 
@@ -125,12 +123,17 @@ class ReceiptController {
     try {
       const { id } = req.params;
       const rejected = await receiptService.rejectReceipt(id, req.user);
-      if (!rejected)
-        return res.status(404).json({ error: "Receipt not found" });
-      return res.json({ success: true, data: rejected });
+      if (!rejected) {
+        return res.status(404).json({ success: false, error: "Receipt not found." });
+      }
+
+      return res.status(200).json({ success: true, data: rejected });
     } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: "Server Error" });
+      console.error("rejectReceipt error:", error);
+      if (error.name === "UnauthorizedError") {
+        return res.status(403).json({ success: false, error: "You do not have permission to reject this receipt." });
+      }
+      res.status(500).json({ success: false, error: "Server error. Please try again later." });
     }
   }
 
@@ -145,18 +148,13 @@ class ReceiptController {
       } else if (type === "all") {
         receipts = await receiptService.getAdminReceipts();
       } else {
-        return res
-          .status(400)
-          .json({ error: "Invalid type parameter. Must be 'my' or 'all'." });
+        return res.status(400).json({ success: false, error: "Invalid type parameter. Must be 'my' or 'all'." });
       }
 
-      return res.status(200).json({
-        success: true,
-        data: receipts,
-      });
+      return res.status(200).json({ success: true, data: receipts });
     } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: "Server Error" });
+      console.error("getAdminReceipts error:", error);
+      res.status(500).json({ success: false, error: "Server error. Please try again later." });
     }
   }
 }
