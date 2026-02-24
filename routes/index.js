@@ -20,6 +20,7 @@ const aiRoutes = require('./aiRoutes')
 const userRoutes = require('./userRoutes')
 const versionRoutes = require('./versionRoutes')
 const receiptRoutes = require('./receiptRoutes')
+const walletRoutes = require('./walletRoutes')
 
 // Signup route
 router.use('/auth', authRoutes)
@@ -42,5 +43,6 @@ router.use('/ai', aiRoutes)
 router.use('/user', userRoutes)
 router.use('/version', versionRoutes)
 router.use('/receipt', receiptRoutes)
+router.use('/wallet', walletRoutes)
 
 module.exports = router
