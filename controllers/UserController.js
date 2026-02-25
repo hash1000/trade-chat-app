@@ -1077,7 +1077,7 @@ class UserController {
     try {
       const { role, requesteeId } = req.body;
       const requesteeUser = await userService.getUserById(requesteeId);
-
+console.log("requesteeUser:", requesteeUser, role, requesteeId);
       if (requesteeUser) {
         const updatedUser = await userService.updateUserRole(
           requesteeUser,

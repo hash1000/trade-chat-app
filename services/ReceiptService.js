@@ -38,7 +38,7 @@ class ReceiptService {
     return this.receiptRepository.createReceipt(userId, data);
   }
 
-  async updateReceipt(userId, receiptId, updateData) {
+  async updateReceipt(userId, receiptId, updateData, approverUser = null) {
     // If sender/receiver are being changed, validate them
     if (updateData.senderId) {
       const sender = await BankAccount.findByPk(updateData.senderId);
@@ -57,32 +57,117 @@ class ReceiptService {
       }
     }
 
-    return this.receiptRepository.updateReceipt(userId, receiptId, updateData);
+    // Fetch current receipt to detect transitions
+    const current = await this.receiptRepository.getReceiptById(
+      userId,
+      receiptId,
+    );
+    if (!current) return null;
+
+    const wasApproved =
+      current.type === "approved" || current.status === "approved";
+    const willBeApproved =
+      (updateData.type && updateData.type === "approved") ||
+      (updateData.status && updateData.status === "approved");
+
+    // If approving now (and wasn't approved before), record approver if provided.
+    // Authorization is enforced by the `authorize` middleware on the route.
+    if (willBeApproved && !wasApproved) {
+      if (approverUser && approverUser.id) {
+        updateData.approvedBy = approverUser.id;
+      }
+    }
+
+    const updated = await this.receiptRepository.updateReceipt(
+      userId,
+      receiptId,
+      updateData,
+    );
+
+    // After updating, if we've just approved, credit the user's usdWalletBalance
+    if (willBeApproved && !wasApproved && updated) {
+      // compute amount to credit: prefer newAmount when present
+      const amountToCredit =
+        updated.newAmount && Number(updated.newAmount) > 0
+          ? Number(updated.newAmount)
+          : Number(updated.amount);
+      if (amountToCredit && amountToCredit > 0) {
+        // load the user and increment usdWalletBalance
+        const User = require("../models/user");
+        const targetUser = await User.findByPk(updated.userId);
+        if (targetUser) {
+          const currentBalance = Number(targetUser.usdWalletBalance) || 0;
+          targetUser.usdWalletBalance = currentBalance + amountToCredit;
+          await targetUser.save();
+        }
+      }
+    }
+
+    return updated;
   }
 
   async deleteReceipt(userId, receiptId) {
     return this.receiptRepository.deleteReceipt(userId, receiptId);
   }
 
-  async approveReceipt(receiptId) {
-    // Update receipt status to 'approved'
-    const approved = await this.receiptRepository.updateReceiptStatus(
+  async approveReceipt(receiptId, approverUser = null, newAmount = null) {
+    // fetch receipt
+    const receipt = await this.receiptRepository.findReceiptById(receiptId);
+    if (receipt.status === "approved") {
+      return { message: "Receipt already approved", receipt };
+    }
+    const updated = await this.receiptRepository.updateReceiptStatus(
       receiptId,
       "approved",
     );
+    if (!receipt) return null;
 
-    // Fetch the user's profile
-    const user = await userService.getUserById(approved.userId);
-    // Update the user's profile with the new USD wallet balance
-    await userService.updateUserProfile(user, {
-      usdWalletBalance: approved.amount,
-    });
+    // record approver identity (authorization handled by route middleware)
+    if (approverUser && approverUser.id) {
+      await receipt.update({ approvedBy: approverUser.id });
+    }
 
-    return approved;
+    // If caller provided a newAmount in the API call, persist it and prefer it when crediting
+    if (newAmount !== null && newAmount !== undefined) {
+      // try to parse numeric
+      const parsed = Number(newAmount);
+      if (!Number.isNaN(parsed)) {
+        await receipt.update({ newAmount: parsed });
+        receipt.newAmount = parsed;
+      }
+    }
+    // compute amount to credit (prefer receipt.newAmount when present)
+    const amountToCredit =
+      receipt.newAmount && Number(receipt.newAmount) > 0
+        ? Number(receipt.newAmount)
+        : Number(receipt.amount);
+
+    if (amountToCredit && amountToCredit > 0) {
+      const user = await userService.getUserById(receipt.userId);
+      if (user) {
+        // const newBalance = (Number(user.usdWalletBalance) || 0) + amountToCredit;
+
+        console.log(`Crediting user ${user.id} with amount ${amountToCredit}`);
+        await userService.updateUserProfile(user, {
+          usdWalletBalance: amountToCredit,
+        });
+      }
+    }
+
+    return { message: "Receipt  approved", receipt };
   }
 
-  async rejectReceipt(receiptId) {
-    return this.receiptRepository.updateReceiptStatus(receiptId, "rejected");
+  async rejectReceipt(receiptId, approverUser = null) {
+    const receipt = await this.receiptRepository.updateReceiptStatus(
+      receiptId,
+      "rejected",
+    );
+    if (!receipt) return null;
+    // If approver provided, set approvedBy
+    if (approverUser && approverUser.id) {
+      await receipt.update({ approvedBy: approverUser.id });
+    }
+    return receipt;
   }
 }
 

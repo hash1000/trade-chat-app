@@ -30,8 +30,8 @@ class UserService {
         { transaction }
       );
 
-      await userRepository.assignRoleToUser(newUser.id, "user", transaction);
-
+     const role = await userRepository.assignRoleToUser(newUser.id, "user", transaction);
+console.log("Assigned role", role, "to user", newUser.id);
       await transaction.commit();
       return newUser;
     } catch (error) {
@@ -255,8 +255,9 @@ class UserService {
       if (existingUserRole) {
         return { message: "User already has this role", user };
       }
+      console.log("Assigning role", role.id,roleName, "to user", user.id);
       // Update the user's role
-      await UserRole.update(
+      const updated = await UserRole.update(
         {
           roleId: role.id,
         },
@@ -266,7 +267,7 @@ class UserService {
           },
         }
       );
-
+console.log("updated", updated);
       // Fetch the updated user with their roles
       const updatedUser = await User.findByPk(user.id, {
         include: [

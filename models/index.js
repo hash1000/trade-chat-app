@@ -155,6 +155,8 @@ function defineAssociations() {
 
   Receipt.belongsTo(BankAccount, { foreignKey: "senderId", as: "sender" });
   Receipt.belongsTo(BankAccount, { foreignKey: "receiverId", as: "receiver" });
+  Receipt.belongsTo(User, { foreignKey: "userId", as: "user" });
+  Receipt.belongsTo(User, { foreignKey: "approvedBy", as: "approver" });
 }
 
 // Initialize associations

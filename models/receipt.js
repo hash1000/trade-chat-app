@@ -24,9 +24,18 @@ const Receipt = sequelize.define(
       allowNull: false,
       defaultValue: 0,
     },
+    newAmount: {
+      type: DataTypes.DECIMAL(20, 5),
+      allowNull: true,
+      defaultValue: null,
+    },
     userId: {
       type: DataTypes.UUID,
       allowNull: false,
+    },
+    approvedBy: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
     },
     status: {
       type: DataTypes.ENUM('pending', 'approved', 'rejected'),
@@ -41,4 +50,4 @@ const Receipt = sequelize.define(
 );
 
 
-module.exports = Receipt;
+  module.exports = Receipt;
