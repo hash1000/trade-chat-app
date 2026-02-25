@@ -1,6 +1,5 @@
 const { Op } = require("sequelize");
 const sequelize = require("../config/database");
-const WalletService = require("./WalletService");
 const PaymentRepository = require("../repositories/PaymentRepository");
 const PaymentRequest = require("../models/payment_request");
 const { Transaction, PaymentType, Income, Expense } = require("../models");
@@ -9,10 +8,12 @@ const CurrencyService = require("./CurrencyService");
 const { PaymentTypes } = require("../constants");
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
+
 const currencyService = new CurrencyService();
 class PaymentService {
   constructor() {
     this.paymentRepository = new PaymentRepository();
+
   }
 
   // Create a Stripe customer when user registers
@@ -39,6 +40,11 @@ class PaymentService {
   async updatePayment(paymentId, updatedPaymentData) {
     // Add any additional business logic or validation before updating the payment
     return this.paymentRepository.update(paymentId, updatedPaymentData);
+  } 
+
+  async transferAmount(userId, amount, currentRate) {
+      const adjustedAmount = amount / currentRate;
+      return this.paymentRepository.transferAmount(userId, adjustedAmount, amount);
   }
 
   async deletePayment(paymentId) {

@@ -308,6 +308,30 @@ class PaymentController {
     }
   }
 
+  async convertCurrency(req, res) {
+    try {
+      const { amount, current_rate } = req.body;
+      const { id: userId } = req.user;
+      const data = await paymentService.transferAmount(
+        userId,
+        amount,
+        current_rate,
+      );
+
+      return res.json({
+        success: true,
+        message: "Amount converted successfully",
+        data: data,
+      });
+    } catch (error) {
+      res.status(error.statusCode || 500).json({
+        success: false,
+        message: error.message,
+        code: error.code || "GET_ERROR",
+      });
+    }
+  }
+
   async getCurrentRate(req, res) {
     try {
       const { currency = "CNY" } = req.query;
@@ -787,7 +811,7 @@ class PaymentController {
     }
   }
 
-    async reorderIncome(req, res) {
+  async reorderIncome(req, res) {
     try {
       const { id } = req.params;
       const { newPosition } = req.body;
@@ -796,7 +820,10 @@ class PaymentController {
         return res.status(400).json({ error: "Valid newPosition is required" });
       }
 
-      const reorderedLedgers = await paymentService.reorderIncome(id, newPosition);
+      const reorderedLedgers = await paymentService.reorderIncome(
+        id,
+        newPosition,
+      );
       if (!reorderedLedgers)
         return res.status(404).json({ error: "Ledger not found" });
       res.json({
@@ -862,30 +889,28 @@ class PaymentController {
   }
 
   async reorderExpense(req, res) {
-  try {
-    const { id } = req.params;
-    const { newPosition } = req.body;
+    try {
+      const { id } = req.params;
+      const { newPosition } = req.body;
 
-    if (!newPosition || newPosition < 1) {
-      return res.status(400).json({ error: "Valid newPosition is required" });
+      if (!newPosition || newPosition < 1) {
+        return res.status(400).json({ error: "Valid newPosition is required" });
+      }
+
+      const result = await paymentService.reorderExpense(id, newPosition);
+
+      if (!result) return res.status(404).json({ error: "Expense not found" });
+
+      res.json({
+        success: true,
+        message: "Expense sequence updated",
+        data: result,
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: "Server Error" });
     }
-
-    const result = await paymentService.reorderExpense(id, newPosition);
-
-    if (!result)
-      return res.status(404).json({ error: "Expense not found" });
-
-    res.json({
-      success: true,
-      message: "Expense sequence updated",
-      data: result,
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Server Error" });
   }
-}
-
 }
 
 module.exports = PaymentController;

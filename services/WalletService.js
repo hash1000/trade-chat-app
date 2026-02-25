@@ -4,6 +4,9 @@ const UserRepository = require("../repositories/UserRepository");
 const userRepository = new UserRepository();
 
 class WalletService {
+    constructor() {
+    // If you later introduce a CurrencyRepository, initialize it here
+  }
     async getUserWalletById(userId) {
         return User.findByPk(userId);
     }
@@ -44,4 +47,4 @@ class WalletService {
     }
 }
 
-module.exports = new WalletService();
+module.exports = WalletService;

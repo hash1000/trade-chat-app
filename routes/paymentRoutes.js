@@ -84,6 +84,13 @@ router.post(
   paymentController.priceAdjust.bind(paymentController),
 );
 
+// convert amount usd to personal currency
+router.post(
+  "/convert",
+  authMiddleware,
+  paymentController.convertCurrency.bind(paymentController),
+);
+
 // Public endpoint to get current rate
 router.get(
   "/current-rate",

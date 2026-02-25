@@ -14,6 +14,8 @@ const {
 } = require("../models");
 const PaymentType = require("../models/paymentType");
 const { PaymentTypes } = require("../constants");
+const UserRepository = require("../repositories/UserRepository");
+const userRepository = new UserRepository();
 
 class PaymentRepository {
   async createPayment(paymentData) {
@@ -41,6 +43,20 @@ class PaymentRepository {
   // Get a favourite payment by ID
   async getFavouriteById(favouriteId) {
     return FavouritePayment.findByPk(favouriteId);
+  }
+
+  async transferAmount(userId, adjustedAmount, amount) {
+    const user = await userRepository.getById(userId);
+    // check balance
+    if (user.usdWalletBalance < adjustedAmount) {
+      throw new Error("Insufficient funds");
+    }
+    // now transfer balnce to personalWalletBalance
+    const updateBalance = await userRepository.update(userId, {
+      personalWalletBalance: user.personalWalletBalance + amount,
+      usdWalletBalance: user.usdWalletBalance - adjustedAmount
+    });
+    return updateBalance;
   }
 
   async delete(paymentId) {
