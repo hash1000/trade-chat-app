@@ -32,6 +32,36 @@ class CurrencyService {
     }
   }
 
+  async transferAmount(amount, currentRate) {
+    try {
+      const adjustment = await CurrencyRateAdjustment.findOne({
+        where: { targetCurrency },
+        order: [["updatedAt", "DESC"]],
+      });
+
+      if (adjustment) {
+        return {
+          baseRate: adjustment.fetchedRate,
+          adjustment: adjustment.adjustment,
+          finalRate: adjustment.finalRate,
+          lastUpdated: adjustment.updatedAt,
+        };
+      }
+
+      const currentRate = await this.getCurrentRate("USD", targetCurrency);
+
+      return {
+        baseRate: currentRate,
+        adjustment: 0,
+        finalRate: currentRate,
+        lastUpdated: new Date(),
+      };
+    } catch (error) {
+      console.error("Error getting adjusted rate:", error);
+      throw error;
+    }
+  }
+
   async getAdjustedRate(targetCurrency = "CNY") {
     try {
       const adjustment = await CurrencyRateAdjustment.findOne({
