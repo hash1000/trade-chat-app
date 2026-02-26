@@ -1073,26 +1073,6 @@ class UserController {
     }
   }
 
-  async updateUserRole(req, res) {
-    try {
-      const { role, requesteeId } = req.body;
-      const requesteeUser = await userService.getUserById(requesteeId);
-console.log("requesteeUser:", requesteeUser, role, requesteeId);
-      if (requesteeUser) {
-        const updatedUser = await userService.updateUserRole(
-          requesteeUser,
-          role.toLowerCase()
-        );
-        res.json(updatedUser);
-      } else {
-        return res.status(404).json({ message: "User not found" });
-      }
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ message: "Internal server error" });
-    }
-  }
-
   async updateFCM(req, res) {
     try {
       const { fcmToken } = req.body;

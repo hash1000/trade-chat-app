@@ -6,7 +6,6 @@ const ChatRepository = require("../repositories/ChatRepository");
 const PaymentService = require("./PaymentService");
 const UserFavouriteRepository = require("../repositories/UserFavouriteRepository");
 const UserTags = require("../models/userTags");
-const UserRole = require("../models/userRole");
 const { User, Role } = require("../models");
 const sequelize = require("../config/database");
 const chat = new ChatRepository();
@@ -237,49 +236,6 @@ console.log("Assigned role", role, "to user", newUser.id);
       return user;
     } catch (error) {
       throw new Error(`Failed to update user profile: ${error.message}`);
-    }
-  }
-
-  async updateUserRole(user, roleName) {
-    try {
-      // Check if the role exists
-      const role = await Role.findOne({ where: { name: roleName } });
-      if (!role) {
-        throw new Error("Role not found");
-      }
-
-      // Check if the user already has this role
-      const existingUserRole = await UserRole.findOne({
-        where: { userId: user.id, roleId: role.id },
-      });
-      if (existingUserRole) {
-        return { message: "User already has this role", user };
-      }
-      console.log("Assigning role", role.id,roleName, "to user", user.id);
-      // Update the user's role
-      const updated = await UserRole.update(
-        {
-          roleId: role.id,
-        },
-        {
-          where: {
-            userId: user.id,
-          },
-        }
-      );
-console.log("updated", updated);
-      // Fetch the updated user with their roles
-      const updatedUser = await User.findByPk(user.id, {
-        include: [
-          {
-            model: Role,
-            as: "roles",
-          },
-        ],
-      });
-      return { message: "Role assigned successfully", user: updatedUser };
-    } catch (error) {
-      throw new Error(`Error updating roles: ${error.message}`);
     }
   }
 

@@ -6,7 +6,6 @@ const {
   forgotPasswordValidation,
   resetPasswordValidation,
   validateUpdateProfile,
-  userRoleUpdateValidation,
   validateGoogleSignup,
   validateEmailOtp,
   validateVerifyEmailOtp,
@@ -16,7 +15,6 @@ const {
 } = require("../middlewares/userValidation");
 const decodeToken = require("../middlewares/decodeToken");
 const authenticate = require("../middlewares/authenticate");
-const authorize = require("../middlewares/authorization");
 
 const router = express.Router();
 const userController = new UserController();
@@ -99,15 +97,6 @@ router.put(
   authenticate,
   validateUpdateProfile,
   userController.updateUser.bind(userController)
-);
-
-//update  role 
-router.patch(
-  "/update-role",
-  authenticate,
-  authorize(['admin']),
-  userRoleUpdateValidation,
-  userController.updateUserRole.bind(userController)
 );
 
 router.get(
