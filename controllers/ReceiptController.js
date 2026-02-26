@@ -157,6 +157,28 @@ class ReceiptController {
       res.status(500).json({ success: false, error: "Server error. Please try again later." });
     }
   }
+
+  // Admin-only update endpoint to edit any receipt
+  async adminUpdateReceipt(req, res) {
+    try {
+      const { id } = req.params;
+      const updateData = req.body;
+      const updated = await receiptService.adminUpdateReceipt(id, updateData, req.user);
+      if (!updated) {
+        return res.status(404).json({ success: false, error: "Receipt not found." });
+      }
+      return res.status(200).json({ success: true, data: updated });
+    } catch (error) {
+      console.error("adminUpdateReceipt error:", error);
+      if (error.name === "InvalidBankAccountError") {
+        return res.status(400).json({ success: false, error: error.message });
+      }
+      if (error.name === "SequelizeValidationError") {
+        return res.status(400).json({ success: false, error: error.message });
+      }
+      res.status(500).json({ success: false, error: "Server error. Please try again later." });
+    }
+  }
 }
 
 module.exports = ReceiptController;

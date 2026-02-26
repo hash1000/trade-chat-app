@@ -85,6 +85,17 @@ class ReceiptRepository {
       ],
     });
   }
+  
+  async getReceiptByPk(receiptId) {
+    return await Receipt.findByPk(receiptId, {
+      include: [
+        { model: BankAccount, as: "sender" },
+        { model: BankAccount, as: "receiver" },
+        { model: User, as: 'user', attributes: ['id','firstName','lastName','email','usdWalletBalance','personalWalletBalance'] },
+        { model: User, as: 'approver', attributes: ['id','firstName','lastName','email'] },
+      ],
+    });
+  }
 
   async findReceiptById(receiptId) {
     return await Receipt.findOne({
@@ -103,12 +114,22 @@ class ReceiptRepository {
     return receipt;
   }
 
+   async update(receiptId, updateData) {
+    console.log("Updating receipt", receiptId, updateData);
+    const receipt = await Receipt.findOne({ where: { id: receiptId } });
+    if (!receipt) return null;
+    await receipt.update(updateData);
+    console.log("jhksdhkdfh")
+    return receipt;
+  }
+
   async deleteReceipt(userId, receiptId) {
     const deleted = await Receipt.destroy({ where: { id: receiptId, userId } });
     return deleted > 0;
   }
 
   async updateReceiptStatus(receiptId, status) {
+    console.log("Updating receipt status", receiptId, status);
     const receipt = await Receipt.findByPk(receiptId);
     if (!receipt) return null;
     await receipt.update({ status });

@@ -26,6 +26,31 @@ exports.updateReceiptValidation = [
   handleValidationErrors,
 ];
 
+// Validation for admin updates to receipts. Admins are NOT allowed to update the original
+// `amount` field; they may set a `newAmount` and update `status` (including 'hold'), and
+// optionally adjust sender/receiver references.
+exports.adminUpdateValidation = [
+  param("id").isInt().withMessage("Invalid receipt id"),
+  body("amount").not().exists().withMessage("Admins cannot update the original amount"),
+  body("newAmount")
+    .optional()
+    .isFloat({ gt: 0 })
+    .withMessage("newAmount must be a number greater than 0"),
+  body("status")
+    .optional()
+    .isIn(["pending", "approved", "rejected", "hold"]) // make sure 'hold' is allowed
+    .withMessage("Invalid status"),
+  body("senderId")
+    .optional()
+    .isInt()
+    .withMessage("senderId must be an integer"),
+  body("receiverId")
+    .optional()
+    .isInt()
+    .withMessage("receiverId must be an integer"),
+  handleValidationErrors,
+];
+
 exports.getValidation = [
   query('type')
     .optional({ checkFalsy: true }) // Makes the 'type' query optional, but validates if provided

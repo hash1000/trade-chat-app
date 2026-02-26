@@ -2,6 +2,7 @@ const ReceiptRepository = require("../repositories/ReceiptRepository");
 const BankAccount = require("../models/bankAccount");
 const UserService = require("./UserService");
 const userService = new UserService();
+const sequelize = require("../config/database");
 class ReceiptService {
   constructor() {
     this.receiptRepository = new ReceiptRepository();
@@ -110,7 +111,126 @@ class ReceiptService {
     return this.receiptRepository.deleteReceipt(userId, receiptId);
   }
 
-  async approveReceipt(receiptId, approverUser = null, newAmount = null) {
+  // Admin-specific update: allows admins to edit a receipt and adjusts credited USD accordingly
+  async adminUpdateReceipt(receiptId, updateData, adminUser = null) {
+    // sanitize and validate incoming fields
+    const sanitized = {};
+    if (!updateData || typeof updateData !== "object") {
+      throw new Error("Invalid update payload");
+    }
+    // handle numeric fields
+    if (Object.prototype.hasOwnProperty.call(updateData, "newAmount")) {
+      const na = Number(updateData.newAmount);
+      if (Number.isNaN(na) || na < 0) throw new Error("Invalid newAmount");
+      sanitized.newAmount = na;
+    }
+    if (Object.prototype.hasOwnProperty.call(updateData, "status")) {
+      const s = String(updateData.status).toLowerCase();
+      const allowedStatuses = ["pending", "approved", "rejected", "hold"];
+      if (!allowedStatuses.includes(s)) throw new Error("Invalid status");
+      sanitized.status = s;
+    }
+    if (Object.prototype.hasOwnProperty.call(updateData, "senderId")) {
+      const sid = Number(updateData.senderId);
+      if (Number.isNaN(sid)) throw new Error("Invalid senderId");
+      sanitized.senderId = sid;
+    }
+    if (Object.prototype.hasOwnProperty.call(updateData, "receiverId")) {
+      const rid = Number(updateData.receiverId);
+      if (Number.isNaN(rid)) throw new Error("Invalid receiverId");
+      sanitized.receiverId = rid;
+    }
+
+    // validate bank accounts if provided
+    if (sanitized.senderId) {
+      const sender = await BankAccount.findByPk(sanitized.senderId);
+      if (!sender) {
+        const err = new Error("Sender bank account not found");
+        err.name = "InvalidBankAccountError";
+        throw err;
+      }
+    }
+    if (sanitized.receiverId) {
+      const receiver = await BankAccount.findByPk(sanitized.receiverId);
+      if (!receiver) {
+        const err = new Error("Receiver bank account not found");
+        err.name = "InvalidBankAccountError";
+        throw err;
+      }
+    }
+
+    // perform update inside a transaction to keep balances consistent
+    // const transaction = await sequelize.transaction();
+    try {
+      // fetch existing receipt (admin access) with transaction
+      const current = await this.receiptRepository.getReceiptByPk(receiptId);
+      if (!current) {
+        // await transaction.rollback();
+        return null;
+      }
+
+      const previouslyApproved = current.status === "approved";
+      const previouslyCreditedAmount = previouslyApproved
+        ? current.newAmount && Number(current.newAmount) > 0
+          ? Number(current.newAmount)
+          : Number(current.amount)
+        : 0;
+
+      // Only set approvedBy when admin is approving the receipt (status === 'approved')
+      if (adminUser && adminUser.id && sanitized.status === 'approved') {
+        sanitized.approvedBy = adminUser.id;
+      }
+
+      console.log("Admin updating receipt with data:", sanitized);
+      // update receipt within transaction using sanitized data
+      const updatec = await this.receiptRepository.update(receiptId,sanitized);
+console.log("Admin updatec",updatec);
+      // reload to get latest values (within transaction)
+      const updated = await require("../models/receipt").findByPk(receiptId);
+console.log("Updated receipt:", updated);
+      // determine post-update approved state and amount
+      const nowApproved = updated.status === "approved";
+      const nowCreditedAmount = nowApproved
+        ? updated.newAmount && Number(updated.newAmount) > 0
+          ? Number(updated.newAmount)
+          : Number(updated.amount)
+        : 0;
+
+      // reconcile user usdWalletBalance
+      const User = require("../models/user");
+      const targetUser = await User.findByPk(updated.userId);
+      if (targetUser) {
+        if (previouslyApproved && !nowApproved) {
+          // subtract previously credited amount
+          const currentBalance = Number(targetUser.usdWalletBalance) || 0;
+          targetUser.usdWalletBalance = currentBalance - previouslyCreditedAmount;
+          await targetUser.save();
+        } else if (!previouslyApproved && nowApproved) {
+          // newly approved -> credit nowCreditedAmount
+          const currentBalance = Number(targetUser.usdWalletBalance) || 0;
+          targetUser.usdWalletBalance = currentBalance + nowCreditedAmount;
+          await targetUser.save();
+        } else if (previouslyApproved && nowApproved) {
+          // both approved -> adjust by delta (if amount changed)
+          const delta = nowCreditedAmount - previouslyCreditedAmount;
+          if (delta !== 0) {
+            const currentBalance = Number(targetUser.usdWalletBalance) || 0;
+            targetUser.usdWalletBalance = currentBalance + delta;
+            await targetUser.save();
+          }
+        }
+      }
+
+      // await transaction.commit();
+      // reload updated outside tx (with includes)
+      return await this.receiptRepository.getReceiptByPk(receiptId);
+    } catch (err) {
+      // await transaction.rollback();
+      throw err;
+    }
+  }
+
+async approveReceipt(receiptId, approverUser = null, newAmount = null) {
     // fetch receipt
     const receipt = await this.receiptRepository.findReceiptById(receiptId);
     if (receipt.status === "approved") {
@@ -156,6 +276,7 @@ class ReceiptService {
 
     return { message: "Receipt  approved", receipt };
   }
+
 
   async rejectReceipt(receiptId, approverUser = null) {
     const receipt = await this.receiptRepository.updateReceiptStatus(
