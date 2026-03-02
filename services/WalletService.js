@@ -104,18 +104,22 @@ class WalletService {
             const wallet = await this.getOrCreateWallet(userId, currency, walletType, t);
 
             const available = Number(wallet.availableBalance) || 0;
+            console.log("available", available);
             const lockAmount = Number(amount);
+            console.log("lockAmount", lockAmount);
 
             if (available < lockAmount) {
                 throw new Error("Insufficient available balance");
             }
 
             const beforeAvailable = available;
+            console.log("beforeAvailable", beforeAvailable);
             const beforeLocked = Number(wallet.lockedBalance) || 0;
 
             const afterAvailable = beforeAvailable - lockAmount;
             const afterLocked = beforeLocked + lockAmount;
-
+console.log("afterAvailable", afterAvailable);
+console.log("afterLocked", afterLocked);
             wallet.availableBalance = afterAvailable;
             wallet.lockedBalance = afterLocked;
             await wallet.save({ transaction: t });

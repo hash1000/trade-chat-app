@@ -232,7 +232,12 @@ console.log("Updated receipt:", updated);
     }
   }
 
-async approveReceipt(receiptId, approverUser = null, newAmount = null) {
+async approveReceipt(
+    receiptId,
+    approverUser = null,
+    newAmount = null,
+    isLockOverride = null,
+  ) {
     // fetch receipt
     const receipt = await this.receiptRepository.findReceiptById(receiptId);
     if (receipt.status === "approved") {
@@ -257,6 +262,11 @@ async approveReceipt(receiptId, approverUser = null, newAmount = null) {
         await receipt.update({ newAmount: parsed });
         receipt.newAmount = parsed;
       }
+    }
+    // If caller provided isLock explicitly, override the flag before crediting
+    if (typeof isLockOverride === "boolean") {
+      await receipt.update({ isLock: isLockOverride });
+      receipt.isLock = isLockOverride;
     }
     // compute amount to credit (prefer receipt.newAmount when present)
     const amountToCredit =

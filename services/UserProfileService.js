@@ -5,6 +5,7 @@ const ReactionRepository = require("../repositories/ReactionRepository"); // Rep
 const UserFavouriteRepository = require("../repositories/UserFavouriteRepository");
 const FriendsRepository = require("../repositories/FriendsRepository");
 const ChatRepository = require("../repositories/ChatRepository");
+const Wallet = require("../models/wallet");
 
 const {
   AddRequestNotification,
@@ -26,6 +27,40 @@ class UserService {
       profileId
     );
     const user = await userRepository.getUserProfile(profileId);
+
+    // Load all wallets for this user (multi-currency, all types)
+    const wallets = await Wallet.findAll({
+      where: { userId: profileId },
+    });
+
+    const walletDtos = wallets.map((w) => ({
+      id: w.id,
+      currency: w.currency,
+      walletType: w.walletType,
+      availableBalance: Number(w.availableBalance),
+      lockedBalance: Number(w.lockedBalance),
+      createdAt: w.createdAt,
+      updatedAt: w.updatedAt,
+    }));
+
+    // Optional summary for quick access to common wallets (USD/EUR personal)
+    const usdWallet = wallets.find(
+      (w) => w.currency === "USD" && w.walletType === "PERSONAL",
+    );
+    const eurWallet = wallets.find(
+      (w) => w.currency === "EUR" && w.walletType === "PERSONAL",
+    );
+
+    const walletSummary = {
+      USD: {
+        available: usdWallet ? Number(usdWallet.availableBalance) : 0,
+        locked: usdWallet ? Number(usdWallet.lockedBalance) : 0,
+      },
+      EUR: {
+        available: eurWallet ? Number(eurWallet.availableBalance) : 0,
+        locked: eurWallet ? Number(eurWallet.lockedBalance) : 0,
+      },
+    };
     const favourite = await userFavouriteRepository.get(userId, profileId);
     const friendship = await friendsRepository.get(userId, profileId);
 
@@ -33,7 +68,16 @@ class UserService {
     const liked = my_reaction && my_reaction.type === "like" ? true : false;
     const disliked =
       my_reaction && my_reaction.type === "dislike" ? true : false;
-    return { ...user, friendship, liked, disliked, favourited };
+
+    return {
+      ...user,
+      wallets: walletDtos,
+      walletSummary,
+      friendship,
+      liked,
+      disliked,
+      favourited,
+    };
   }
 
   async createOrUpdateReaction(userId, profileId, type) {
@@ -226,7 +270,6 @@ class UserService {
   async getAllUsersProfile() {
     try {
       const users = await userRepository.getAllUsers();
-  console.log("users",users);
       // Filter users to only include those with non-null values for the specified keys
       const filteredUsers = users.filter((user) => {
         const { firstName, lastName, phoneNumber, country_code, gender } = user;

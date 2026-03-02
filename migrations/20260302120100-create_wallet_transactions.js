@@ -70,7 +70,7 @@ module.exports = {
       },
       meta: {
         // Use JSONB when supported (e.g. Postgres)
-        type: Sequelize.JSONB || Sequelize.JSON,
+        type: Sequelize.JSON,
         allowNull: true,
       },
       createdAt: {

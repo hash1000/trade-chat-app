@@ -32,8 +32,8 @@ class ReceiptController {
   async createReceipt(req, res) {
     try {
       const { id: userId } = req.user;
-      const { senderId, receiverId, amount } = req.body;
-      const newReceipt = await receiptService.createReceipt(userId, { senderId, receiverId, amount });
+      const { senderId, receiverId, amount , currency } = req.body;
+      const newReceipt = await receiptService.createReceipt(userId, { senderId, receiverId, amount, currency });
       return res.status(201).json({ success: true, data: newReceipt });
     } catch (error) {
       console.error("createReceipt error:", error);
@@ -99,11 +99,16 @@ class ReceiptController {
   // admin actions for approving or rejecting receipts
   async approveReceipt(req, res) {
     try {
-      console.log("Approving receipt with id:", req.params.id);
       const { id } = req.params;
-      // allow optional newAmount in body to override credited amount
-      const { newAmount } = req.body || {};
-      const approved = await receiptService.approveReceipt(id, req.user, newAmount);
+      console.log("Approving receipt with payload:", req.body);
+      // allow optional newAmount and isLock in body to override credited amount/lock behaviour
+      const { newAmount, isLock } = req.body || {};
+      const approved = await receiptService.approveReceipt(
+        id,
+        req.user,
+        newAmount,
+        isLock,
+      );
 
       if (!approved) {
         return res.status(404).json({ success: false, error: "Receipt not found." });
