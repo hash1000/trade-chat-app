@@ -185,11 +185,11 @@ class ReceiptService {
 
       console.log("Admin updating receipt with data:", sanitized);
       // update receipt within transaction using sanitized data
-      const updatec = await this.receiptRepository.update(receiptId,sanitized);
-console.log("Admin updatec",updatec);
+      const updatec = await this.receiptRepository.update(receiptId, sanitized);
+      console.log("Admin updatec", updatec);
       // reload to get latest values (within transaction)
       const updated = await require("../models/receipt").findByPk(receiptId);
-console.log("Updated receipt:", updated);
+      console.log("Updated receipt:", updated);
       // determine post-update approved state and amount
       const nowApproved = updated.status === "approved";
       const nowCreditedAmount = nowApproved
@@ -232,7 +232,7 @@ console.log("Updated receipt:", updated);
     }
   }
 
-async approveReceipt(
+  async approveReceipt(
     receiptId,
     approverUser = null,
     newAmount = null,
@@ -285,7 +285,7 @@ async approveReceipt(
 
       if (receipt.isLock) {
 
-        console.log(`Crediting locked balance for receipt ${receipt.isLock}`,`${amountToCredit} ${currency}`);
+        console.log(`Crediting locked balance for receipt ${receipt.isLock}`, `${amountToCredit} ${currency}`);
         // For locked receipts, credit directly into lockedBalance (topup-style)
         await walletService.creditLocked({
           userId,
@@ -311,7 +311,6 @@ async approveReceipt(
     return { message: "Receipt  approved", receipt };
   }
 
-
   async rejectReceipt(receiptId, approverUser = null) {
     const receipt = await this.receiptRepository.updateReceiptStatus(
       receiptId,
@@ -323,6 +322,62 @@ async approveReceipt(
       await receipt.update({ approvedBy: approverUser.id });
     }
     return receipt;
+  }
+
+  async unlockLockedReceiptFunds(receiptId, adminUser = null) {
+    // Load receipt with user & bank accounts (admin-level access)
+    const receipt = await this.receiptRepository.getReceiptByPk(receiptId);
+    if (!receipt) {
+      return null;
+    }
+  
+    // Only allow unlocking if:
+    // - receipt is approved (already credited into lockedBalance)
+    // - and currently locked
+    if (receipt.status !== "approved") {
+      const err = new Error("Only approved receipts can be unlocked");
+      err.name = "InvalidReceiptStateError";
+      throw err;
+    }
+    if (!receipt.isLock) {
+      const err = new Error("Receipt funds are not locked or already unlocked");
+      err.name = "InvalidReceiptStateError";
+      throw err;
+    }
+  
+    // Determine how much was locked for this receipt
+    const amountToUnlock =
+      receipt.newAmount && Number(receipt.newAmount) > 0
+        ? Number(receipt.newAmount)
+        : Number(receipt.amount);
+  
+    if (!amountToUnlock || Number.isNaN(amountToUnlock) || amountToUnlock <= 0) {
+      const err = new Error("Invalid receipt amount to unlock");
+      err.name = "InvalidAmountError";
+      throw err;
+    }
+  
+    const userId = receipt.userId;
+    const currency = receipt.currency || "USD";
+  
+    // Move funds: lockedBalance -> availableBalance using WalletService
+    await walletService.unlockFunds({
+      userId,
+      currency,
+      amount: amountToUnlock,
+      walletType: "PERSONAL",
+      receiptId: receipt.id,
+      meta: {
+        source: "receipt_unlock",
+        unlockedBy: adminUser && adminUser.id ? adminUser.id : null,
+      },
+    });
+  
+    // Mark receipt as no longer locked
+    await receipt.update({ isLock: false });
+  
+    // Return fresh copy with includes
+    return await this.receiptRepository.getReceiptByPk(receiptId);
   }
 }
 

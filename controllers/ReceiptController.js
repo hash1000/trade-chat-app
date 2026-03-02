@@ -198,6 +198,41 @@ class ReceiptController {
       res.status(500).json({ success: false, error: "Server error. Please try again later." });
     }
   }
+
+  async unlockReceiptFunds(req, res) {
+    try {
+      const { id } = req.params;
+  
+      const unlocked = await receiptService.unlockLockedReceiptFunds(
+        id,
+        req.user,
+      );
+  
+      if (!unlocked) {
+        return res
+          .status(404)
+          .json({ success: false, error: "Receipt not found." });
+      }
+  
+      return res.status(200).json({
+        success: true,
+        data: unlocked,
+      });
+    } catch (error) {
+      console.error("unlockReceiptFunds error:", error);
+  
+      if (error.name === "InvalidReceiptStateError") {
+        return res.status(400).json({ success: false, error: error.message });
+      }
+      if (error.name === "InvalidAmountError") {
+        return res.status(400).json({ success: false, error: error.message });
+      }
+  
+      return res
+        .status(500)
+        .json({ success: false, error: "Server error. Please try again later." });
+    }
+  }
 }
 
 module.exports = ReceiptController;
