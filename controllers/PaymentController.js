@@ -282,6 +282,7 @@ class PaymentController {
     }
   }
 
+  // Set rate adjustment for a currency. Body: { adjustment, currency }. Supported: CNY, EUR
   async priceAdjust(req, res) {
     try {
       const { adjustment, currency = "CNY" } = req.body;
@@ -308,27 +309,45 @@ class PaymentController {
     }
   }
 
+  // Convert USD wallet → target currency wallet (e.g. CNY, EUR). Uses wallet + walletTransaction.
   async convertCurrency(req, res) {
-    try{
-      const { amount , current_rate } = req.body;
+    try {
+      const { amount, current_rate, toCurrency = "CNY" } = req.body;
       const { id: userId } = req.user;
-        const data = await paymentService.transferAmount(userId,amount, current_rate);
+
+      const amt = Number(amount);
+      const rate = Number(current_rate);
+      if (!amt || amt <= 0 || !rate || rate <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: "amount and current_rate must be positive numbers",
+        });
+      }
+
+      const data = await paymentService.transferAmount(userId, amt, rate, toCurrency);
 
       return res.json({
         success: true,
         message: "Amount converted successfully",
-        data: data,
+        data,
       });
-
-    }catch(error){
+    } catch (error) {
+      if (error.message && error.message.includes("Insufficient funds")) {
+        return res.status(400).json({
+          success: false,
+          message: error.message,
+          code: "INSUFFICIENT_FUNDS",
+        });
+      }
       res.status(error.statusCode || 500).json({
         success: false,
         message: error.message,
-        code: error.code || "GET_ERROR",
+        code: error.code || "CONVERT_ERROR",
       });
     }
   }
 
+  // Get current/adjusted rate. Query: ?currency=CNY|EUR (default CNY)
   async getCurrentRate(req, res) {
     try {
       const { currency = "CNY" } = req.query;

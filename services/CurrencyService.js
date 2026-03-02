@@ -1,4 +1,5 @@
 // services/CurrencyService.js
+// Fetches rates via EXCHANGE_RATE_API_KEY (exchangerate.host). Supports CNY, EUR, etc.
 const CurrencyRateAdjustment = require("../models/currencyRateAdjustment");
 const fetch = require("node-fetch");
 
@@ -140,6 +141,28 @@ class CurrencyService {
       };
     } catch (error) {
       console.error("Error setting RMB price:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get USD->EUR rate and convert amount (for Euro pricing).
+   * Use getCurrentRate("USD", "EUR") or getAdjustedRate("EUR") for rate-only; use this for conversion.
+   */
+  async setEuroPrice(userId, amount) {
+    try {
+      const rate = await this.getCurrentRate("USD", "EUR");
+      const convertedAmount = amount * rate;
+
+      return {
+        userId,
+        usdAmount: amount,
+        eurRate: rate,
+        convertedAmount,
+        timestamp: new Date(),
+      };
+    } catch (error) {
+      console.error("Error setting Euro price:", error);
       throw error;
     }
   }

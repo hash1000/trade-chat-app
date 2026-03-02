@@ -10,10 +10,12 @@ const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
 
 const currencyService = new CurrencyService();
+const WalletService = require("./WalletService");
+const walletService = new WalletService();
+
 class PaymentService {
   constructor() {
     this.paymentRepository = new PaymentRepository();
-
   }
 
   // Create a Stripe customer when user registers
@@ -26,7 +28,7 @@ class PaymentService {
     });
 
     // Save stripeCustomerId to your user in database
-    const updatedUser = await WalletService.updateCustomerId(user, customer.id);
+    const updatedUser = await walletService.updateCustomerId(user, customer.id);
     return updatedUser;
   }
 
@@ -42,9 +44,23 @@ class PaymentService {
     return this.paymentRepository.update(paymentId, updatedPaymentData);
   } 
 
-  async transferAmount(userId, amount, currentRate) {
-      const adjustedAmount = amount / currentRate;
-      return this.paymentRepository.transferAmount(userId, adjustedAmount, amount);
+  /**
+   * Convert USD to target currency using wallet/walletTransaction modules.
+   * @param {number} userId
+   * @param {number} amount - amount in target currency to credit
+   * @param {number} currentRate - USD to target rate (e.g. 1 USD = currentRate CNY)
+   * @param {string} toCurrency - e.g. "CNY" or "EUR", default "CNY"
+   */
+  async transferAmount(userId, amount, currentRate, toCurrency = "CNY") {
+    return walletService.fxConvert({
+      userId,
+      fromCurrency: "USD",
+      toCurrency,
+      amountInTarget: Number(amount),
+      rate: Number(currentRate),
+      walletType: "PERSONAL",
+      meta: { source: "payment_convert" },
+    });
   }
 
   async deletePayment(paymentId) {

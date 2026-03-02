@@ -220,6 +220,84 @@ console.log("afterLocked", afterLocked);
         });
     }
 
+    /**
+     * Convert from one currency wallet to another (e.g. USD → CNY or USD → EUR).
+     * Deducts from fromCurrency wallet and credits to toCurrency wallet; creates FX_CONVERT_OUT and FX_CONVERT_IN transactions.
+     * @param {Object} params
+     * @param {number} params.userId
+     * @param {string} params.fromCurrency - e.g. "USD"
+     * @param {string} params.toCurrency - e.g. "CNY" or "EUR"
+     * @param {number} params.amountInTarget - amount to credit in toCurrency
+     * @param {number} params.rate - rate from fromCurrency to target (e.g. 1 USD = rate CNY)
+     * @param {string} params.walletType - default "PERSONAL"
+     */
+    async fxConvert({
+        userId,
+        fromCurrency = "USD",
+        toCurrency,
+        amountInTarget,
+        rate,
+        walletType = "PERSONAL",
+        meta = {},
+    }) {
+        const amountTarget = Number(amountInTarget);
+        const r = Number(rate);
+        if (!amountTarget || amountTarget <= 0 || !r || r <= 0) {
+            throw new Error("Invalid amount or rate");
+        }
+        const amountFrom = amountTarget / r;
+
+        return sequelize.transaction(async (t) => {
+            const fromWallet = await this.getOrCreateWallet(userId, fromCurrency, walletType, t);
+            const toWallet = await this.getOrCreateWallet(userId, toCurrency, walletType, t);
+
+            const fromAvailable = Number(fromWallet.availableBalance) || 0;
+            if (fromAvailable < amountFrom) {
+                throw new Error("Insufficient funds in source currency");
+            }
+
+            const fromBefore = fromAvailable;
+            const fromAfter = fromBefore - amountFrom;
+            fromWallet.availableBalance = fromAfter;
+            await fromWallet.save({ transaction: t });
+
+            await this.createWalletTransaction(
+                {
+                    walletId: fromWallet.id,
+                    userId,
+                    type: "FX_CONVERT_OUT",
+                    amount: amountFrom,
+                    currency: fromCurrency,
+                    balanceBefore: fromBefore,
+                    balanceAfter: fromAfter,
+                    meta: { ...meta, toCurrency, amountInTarget: amountTarget, rate: r },
+                },
+                t,
+            );
+
+            const toBefore = Number(toWallet.availableBalance) || 0;
+            const toAfter = toBefore + amountTarget;
+            toWallet.availableBalance = toAfter;
+            await toWallet.save({ transaction: t });
+
+            await this.createWalletTransaction(
+                {
+                    walletId: toWallet.id,
+                    userId,
+                    type: "FX_CONVERT_IN",
+                    amount: amountTarget,
+                    currency: toCurrency,
+                    balanceBefore: toBefore,
+                    balanceAfter: toAfter,
+                    meta: { ...meta, fromCurrency, amountFrom, rate: r },
+                },
+                t,
+            );
+
+            return { fromWallet, toWallet, amountFrom, amountInTarget: amountTarget, rate: r };
+        });
+    }
+
     async creditUserWallet(userId, amount) {
         const transaction = await sequelize.transaction();
         try {
