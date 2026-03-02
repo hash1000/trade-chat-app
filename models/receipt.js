@@ -29,6 +29,16 @@ const Receipt = sequelize.define(
       allowNull: true,
       defaultValue: null,
     },
+    currency: {
+      type: DataTypes.STRING(3), // "USD", "EUR", "CNY", ...
+      allowNull: false,
+      defaultValue: "USD",
+    },
+    isLock: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
     userId: {
       type: DataTypes.UUID,
       allowNull: false,

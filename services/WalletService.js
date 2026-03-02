@@ -4,6 +4,8 @@ const UserRepository = require("../repositories/UserRepository");
 const userRepository = new UserRepository();
 const CurrencyService = require("./CurrencyService");
 const currencyService = new CurrencyService();
+const Wallet = require("../models/wallet");
+const WalletTransaction = require("../models/walletTransaction");
 
 class WalletService {
     constructor() {
@@ -26,6 +28,154 @@ class WalletService {
             status,
             reference: `${type}-${Date.now()}`,
             metadata,
+        });
+    }
+
+    async getOrCreateWallet(userId, currency, walletType = "PERSONAL", transaction) {
+        const [wallet] = await Wallet.findOrCreate({
+            where: { userId, currency, walletType },
+            defaults: { availableBalance: 0, lockedBalance: 0 },
+            transaction,
+        });
+        return wallet;
+    }
+
+    async createWalletTransaction(
+        {
+            walletId,
+            userId,
+            type,
+            amount,
+            currency,
+            balanceBefore = null,
+            balanceAfter = null,
+            receiptId = null,
+            meta = {},
+        },
+        transaction,
+    ) {
+        return WalletTransaction.create(
+            {
+                walletId,
+                userId,
+                type,
+                amount,
+                currency,
+                balanceBefore,
+                balanceAfter,
+                receiptId,
+                meta,
+            },
+            { transaction },
+        );
+    }
+
+    async deposit({ userId, currency, amount, walletType = "PERSONAL", receiptId = null, meta = {} }) {
+        return sequelize.transaction(async (t) => {
+            const wallet = await this.getOrCreateWallet(userId, currency, walletType, t);
+
+            const before = Number(wallet.availableBalance) || 0;
+            const after = before + Number(amount);
+
+            wallet.availableBalance = after;
+            await wallet.save({ transaction: t });
+
+            await this.createWalletTransaction(
+                {
+                    walletId: wallet.id,
+                    userId,
+                    type: "DEPOSIT",
+                    amount,
+                    currency,
+                    balanceBefore: before,
+                    balanceAfter: after,
+                    receiptId,
+                    meta,
+                },
+                t,
+            );
+
+            return wallet;
+        });
+    }
+
+    async lockFunds({ userId, currency, amount, walletType = "PERSONAL", receiptId = null, meta = {} }) {
+        return sequelize.transaction(async (t) => {
+            const wallet = await this.getOrCreateWallet(userId, currency, walletType, t);
+
+            const available = Number(wallet.availableBalance) || 0;
+            const lockAmount = Number(amount);
+
+            if (available < lockAmount) {
+                throw new Error("Insufficient available balance");
+            }
+
+            const beforeAvailable = available;
+            const beforeLocked = Number(wallet.lockedBalance) || 0;
+
+            const afterAvailable = beforeAvailable - lockAmount;
+            const afterLocked = beforeLocked + lockAmount;
+
+            wallet.availableBalance = afterAvailable;
+            wallet.lockedBalance = afterLocked;
+            await wallet.save({ transaction: t });
+
+            await this.createWalletTransaction(
+                {
+                    walletId: wallet.id,
+                    userId,
+                    type: "LOCK",
+                    amount,
+                    currency,
+                    balanceBefore: beforeAvailable,
+                    balanceAfter: afterAvailable,
+                    receiptId,
+                    meta: { ...meta, lockedBefore: beforeLocked, lockedAfter: afterLocked },
+                },
+                t,
+            );
+
+            return wallet;
+        });
+    }
+
+    async unlockFunds({ userId, currency, amount, walletType = "PERSONAL", receiptId = null, meta = {} }) {
+        return sequelize.transaction(async (t) => {
+            const wallet = await this.getOrCreateWallet(userId, currency, walletType, t);
+
+            const locked = Number(wallet.lockedBalance) || 0;
+            const unlockAmount = Number(amount);
+
+            if (locked < unlockAmount) {
+                throw new Error("Insufficient locked balance");
+            }
+
+            const beforeAvailable = Number(wallet.availableBalance) || 0;
+            const beforeLocked = locked;
+
+            const afterLocked = beforeLocked - unlockAmount;
+            const afterAvailable = beforeAvailable + unlockAmount;
+
+            wallet.lockedBalance = afterLocked;
+            wallet.availableBalance = afterAvailable;
+            await wallet.save({ transaction: t });
+
+            await this.createWalletTransaction(
+                {
+                    walletId: wallet.id,
+                    userId,
+                    type: "UNLOCK",
+                    amount,
+                    currency,
+                    balanceBefore: beforeAvailable,
+                    balanceAfter: afterAvailable,
+                    receiptId,
+                    meta: { ...meta, lockedBefore: beforeLocked, lockedAfter: afterLocked },
+                },
+                t,
+            );
+
+            return wallet;
         });
     }
 

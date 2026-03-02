@@ -139,8 +139,8 @@ const User = sequelize.define(
       type: DataTypes.INTEGER,
       defaultValue: 0,
     },
-    usdWalletBalance: {
-      type:  DataTypes.DECIMAL(20, 5),
+    personalWalletBalance: {
+      type: DataTypes.DECIMAL(20, 5),
       defaultValue: 0,
     },
     companyWalletBalance: {
@@ -152,7 +152,7 @@ const User = sequelize.define(
       allowNull: true,
     },
     rating: {
-      type: DataTypes.FLOAT, 
+      type: DataTypes.FLOAT,
       allowNull: true,
     },
     expiration_time: {

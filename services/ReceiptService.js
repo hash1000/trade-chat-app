@@ -3,6 +3,8 @@ const BankAccount = require("../models/bankAccount");
 const UserService = require("./UserService");
 const userService = new UserService();
 const sequelize = require("../config/database");
+const WalletService = require("./WalletService");
+const walletService = new WalletService();
 class ReceiptService {
   constructor() {
     this.receiptRepository = new ReceiptRepository();
@@ -263,13 +265,30 @@ async approveReceipt(receiptId, approverUser = null, newAmount = null) {
         : Number(receipt.amount);
 
     if (amountToCredit && amountToCredit > 0) {
-      const user = await userService.getUserById(receipt.userId);
-      if (user) {
-        // const newBalance = (Number(user.usdWalletBalance) || 0) + amountToCredit;
+      const currency = receipt.currency || "USD";
+      const userId = receipt.userId;
 
-        console.log(`Crediting user ${user.id} with amount ${amountToCredit}`);
-        await userService.updateUserProfile(user, {
-          usdWalletBalance: amountToCredit,
+      console.log(
+        `Applying receipt ${receipt.id} to wallet for user ${userId}, amount ${amountToCredit}, currency ${currency}, isLock=${receipt.isLock}`,
+      );
+
+      if (receipt.isLock) {
+        await walletService.lockFunds({
+          userId,
+          currency,
+          amount: amountToCredit,
+          walletType: "PERSONAL",
+          receiptId: receipt.id,
+          meta: { source: "receipt_approve" },
+        });
+      } else {
+        await walletService.deposit({
+          userId,
+          currency,
+          amount: amountToCredit,
+          walletType: "PERSONAL",
+          receiptId: receipt.id,
+          meta: { source: "receipt_approve" },
         });
       }
     }

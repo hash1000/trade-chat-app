@@ -4,6 +4,7 @@ const User = require("../models/user");
 const { Op } = require("sequelize");
 
 class ReceiptRepository {
+
   async getReceiptsByUserId(userId) {
     return await Receipt.findAll({
       where: { userId },
@@ -85,14 +86,14 @@ class ReceiptRepository {
       ],
     });
   }
-  
+
   async getReceiptByPk(receiptId) {
     return await Receipt.findByPk(receiptId, {
       include: [
         { model: BankAccount, as: "sender" },
         { model: BankAccount, as: "receiver" },
-        { model: User, as: 'user', attributes: ['id','firstName','lastName','email','usdWalletBalance','personalWalletBalance'] },
-        { model: User, as: 'approver', attributes: ['id','firstName','lastName','email'] },
+        { model: User, as: 'user', attributes: ['id', 'firstName', 'lastName', 'email', 'usdWalletBalance', 'personalWalletBalance'] },
+        { model: User, as: 'approver', attributes: ['id', 'firstName', 'lastName', 'email'] },
       ],
     });
   }
@@ -114,7 +115,7 @@ class ReceiptRepository {
     return receipt;
   }
 
-   async update(receiptId, updateData) {
+  async update(receiptId, updateData) {
     console.log("Updating receipt", receiptId, updateData);
     const receipt = await Receipt.findOne({ where: { id: receiptId } });
     if (!receipt) return null;
@@ -129,12 +130,12 @@ class ReceiptRepository {
   }
 
   async updateReceiptStatus(receiptId, status) {
-    console.log("Updating receipt status", receiptId, status);
     const receipt = await Receipt.findByPk(receiptId);
     if (!receipt) return null;
     await receipt.update({ status });
     return receipt;
   }
+
 }
 
 module.exports = ReceiptRepository;

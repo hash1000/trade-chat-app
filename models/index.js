@@ -23,6 +23,8 @@ const List = require("./list");
 const ProductImage = require("./productImage");
 const Receipt = require("./receipt");
 const BankAccount = require("./bankAccount");
+const Wallet = require("./wallet");
+const WalletTransaction = require("./walletTransaction");
 
 // Define all associations
 function defineAssociations() {
@@ -157,6 +159,14 @@ function defineAssociations() {
   Receipt.belongsTo(BankAccount, { foreignKey: "receiverId", as: "receiver" });
   Receipt.belongsTo(User, { foreignKey: "userId", as: "user" });
   Receipt.belongsTo(User, { foreignKey: "approvedBy", as: "approver" });
+
+  Receipt.hasMany(WalletTransaction, {
+    foreignKey: "receiptId",
+    as: "walletTransactions",
+  });
+
+  Wallet.belongsTo(User, { foreignKey: "userId", as: "user" });
+  User.hasMany(Wallet, { foreignKey: "userId", as: "wallets" });
 }
 
 // Initialize associations

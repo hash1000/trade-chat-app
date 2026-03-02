@@ -13,35 +13,35 @@ class ProductRepository {
   }
 
   async bulkDeleteProductImagesById(productImageIds, transaction) {
-  // Ensure that productImageIds is an array of integers representing the product image IDs to delete
-  return await ProductImage.destroy({
-    where: {
-      id: productImageIds, // Delete product images with the specified IDs
-    },
-    transaction, // Pass in the transaction for atomicity
-  });
-}
-  async bulkDeleteProductImagesByShopProductId(shopProductId, transaction) {
-  return await ProductImage.destroy({
-    where: {
-       shopProductId
-    },
-    transaction
-  });
-}
-
-// Bulk Update
-async bulkUpdateProductImages(productImageData, transaction) {
-  return await ProductImage.update(
-    productImageData, // Array of objects with id and updated fields
-    {
+    // Ensure that productImageIds is an array of integers representing the product image IDs to delete
+    return await ProductImage.destroy({
       where: {
-        id: productImageData.map(image => image.id), // Update only matching IDs
+        id: productImageIds, // Delete product images with the specified IDs
       },
-      transaction,
-    }
-  );
-}
+      transaction, // Pass in the transaction for atomicity
+    });
+  }
+  async bulkDeleteProductImagesByShopProductId(shopProductId, transaction) {
+    return await ProductImage.destroy({
+      where: {
+        shopProductId
+      },
+      transaction
+    });
+  }
+
+  // Bulk Update
+  async bulkUpdateProductImages(productImageData, transaction) {
+    return await ProductImage.update(
+      productImageData, // Array of objects with id and updated fields
+      {
+        where: {
+          id: productImageData.map(image => image.id), // Update only matching IDs
+        },
+        transaction,
+      }
+    );
+  }
 
   async updateProduct(productId, productData) {
     const product = await Product.findByPk(productId);
