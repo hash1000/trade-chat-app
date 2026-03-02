@@ -100,9 +100,22 @@ class ReceiptController {
   async approveReceipt(req, res) {
     try {
       const { id } = req.params;
-      console.log("Approving receipt with payload:", req.body);
-      // allow optional newAmount and isLock in body to override credited amount/lock behaviour
-      const { newAmount, isLock } = req.body || {};
+      console.log("Approving receipt with payload:", {
+        body: req.body,
+        query: req.query,
+      });
+
+      // allow optional newAmount in body to override credited amount
+      const { newAmount } = req.body || {};
+
+      // isLock is controlled via query string (?isLock=true/false)
+      let isLock = null;
+      if (typeof req.query.isLock === "string") {
+        const val = req.query.isLock.toLowerCase();
+        if (val === "true" || val === "1") isLock = true;
+        if (val === "false" || val === "0") isLock = false;
+      }
+
       const approved = await receiptService.approveReceipt(
         id,
         req.user,

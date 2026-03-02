@@ -104,16 +104,13 @@ class WalletService {
             const wallet = await this.getOrCreateWallet(userId, currency, walletType, t);
 
             const available = Number(wallet.availableBalance) || 0;
-            console.log("available", available);
             const lockAmount = Number(amount);
-            console.log("lockAmount", lockAmount);
 
             if (available < lockAmount) {
                 throw new Error("Insufficient available balance");
             }
 
             const beforeAvailable = available;
-            console.log("beforeAvailable", beforeAvailable);
             const beforeLocked = Number(wallet.lockedBalance) || 0;
 
             const afterAvailable = beforeAvailable - lockAmount;
@@ -135,6 +132,46 @@ console.log("afterLocked", afterLocked);
                     balanceAfter: afterAvailable,
                     receiptId,
                     meta: { ...meta, lockedBefore: beforeLocked, lockedAfter: afterLocked },
+                },
+                t,
+            );
+
+            return wallet;
+        });
+    }
+
+    /**
+     * Directly credit locked balance without touching available balance.
+     * Use this for scenarios like admin-approved topups with isLock=true.
+     */
+    async creditLocked({
+        userId,
+        currency,
+        amount,
+        walletType = "PERSONAL",
+        receiptId = null,
+        meta = {},
+    }) {
+        return sequelize.transaction(async (t) => {
+            const wallet = await this.getOrCreateWallet(userId, currency, walletType, t);
+
+            const beforeLocked = Number(wallet.lockedBalance) || 0;
+            const afterLocked = beforeLocked + Number(amount);
+
+            wallet.lockedBalance = afterLocked;
+            await wallet.save({ transaction: t });
+
+            await this.createWalletTransaction(
+                {
+                    walletId: wallet.id,
+                    userId,
+                    type: "LOCK",
+                    amount,
+                    currency,
+                    balanceBefore: beforeLocked,
+                    balanceAfter: afterLocked,
+                    receiptId,
+                    meta,
                 },
                 t,
             );

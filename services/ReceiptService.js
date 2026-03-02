@@ -283,15 +283,17 @@ async approveReceipt(
       );
 
       if (receipt.isLock) {
-        await walletService.lockFunds({
+        // For locked receipts, credit directly into lockedBalance (topup-style)
+        await walletService.creditLocked({
           userId,
           currency,
           amount: amountToCredit,
           walletType: "PERSONAL",
           receiptId: receipt.id,
-          meta: { source: "receipt_approve" },
+          meta: { source: "receipt_approve_lock" },
         });
       } else {
+        // Normal receipts credit availableBalance
         await walletService.deposit({
           userId,
           currency,
