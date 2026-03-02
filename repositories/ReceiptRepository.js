@@ -105,6 +105,7 @@ class ReceiptRepository {
   }
 
   async createReceipt(userId, data) {
+    console.log("Creating receipt for user", userId, data);
     return await Receipt.create({ userId, ...data });
   }
 

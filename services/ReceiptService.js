@@ -265,6 +265,7 @@ async approveReceipt(
     }
     // If caller provided isLock explicitly, override the flag before crediting
     if (typeof isLockOverride === "boolean") {
+      console.log(`Overriding receipt ${receipt.id} isLock to ${isLockOverride} for approval processing`);
       await receipt.update({ isLock: isLockOverride });
       receipt.isLock = isLockOverride;
     }
@@ -283,6 +284,8 @@ async approveReceipt(
       );
 
       if (receipt.isLock) {
+
+        console.log(`Crediting locked balance for receipt ${receipt.isLock}`,`${amountToCredit} ${currency}`);
         // For locked receipts, credit directly into lockedBalance (topup-style)
         await walletService.creditLocked({
           userId,

@@ -5,6 +5,7 @@
   "scripts": {
     "start": "nodemon ./bin/app.js",
     "migrate": "npx sequelize-cli db:migrate",
+    "migrate:single": "npx sequelize-cli db:migrate --to",
     "migrate:prod": "npx sequelize-cli db:migrate --env production",
     "migration:generate": "npx sequelize-cli migration:generate --name",
     "seed": "npx sequelize-cli db:seed:all",
@@ -12,7 +13,7 @@
     "seed:file": "npx sequelize-cli db:seed --seed",
     "seed:prod": "npx sequelize-cli db:seed:all --env production",
     "seed:single": "npx sequelize-cli db:seed --env production --seed",
-    "rollback": "npx sequelize-cli db:migrate:undo",
+    "rollback:single": "npx sequelize-cli db:migrate:undo --name",
     "check:deps": "madge --circular --extensions js ./"
   },
   "dependencies": {

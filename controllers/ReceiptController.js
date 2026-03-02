@@ -33,6 +33,7 @@ class ReceiptController {
     try {
       const { id: userId } = req.user;
       const { senderId, receiverId, amount , currency } = req.body;
+
       const newReceipt = await receiptService.createReceipt(userId, { senderId, receiverId, amount, currency });
       return res.status(201).json({ success: true, data: newReceipt });
     } catch (error) {
