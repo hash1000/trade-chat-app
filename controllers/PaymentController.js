@@ -312,7 +312,7 @@ class PaymentController {
   // Convert USD wallet → target currency wallet (e.g. CNY, EUR). Uses wallet + walletTransaction.
   async convertCurrency(req, res) {
     try {
-      const { amount, current_rate, toCurrency = "CNY" } = req.body;
+      const { amount, current_rate, fromCurrency = "USD", toCurrency = "CNY" } = req.body;
       const { id: userId } = req.user;
 
       const amt = Number(amount);
@@ -324,7 +324,7 @@ class PaymentController {
         });
       }
 
-      const data = await paymentService.transferAmount(userId, amt, rate, toCurrency);
+      const data = await paymentService.transferAmount(userId, amt, rate, fromCurrency, toCurrency);
 
       return res.json({
         success: true,
