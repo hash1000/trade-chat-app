@@ -82,8 +82,6 @@ class UserService {
     return {
       ...user,
       wallets: walletDtos,
-      totalWalletAvailable,
-      totalWalletLocked,
       walletSummary,
       friendship,
       liked,

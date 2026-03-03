@@ -350,8 +350,10 @@ class PaymentController {
   // Get current/adjusted rate. Query: ?currency=CNY|EUR (default CNY)
   async getCurrentRate(req, res) {
     try {
-      const { currency = "CNY" } = req.query;
-      const rateInfo = await currencyService.getAdjustedRate(currency);
+      const { currency = "CNY", baseCurrency = "USD" } = req.query;
+
+      console.log(`Getting adjusted rate for ${currency} with base ${baseCurrency}...`);
+      const rateInfo = await currencyService.getAdjustedRate(currency, baseCurrency);
 
       return res.json({
         success: true,

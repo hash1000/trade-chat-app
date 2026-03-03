@@ -31,6 +31,14 @@ class WalletService {
         });
     }
 
+    async createWallet(userId, currency, walletType = "PERSONAL") {
+        const [wallet, created] = await Wallet.findOrCreate({
+            where: { userId, currency, walletType },
+            defaults: { availableBalance: 0, lockedBalance: 0 },
+        });
+        return { wallet, created };
+    }
+
     async getOrCreateWallet(userId, currency, walletType = "PERSONAL", transaction) {
         const [wallet] = await Wallet.findOrCreate({
             where: { userId, currency, walletType },

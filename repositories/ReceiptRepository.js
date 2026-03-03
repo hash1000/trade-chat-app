@@ -4,7 +4,6 @@ const User = require("../models/user");
 const { Op } = require("sequelize");
 
 class ReceiptRepository {
-
   async getReceiptsByUserId(userId) {
     return await Receipt.findAll({
       where: { userId },
@@ -18,6 +17,7 @@ class ReceiptRepository {
           attributes: [
             "id",
             "firstName",
+            "username",
             "lastName",
             "email",
             "usdWalletBalance",
@@ -27,7 +27,7 @@ class ReceiptRepository {
         {
           model: User,
           as: "approver",
-          attributes: ["id", "firstName", "lastName", "email"],
+          attributes: ["id", "firstName", "lastName", "username", "email"],
         },
       ],
     });
@@ -46,6 +46,7 @@ class ReceiptRepository {
             "id",
             "firstName",
             "lastName",
+            "username",
             "email",
             "usdWalletBalance",
             "personalWalletBalance",
@@ -54,7 +55,7 @@ class ReceiptRepository {
         {
           model: User,
           as: "approver",
-          attributes: ["id", "firstName", "lastName", "email"],
+          attributes: ["id", "firstName", "lastName", "username", "email"],
         },
       ],
     });
@@ -73,6 +74,7 @@ class ReceiptRepository {
             "id",
             "firstName",
             "lastName",
+            "username",
             "email",
             "usdWalletBalance",
             "personalWalletBalance",
@@ -81,7 +83,7 @@ class ReceiptRepository {
         {
           model: User,
           as: "approver",
-          attributes: ["id", "firstName", "lastName", "email"],
+          attributes: ["id", "firstName", "lastName", "username", "email"],
         },
       ],
     });
@@ -92,8 +94,24 @@ class ReceiptRepository {
       include: [
         { model: BankAccount, as: "sender" },
         { model: BankAccount, as: "receiver" },
-        { model: User, as: 'user', attributes: ['id', 'firstName', 'lastName', 'email', 'usdWalletBalance', 'personalWalletBalance'] },
-        { model: User, as: 'approver', attributes: ['id', 'firstName', 'lastName', 'email'] },
+        {
+          model: User,
+          as: "user",
+          attributes: [
+            "id",
+            "firstName",
+            "lastName",
+            "username",
+            "email",
+            "usdWalletBalance",
+            "personalWalletBalance",
+          ],
+        },
+        {
+          model: User,
+          as: "approver",
+          attributes: ["id", "firstName", "lastName", "username", "email"],
+        },
       ],
     });
   }
@@ -121,7 +139,7 @@ class ReceiptRepository {
     const receipt = await Receipt.findOne({ where: { id: receiptId } });
     if (!receipt) return null;
     await receipt.update(updateData);
-    console.log("jhksdhkdfh")
+    console.log("jhksdhkdfh");
     return receipt;
   }
 
@@ -136,7 +154,6 @@ class ReceiptRepository {
     await receipt.update({ status });
     return receipt;
   }
-
 }
 
 module.exports = ReceiptRepository;

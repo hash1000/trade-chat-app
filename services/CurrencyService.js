@@ -11,17 +11,14 @@ class CurrencyService {
   async getCurrentRate(baseCurrency = "USD", targetCurrency = "CNY") {
     try {
       const response = await fetch(
-        `https://api.exchangerate.host/live?access_key=${process.env.EXCHANGE_RATE_API_KEY}`
+        `https://v6.exchangerate-api.com/v6/${process.env.EXCHANGE_RATE_API_KEY}/latest/${baseCurrency}`
       );
       const data = await response.json();
-
-      if (!data.success) {
+      if (data.result !== 'success') {
         throw new Error("Failed to fetch exchange rates");
       }
-
-      const rateKey = `${baseCurrency}${targetCurrency}`;
-      const currentRate = data.quotes[rateKey];
-
+      const conversion_rates = data.conversion_rates;
+      const currentRate = conversion_rates[targetCurrency];
       if (!currentRate) {
         throw new Error(`Rate not available for ${baseCurrency} to ${targetCurrency}`);
       }
@@ -63,24 +60,24 @@ class CurrencyService {
     }
   }
 
-  async getAdjustedRate(targetCurrency = "CNY") {
+  async getAdjustedRate(targetCurrency = "CNY", baseCurrency = "USD") {
     try {
-      const adjustment = await CurrencyRateAdjustment.findOne({
-        where: { targetCurrency },
-        order: [["updatedAt", "DESC"]],
-      });
+      // const adjustment = await CurrencyRateAdjustment.findOne({
+      //   where: { targetCurrency },
+      //   order: [["updatedAt", "DESC"]],
+      // });
 
-      if (adjustment) {
-        return {
-          baseRate: adjustment.fetchedRate,
-          adjustment: adjustment.adjustment,
-          finalRate: adjustment.finalRate,
-          lastUpdated: adjustment.updatedAt,
-        };
-      }
-
-      const currentRate = await this.getCurrentRate("USD", targetCurrency);
-
+      // if (adjustment) {
+      //   return {
+      //     baseRate: adjustment.fetchedRate,
+      //     adjustment: adjustment.adjustment,
+      //     finalRate: adjustment.finalRate,
+      //     lastUpdated: adjustment.updatedAt,
+      //   };
+      // }
+console.log("?>>>>>>>>>>>>>>");
+      const currentRate = await this.getCurrentRate(baseCurrency, targetCurrency);
+console.log("Current rate fetched:", currentRate);
       return {
         baseRate: currentRate,
         adjustment: 0,
@@ -96,7 +93,7 @@ class CurrencyService {
   async setRateAdjustment(userId, targetCurrency, adjustment) {
     try {
       const currentRate = await this.getCurrentRate("USD", targetCurrency);
-      const finalRate = currentRate + adjustment;
+      const finalRate = currentRate - adjustment;
 
       if (finalRate <= 0) {
         throw new Error("Final rate must be positive");

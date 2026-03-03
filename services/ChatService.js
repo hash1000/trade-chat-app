@@ -225,15 +225,6 @@ class CartService {
       "accepted"
     );
 
-    this.transferBalance(requesterId, requesteeId, amount)
-      .then(() => {
-        // Handle success
-      })
-      .catch((error) => {
-        if (error instanceof InSufficientBalance) {
-          return socket.emit("error", "Not enough balance");
-        }
-      });
     const transaction = await this.chatRepository.getTransactionById(
       paymentRequest.id
     );
