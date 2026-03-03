@@ -115,8 +115,6 @@ class WalletService {
 
             const afterAvailable = beforeAvailable - lockAmount;
             const afterLocked = beforeLocked + lockAmount;
-console.log("afterAvailable", afterAvailable);
-console.log("afterLocked", afterLocked);
             wallet.availableBalance = afterAvailable;
             wallet.lockedBalance = afterLocked;
             await wallet.save({ transaction: t });
