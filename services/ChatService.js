@@ -1,4 +1,3 @@
-
 const UserService = require("./UserService");
 const ChatRepository = require("../repositories/ChatRepository");
 const PaymentRepository = require("../repositories/PaymentRepository");
@@ -8,10 +7,8 @@ const InSufficientBalance = require("../errors/InSufficientBalance");
 const { User } = require("../models");
 const path = require("path");
 
-const {
-  PutObjectCommand,
-  S3Client
-} = require("@aws-sdk/client-s3");
+const { PutObjectCommand, S3Client } = require("@aws-sdk/client-s3");
+const Wallet = require("../models/wallet");
 
 const s3Client = new S3Client({
   endpoint: process.env.SPACES_END_POINT, // Find your endpoint in the control panel, under Settings. Prepend "https://".
@@ -58,56 +55,61 @@ class CartService {
         };
       }
       // Check if a chat already exists between the two users
-      let chat = await this.chatRepository.findExistingChat(requesterId, requesteeId);
-  
+      let chat = await this.chatRepository.findExistingChat(
+        requesterId,
+        requesteeId,
+      );
+
       if (!chat) {
         // If no chat exists, create a new invite
         chat = await this.chatRepository.createInvite(requesterId, requesteeId);
         return {
-          message: 'Successfully sent friend request.',
+          message: "Successfully sent friend request.",
           chatId: chat.id,
         };
       }
-  
+
       return {
-        message: 'Friend request already sent.',
+        message: "Friend request already sent.",
         chatId: chat.id,
       };
     } catch (error) {
-      console.error('Error in inviteRequest:', error);
+      console.error("Error in inviteRequest:", error);
       return {
-        message: 'Failed to send friend request. Please try again later.',
-        error: error.message || 'Unknown error',
+        message: "Failed to send friend request. Please try again later.",
+        error: error.message || "Unknown error",
       };
     }
   }
-  
+
   async inviteCancel(requesterId, requesteeId) {
     try {
       // Check if a chat already exists between the two users
-      let chat = await this.chatRepository.findExistingChat(requesterId, requesteeId);
-  
+      let chat = await this.chatRepository.findExistingChat(
+        requesterId,
+        requesteeId,
+      );
+
       if (!chat) {
         // If no chat exists, return a not found message
         return {
-          message: 'No friend request found to cancel.',
+          message: "No friend request found to cancel.",
         };
       }
-  
+
       // Cancel the invite
       await this.chatRepository.cancelInvite(requesterId, requesteeId);
       return {
-        message: 'Successfully canceled friend request.',
+        message: "Successfully canceled friend request.",
       };
     } catch (error) {
-      console.error('Error in inviteCancel:', error);
+      console.error("Error in inviteCancel:", error);
       return {
-        message: 'Failed to cancel friend request. Please try again later.',
-        error: error.message || 'Unknown error',
+        message: "Failed to cancel friend request. Please try again later.",
+        error: error.message || "Unknown error",
       };
     }
   }
-  
 
   async getChats(userId, page, pageSize) {
     return await this.chatRepository.getUserChat(userId, page, pageSize);
@@ -120,7 +122,7 @@ class CartService {
     profilePic,
     description,
     rating,
-    tags
+    tags,
   ) {
     let chat = await this.chatRepository.findInvite(requesterId, requesteeId);
     if (!chat) {
@@ -135,7 +137,7 @@ class CartService {
         profilePic,
         description,
         rating,
-        tags
+        tags,
       );
     }
     return {
@@ -153,7 +155,7 @@ class CartService {
       page,
       pageSize,
       messageId,
-      userId
+      userId,
     );
   }
 
@@ -164,7 +166,7 @@ class CartService {
   async getSingleChat(requesterId, requesteeId) {
     const user = await this.chatRepository.findSingleChat(
       requesterId,
-      requesteeId
+      requesteeId,
     );
     const { favourite, chat } = user;
 
@@ -179,7 +181,7 @@ class CartService {
       userId,
       specificUserId,
       from,
-      to
+      to,
     );
   }
 
@@ -195,7 +197,7 @@ class CartService {
         requesterId,
         requesteeId,
         amount,
-        description
+        description,
       );
 
       return paymentRequest;
@@ -222,34 +224,73 @@ class CartService {
       requesteeId,
       amount,
       description,
-      "accepted"
+      "accepted",
     );
 
-    const transaction = await this.chatRepository.getTransactionById(
-      paymentRequest.id
+    // Now perform the balance transfer
+    await this.transferBalance(requesterId, requesteeId, amount);
+
+    const transaction = await this.chatRepository.getTransactionById( 
+      paymentRequest.id,
     );
     return transaction;
   }
 
   async transferBalance(fromUserId, toUserId, amount) {
     try {
-      const sender = await userService.getUserById(fromUserId);
-      if (fromUserId === toUserId && sender.roles[0].name === "admin") {
-        sender.personalWalletBalance += amount;
-        await sender.save();
-        console.log(`Added ${amount} units to user's own wallet.`);
+      // Fetch sender and recipient wallets for CNY (PERSONAL type)
+      const senderWallet = await Wallet.findOne({
+        where: { userId: fromUserId, currency: "CNY", walletType: "PERSONAL" },
+      });
+
+      const recipientWallet = await Wallet.findOne({
+        where: { userId: toUserId, currency: "CNY", walletType: "PERSONAL" },
+      });
+
+      if (!senderWallet || !recipientWallet) {
+        throw new Error("Wallet not found for sender or recipient");
+      }
+
+      // Convert balances and amount to numbers (in case they are in string/decimal format)
+      const senderAvailableBalance = Number(senderWallet.availableBalance);
+      const recipientAvailableBalance = Number(
+        recipientWallet.availableBalance,
+      );
+      const transferAmount = Number(amount);
+
+      console.log(`Sender Balance (before): ${senderAvailableBalance}`);
+      console.log(`Recipient Balance (before): ${recipientAvailableBalance}`);
+      console.log(`Transfer Amount: ${transferAmount}`);
+
+      // Admins can transfer funds to themselves without restrictions
+      if (
+        fromUserId === toUserId &&
+        senderWallet.user.roles[0].name === "admin"
+      ) {
+        senderWallet.availableBalance = senderAvailableBalance + transferAmount;
+        await senderWallet.save();
+        console.log(`Admin added ${transferAmount} units to their own wallet.`);
         return;
       }
 
-      if (sender.personalWalletBalance >= amount) {
-        sender.personalWalletBalance -= amount;
-        await sender.save();
+      // Ensure the sender has enough balance to transfer
+      if (senderAvailableBalance >= transferAmount) {
+        // Deduct amount from sender's balance
+        senderWallet.availableBalance = senderAvailableBalance - transferAmount;
+        await senderWallet.save();
 
-        // Add balance to the receiver
-        const receiver = await User.findByPk(toUserId);
-        receiver.personalWalletBalance += amount;
-        await receiver.save();
-        console.log(`Successfully transferred ${amount} units.`);
+        // Add amount to recipient's balance
+        recipientWallet.availableBalance =
+          recipientAvailableBalance + transferAmount;
+        await recipientWallet.save();
+
+        console.log(`Successfully transferred ${transferAmount} units.`);
+        console.log(`Sender Balance (after): ${senderWallet.availableBalance}`);
+        console.log(
+          `Recipient Balance (after): ${recipientWallet.availableBalance}`,
+        );
+      } else {
+        throw new Error("Insufficient balance");
       }
     } catch (error) {
       console.error("Error transferring balance:", error);
@@ -261,7 +302,7 @@ class CartService {
     // get chat id if chat exists else create chat
     const chat = await this.chatRepository.findOrCreateChat(
       userId,
-      recipientId
+      recipientId,
     );
     const { id: chatId } = chat;
 
@@ -272,7 +313,7 @@ class CartService {
         files.map(async (file) => {
           console.log(file.originalname);
           const fileName = `${chatId}-${Date.now()}${path.extname(
-            file.originalname
+            file.originalname,
           )}`;
           const params = {
             Bucket: process.env.SPACES_BUCKET_NAME,
@@ -281,7 +322,7 @@ class CartService {
           };
           await s3Client.send(new PutObjectCommand(params));
           return fileName;
-        })
+        }),
       );
     }
 
@@ -303,7 +344,7 @@ class CartService {
     const messages = await this.chatRepository.createMessages(
       chatId,
       userId,
-      modifiedPayload
+      modifiedPayload,
     );
 
     const io = await req.app.get("io");

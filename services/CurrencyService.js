@@ -62,22 +62,22 @@ class CurrencyService {
 
   async getAdjustedRate(targetCurrency = "CNY", baseCurrency = "USD") {
     try {
-      // const adjustment = await CurrencyRateAdjustment.findOne({
-      //   where: { targetCurrency },
-      //   order: [["updatedAt", "DESC"]],
-      // });
+      const adjustment = await CurrencyRateAdjustment.findOne({
+        where: { baseCurrency,targetCurrency },
+        order: [["updatedAt", "DESC"]],
+      });
 
-      // if (adjustment) {
-      //   return {
-      //     baseRate: adjustment.fetchedRate,
-      //     adjustment: adjustment.adjustment,
-      //     finalRate: adjustment.finalRate,
-      //     lastUpdated: adjustment.updatedAt,
-      //   };
-      // }
-console.log("?>>>>>>>>>>>>>>");
+      console.log(`Fetched adjustment for ${targetCurrency}:`, adjustment);
+      if (adjustment) {
+        return {
+          baseRate: adjustment.fetchedRate,
+          adjustment: adjustment.adjustment,
+          finalRate: adjustment.finalRate,
+          lastUpdated: adjustment.updatedAt,
+        };
+      }
+      console.log(`No adjustment found for ${targetCurrency}, using current rate ${baseCurrency}`);
       const currentRate = await this.getCurrentRate(baseCurrency, targetCurrency);
-console.log("Current rate fetched:", currentRate);
       return {
         baseRate: currentRate,
         adjustment: 0,
@@ -90,9 +90,11 @@ console.log("Current rate fetched:", currentRate);
     }
   }
 
-  async setRateAdjustment(userId, targetCurrency, adjustment) {
+  async setRateAdjustment(userId, currency, targetCurrency, adjustment) {
     try {
-      const currentRate = await this.getCurrentRate("USD", targetCurrency);
+      const currentRate = await this.getCurrentRate(currency, targetCurrency);
+
+      console.log(`Setting rate adjustment for ${targetCurrency}: currentRate=${currentRate}, adjustment=${adjustment}`);
       const finalRate = currentRate - adjustment;
 
       if (finalRate <= 0) {
@@ -101,7 +103,7 @@ console.log("Current rate fetched:", currentRate);
 
       const [record, created] = await CurrencyRateAdjustment.upsert(
         {
-          baseCurrency: "USD",
+          baseCurrency: currency,
           targetCurrency,
           fetchedRate: currentRate,
           adjustment,

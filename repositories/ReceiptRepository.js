@@ -4,6 +4,7 @@ const User = require("../models/user");
 const { Op } = require("sequelize");
 
 class ReceiptRepository {
+
   async getReceiptsByUserId(userId) {
     return await Receipt.findAll({
       where: { userId },
@@ -154,6 +155,7 @@ class ReceiptRepository {
     await receipt.update({ status });
     return receipt;
   }
+
 }
 
 module.exports = ReceiptRepository;

@@ -1,3 +1,4 @@
+const Wallet = require("../models/wallet");
 const UserRepository = require("../repositories/UserRepository");
 const ChatService = require("../services/ChatService");
 const chatService = new ChatService();
@@ -26,7 +27,7 @@ class ChatController {
       if (requesteeIdNumber !== userIdNumber) {
         const chat = await chatService.inviteRequest(
           userIdNumber,
-          requesteeIdNumber
+          requesteeIdNumber,
         );
         return res.status(200).json(chat);
       } else {
@@ -56,7 +57,7 @@ class ChatController {
       if (requesteeIdNumber !== userIdNumber) {
         const chat = await chatService.inviteCancel(
           userIdNumber,
-          requesteeIdNumber
+          requesteeIdNumber,
         );
         return res.status(200).json(chat);
       } else {
@@ -74,7 +75,8 @@ class ChatController {
 
   async updateChats(req, res) {
     try {
-      const { requesteeId, userName, profilePic, description, rating, tags } = req.body;
+      const { requesteeId, userName, profilePic, description, rating, tags } =
+        req.body;
       const { id: userId } = req.user;
 
       const friendUpdate = await chatService.updateChats(
@@ -84,7 +86,7 @@ class ChatController {
         profilePic,
         description,
         rating,
-        tags
+        tags,
       );
 
       return res.status(200).json(friendUpdate);
@@ -134,7 +136,7 @@ class ChatController {
       page,
       pageSize,
       messageId,
-      userId
+      userId,
     );
     res.json(message);
   }
@@ -187,7 +189,7 @@ class ChatController {
       userId,
       specificUserId,
       finalFrom,
-      finalTo
+      finalTo,
     );
     res.json(transactions);
   }
@@ -202,39 +204,36 @@ class ChatController {
         return res.status(400).json({ error: "Invalid amount" });
       }
 
-      // Get requester's balance
-      const requester = await userRepository.getById(requesterId);
-      if (!requester) {
-        return res.status(404).json({ error: "User not found" });
+      // Get requester's wallet for CNY (or any default currency)
+      const requesterWallet = await Wallet.findOne({
+        where: { userId: requesterId, currency: "CNY", walletType: "PERSONAL" },
+      });
+
+      if (!requesterWallet) {
+        return res.status(404).json({ error: "Requester's wallet not found" });
       }
 
-      // Check if requester has sufficient balance
-      // if (requester.personalWalletBalance < amount) {
-      //   return res.status(400).json({
-      //     error: "Insufficient funds",
-      //     currentBalance: requester.personalWalletBalance,
-      //     requiredAmount: amount,
-      //   });
-      // }
+      // Get recipient's wallet for CNY
+      const recipientWallet = await Wallet.findOne({
+        where: { userId: requesteeId, currency: "CNY", walletType: "PERSONAL" },
+      });
 
-      // Get recipient
-      const recipient = await userRepository.getById(requesteeId);
-      if (!recipient) {
-        return res.status(404).json({ error: "Recipient not found" });
+      if (!recipientWallet) {
+        return res.status(404).json({ error: "Recipient's wallet not found" });
       }
 
       // Process payment
       const payment = await chatService.sendPayment(
-        Number(requesterId),
-        Number(requesteeId),
-        Number(amount),
-        description
+        requesterId,
+        requesteeId,
+        amount,
+        description,
       );
 
       res.status(200).json({
         success: true,
         payment,
-        newBalance: requester.personalWalletBalance - amount,
+        newBalance: requesterWallet.availableBalance - amount,
       });
     } catch (error) {
       console.error("Payment error:", error);
@@ -260,7 +259,7 @@ class ChatController {
         Number(requesterId),
         Number(requesteeId),
         amount,
-        description
+        description,
       );
 
       res.json(paymentRequest);
@@ -284,7 +283,7 @@ class ChatController {
     await userService.transferFunds(
       paymentRequest.requesterId,
       paymentRequest.requesteeId,
-      paymentRequest.amount
+      paymentRequest.amount,
     );
 
     // Update payment request status
@@ -293,7 +292,7 @@ class ChatController {
     return paymentRequest;
   }
 
-    async bulkForwardMessages(req, res) {
+  async bulkForwardMessages(req, res) {
     const {
       body: { payload, recipientId },
       files,
@@ -305,7 +304,7 @@ class ChatController {
       userId,
       recipientId,
       req.user,
-      req
+      req,
     );
     res.json({
       message: "successfully forwarded messages",

@@ -101,10 +101,6 @@ class ReceiptController {
   async approveReceipt(req, res) {
     try {
       const { id } = req.params;
-      console.log("Approving receipt with payload:", {
-        body: req.body,
-        query: req.query,
-      });
 
       // allow optional newAmount in body to override credited amount
       const { newAmount } = req.body || {};

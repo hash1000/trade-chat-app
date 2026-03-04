@@ -4,8 +4,10 @@ const UserService = require("./UserService");
 const userService = new UserService();
 const WalletService = require("./WalletService");
 const CurrencyService = require("./CurrencyService");
+const Wallet = require("../models/wallet");
 const walletService = new WalletService();
 const currencyService = new CurrencyService();
+
 class ReceiptService {
   constructor() {
     this.receiptRepository = new ReceiptRepository();
@@ -270,7 +272,7 @@ class ReceiptService {
       console.log(
         `Overriding receipt ${receipt.id} isLock to ${isLockOverride} for approval processing`,
       );
-      await receipt.update({ isLock: isLockOverride });
+      await receipt.update({ isLock: isLockOverride , status: "approved"});
       receipt.isLock = isLockOverride;
     }
     // compute amount to credit (prefer receipt.newAmount when present)
@@ -288,21 +290,15 @@ class ReceiptService {
       );
 
       if (receipt.isLock) {
-        console.log(
-          `Crediting locked balance for receipt ${receipt.isLock}`,
-          `${amountToCredit} ${currency}`,
-        );
-        // For locked receipts, credit directly into lockedBalance (topup-style)
         await walletService.creditLocked({
           userId,
           currency,
           amount: amountToCredit,
           walletType: "PERSONAL",
           receiptId: receipt.id,
-          meta: { source: "receipt_approve_lock" },
+          meta: { source: "receipt_approve" },
         });
       } else {
-        // Normal receipts credit availableBalance
         await walletService.deposit({
           userId,
           currency,
@@ -330,26 +326,16 @@ class ReceiptService {
     return receipt;
   }
 
-  async unlockLockedReceiptFunds(
-    receiptId,
-    adminUser = null,
-    currency
-  ) {
+  async unlockLockedReceiptFunds(receiptId, adminUser = null, currency) {
     // Load receipt with user & bank accounts (admin-level access)
     const receipt = await this.receiptRepository.getReceiptByPk(receiptId);
     if (!receipt) {
       return null;
     }
 
-    console.log(
-      `Attempting to unlock funds for receipt ${receipt.currency} with isLock=${currency} and status=${receipt.status}`,
-    );
-    const currentRate = await currencyService.getCurrentRate(
+    const currentRate = await currencyService.getAdjustedRate(
       receipt.currency,
       currency,
-    );
-    console.log(
-      `Current exchange rate from ${receipt.currency} to ${currency}: ${currentRate}`,
     );
 
     // Only allow unlocking if:
@@ -372,9 +358,6 @@ class ReceiptService {
         ? Number(receipt.newAmount)
         : Number(receipt.amount);
     const convertedAmount = amountToUnlock * currentRate;
-    console.log(
-      `Amount to unlock: ${amountToUnlock} ${receipt.currency} = ${convertedAmount} ${currency}`,
-    );
 
     if (
       !amountToUnlock ||
@@ -391,8 +374,10 @@ class ReceiptService {
     // Move funds: lockedBalance -> availableBalance using WalletService
     await walletService.unlockFunds({
       userId,
-      currency: currency,
-      amount: amountToUnlock,
+      currency,
+      amountToUnlock,
+      receiptCurrency: receipt.currency,
+      amount: convertedAmount,
       walletType: "PERSONAL",
       receiptId: receipt.id,
       meta: {
