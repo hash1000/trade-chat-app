@@ -2,9 +2,10 @@ const ReceiptRepository = require("../repositories/ReceiptRepository");
 const BankAccount = require("../models/bankAccount");
 const UserService = require("./UserService");
 const userService = new UserService();
-const sequelize = require("../config/database");
 const WalletService = require("./WalletService");
+const CurrencyService = require("./CurrencyService");
 const walletService = new WalletService();
+const currencyService = new CurrencyService();
 class ReceiptService {
   constructor() {
     this.receiptRepository = new ReceiptRepository();
@@ -179,7 +180,7 @@ class ReceiptService {
         : 0;
 
       // Only set approvedBy when admin is approving the receipt (status === 'approved')
-      if (adminUser && adminUser.id && sanitized.status === 'approved') {
+      if (adminUser && adminUser.id && sanitized.status === "approved") {
         sanitized.approvedBy = adminUser.id;
       }
 
@@ -205,7 +206,8 @@ class ReceiptService {
         if (previouslyApproved && !nowApproved) {
           // subtract previously credited amount
           const currentBalance = Number(targetUser.usdWalletBalance) || 0;
-          targetUser.usdWalletBalance = currentBalance - previouslyCreditedAmount;
+          targetUser.usdWalletBalance =
+            currentBalance - previouslyCreditedAmount;
           await targetUser.save();
         } else if (!previouslyApproved && nowApproved) {
           // newly approved -> credit nowCreditedAmount
@@ -265,7 +267,9 @@ class ReceiptService {
     }
     // If caller provided isLock explicitly, override the flag before crediting
     if (typeof isLockOverride === "boolean") {
-      console.log(`Overriding receipt ${receipt.id} isLock to ${isLockOverride} for approval processing`);
+      console.log(
+        `Overriding receipt ${receipt.id} isLock to ${isLockOverride} for approval processing`,
+      );
       await receipt.update({ isLock: isLockOverride });
       receipt.isLock = isLockOverride;
     }
@@ -284,8 +288,10 @@ class ReceiptService {
       );
 
       if (receipt.isLock) {
-
-        console.log(`Crediting locked balance for receipt ${receipt.isLock}`, `${amountToCredit} ${currency}`);
+        console.log(
+          `Crediting locked balance for receipt ${receipt.isLock}`,
+          `${amountToCredit} ${currency}`,
+        );
         // For locked receipts, credit directly into lockedBalance (topup-style)
         await walletService.creditLocked({
           userId,
@@ -324,13 +330,28 @@ class ReceiptService {
     return receipt;
   }
 
-  async unlockLockedReceiptFunds(receiptId, adminUser = null) {
+  async unlockLockedReceiptFunds(
+    receiptId,
+    adminUser = null,
+    currency
+  ) {
     // Load receipt with user & bank accounts (admin-level access)
     const receipt = await this.receiptRepository.getReceiptByPk(receiptId);
     if (!receipt) {
       return null;
     }
-  
+
+    console.log(
+      `Attempting to unlock funds for receipt ${receipt.currency} with isLock=${currency} and status=${receipt.status}`,
+    );
+    const currentRate = await currencyService.getCurrentRate(
+      receipt.currency,
+      currency,
+    );
+    console.log(
+      `Current exchange rate from ${receipt.currency} to ${currency}: ${currentRate}`,
+    );
+
     // Only allow unlocking if:
     // - receipt is approved (already credited into lockedBalance)
     // - and currently locked
@@ -344,26 +365,33 @@ class ReceiptService {
       err.name = "InvalidReceiptStateError";
       throw err;
     }
-  
+
     // Determine how much was locked for this receipt
     const amountToUnlock =
       receipt.newAmount && Number(receipt.newAmount) > 0
         ? Number(receipt.newAmount)
         : Number(receipt.amount);
-  
-    if (!amountToUnlock || Number.isNaN(amountToUnlock) || amountToUnlock <= 0) {
+    const convertedAmount = amountToUnlock * currentRate;
+    console.log(
+      `Amount to unlock: ${amountToUnlock} ${receipt.currency} = ${convertedAmount} ${currency}`,
+    );
+
+    if (
+      !amountToUnlock ||
+      Number.isNaN(amountToUnlock) ||
+      amountToUnlock <= 0
+    ) {
       const err = new Error("Invalid receipt amount to unlock");
       err.name = "InvalidAmountError";
       throw err;
     }
-  
+
     const userId = receipt.userId;
-    const currency = receipt.currency || "USD";
-  
+
     // Move funds: lockedBalance -> availableBalance using WalletService
     await walletService.unlockFunds({
       userId,
-      currency,
+      currency: currency,
       amount: amountToUnlock,
       walletType: "PERSONAL",
       receiptId: receipt.id,
@@ -372,10 +400,10 @@ class ReceiptService {
         unlockedBy: adminUser && adminUser.id ? adminUser.id : null,
       },
     });
-  
+
     // Mark receipt as no longer locked
     await receipt.update({ isLock: false });
-  
+
     // Return fresh copy with includes
     return await this.receiptRepository.getReceiptByPk(receiptId);
   }

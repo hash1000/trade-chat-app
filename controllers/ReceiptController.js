@@ -201,11 +201,12 @@ class ReceiptController {
 
   async unlockReceiptFunds(req, res) {
     try {
-      const { id } = req.params;
-  
+      const { id  } = req.params;
+      const { currency } = req.body;
       const unlocked = await receiptService.unlockLockedReceiptFunds(
         id,
         req.user,
+        currency
       );
   
       if (!unlocked) {
