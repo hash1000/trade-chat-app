@@ -6,9 +6,9 @@ const { httpServer } = require("../app"); // Import the httpServer
 const port = normalizePort(process.env.PORT || "3000");
 
 // Listen
-httpServer.listen(port, () => {
+httpServer.listen(port, "0.0.0.0", () => {
   console.log(`Server is running on port ${port}`);
-  console.log(`Socket.IO endpoint: ws://localhost:${port}/upload/socket.io`);
+  console.log(`Socket.IO endpoint: ws://YOUR_SERVER_IP:${port}/upload/socket.io`);
 });
 
 httpServer.on("error", onError);
