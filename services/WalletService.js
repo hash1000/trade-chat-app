@@ -2,8 +2,6 @@ const { User, Transaction } = require("../models");
 const sequelize = require("../config/database");
 const UserRepository = require("../repositories/UserRepository");
 const userRepository = new UserRepository();
-const CurrencyService = require("./CurrencyService");
-const currencyService = new CurrencyService();
 const Wallet = require("../models/wallet");
 const WalletTransaction = require("../models/walletTransaction");
 const Receipt = require("../models/receipt");
@@ -54,6 +52,18 @@ class WalletService {
       transaction,
     });
     return wallet;
+  }
+
+  async createDefaultWalletsForUser(userId) {
+    const currencies = ["CNY", "USD", "EUR"];
+    const wallets = [];
+
+    for (const currency of currencies) {
+      const wallet = await this.getOrCreateWallet(userId, currency, "PERSONAL");
+      wallets.push(wallet);
+    }
+
+    return wallets;
   }
 
   async createWalletTransaction(
@@ -279,7 +289,7 @@ class WalletService {
         },
         { where: { userId, currency: receiptCurrency }, transaction: t },
       );
-      
+
       await this.createWalletTransaction(
         {
           walletId: wallet.id,

@@ -8,10 +8,12 @@ const UserFavouriteRepository = require("../repositories/UserFavouriteRepository
 const UserTags = require("../models/userTags");
 const { User, Role } = require("../models");
 const sequelize = require("../config/database");
+const WalletService = require("./WalletService");
 const chat = new ChatRepository();
 const userRepository = new UserRepository();
 const userFavourite = new UserFavouriteRepository();
 const paymentService = new PaymentService();
+const walletService = new WalletService();
 
 class UserService {
   async createUser(userData) {
@@ -30,7 +32,9 @@ class UserService {
       );
 
      const role = await userRepository.assignRoleToUser(newUser.id, "user", transaction);
-console.log("Assigned role", role, "to user", newUser.id);
+     if (role && newUser ) {
+       await walletService.createDefaultWalletsForUser(newUser.id, transaction);
+     }
       await transaction.commit();
       return newUser;
     } catch (error) {
