@@ -196,7 +196,7 @@ class ChatController {
 
   async sendPayment(req, res) {
     try {
-      const { amount, description, requesteeId } = req.body;
+      const { amount, description, requesteeId , currency = "CNY" } = req.body;
       const { id: requesterId } = req.user;
 
       // Validate input
@@ -206,7 +206,7 @@ class ChatController {
 
       // Get requester's wallet for CNY (or any default currency)
       const requesterWallet = await Wallet.findOne({
-        where: { userId: requesterId, currency: "CNY", walletType: "PERSONAL" },
+        where: { userId: requesterId, currency, walletType: "PERSONAL" },
       });
 
       if (!requesterWallet) {
@@ -215,7 +215,7 @@ class ChatController {
 
       // Get recipient's wallet for CNY
       const recipientWallet = await Wallet.findOne({
-        where: { userId: requesteeId, currency: "CNY", walletType: "PERSONAL" },
+        where: { userId: requesteeId, currency, walletType: "PERSONAL" },
       });
 
       if (!recipientWallet) {
@@ -227,6 +227,7 @@ class ChatController {
         requesterId,
         requesteeId,
         amount,
+        currency,
         description,
       );
 

@@ -333,10 +333,14 @@ class ReceiptService {
       return null;
     }
 
-    const currentRate = await currencyService.getAdjustedRate(
-      receipt.currency,
-      currency,
-    );
+    // Default to receipt currency when not provided (same-currency unlock)
+    const targetCurrency = currency && String(currency).trim() ? currency : receipt.currency;
+
+    // Rate from receipt currency → target (e.g. EUR per 1 CNY). getAdjustedRate(target, base) returns "target per base".
+    const currentRate =
+      targetCurrency === receipt.currency
+        ? { finalRate: 1 }
+        : await currencyService.getAdjustedRate(targetCurrency, receipt.currency);
 
     // Only allow unlocking if:
     // - receipt is approved (already credited into lockedBalance)
@@ -357,7 +361,14 @@ class ReceiptService {
       receipt.newAmount && Number(receipt.newAmount) > 0
         ? Number(receipt.newAmount)
         : Number(receipt.amount);
-    const convertedAmount = amountToUnlock * currentRate;
+    const rate =
+      currentRate && typeof currentRate.finalRate === "number"
+        ? currentRate.finalRate
+        : targetCurrency === receipt.currency
+          ? 1
+          : 0;
+    // convertedAmount in target currency = amount in receipt currency × (target per receipt)
+    const convertedAmount = amountToUnlock * rate;
 
     if (
       !amountToUnlock ||
@@ -369,12 +380,18 @@ class ReceiptService {
       throw err;
     }
 
+    if (Number.isNaN(convertedAmount) || convertedAmount <= 0) {
+      const err = new Error("Invalid converted amount for unlock (check currency/rate)");
+      err.name = "InvalidAmountError";
+      throw err;
+    }
+
     const userId = receipt.userId;
 
     // Move funds: lockedBalance -> availableBalance using WalletService
     await walletService.unlockFunds({
       userId,
-      currency,
+      currency: targetCurrency,
       amountToUnlock,
       receiptCurrency: receipt.currency,
       amount: convertedAmount,

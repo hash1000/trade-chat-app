@@ -207,7 +207,7 @@ class CartService {
     }
   }
 
-  async sendPayment(requesterId, requesteeId, amount, description) {
+  async sendPayment(requesterId, requesteeId, amount, currency, description) {
     const user = await userService.getUserById(requesteeId);
     if (!user) {
       return { message: `User with ID ${requesteeId} not found` };
@@ -228,7 +228,7 @@ class CartService {
     );
 
     // Now perform the balance transfer
-    await this.transferBalance(requesterId, requesteeId, amount);
+    await this.transferBalance(requesterId, requesteeId, amount, currency);
 
     const transaction = await this.chatRepository.getTransactionById( 
       paymentRequest.id,
@@ -236,15 +236,15 @@ class CartService {
     return transaction;
   }
 
-  async transferBalance(fromUserId, toUserId, amount) {
+  async transferBalance(fromUserId, toUserId, amount, currency) {
     try {
       // Fetch sender and recipient wallets for CNY (PERSONAL type)
       const senderWallet = await Wallet.findOne({
-        where: { userId: fromUserId, currency: "CNY", walletType: "PERSONAL" },
+        where: { userId: fromUserId, currency, walletType: "PERSONAL" },
       });
 
       const recipientWallet = await Wallet.findOne({
-        where: { userId: toUserId, currency: "CNY", walletType: "PERSONAL" },
+        where: { userId: toUserId, currency, walletType: "PERSONAL" },
       });
 
       if (!senderWallet || !recipientWallet) {
@@ -284,11 +284,6 @@ class CartService {
           recipientAvailableBalance + transferAmount;
         await recipientWallet.save();
 
-        console.log(`Successfully transferred ${transferAmount} units.`);
-        console.log(`Sender Balance (after): ${senderWallet.availableBalance}`);
-        console.log(
-          `Recipient Balance (after): ${recipientWallet.availableBalance}`,
-        );
       } else {
         throw new Error("Insufficient balance");
       }

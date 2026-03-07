@@ -272,7 +272,11 @@ class WalletService {
       receiptCurrencyWallet.lockedBalance = afterLocked;
 
       // 2. Add to availableBalance: same wallet if same currency, else target-currency wallet
-      const amountToAddToAvailable = Number(amount); // already in target currency (converted if different)
+      // Same currency: use amountToUnlock (no conversion). Different: use amount (converted).
+      const amountToAddToAvailable =
+        currency === receiptCurrency
+          ? amountToUnlockNum
+          : Number(amount);
 
       if (currency === receiptCurrency) {
         // Same currency: add to same wallet's availableBalance
