@@ -346,31 +346,31 @@ class WalletService {
   }
 
   /**
-   * Convert from one currency wallet to another (e.g. USD → CNY or USD → EUR).
-   * Deducts from fromCurrency wallet and credits to toCurrency wallet; creates FX_CONVERT_OUT and FX_CONVERT_IN transactions.
+   * Convert from one currency wallet to another (e.g. EUR → CNY).
+   * Deducts amountInSource from fromCurrency wallet and credits (amountInSource / rate) to toCurrency wallet.
    * @param {Object} params
    * @param {number} params.userId
-   * @param {string} params.fromCurrency - e.g. "USD"
-   * @param {string} params.toCurrency - e.g. "CNY" or "EUR"
-   * @param {number} params.amountInTarget - amount to credit in toCurrency
-   * @param {number} params.rate - rate from fromCurrency to target (e.g. 1 USD = rate CNY)
+   * @param {string} params.fromCurrency - e.g. "EUR"
+   * @param {string} params.toCurrency - e.g. "CNY"
+   * @param {number} params.amountInSource - amount to deduct from fromCurrency (e.g. 10 EUR)
+   * @param {number} params.rate - rate: target amount = amountInSource / rate (e.g. rate 2 → 10 EUR gives 5 CNY)
    * @param {string} params.walletType - default "PERSONAL"
    */
   async fxConvert({
     userId,
     fromCurrency = "USD",
     toCurrency,
-    amountInTarget,
+    amountInSource,
     rate,
     walletType = "PERSONAL",
     meta = {},
   }) {
-    const amountTarget = Number(amountInTarget);
+    const amountFrom = Number(amountInSource);
     const r = Number(rate);
-    if (!amountTarget || amountTarget <= 0 || !r || r <= 0) {
+    if (!amountFrom || amountFrom <= 0 || !r || r <= 0) {
       throw new Error("Invalid amount or rate");
     }
-    const amountFrom = amountTarget / r;
+    const amountTarget = amountFrom / r;
 
     return sequelize.transaction(async (t) => {
       const fromWallet = await this.getOrCreateWallet(
@@ -424,7 +424,7 @@ class WalletService {
           currency: toCurrency,
           balanceBefore: toBefore,
           balanceAfter: toAfter,
-          meta: { ...meta, fromCurrency, amountFrom, rate: r },
+          meta: { ...meta, fromCurrency, amountInSource: amountFrom, rate: r },
         },
         t,
       );

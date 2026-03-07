@@ -45,18 +45,19 @@ class PaymentService {
   } 
 
   /**
-   * Convert USD to target currency using wallet/walletTransaction modules.
+   * Convert from one currency wallet to another (e.g. EUR → CNY).
    * @param {number} userId
-   * @param {number} amount - amount in target currency to credit
-   * @param {number} currentRate - USD to target rate (e.g. 1 USD = currentRate CNY)
-   * @param {string} toCurrency - e.g. "CNY" or "EUR", default "CNY"
+   * @param {number} amount - amount in fromCurrency to deduct (e.g. 10 EUR)
+   * @param {number} currentRate - rate; target amount = amount / currentRate (e.g. 10/2 = 5 CNY)
+   * @param {string} fromCurrency - e.g. "EUR"
+   * @param {string} toCurrency - e.g. "CNY"
    */
   async transferAmount(userId, amount, currentRate, fromCurrency = "USD", toCurrency = "CNY") {
     return walletService.fxConvert({
       userId,
       fromCurrency,
       toCurrency,
-      amountInTarget: Number(amount),
+      amountInSource: Number(amount),
       rate: Number(currentRate),
       walletType: "PERSONAL",
       meta: { source: "payment_convert" },
