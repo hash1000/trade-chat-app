@@ -273,16 +273,18 @@ class CartService {
   
       const senderRole = senderWallet?.user?.roles?.[0]?.name;
       console.log("Sender Role:", senderRole);
-  
-      // Admin self transfer
-      if (fromUserId === toUserId && senderRole === "admin") {
+
+      // Admin self transfer: same user + admin role → credit availableBalance (no debit)
+      const isSameUser = Number(fromUserId) === Number(toUserId);
+      const isAdmin = String(senderRole || "").toLowerCase() === "admin";
+      if (isSameUser && isAdmin) {
         senderWallet.availableBalance = senderAvailableBalance + transferAmount;
         await senderWallet.save();
-  
+
         console.log("Admin self-transfer completed");
         return;
       }
-  
+
       if (senderAvailableBalance >= transferAmount) {
   
         senderWallet.availableBalance = senderAvailableBalance - transferAmount;
