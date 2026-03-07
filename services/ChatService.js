@@ -238,56 +238,67 @@ class CartService {
 
   async transferBalance(fromUserId, toUserId, amount, currency) {
     try {
-      // Fetch sender and recipient wallets for CNY (PERSONAL type)
+  
+      console.log("========== TRANSFER DEBUG START ==========");
+      console.log("From User:", fromUserId);
+      console.log("To User:", toUserId);
+      console.log("Amount:", amount);
+      console.log("Currency:", currency);
+  
       const senderWallet = await Wallet.findOne({
         where: { userId: fromUserId, currency, walletType: "PERSONAL" },
+        include: [{ model: User, include: [Role] }],
       });
-
+  
       const recipientWallet = await Wallet.findOne({
         where: { userId: toUserId, currency, walletType: "PERSONAL" },
+        include: [{ model: User, include: [Role] }],
       });
-
+  
+      console.log("Sender Wallet:", senderWallet?.toJSON());
+      console.log("Recipient Wallet:", recipientWallet?.toJSON());
+  
       if (!senderWallet || !recipientWallet) {
         throw new Error("Wallet not found for sender or recipient");
       }
-
-      // Convert balances and amount to numbers (in case they are in string/decimal format)
+  
       const senderAvailableBalance = Number(senderWallet.availableBalance);
-      const recipientAvailableBalance = Number(
-        recipientWallet.availableBalance,
-      );
+      const recipientAvailableBalance = Number(recipientWallet.availableBalance);
       const transferAmount = Number(amount);
-
-      console.log(`Sender Balance (before): ${senderAvailableBalance}`);
-      console.log(`Recipient Balance (before): ${senderWallet}`);
-      console.log(`Transfer Amount: ${senderWallet.user}`);
-      console.log(`Sender Wallet: ${senderWallet.user.roles[0].name}`);
-
-      // Admins can transfer funds to themselves without restrictions
-      if (
-        fromUserId === toUserId &&
-        senderWallet.user.roles[0].name === "admin"
-      ) {
+  
+      console.log("Sender Balance (before):", senderAvailableBalance);
+      console.log("Recipient Balance (before):", recipientAvailableBalance);
+      console.log("Transfer Amount:", transferAmount);
+  
+      const senderRole = senderWallet?.user?.roles?.[0]?.name;
+      console.log("Sender Role:", senderRole);
+  
+      // Admin self transfer
+      if (fromUserId === toUserId && senderRole === "admin") {
         senderWallet.availableBalance = senderAvailableBalance + transferAmount;
         await senderWallet.save();
-        console.log(`Admin added ${transferAmount} units to their own wallet.`);
+  
+        console.log("Admin self-transfer completed");
         return;
       }
-
-      // Ensure the sender has enough balance to transfer
+  
       if (senderAvailableBalance >= transferAmount) {
-        // Deduct amount from sender's balance
+  
         senderWallet.availableBalance = senderAvailableBalance - transferAmount;
         await senderWallet.save();
-
-        // Add amount to recipient's balance
+  
         recipientWallet.availableBalance =
           recipientAvailableBalance + transferAmount;
         await recipientWallet.save();
-
+  
+        console.log("Transfer completed successfully");
+  
       } else {
         throw new Error("Insufficient balance");
       }
+  
+      console.log("========== TRANSFER DEBUG END ==========");
+  
     } catch (error) {
       console.error("Error transferring balance:", error);
       throw error;
