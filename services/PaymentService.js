@@ -54,7 +54,7 @@ class PaymentService {
   async transferAmount(userId, amount, currentRate, fromCurrency = "USD", toCurrency = "CNY") {
     return walletService.fxConvert({
       userId,
-      fromCurrency: "USD",
+      fromCurrency,
       toCurrency,
       amountInTarget: Number(amount),
       rate: Number(currentRate),
