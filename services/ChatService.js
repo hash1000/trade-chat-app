@@ -259,8 +259,9 @@ class CartService {
       const transferAmount = Number(amount);
 
       console.log(`Sender Balance (before): ${senderAvailableBalance}`);
-      console.log(`Recipient Balance (before): ${recipientAvailableBalance}`);
-      console.log(`Transfer Amount: ${transferAmount}`);
+      console.log(`Recipient Balance (before): ${senderWallet}`);
+      console.log(`Transfer Amount: ${senderWallet.user}`);
+      console.log(`Sender Wallet: ${senderWallet.user.roles[0].name}`);
 
       // Admins can transfer funds to themselves without restrictions
       if (
