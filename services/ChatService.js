@@ -5,6 +5,7 @@ const UserRepository = require("../repositories/UserRepository");
 const socket = require("../config/socket");
 const InSufficientBalance = require("../errors/InSufficientBalance");
 const { User } = require("../models");
+const Role = require("../models/role");
 const path = require("path");
 
 const { PutObjectCommand, S3Client } = require("@aws-sdk/client-s3");
