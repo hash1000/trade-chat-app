@@ -248,68 +248,96 @@ class WalletService {
     meta = {},
   }) {
     return sequelize.transaction(async (t) => {
-      const wallet = await this.getOrCreateWallet(
+      const receipt = await Receipt.findOne({
+        where: { id: receiptId },
+        transaction: t,
+      });
+
+      // 1. Get the receipt-currency wallet (where the lock actually is) and subtract from lockedBalance
+      const receiptCurrencyWallet = await this.getOrCreateWallet(
+        userId,
+        receiptCurrency,
+        walletType,
+        t,
+      );
+
+      const lockedInReceiptCurrency = Number(receiptCurrencyWallet.lockedBalance) || 0;
+      const amountToUnlockNum = Number(amountToUnlock);
+
+      if (lockedInReceiptCurrency < amountToUnlockNum) {
+        throw new Error("Insufficient locked balance");
+      }
+
+      const afterLocked = lockedInReceiptCurrency - amountToUnlockNum;
+      receiptCurrencyWallet.lockedBalance = afterLocked;
+
+      // 2. Add to availableBalance: same wallet if same currency, else target-currency wallet
+      const amountToAddToAvailable = Number(amount); // already in target currency (converted if different)
+
+      if (currency === receiptCurrency) {
+        // Same currency: add to same wallet's availableBalance
+        const beforeAvailable = Number(receiptCurrencyWallet.availableBalance) || 0;
+        receiptCurrencyWallet.availableBalance = beforeAvailable + amountToAddToAvailable;
+        await receiptCurrencyWallet.save({ transaction: t });
+
+        await this.createWalletTransaction(
+          {
+            walletId: receiptCurrencyWallet.id,
+            userId,
+            type: "UNLOCK",
+            amount: amountToAddToAvailable,
+            currency: receiptCurrency,
+            balanceBefore: beforeAvailable,
+            balanceAfter: beforeAvailable + amountToAddToAvailable,
+            receiptId,
+            meta: {
+              ...meta,
+              lockedBefore: lockedInReceiptCurrency,
+              lockedAfter: afterLocked,
+            },
+          },
+          t,
+        );
+
+        return receiptCurrencyWallet;
+      }
+
+      // Different currency: subtract locked on receipt-currency wallet, add available on target wallet
+      await receiptCurrencyWallet.save({ transaction: t });
+
+      const targetWallet = await this.getOrCreateWallet(
         userId,
         currency,
         walletType,
         t,
       );
 
-      const receipt = await Receipt.findOne({
-        where: { id: receiptId },
-        transaction: t,
-      });
-
-      const locked = Number(wallet.lockedBalance) || 0;
-      const unlockAmount = Number(amount);
-
-      if (locked < unlockAmount) {
-        throw new Error("Insufficient locked balance");
-      }
-
-      const beforeAvailable = Number(wallet.availableBalance) || 0;
-      const beforeLocked = locked;
-
-      const afterAvailable = beforeAvailable + unlockAmount;
-
-      wallet.lockedBalance = beforeLocked; // It seems lockedBalance should remain the same
-      wallet.availableBalance = afterAvailable;
-      await wallet.save({ transaction: t });
-
-      // Update the corresponding wallet for the receipt's currency
-      const walletFind = await Wallet.findOne({
-        where: { userId, currency: receiptCurrency },
-        transaction: t,
-      });
-
-      // Adjust the locked balance of the wallet associated with the receipt's currency
-      await Wallet.update(
-        {
-          lockedBalance: walletFind.lockedBalance - amountToUnlock,
-        },
-        { where: { userId, currency: receiptCurrency }, transaction: t },
-      );
+      const beforeAvailable = Number(targetWallet.availableBalance) || 0;
+      const afterAvailable = beforeAvailable + amountToAddToAvailable;
+      targetWallet.availableBalance = afterAvailable;
+      await targetWallet.save({ transaction: t });
 
       await this.createWalletTransaction(
         {
-          walletId: wallet.id,
+          walletId: targetWallet.id,
           userId,
           type: "UNLOCK",
-          amount,
+          amount: amountToAddToAvailable,
           currency,
           balanceBefore: beforeAvailable,
           balanceAfter: afterAvailable,
           receiptId,
           meta: {
             ...meta,
-            lockedBefore: beforeLocked,
-            lockedAfter: beforeLocked,
+            lockedBefore: lockedInReceiptCurrency,
+            lockedAfter: afterLocked,
+            receiptCurrency,
           },
         },
         t,
       );
 
-      return wallet;
+      return targetWallet;
     });
   }
 
