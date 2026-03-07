@@ -248,12 +248,12 @@ class CartService {
   
       const senderWallet = await Wallet.findOne({
         where: { userId: fromUserId, currency, walletType: "PERSONAL" },
-        include: [{ model: User, include: [Role] }],
+        include: [{ model: User, as: "user", include: [{ model: Role, as: "roles" }] }],
       });
-  
+
       const recipientWallet = await Wallet.findOne({
         where: { userId: toUserId, currency, walletType: "PERSONAL" },
-        include: [{ model: User, include: [Role] }],
+        include: [{ model: User, as: "user", include: [{ model: Role, as: "roles" }] }],
       });
   
       console.log("Sender Wallet:", senderWallet?.toJSON());
