@@ -373,12 +373,6 @@ class WalletService {
     const amountTarget = amountFrom / r;
 
     return sequelize.transaction(async (t) => {
-      console.log("fromCurrency", fromCurrency);
-      console.log("toCurrency", toCurrency);
-      console.log("amountInSource", amountInSource);
-      console.log("rate", rate);
-      console.log("walletType", walletType); 
-      console.log("userId", userId);
       const fromWallet = await this.getOrCreateWallet(
         userId,
         fromCurrency,
@@ -402,10 +396,6 @@ class WalletService {
       const fromAfter = fromBefore - amountTarget;
       fromWallet.availableBalance = fromAfter;
       await fromWallet.save({ transaction: t });
-
-      console.log("fromBefore", fromBefore);
-      console.log("fromAfter", fromAfter);
-      console.log("####fromWallet", fromWallet);
       await this.createWalletTransaction(
         {
           walletId: fromWallet.id,
@@ -419,14 +409,10 @@ class WalletService {
         },
         t,
       );
-console.log(">>>>>fromWallet", fromWallet);
       const toBefore = Number(toWallet.availableBalance) || 0;
       const toAfter = toBefore + amountFrom;
       toWallet.availableBalance = toAfter;
       await toWallet.save({ transaction: t });
-console.log("toBefore", toBefore);
-console.log("toAfter", toAfter);
-console.log("####toWallet", toWallet);
       await this.createWalletTransaction(
         {
           walletId: toWallet.id,
@@ -440,7 +426,6 @@ console.log("####toWallet", toWallet);
         },
         t,
       );
-      console.log(">>>>toWallet", toWallet);
       return {
         fromWallet,
         toWallet,
