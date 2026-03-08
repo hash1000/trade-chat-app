@@ -399,7 +399,7 @@ class WalletService {
       }
 
       const fromBefore = fromAvailable;
-      const fromAfter = fromBefore - amountFrom;
+      const fromAfter = fromBefore - amountTarget;
       fromWallet.availableBalance = fromAfter;
       await fromWallet.save({ transaction: t });
 
@@ -421,7 +421,7 @@ class WalletService {
       );
 console.log(">>>>>fromWallet", fromWallet);
       const toBefore = Number(toWallet.availableBalance) || 0;
-      const toAfter = toBefore + amountTarget;
+      const toAfter = toBefore + amountFrom;
       toWallet.availableBalance = toAfter;
       await toWallet.save({ transaction: t });
 console.log("toBefore", toBefore);
