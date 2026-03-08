@@ -405,7 +405,7 @@ class WalletService {
 
       console.log("fromBefore", fromBefore);
       console.log("fromAfter", fromAfter);
-      console.log("fromWallet", fromWallet);
+      console.log("####fromWallet", fromWallet);
       await this.createWalletTransaction(
         {
           walletId: fromWallet.id,
@@ -419,14 +419,14 @@ class WalletService {
         },
         t,
       );
-console.log("fromWallet", fromWallet);
+console.log(">>>>>fromWallet", fromWallet);
       const toBefore = Number(toWallet.availableBalance) || 0;
       const toAfter = toBefore + amountTarget;
       toWallet.availableBalance = toAfter;
       await toWallet.save({ transaction: t });
 console.log("toBefore", toBefore);
 console.log("toAfter", toAfter);
-console.log("toWallet", toWallet);
+console.log("####toWallet", toWallet);
       await this.createWalletTransaction(
         {
           walletId: toWallet.id,
@@ -440,7 +440,7 @@ console.log("toWallet", toWallet);
         },
         t,
       );
-      console.log("toWallet", toWallet);
+      console.log(">>>>toWallet", toWallet);
       return {
         fromWallet,
         toWallet,
