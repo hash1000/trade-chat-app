@@ -388,7 +388,10 @@ class WalletService {
       );
       console.log("toWallet", toWallet);
       const fromAvailable = Number(fromWallet.availableBalance) || 0;
+      console.log("fromAvailable", fromAvailable, amountFrom);
+      console.log("amountTarget", amountTarget);
       if (fromAvailable < amountFrom) {
+        console.log("Insufficient funds in source currency");
         throw new Error("Insufficient funds in source currency");
       }
 
