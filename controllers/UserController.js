@@ -107,11 +107,7 @@ class UserController {
 
       const userByEmail = await userService.getUserByEmail(email);
 
-      if (
-        // userByPhoneNumber &&
-        userByEmail
-        // userByPhoneNumber.id === userByEmail.id
-      ) {
+      if (userByEmail) {
         await userService.updateTokenVersion(userByEmail);
         const token = jwt.sign(
           {
