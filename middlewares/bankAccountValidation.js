@@ -15,7 +15,6 @@ exports.createBankAccountValidation = [
   body("swift_code")
     .trim()
     .notEmpty()
-    .withMessage("SWIFT/BIC is required")
     // .isLength({ min: 4, max: 11 })
     .withMessage("SWIFT/BIC seems invalid"),
 
@@ -77,7 +76,7 @@ exports.updateBankAccountValidation = [
   body("swift_code")
     .trim()
     .optional()
-    .isLength({ min: 4, max: 11 })
+    .isLength({ min: 1, max: 100 })
     .withMessage("SWIFT/BIC seems invalid"),
   body("accountHolder")
     .trim()
