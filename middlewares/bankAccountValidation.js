@@ -1,79 +1,126 @@
-const { body, param, validationResult } = require('express-validator');
+const { body, param, validationResult } = require("express-validator");
 
 // Validation rules for creating a bank account
 exports.createBankAccountValidation = [
-  body('accountName')
+  body("accountName")
     .trim()
     .notEmpty()
-    .withMessage('Account name is required')
+    .withMessage("Account name is required")
     // .isLength({ min: 2, max: 100 })
-    .withMessage('Account name must be between 2 and 100 characters'),
+    .withMessage("Account name must be between 2 and 100 characters"),
 
   // IBAN is optional; when provided, validate format
-  body('iban')
-    .optional({ nullable: true }),
+  body("iban").optional({ nullable: true }),
 
-  body('swift_code')
+  body("swift_code")
     .trim()
     .notEmpty()
-    .withMessage('SWIFT/BIC is required')
+    .withMessage("SWIFT/BIC is required")
     // .isLength({ min: 4, max: 11 })
-    .withMessage('SWIFT/BIC seems invalid'),
+    .withMessage("SWIFT/BIC seems invalid"),
 
-  body('accountHolder')
+  body("accountHolder")
     .trim()
     .notEmpty()
-    .withMessage('Account holder is required')
+    .withMessage("Account holder is required")
     // .isLength({ min: 2, max: 100 })
-    .withMessage('Account holder must be between 2 and 100 characters'),
+    .withMessage("Account holder must be between 2 and 100 characters"),
 
-  body('accountCurrency')
+  body("accountCurrency")
     .trim()
     .notEmpty()
-    .withMessage('Account currency is required')
+    .withMessage("Account currency is required")
     // .isLength({ min: 3, max: 10 })
-    .withMessage('Account currency seems invalid'),
+    .withMessage("Account currency seems invalid"),
 
-  body('bic')
+  body("bic")
     .trim()
     .notEmpty()
-    .withMessage('BIC is required')
+    .withMessage("BIC is required")
     // .isLength({ min: 4, max: 11 })
-    .withMessage('BIC seems invalid'),
+    .withMessage("BIC seems invalid"),
 
-  body('intermediateBank').trim().optional().isLength({ max: 100 }).withMessage('Intermediate bank is too long'),
-  body('beneficiaryAddress').trim().optional().isLength({ max: 255 }).withMessage('Beneficiary address is too long'),
-  body('note').trim().optional().isLength({ max: 2000 }).withMessage('Note is too long'),
-
-  body('classification')
+  body("intermediateBank")
+    .trim()
     .optional()
-    .isIn(['sender', 'receiver', 'both'])
-    .withMessage('Classification must be one of sender, receiver or both'),
+    .isLength({ max: 100 })
+    .withMessage("Intermediate bank is too long"),
+  body("beneficiaryAddress")
+    .trim()
+    .optional()
+    .isLength({ max: 255 })
+    .withMessage("Beneficiary address is too long"),
+  body("note")
+    .trim()
+    .optional()
+    .isLength({ max: 2000 })
+    .withMessage("Note is too long"),
+
+  body("classification")
+    .optional()
+    .isIn(["sender", "receiver", "both"])
+    .withMessage("Classification must be one of sender, receiver or both"),
 
   handleValidationErrors,
 ];
 
 // Validation rules for updating a bank account
 exports.updateBankAccountValidation = [
-  param('id').isInt().withMessage('Invalid bank account id'),
+  param("id").isInt().withMessage("Invalid bank account id"),
 
-  body('accountName').trim().optional().isLength({ min: 2, max: 100 }).withMessage('Account name must be between 2 and 100 characters'),
-  body('iban').optional({ nullable: true }).trim(),
-  body('swift_code').trim().optional().isLength({ min: 4, max: 11 }).withMessage('SWIFT/BIC seems invalid'),
-  body('accountHolder').trim().optional().isLength({ min: 2, max: 100 }).withMessage('Account holder must be between 2 and 100 characters'),
-  body('accountCurrency').trim().optional().isLength({ min: 3, max: 10 }).withMessage('Account currency seems invalid'),
-  body('bic').trim().optional().isLength({ min: 4, max: 11 }).withMessage('BIC seems invalid'),
-  body('intermediateBank').trim().optional().isLength({ max: 100 }).withMessage('Intermediate bank is too long'),
-  body('beneficiaryAddress').trim().optional().isLength({ max: 255 }).withMessage('Beneficiary address is too long'),
-  body('note').trim().optional().isLength({ max: 2000 }).withMessage('Note is too long'),
-  body('classification').optional().isIn(['sender', 'receiver', 'both']).withMessage('Classification must be one of sender, receiver or both'),
+  body("accountName")
+    .trim()
+    .optional()
+    .isLength({ min: 2, max: 100 })
+    .withMessage("Account name must be between 2 and 100 characters"),
+  body("iban").optional({ nullable: true }).trim(),
+  body("swift_code")
+    .trim()
+    .optional()
+    .isLength({ min: 4, max: 11 })
+    .withMessage("SWIFT/BIC seems invalid"),
+  body("accountHolder")
+    .trim()
+    .optional()
+    .isLength({ min: 2, max: 100 })
+    .withMessage("Account holder must be between 2 and 100 characters"),
+  body("accountCurrency")
+    .trim()
+    .optional()
+    .isLength({ min: 2, max: 100 })
+    .withMessage("Account currency seems invalid"),
+
+  body("bic")
+    .trim()
+    .optional()
+    .isLength({ min: 2, max: 100 })
+    .withMessage("BIC seems invalid"),
+  body("intermediateBank")
+    .trim()
+    .optional()
+    .isLength({ max: 100 })
+    .withMessage("Intermediate bank is too long"),
+  body("beneficiaryAddress")
+    .trim()
+    .optional()
+    .isLength({ max: 255 })
+    .withMessage("Beneficiary address is too long"),
+  body("note")
+    .trim()
+    .optional()
+    .isLength({ max: 2000 })
+    .withMessage("Note is too long"),
+  body("classification")
+    .optional()
+    .isIn(["sender", "receiver", "both"])
+    .withMessage("Classification must be one of sender, receiver or both"),
 
   handleValidationErrors,
 ];
 
 // Simple param validation middleware for delete/reorder/get/:id
 exports.idParamValidation = [
-  param('id').isInt().withMessage('Invalid bank account id'),
+  param("id").isInt().withMessage("Invalid bank account id"),
   handleValidationErrors,
 ];
 
