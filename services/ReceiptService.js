@@ -409,6 +409,56 @@ class ReceiptService {
     // Return fresh copy with includes
     return await this.receiptRepository.getReceiptByPk(receiptId);
   }
+
+  /**
+   * Re-lock an unlocked receipt: move amount from availableBalance to lockedBalance
+   * (same currency). Only if receipt is approved, currently unlocked, and user has
+   * sufficient available balance in receipt currency.
+   */
+  async lockReceiptFunds(receiptId, adminUser = null) {
+    const receipt = await this.receiptRepository.getReceiptByPk(receiptId);
+    if (!receipt) {
+      return null;
+    }
+
+    if (receipt.status !== "approved") {
+      const err = new Error("Only approved receipts can be re-locked");
+      err.name = "InvalidReceiptStateError";
+      throw err;
+    }
+    if (receipt.isLock) {
+      const err = new Error("Receipt is already locked");
+      err.name = "InvalidReceiptStateError";
+      throw err;
+    }
+
+    const amountToLock =
+      receipt.newAmount && Number(receipt.newAmount) > 0
+        ? Number(receipt.newAmount)
+        : Number(receipt.amount);
+
+    if (!amountToLock || amountToLock <= 0) {
+      const err = new Error("Invalid receipt amount to lock");
+      err.name = "InvalidAmountError";
+      throw err;
+    }
+
+    await walletService.lockFunds({
+      userId: receipt.userId,
+      currency: receipt.currency,
+      amount: amountToLock,
+      walletType: "PERSONAL",
+      receiptId: receipt.id,
+      meta: {
+        source: "receipt_lock",
+        lockedBy: adminUser && adminUser.id ? adminUser.id : null,
+      },
+    });
+
+    await receipt.update({ isLock: true });
+
+    return await this.receiptRepository.getReceiptByPk(receiptId);
+  }
 }
 
 module.exports = ReceiptService;

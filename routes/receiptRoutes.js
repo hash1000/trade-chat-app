@@ -27,5 +27,12 @@ router.post(
     checkIntegerParam("id"),
     receiptController.unlockReceiptFunds.bind(receiptController),
 );
+router.post(
+    "/:id/lock",
+    authMiddleware,
+    authorize(["admin", "accountant"]),
+    checkIntegerParam("id"),
+    receiptController.lockReceiptFunds.bind(receiptController),
+);
 
 module.exports = router;
