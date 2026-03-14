@@ -29,6 +29,10 @@ class TeamService {
     return this.teamRepository.addMember(teamId, userId);
   }
 
+  async addMembers(teamId, userIds) {
+    return this.teamRepository.addMembers(teamId, userIds);
+  }
+
   async removeMember(teamId, userId) {
     return this.teamRepository.removeMember(teamId, userId);
   }

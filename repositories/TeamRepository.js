@@ -46,6 +46,20 @@ class TeamRepository {
     return member;
   }
 
+  async addMembers(teamId, userIds) {
+    if (!Array.isArray(userIds) || userIds.length === 0) return [];
+    const numericIds = [...new Set(userIds.map((id) => Number(id)).filter((id) => !Number.isNaN(id) && id > 0))];
+    await Promise.all(
+      numericIds.map((userId) =>
+        TeamMember.findOrCreate({
+          where: { teamId, userId },
+          defaults: { teamId, userId },
+        })
+      )
+    );
+    return numericIds;
+  }
+
   async removeMember(teamId, userId) {
     const deleted = await TeamMember.destroy({
       where: { teamId, userId },

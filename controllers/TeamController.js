@@ -80,15 +80,21 @@ class TeamController {
   async addMember(req, res) {
     try {
       const { id: teamId } = req.params;
-      const targetUserId = req.body.userId;
-      if (!targetUserId) {
-        return res.status(400).json({ success: false, error: "userId is required." });
-      }
+      const { userId: singleUserId, userIds } = req.body;
+
       const team = await teamService.getById(teamId);
       if (!team) {
         return res.status(404).json({ success: false, error: "Team not found." });
       }
-      await teamService.addMember(Number(teamId), Number(targetUserId));
+
+      if (Array.isArray(userIds) && userIds.length > 0) {
+        await teamService.addMembers(Number(teamId), userIds);
+      } else if (singleUserId != null) {
+        await teamService.addMember(Number(teamId), Number(singleUserId));
+      } else {
+        return res.status(400).json({ success: false, error: "userId or userIds (array) is required." });
+      }
+
       const updated = await teamService.getById(teamId, { includeMembers: true });
       return res.status(200).json({ success: true, data: updated });
     } catch (error) {
