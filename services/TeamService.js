@@ -37,6 +37,13 @@ class TeamService {
     return this.teamRepository.removeMember(teamId, userId);
   }
 
+  async setMembers(teamId, userIds) {
+    await this.teamRepository.removeAllMembers(teamId);
+    if (Array.isArray(userIds) && userIds.length > 0) {
+      await this.teamRepository.addMembers(teamId, userIds);
+    }
+  }
+
   async getTeamsForUser(userId) {
     return this.teamRepository.getTeamsForUser(userId);
   }

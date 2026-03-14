@@ -1,4 +1,5 @@
 const { Team, User, TeamMember } = require("../models");
+const { Op } = require("sequelize");
 
 class TeamRepository {
   async create(data) {
@@ -49,6 +50,21 @@ class TeamRepository {
   async addMembers(teamId, userIds) {
     if (!Array.isArray(userIds) || userIds.length === 0) return [];
     const numericIds = [...new Set(userIds.map((id) => Number(id)).filter((id) => !Number.isNaN(id) && id > 0))];
+    if (numericIds.length === 0) return [];
+
+    const existingUsers = await User.findAll({
+      where: { id: { [Op.in]: numericIds } },
+      attributes: ["id"],
+    });
+    const existingIds = new Set(existingUsers.map((u) => u.id));
+    const missingIds = numericIds.filter((id) => !existingIds.has(id));
+    if (missingIds.length > 0) {
+      const err = new Error(`User(s) not found: ${missingIds.join(", ")}`);
+      err.name = "InvalidUserIdError";
+      err.missingUserIds = missingIds;
+      throw err;
+    }
+
     await Promise.all(
       numericIds.map((userId) =>
         TeamMember.findOrCreate({
@@ -65,6 +81,10 @@ class TeamRepository {
       where: { teamId, userId },
     });
     return deleted > 0;
+  }
+
+  async removeAllMembers(teamId) {
+    await TeamMember.destroy({ where: { teamId } });
   }
 
   async getTeamsForUser(userId) {

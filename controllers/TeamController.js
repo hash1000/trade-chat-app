@@ -30,14 +30,21 @@ class TeamController {
 
   async create(req, res) {
     try {
-      const { name, type, description } = req.body;
+      const { name, type, description, userIds } = req.body;
       if (!name || typeof name !== "string" || !name.trim()) {
         return res.status(400).json({ success: false, error: "name is required." });
       }
-      const team = await teamService.create({ name: name.trim(), type: type || null, description: description || null });
-      return res.status(201).json({ success: true, data: team });
+      const team = await teamService.create({ name: name.trim(), type: type ? type.trim() : undefined, description: description ? description.trim() : undefined });
+      if (Array.isArray(userIds) && userIds.length > 0) {
+        await teamService.addMembers(team.id, userIds);
+      }
+      const data = await teamService.getById(team.id, { includeMembers: true });
+      return res.status(201).json({ success: true, data });
     } catch (error) {
       console.error("TeamController.create error:", error);
+      if (error.name === "InvalidUserIdError") {
+        return res.status(400).json({ success: false, error: error.message });
+      }
       return res.status(500).json({ success: false, error: "Server error. Please try again later." });
     }
   }
@@ -45,7 +52,7 @@ class TeamController {
   async update(req, res) {
     try {
       const { id } = req.params;
-      const { name, type, description } = req.body;
+      const { name, type, description, userIds } = req.body;
       const team = await teamService.getById(id);
       if (!team) {
         return res.status(404).json({ success: false, error: "Team not found." });
@@ -54,10 +61,20 @@ class TeamController {
       if (name !== undefined) updateData.name = typeof name === "string" ? name.trim() : name;
       if (type !== undefined) updateData.type = type;
       if (description !== undefined) updateData.description = description;
-      const updated = await teamService.update(id, updateData);
-      return res.status(200).json({ success: true, data: updated });
+      await teamService.update(id, updateData);
+      if (userIds !== undefined) {
+        await teamService.setMembers(id, Array.isArray(userIds) ? userIds : []);
+      }
+      const data = await teamService.getById(id, { includeMembers: true });
+      return res.status(200).json({ success: true, data });
     } catch (error) {
       console.error("TeamController.update error:", error);
+      if (error.name === "InvalidUserIdError") {
+        return res.status(400).json({ success: false, error: error.message });
+      }
+      if (error.name === "SequelizeForeignKeyConstraintError") {
+        return res.status(400).json({ success: false, error: "One or more user IDs do not exist." });
+      }
       return res.status(500).json({ success: false, error: "Server error. Please try again later." });
     }
   }
@@ -81,12 +98,10 @@ class TeamController {
     try {
       const { id: teamId } = req.params;
       const { userId: singleUserId, userIds } = req.body;
-
       const team = await teamService.getById(teamId);
       if (!team) {
         return res.status(404).json({ success: false, error: "Team not found." });
       }
-
       if (Array.isArray(userIds) && userIds.length > 0) {
         await teamService.addMembers(Number(teamId), userIds);
       } else if (singleUserId != null) {
@@ -94,11 +109,16 @@ class TeamController {
       } else {
         return res.status(400).json({ success: false, error: "userId or userIds (array) is required." });
       }
-
       const updated = await teamService.getById(teamId, { includeMembers: true });
       return res.status(200).json({ success: true, data: updated });
     } catch (error) {
       console.error("TeamController.addMember error:", error);
+      if (error.name === "InvalidUserIdError") {
+        return res.status(400).json({ success: false, error: error.message });
+      }
+      if (error.name === "SequelizeForeignKeyConstraintError") {
+        return res.status(400).json({ success: false, error: "One or more user IDs do not exist." });
+      }
       return res.status(500).json({ success: false, error: "Server error. Please try again later." });
     }
   }
