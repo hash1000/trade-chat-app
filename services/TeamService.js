@@ -44,6 +44,25 @@ class TeamService {
     }
   }
 
+  async addService(teamId, serviceId) {
+    return this.teamRepository.addService(teamId, serviceId);
+  }
+
+  async addServices(teamId, serviceIds) {
+    return this.teamRepository.addServices(teamId, serviceIds);
+  }
+
+  async removeService(teamId, serviceId) {
+    return this.teamRepository.removeService(teamId, serviceId);
+  }
+
+  async setServices(teamId, serviceIds) {
+    await this.teamRepository.removeAllServices(teamId);
+    if (Array.isArray(serviceIds) && serviceIds.length > 0) {
+      await this.teamRepository.addServices(teamId, serviceIds);
+    }
+  }
+
   async getTeamsForUser(userId) {
     return this.teamRepository.getTeamsForUser(userId);
   }

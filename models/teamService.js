@@ -1,31 +1,27 @@
 const { DataTypes } = require("sequelize");
 const sequelize = require("../config/database");
 
-const Team = sequelize.define(
-  "Team",
+const TeamServiceLink = sequelize.define(
+  "TeamService",
   {
     id: {
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
     },
-    name: {
-      type: DataTypes.STRING,
+    teamId: {
+      type: DataTypes.INTEGER,
       allowNull: false,
     },
-    profile_image: {
-      type: DataTypes.STRING,
+    serviceId: {
+      type: DataTypes.INTEGER,
       allowNull: false,
-    },
-    description: {
-      type: DataTypes.TEXT,
-      allowNull: true,
     },
   },
   {
-    tableName: "teams",
+    tableName: "team_services",
     timestamps: true,
   }
 );
 
-module.exports = Team;
+module.exports = TeamServiceLink;

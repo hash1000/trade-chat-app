@@ -14,5 +14,7 @@ router.put("/:id", authMiddleware, checkIntegerParam("id"), teamController.updat
 router.delete("/:id", authMiddleware, checkIntegerParam("id"), teamController.delete.bind(teamController));
 router.post("/:id/members", authMiddleware, checkIntegerParam("id"), teamController.addMember.bind(teamController));
 router.delete("/:id/members/:userId", authMiddleware, checkIntegerParam("id"), checkIntegerParam("userId"), teamController.removeMember.bind(teamController));
+router.post("/:id/services", authMiddleware, checkIntegerParam("id"), teamController.addService.bind(teamController));
+router.delete("/:id/services/:serviceId", authMiddleware, checkIntegerParam("id"), checkIntegerParam("serviceId"), teamController.removeService.bind(teamController));
 
 module.exports = router;

@@ -1,27 +1,54 @@
-const { Team, User, TeamMember } = require("../models");
+const { Team, User, TeamMember, Service, TeamServiceLink } = require("../models");
 const { Op } = require("sequelize");
 
 class TeamRepository {
+  buildIncludes(options = {}) {
+    const include = [];
+
+    if (options.includeMembers) {
+      include.push({
+        model: User,
+        as: "members",
+        through: { attributes: [] },
+        attributes: ["id", "firstName", "lastName", "username", "email"],
+      });
+    }
+
+    if (options.includeServices) {
+      include.push({
+        model: Service,
+        as: "services",
+        through: { attributes: [] },
+      });
+    }
+
+    return include;
+  }
+
   async create(data) {
     return Team.create(data);
   }
 
   async findByPk(id, options = {}) {
+    const queryOptions = { ...options };
+    delete queryOptions.includeMembers;
+    delete queryOptions.includeServices;
+
     return Team.findByPk(id, {
-      include: options.includeMembers
-        ? [{ model: User, as: "members", through: { attributes: [] }, attributes: ["id", "firstName", "lastName", "username", "email"] }]
-        : [],
-      ...options,
+      include: this.buildIncludes(options),
+      ...queryOptions,
     });
   }
 
   async findAll(options = {}) {
+    const queryOptions = { ...options };
+    delete queryOptions.includeMembers;
+    delete queryOptions.includeServices;
+
     return Team.findAll({
-      include: options.includeMembers
-        ? [{ model: User, as: "members", through: { attributes: [] }, attributes: ["id", "firstName", "lastName", "username", "email"] }]
-        : [],
+      include: this.buildIncludes(options),
       order: [["createdAt", "DESC"]],
-      ...options,
+      ...queryOptions,
     });
   }
 
@@ -87,6 +114,55 @@ class TeamRepository {
     await TeamMember.destroy({ where: { teamId } });
   }
 
+  async addService(teamId, serviceId) {
+    const [service] = await TeamServiceLink.findOrCreate({
+      where: { teamId, serviceId },
+      defaults: { teamId, serviceId },
+    });
+    return service;
+  }
+
+  async addServices(teamId, serviceIds) {
+    if (!Array.isArray(serviceIds) || serviceIds.length === 0) return [];
+    const numericIds = [...new Set(serviceIds.map((id) => Number(id)).filter((id) => !Number.isNaN(id) && id > 0))];
+    if (numericIds.length === 0) return [];
+
+    const existingServices = await Service.findAll({
+      where: { id: { [Op.in]: numericIds } },
+      attributes: ["id"],
+    });
+    const existingIds = new Set(existingServices.map((service) => service.id));
+    const missingIds = numericIds.filter((id) => !existingIds.has(id));
+    if (missingIds.length > 0) {
+      const err = new Error(`Service(s) not found: ${missingIds.join(", ")}`);
+      err.name = "InvalidServiceIdError";
+      err.missingServiceIds = missingIds;
+      throw err;
+    }
+
+    await Promise.all(
+      numericIds.map((serviceId) =>
+        TeamServiceLink.findOrCreate({
+          where: { teamId, serviceId },
+          defaults: { teamId, serviceId },
+        })
+      )
+    );
+
+    return numericIds;
+  }
+
+  async removeService(teamId, serviceId) {
+    const deleted = await TeamServiceLink.destroy({
+      where: { teamId, serviceId },
+    });
+    return deleted > 0;
+  }
+
+  async removeAllServices(teamId) {
+    await TeamServiceLink.destroy({ where: { teamId } });
+  }
+
   async getTeamsForUser(userId) {
     return Team.findAll({
       include: [
@@ -97,6 +173,11 @@ class TeamRepository {
           where: { id: userId },
           required: true,
           attributes: [],
+        },
+        {
+          model: Service,
+          as: "services",
+          through: { attributes: [] },
         },
       ],
       order: [["createdAt", "DESC"]],

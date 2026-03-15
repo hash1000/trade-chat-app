@@ -27,6 +27,8 @@ const Wallet = require("./wallet");
 const WalletTransaction = require("./walletTransaction");
 const Team = require("./team");
 const TeamMember = require("./teamMember");
+const Service = require("./service");
+const TeamServiceLink = require("./teamService");
 
 // Define all associations
 function defineAssociations() {
@@ -181,6 +183,20 @@ function defineAssociations() {
     foreignKey: "userId",
     as: "teams",
   });
+
+  // Team <-> Service many-to-many
+  Team.belongsToMany(Service, {
+    through: TeamServiceLink,
+    foreignKey: "teamId",
+    otherKey: "serviceId",
+    as: "services",
+  });
+  Service.belongsToMany(Team, {
+    through: TeamServiceLink,
+    foreignKey: "serviceId",
+    otherKey: "teamId",
+    as: "teams",
+  });
 }
 
 // Initialize associations
@@ -203,4 +219,6 @@ module.exports = {
   PaymentType,
   Team,
   TeamMember,
+  Service,
+  TeamServiceLink,
 };
