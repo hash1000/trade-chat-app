@@ -10,7 +10,7 @@ class TeamRepository {
         model: User,
         as: "members",
         through: { attributes: [] },
-        attributes: ["id", "firstName", "lastName", "username", "email"],
+        attributes: ["id", "firstName", "lastName", "username", "email","profilePic"],
       });
     }
 
