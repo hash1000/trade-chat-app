@@ -406,8 +406,10 @@ class ReceiptService {
     // Mark receipt as no longer locked
     await receipt.update({ isLock: false });
 
+    const latestreceipt =  await this.receiptRepository.getReceiptByPk(receiptId);
+
     // Return fresh copy with includes
-    return await this.receiptRepository.getReceiptByPk(receiptId);
+    return {latestreceipt,convertedAmount,targetCurrency,amountToUnlock}
   }
 
   /**
