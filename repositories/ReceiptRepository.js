@@ -33,7 +33,7 @@ class ReceiptRepository {
         },
         {
           model: WalletTransaction,
-          as: "walletTransaction",
+          as: "walletTransactions",
           include: [
             {
               model: Wallet,
@@ -71,7 +71,7 @@ class ReceiptRepository {
         },
         {
           model: WalletTransaction,
-          as: "walletTransaction",
+          as: "walletTransactions",
           include: [
             {
               model: Wallet,
@@ -109,7 +109,7 @@ class ReceiptRepository {
         },
         {
           model: WalletTransaction,
-          as: "walletTransaction",
+          as: "walletTransactions",
           include: [
             {
               model: Wallet,
@@ -146,7 +146,7 @@ class ReceiptRepository {
         },
         {
           model: WalletTransaction,
-          as: "walletTransaction",
+          as: "walletTransactions",
           include: [
             {
               model: Wallet,
