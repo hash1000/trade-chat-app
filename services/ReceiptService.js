@@ -460,7 +460,7 @@ class ReceiptService {
       err.name = "InvalidAmountError";
       throw err;
     }
-
+    const performedBy = adminUser && adminUser.id ? adminUser.id : null;
     await walletService.lockFunds({
       userId: receipt.userId,
       currency: receipt.currency,
@@ -469,8 +469,9 @@ class ReceiptService {
       receiptId: receipt.id,
       meta: {
         source: "receipt_lock",
-        lockedBy: adminUser && adminUser.id ? adminUser.id : null,
+        lockedBy: performedBy,
       },
+      performedBy,
     });
 
     await receipt.update({ isLock: true });
