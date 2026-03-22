@@ -2,8 +2,6 @@
 const { DataTypes } = require("sequelize");
 const sequelize = require("../config/database");
 const User = require("./user");
-const Wallet = require("./wallet");
-const Receipt = require("./receipt");
 
 const WalletTransaction = sequelize.define(
   "WalletTransaction",
@@ -54,6 +52,14 @@ const WalletTransaction = sequelize.define(
       type: DataTypes.DECIMAL(20, 8),
       allowNull: true,
     },
+    performedBy:{
+      allowNull: true,
+      type: DataTypes.INTEGER,
+      references: {
+        model: User,
+        key: "id",
+      },
+    },
     meta: {
       type: DataTypes.JSONB,
       allowNull: true,
@@ -64,8 +70,5 @@ const WalletTransaction = sequelize.define(
   },
 );
 
-WalletTransaction.belongsTo(Wallet, { foreignKey: "walletId", as: "wallet" });
-WalletTransaction.belongsTo(User, { foreignKey: "userId", as: "user" });
-WalletTransaction.belongsTo(Receipt, { foreignKey: "receiptId", as: "receipt" });
 
 module.exports = WalletTransaction;

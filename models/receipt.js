@@ -39,6 +39,11 @@ const Receipt = sequelize.define(
       allowNull: false,
       defaultValue: false,
     },
+    relockDisabled: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
     userId: {
       type: DataTypes.UUID,
       allowNull: false,

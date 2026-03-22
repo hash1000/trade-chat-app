@@ -77,6 +77,7 @@ class WalletService {
       balanceAfter = null,
       receiptId = null,
       meta = {},
+      performedBy = null,
     },
     transaction,
   ) {
@@ -91,6 +92,7 @@ class WalletService {
         balanceAfter,
         receiptId,
         meta,
+        performedBy: performedBy != null ? Number(performedBy) : null,
       },
       { transaction },
     );
@@ -103,6 +105,7 @@ class WalletService {
     walletType = "PERSONAL",
     receiptId = null,
     meta = {},
+    performedBy = null,
   }) {
     return sequelize.transaction(async (t) => {
       const wallet = await this.getOrCreateWallet(
@@ -129,6 +132,7 @@ class WalletService {
           balanceAfter: after,
           receiptId,
           meta,
+          performedBy,
         },
         t,
       );
@@ -144,6 +148,7 @@ class WalletService {
     walletType = "PERSONAL",
     receiptId = null,
     meta = {},
+    performedBy = null,
   }) {
     return sequelize.transaction(async (t) => {
       const wallet = await this.getOrCreateWallet(
@@ -184,6 +189,7 @@ class WalletService {
             lockedBefore: beforeLocked,
             lockedAfter: afterLocked,
           },
+          performedBy,
         },
         t,
       );
@@ -203,6 +209,7 @@ class WalletService {
     walletType = "PERSONAL",
     receiptId = null,
     meta = {},
+    performedBy = null,
   }) {
     return sequelize.transaction(async (t) => {
       const wallet = await this.getOrCreateWallet(
@@ -229,6 +236,7 @@ class WalletService {
           balanceAfter: afterLocked,
           receiptId,
           meta,
+          performedBy,
         },
         t,
       );
@@ -246,6 +254,7 @@ class WalletService {
     walletType = "PERSONAL",
     receiptId = null,
     meta = {},
+    performedBy = null,
   }) {
     return sequelize.transaction(async (t) => {
       const receipt = await Receipt.findOne({
@@ -299,6 +308,7 @@ class WalletService {
               lockedBefore: lockedInReceiptCurrency,
               lockedAfter: afterLocked,
             },
+            performedBy,
           },
           t,
         );
@@ -337,6 +347,7 @@ class WalletService {
             lockedAfter: afterLocked,
             receiptCurrency,
           },
+          performedBy,
         },
         t,
       );

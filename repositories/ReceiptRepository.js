@@ -36,8 +36,13 @@ class ReceiptRepository {
           as: "walletTransactions",
           include: [
             {
-              model: Wallet,
-              as: "wallet",
+                model: Wallet,
+                as: "wallet",
+              },
+            {
+              model: User,
+              as: "performer",
+              attributes: ["id", "firstName", "lastName", "username", "email"],
             },
           ],
         },

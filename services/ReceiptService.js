@@ -289,6 +289,7 @@ class ReceiptService {
         `Applying receipt ${receipt.id} to wallet for user ${userId}, amount ${amountToCredit}, currency ${currency}, isLock=${receipt.isLock}`,
       );
 
+      const performedBy = approverUser && approverUser.id ? approverUser.id : null;
       if (receipt.isLock) {
         await walletService.creditLocked({
           userId,
@@ -297,6 +298,7 @@ class ReceiptService {
           walletType: "PERSONAL",
           receiptId: receipt.id,
           meta: { source: "receipt_approve" },
+          performedBy,
         });
       } else {
         await walletService.deposit({
@@ -306,6 +308,7 @@ class ReceiptService {
           walletType: "PERSONAL",
           receiptId: receipt.id,
           meta: { source: "receipt_approve" },
+          performedBy,
         });
       }
     }
@@ -389,6 +392,7 @@ class ReceiptService {
     const userId = receipt.userId;
 
     // Move funds: lockedBalance -> availableBalance using WalletService
+    const performedBy = adminUser && adminUser.id ? adminUser.id : null;
     await walletService.unlockFunds({
       userId,
       currency: targetCurrency,
@@ -397,14 +401,21 @@ class ReceiptService {
       amount: convertedAmount,
       walletType: "PERSONAL",
       receiptId: receipt.id,
+      performedBy,
       meta: {
         source: "receipt_unlock",
-        unlockedBy: adminUser && adminUser.id ? adminUser.id : null,
+        unlockedBy: performedBy,
       },
     });
 
-    // Mark receipt as no longer locked
-    await receipt.update({ isLock: false });
+    const sameCurrency =
+      String(targetCurrency).toUpperCase() === String(receipt.currency).toUpperCase();
+
+    // Mark receipt as no longer locked; block future re-lock if unlocked to another currency
+    await receipt.update({
+      isLock: false,
+      relockDisabled: !sameCurrency,
+    });
 
     // Return fresh copy with includes
     return await this.receiptRepository.getReceiptByPk(receiptId);
@@ -428,6 +439,13 @@ class ReceiptService {
     }
     if (receipt.isLock) {
       const err = new Error("Receipt is already locked");
+      err.name = "InvalidReceiptStateError";
+      throw err;
+    }
+    if (receipt.relockDisabled) {
+      const err = new Error(
+        "This receipt cannot be re-locked after it was unlocked to a different currency.",
+      );
       err.name = "InvalidReceiptStateError";
       throw err;
     }

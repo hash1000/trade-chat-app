@@ -197,6 +197,14 @@ function defineAssociations() {
     otherKey: "teamId",
     as: "teams",
   });
+
+
+  WalletTransaction.belongsTo(Wallet, { foreignKey: "walletId", as: "wallet" });
+  WalletTransaction.belongsTo(User, { foreignKey: "userId", as: "user" });
+  WalletTransaction.belongsTo(Receipt, { foreignKey: "receiptId", as: "receipt" });
+  // FK column is `performedBy`; association alias must differ (Sequelize naming collision)
+  WalletTransaction.belongsTo(User, { foreignKey: "performedBy", as: "performer" });
+  User.hasMany(WalletTransaction, { foreignKey: "performedBy", as: "performedWalletTransactions" });
 }
 
 // Initialize associations
