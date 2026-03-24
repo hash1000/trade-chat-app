@@ -29,6 +29,7 @@ const Team = require("./team");
 const TeamMember = require("./teamMember");
 const Service = require("./service");
 const TeamServiceLink = require("./teamService");
+const PaymentRequest = require("./payment_request");
 
 // Define all associations
 function defineAssociations() {
@@ -90,6 +91,15 @@ function defineAssociations() {
   // Payment Type associations
   PaymentType.belongsTo(User, { foreignKey: "userId", as: "user" });
   User.hasMany(PaymentType, { foreignKey: "userId", as: "paymentTypes" });
+
+  PaymentRequest.belongsTo(User, {
+    as: "requester",
+    foreignKey: "requesterId",
+  });
+  PaymentRequest.belongsTo(User, {
+    as: "requestee",
+    foreignKey: "requesteeId",
+  });
 
   Income.belongsTo(PaymentType, {
     foreignKey: "paymentTypeId",
@@ -198,13 +208,21 @@ function defineAssociations() {
     as: "teams",
   });
 
-
   WalletTransaction.belongsTo(Wallet, { foreignKey: "walletId", as: "wallet" });
   WalletTransaction.belongsTo(User, { foreignKey: "userId", as: "user" });
-  WalletTransaction.belongsTo(Receipt, { foreignKey: "receiptId", as: "receipt" });
+  WalletTransaction.belongsTo(Receipt, {
+    foreignKey: "receiptId",
+    as: "receipt",
+  });
   // FK column is `performedBy`; association alias must differ (Sequelize naming collision)
-  WalletTransaction.belongsTo(User, { foreignKey: "performedBy", as: "performer" });
-  User.hasMany(WalletTransaction, { foreignKey: "performedBy", as: "performedWalletTransactions" });
+  WalletTransaction.belongsTo(User, {
+    foreignKey: "performedBy",
+    as: "performer",
+  });
+  User.hasMany(WalletTransaction, {
+    foreignKey: "performedBy",
+    as: "performedWalletTransactions",
+  });
 }
 
 // Initialize associations

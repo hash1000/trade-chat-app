@@ -116,6 +116,7 @@ class PaymentRepository {
     requesteeId,
     amount,
     description,
+    currency,
     status,
   ) {
     const paymentRequest = await PaymentRequest.create({
@@ -123,6 +124,7 @@ class PaymentRepository {
       requesteeId,
       amount,
       description,
+      currency,
       status: status || "pending",
     });
 

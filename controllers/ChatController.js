@@ -246,7 +246,7 @@ class ChatController {
   }
 
   async sendPaymentRequest(req, res) {
-    const { amount, description, requesteeId } = req.body;
+    const { amount, currency, description, requesteeId } = req.body;
     const { id: requesterId } = req.user;
 
     try {
@@ -260,6 +260,7 @@ class ChatController {
         Number(requesterId),
         Number(requesteeId),
         amount,
+        currency,
         description,
       );
 

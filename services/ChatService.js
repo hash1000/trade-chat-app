@@ -187,7 +187,7 @@ class CartService {
   }
 
   // services/chatService.js
-  async sendPaymentRequest(requesterId, requesteeId, amount, description) {
+  async sendPaymentRequest(requesterId, requesteeId, amount, currency, description) {
     try {
       const users = await userService.getUsersByIds([requesterId, requesteeId]);
       if (users.length !== 2) {
@@ -198,6 +198,7 @@ class CartService {
         requesterId,
         requesteeId,
         amount,
+        currency,
         description,
       );
 
@@ -224,6 +225,7 @@ class CartService {
       requesterId,
       requesteeId,
       amount,
+      currency,
       description,
       "accepted",
     );
