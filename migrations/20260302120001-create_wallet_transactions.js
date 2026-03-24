@@ -61,7 +61,7 @@ module.exports = {
         allowNull: true,
       },
       meta: {
-        type: Sequelize.JSONB,
+        type: Sequelize.JSON,
         allowNull: true,
       },
       createdAt: {

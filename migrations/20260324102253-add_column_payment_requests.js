@@ -3,14 +3,14 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up (queryInterface, Sequelize) {
-     await queryInterface.addColumn("payment_types", "currency", {
+     await queryInterface.addColumn("payment_requests", "currency", {
       type: Sequelize.STRING,
       allowNull: false
     });
   },
 
   async down (queryInterface, Sequelize) {
-    await queryInterface.removeColumn("payment_types", "currency");
+    await queryInterface.removeColumn("payment_requests", "currency");
   }
 };
 
