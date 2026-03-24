@@ -35,8 +35,9 @@ const PaymentRequest = sequelize.define(
       allowNull: true,
     },
     currency: {
-      type: DataTypes.STRING,
+      type: DataTypes.STRING(3),
       allowNull: false,
+      defaultValue: "CNY",
     },
     status: {
       type: DataTypes.STRING,

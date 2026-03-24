@@ -4,8 +4,9 @@
 module.exports = {
   async up (queryInterface, Sequelize) {
      await queryInterface.addColumn("payment_requests", "currency", {
-      type: Sequelize.STRING,
-      allowNull: false
+      type: Sequelize.STRING(3),
+      allowNull: false,
+      defaultValue: "CNY",
     });
   },
 
