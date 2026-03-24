@@ -116,6 +116,23 @@ class ReceiptService {
     return this.receiptRepository.deleteReceipt(userId, receiptId);
   }
 
+  async adminDeleteReceipt(receiptId) {
+    const receipt = await this.receiptRepository.getReceiptByPk(receiptId);
+    if (!receipt) {
+      return null;
+    }
+
+    // if (receipt.status === "approved") {
+    //   const err = new Error(
+    //     "Approved receipts cannot be deleted because they already affect wallet balances.",
+    //   );
+    //   err.name = "InvalidReceiptStateError";
+    //   throw err;
+    // }
+
+    return this.receiptRepository.adminDeleteReceipt(receiptId);
+  }
+
   // Admin-specific update: allows admins to edit a receipt and adjusts credited USD accordingly
   async adminUpdateReceipt(receiptId, updateData, adminUser = null) {
     // sanitize and validate incoming fields

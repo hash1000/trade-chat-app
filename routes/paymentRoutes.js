@@ -91,6 +91,13 @@ router.post(
   paymentController.convertCurrency.bind(paymentController),
 );
 
+router.post(
+  "/admin-convert",
+  authMiddleware,
+  authorize(["admin"]),
+  paymentController.adminConvertCurrency.bind(paymentController),
+);
+
 // Public endpoint to get current rate
 router.get(
   "/current-rate",

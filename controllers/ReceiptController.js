@@ -97,6 +97,31 @@ class ReceiptController {
     }
   }
 
+  async adminDeleteReceipt(req, res) {
+    try {
+      const { id } = req.params;
+      const deleted = await receiptService.adminDeleteReceipt(id, req.user);
+      if (!deleted) {
+        return res
+          .status(404)
+          .json({ success: false, error: "Receipt not found." });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: "Receipt deleted successfully.",
+      });
+    } catch (error) {
+      console.error("adminDeleteReceipt error:", error);
+      if (error.name === "InvalidReceiptStateError") {
+        return res.status(400).json({ success: false, error: error.message });
+      }
+      return res
+        .status(500)
+        .json({ success: false, error: "Server error. Please try again later." });
+    }
+  }
+
   // admin actions for approving or rejecting receipts
   async approveReceipt(req, res) {
     try {

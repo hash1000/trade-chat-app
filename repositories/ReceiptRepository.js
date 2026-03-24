@@ -210,6 +210,11 @@ class ReceiptRepository {
     return deleted > 0;
   }
 
+  async adminDeleteReceipt(receiptId) {
+    const deleted = await Receipt.destroy({ where: { id: receiptId } });
+    return deleted > 0;
+  }
+
   async updateReceiptStatus(receiptId, status) {
     const receipt = await Receipt.findByPk(receiptId);
     if (!receipt) return null;

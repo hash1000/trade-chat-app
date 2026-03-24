@@ -348,6 +348,42 @@ class PaymentController {
     }
   }
 
+  async adminConvertCurrency(req, res) {
+    try {
+      const { amount, current_rate, fromCurrency = "USD", toCurrency = "CNY", userId } = req.body;
+
+      const amt = Number(amount);
+      const rate = Number(current_rate);
+      if (!amt || amt <= 0 || !rate || rate <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: "amount and current_rate must be positive numbers",
+        });
+      }
+
+      const data = await paymentService.transferAmount(userId, amt, rate, fromCurrency, toCurrency);
+
+      return res.json({
+        success: true,
+        message: "Amount converted successfully",
+        data,
+      });
+    } catch (error) {
+      if (error.message && error.message.includes("Insufficient funds")) {
+        return res.status(400).json({
+          success: false,
+          message: error.message,
+          code: "INSUFFICIENT_FUNDS",
+        });
+      }
+      res.status(error.statusCode || 500).json({
+        success: false,
+        message: error.message,
+        code: error.code || "CONVERT_ERROR",
+      });
+    }
+  }
+
   // Get current/adjusted rate. Query: ?currency=CNY|EUR (default CNY)
   async getCurrentRate(req, res) {
     try {

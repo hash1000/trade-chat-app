@@ -19,6 +19,7 @@ router.delete('/my/:id', authenticate, idParamValidation, receiptController.dele
 router.put('/:id/approve', authMiddleware, authorize(["admin", "accountant"]), receiptController.approveReceipt);
 router.put('/:id/reject', authMiddleware, authorize(["admin", "accountant"]), checkIntegerParam("id"), receiptController.rejectReceipt);
 router.put('/:id', authMiddleware, authorize(["admin", "accountant"]), checkIntegerParam("id"), adminUpdateValidation, receiptController.adminUpdateReceipt);
+router.delete('/:id', authMiddleware, authorize(["admin"]), checkIntegerParam("id"), receiptController.adminDeleteReceipt);
 router.get('/', authMiddleware, authorize(["admin", "accountant"]), getValidation, receiptController.getAdminReceipts);
 router.post(
     "/:id/unlock",
