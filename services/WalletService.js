@@ -1,3 +1,4 @@
+const { Op } = require("sequelize");
 const { User, Transaction } = require("../models");
 const sequelize = require("../config/database");
 const UserRepository = require("../repositories/UserRepository");
@@ -98,6 +99,40 @@ class WalletService {
     );
   }
 
+  /**
+   * Wallet rows tied to FX conversion (USD→CNY etc.): no receipt, type IN/OUT only.
+   */
+  async listFxConvertWalletTransactions({ userId, page = 1, limit = 20 } = {}) {
+    const uid = Number(userId);
+    if (Number.isNaN(uid) || uid <= 0) {
+      throw new Error("userId is required");
+    }
+
+    const pageNum = Math.max(1, parseInt(String(page), 10) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(String(limit), 10) || 20));
+    const offset = (pageNum - 1) * limitNum;
+
+    const where = {
+      userId: uid,
+      receiptId: null,
+      type: { [Op.in]: ["FX_CONVERT_IN", "FX_CONVERT_OUT"] },
+    };
+
+    const { rows, count } = await WalletTransaction.findAndCountAll({
+      where,
+      order: [["createdAt", "DESC"]],
+      limit: limitNum,
+      offset,
+    });
+
+    return {
+      data: rows,
+      total: count,
+      page: pageNum,
+      limit: limitNum,
+    };
+  }
+
   async deposit({
     userId,
     currency,
@@ -184,6 +219,69 @@ class WalletService {
           balanceBefore: beforeAvailable,
           balanceAfter: afterAvailable,
           receiptId,
+          meta: {
+            ...meta,
+            lockedBefore: beforeLocked,
+            lockedAfter: afterLocked,
+          },
+          performedBy,
+        },
+        t,
+      );
+
+      return wallet;
+    });
+  }
+
+  /**
+   * Move amount from lockedBalance to availableBalance on one wallet (same currency).
+   * For admin/accountant manual unlock (not receipt cross-currency flow).
+   */
+  async unlockLockedToAvailable({
+    userId,
+    currency,
+    amount,
+    walletType = "PERSONAL",
+    meta = {},
+    performedBy = null,
+  }) {
+    return sequelize.transaction(async (t) => {
+      const wallet = await this.getOrCreateWallet(
+        userId,
+        currency,
+        walletType,
+        t,
+      );
+
+      const locked = Number(wallet.lockedBalance) || 0;
+      const unlockAmount = Number(amount);
+
+      if (!unlockAmount || Number.isNaN(unlockAmount) || unlockAmount <= 0) {
+        throw new Error("Invalid amount");
+      }
+      if (locked < unlockAmount) {
+        throw new Error("Insufficient locked balance");
+      }
+
+      const beforeAvailable = Number(wallet.availableBalance) || 0;
+      const beforeLocked = locked;
+      const afterLocked = beforeLocked - unlockAmount;
+      const afterAvailable = beforeAvailable + unlockAmount;
+
+      wallet.lockedBalance = afterLocked;
+      wallet.availableBalance = afterAvailable;
+      await wallet.save({ transaction: t });
+
+      await this.createWalletTransaction(
+        {
+          walletId: wallet.id,
+          userId,
+          type: "UNLOCK",
+          amount: unlockAmount,
+          currency,
+          balanceBefore: beforeAvailable,
+          balanceAfter: afterAvailable,
+          receiptId: null,
           meta: {
             ...meta,
             lockedBefore: beforeLocked,
