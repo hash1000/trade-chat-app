@@ -2,9 +2,39 @@ const express = require('express');
 const router = express.Router();
 const BankAccountController = require('../controllers/BankAccountController');
 const authenticate = require('../middlewares/authenticate');
-const {createBankAccountValidation, updateBankAccountValidation, idParamValidation} = require('../middlewares/bankAccountValidation');
+const authorize = require('../middlewares/authorization');
+const {
+  createBankAccountValidation,
+  updateBankAccountValidation,
+  idParamValidation,
+  createAdminTestCardValidation,
+  updateAdminTestCardValidation,
+  testCardCurrencyParamValidation,
+} = require('../middlewares/bankAccountValidation');
 
 const bankAccountController = new BankAccountController();
+
+router.get('/test-cards', authenticate, bankAccountController.getTestCards);
+router.get(
+  '/test-cards/:currency',
+  authenticate,
+  testCardCurrencyParamValidation,
+  bankAccountController.getTestCardByCurrency,
+);
+router.post(
+  '/admin/test-cards',
+  authenticate,
+  authorize(['admin']),
+  createAdminTestCardValidation,
+  bankAccountController.createAdminTestCard,
+);
+router.put(
+  '/admin/:id/test-card',
+  authenticate,
+  authorize(['admin']),
+  updateAdminTestCardValidation,
+  bankAccountController.updateAdminTestCard,
+);
 
 // CRUD routes
 router.get('/', authenticate, bankAccountController.getBankAccounts);

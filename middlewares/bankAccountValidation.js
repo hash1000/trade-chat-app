@@ -1,5 +1,10 @@
 const { body, param, validationResult } = require("express-validator");
 
+const TEST_CARD_CURRENCIES = ["USD", "EUR"];
+
+const isThreeLetterCurrency = (value) =>
+  typeof value === "string" && /^[A-Za-z]{3}$/.test(value.trim());
+
 // Validation rules for creating a bank account
 exports.createBankAccountValidation = [
   body("accountName")
@@ -60,6 +65,19 @@ exports.createBankAccountValidation = [
     .isIn(["sender", "receiver", "both"])
     .withMessage("Classification must be one of sender, receiver or both"),
 
+  body("currency").custom((value, { req }) => {
+    const candidate = value ?? req.body.accountCurrency;
+    if (!isThreeLetterCurrency(candidate)) {
+      throw new Error("Currency must be a 3-letter code like USD or EUR");
+    }
+    return true;
+  }),
+
+  body("testCard")
+    .not()
+    .exists()
+    .withMessage("testCard can only be set by admin"),
+
   handleValidationErrors,
 ];
 
@@ -114,12 +132,133 @@ exports.updateBankAccountValidation = [
     .isIn(["sender", "receiver", "both"])
     .withMessage("Classification must be one of sender, receiver or both"),
 
+  body("currency")
+    .optional({ nullable: true })
+    .custom((value) => {
+      if (!isThreeLetterCurrency(value)) {
+        throw new Error("Currency must be a 3-letter code like USD or EUR");
+      }
+      return true;
+    }),
+
+  body().custom((_, { req }) => {
+    if (
+      req.body.currency === undefined &&
+      req.body.accountCurrency !== undefined &&
+      !isThreeLetterCurrency(req.body.accountCurrency)
+    ) {
+      throw new Error("Currency must be a 3-letter code like USD or EUR");
+    }
+    return true;
+  }),
+
+  body("testCard")
+    .not()
+    .exists()
+    .withMessage("testCard can only be updated by admin"),
+
   handleValidationErrors,
 ];
 
 // Simple param validation middleware for delete/reorder/get/:id
 exports.idParamValidation = [
   param("id").isInt().withMessage("Invalid bank account id"),
+  handleValidationErrors,
+];
+
+exports.createAdminTestCardValidation = [
+  body("accountName")
+    .trim()
+    .notEmpty()
+    .withMessage("Account name is required")
+    .withMessage("Account name must be between 2 and 100 characters"),
+
+  body("iban").optional({ nullable: true }),
+
+  body("swift_code")
+    .trim()
+    .notEmpty()
+    .withMessage("SWIFT/BIC seems invalid"),
+
+  body("accountHolder")
+    .trim()
+    .notEmpty()
+    .withMessage("Account holder is required")
+    .withMessage("Account holder must be between 2 and 100 characters"),
+
+  body("accountCurrency")
+    .trim()
+    .notEmpty()
+    .withMessage("Account currency is required")
+    .withMessage("Account currency seems invalid"),
+
+  body("bic")
+    .trim()
+    .notEmpty()
+    .withMessage("BIC is required")
+    .withMessage("BIC seems invalid"),
+
+  body("intermediateBank")
+    .trim()
+    .optional()
+    .isLength({ max: 100 })
+    .withMessage("Intermediate bank is too long"),
+  body("beneficiaryAddress")
+    .trim()
+    .optional()
+    .isLength({ max: 255 })
+    .withMessage("Beneficiary address is too long"),
+  body("note")
+    .trim()
+    .optional()
+    .isLength({ max: 2000 })
+    .withMessage("Note is too long"),
+
+  body("classification")
+    .optional()
+    .isIn(["sender", "receiver", "both"])
+    .withMessage("Classification must be one of sender, receiver or both"),
+
+  body("currency").custom((value) => {
+    const normalizedCurrency = String(value || "").trim().toUpperCase();
+    if (!TEST_CARD_CURRENCIES.includes(normalizedCurrency)) {
+      throw new Error("Test card currency must be USD or EUR");
+    }
+    return true;
+  }),
+
+  handleValidationErrors,
+];
+
+exports.updateAdminTestCardValidation = [
+  param("id").isInt().withMessage("Invalid bank account id"),
+
+  body("testCard")
+    .isBoolean()
+    .withMessage("testCard must be true or false")
+    .toBoolean(),
+
+  body("currency")
+    .optional({ nullable: true })
+    .custom((value) => {
+      const normalizedCurrency = String(value || "").trim().toUpperCase();
+      if (!TEST_CARD_CURRENCIES.includes(normalizedCurrency)) {
+        throw new Error("Test card currency must be USD or EUR");
+      }
+      return true;
+    }),
+
+  handleValidationErrors,
+];
+
+exports.testCardCurrencyParamValidation = [
+  param("currency").custom((value) => {
+    const normalizedCurrency = String(value || "").trim().toUpperCase();
+    if (!TEST_CARD_CURRENCIES.includes(normalizedCurrency)) {
+      throw new Error("Currency must be USD or EUR");
+    }
+    return true;
+  }),
   handleValidationErrors,
 ];
 

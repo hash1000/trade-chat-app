@@ -1,6 +1,20 @@
 const BankAccountService = require('../services/BankAccountService');
 const bankAccountService = new BankAccountService();
 
+function handleBankAccountError(res, error) {
+  console.error(error);
+
+  if (error.name === 'SequelizeUniqueConstraintError') {
+    return res.status(400).json({ error: 'IBAN already exists' });
+  }
+
+  if (error.statusCode) {
+    return res.status(error.statusCode).json({ error: error.message });
+  }
+
+  return res.status(500).json({ error: 'Server Error' });
+}
+
 class BankAccountController {
   // Get all bank accounts for the logged-in user
   async getBankAccounts(req, res) {
@@ -11,8 +25,7 @@ class BankAccountController {
       const accounts = await bankAccountService.getBankAccountsByUserId(userId, classification);
       res.json(accounts);
     } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: 'Server Error' });
+      handleBankAccountError(res, error);
     }
   }
 
@@ -27,8 +40,7 @@ class BankAccountController {
 
       res.json(account);
     } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: 'Server Error' });
+      handleBankAccountError(res, error);
     }
   }
 
@@ -46,9 +58,9 @@ class BankAccountController {
         intermediateBank, 
         note,
         beneficiaryAddress,
-        classification
+        classification,
+        currency,
       } = req.body;
-      console.log('Creating bank account with data:', req.body);
 
       const newAccount = await bankAccountService.createBankAccount(userId, {
         accountName,
@@ -60,16 +72,13 @@ class BankAccountController {
         note,
         intermediateBank,
         beneficiaryAddress,
-        classification
+        classification,
+        currency,
       });
 
       res.status(201).json(newAccount);
     } catch (error) {
-      console.error(error);
-      if (error.name === 'SequelizeUniqueConstraintError') {
-        return res.status(400).json({ error: 'IBAN already exists' });
-      }
-      res.status(500).json({ error: 'Server Error' });
+      handleBankAccountError(res, error);
     }
   }
 
@@ -85,11 +94,7 @@ class BankAccountController {
 
       res.json(updatedAccount);
     } catch (error) {
-      console.error(error);
-      if (error.name === 'SequelizeUniqueConstraintError') {
-        return res.status(400).json({ error: 'IBAN already exists' });
-      }
-      res.status(500).json({ error: 'Server Error' });
+      handleBankAccountError(res, error);
     }
   }
 
@@ -104,8 +109,7 @@ class BankAccountController {
 
       res.json({ message: 'Account deleted successfully' });
     } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: 'Server Error' });
+      handleBankAccountError(res, error);
     }
   }
 
@@ -125,8 +129,57 @@ class BankAccountController {
 
       res.json(reorderedAccounts);
     } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: 'Server Error' });
+      handleBankAccountError(res, error);
+    }
+  }
+
+  async getTestCards(req, res) {
+    try {
+      const cards = await bankAccountService.getTestCards(req.query.currency);
+      res.json(cards);
+    } catch (error) {
+      handleBankAccountError(res, error);
+    }
+  }
+
+  async getTestCardByCurrency(req, res) {
+    try {
+      const { currency } = req.params;
+      const card = await bankAccountService.getTestCardByCurrency(currency);
+
+      if (!card) {
+        return res.status(404).json({ error: 'Test card not found' });
+      }
+
+      res.json(card);
+    } catch (error) {
+      handleBankAccountError(res, error);
+    }
+  }
+
+  async createAdminTestCard(req, res) {
+    try {
+      const { id: userId } = req.user;
+      const newTestCard = await bankAccountService.createAdminTestCard(userId, req.body);
+
+      res.status(201).json(newTestCard);
+    } catch (error) {
+      handleBankAccountError(res, error);
+    }
+  }
+
+  async updateAdminTestCard(req, res) {
+    try {
+      const { id } = req.params;
+      const updatedCard = await bankAccountService.updateAdminTestCard(id, req.body);
+
+      if (!updatedCard) {
+        return res.status(404).json({ error: 'Account not found' });
+      }
+
+      res.json(updatedCard);
+    } catch (error) {
+      handleBankAccountError(res, error);
     }
   }
 }

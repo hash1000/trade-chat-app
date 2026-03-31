@@ -26,6 +26,40 @@ class BankAccountRepository {
     });
   }
 
+  async getAnyBankAccountById(accountId) {
+    return await BankAccount.findByPk(accountId);
+  }
+
+  async getTestCards(currency) {
+    const where = { testCard: true };
+
+    if (currency) {
+      where.currency = currency;
+    }
+
+    return await BankAccount.findAll({
+      where,
+      order: [
+        ['currency', 'ASC'],
+        ['sequence', 'ASC'],
+        ['id', 'ASC'],
+      ],
+    });
+  }
+
+  async getTestCardByCurrency(currency, excludeAccountId = null) {
+    const where = { testCard: true, currency };
+
+    if (excludeAccountId) {
+      where.id = { [Op.ne]: excludeAccountId };
+    }
+
+    return await BankAccount.findOne({
+      where,
+      order: [['id', 'ASC']],
+    });
+  }
+
   async createBankAccount(userId, accountData) {
     const lastAccount = await BankAccount.findOne({
       where: { userId },
@@ -45,7 +79,26 @@ class BankAccountRepository {
     const account = await BankAccount.findOne({ where: { id: accountId, userId } });
     if (!account) return null;
 
-    const { sequence, ...safeUpdateData } = updateData; // prevent manual sequence edits
+    const safeUpdateData = { ...updateData };
+    delete safeUpdateData.sequence;
+    delete safeUpdateData.userId;
+    delete safeUpdateData.testCard;
+
+    await account.update(safeUpdateData);
+    return account;
+  }
+
+  async updateAnyBankAccount(accountId, updateData) {
+    const account = await BankAccount.findByPk(accountId);
+    if (!account) return null;
+
+    const safeUpdateData = { ...updateData };
+    delete safeUpdateData.sequence;
+    delete safeUpdateData.userId;
+    delete safeUpdateData.id;
+    delete safeUpdateData.createdAt;
+    delete safeUpdateData.updatedAt;
+
     await account.update(safeUpdateData);
     return account;
   }

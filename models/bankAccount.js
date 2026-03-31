@@ -53,13 +53,20 @@ const BankAccount = sequelize.define(
       type: DataTypes.TEXT,
       allowNull: true,
     },
-    // classification: indicates whether this account is used for sending, receiving or both
     classification: {
       type: DataTypes.ENUM('sender', 'receiver', 'both'),
       allowNull: false,
       defaultValue: 'both',
     },
-    
+    currency: {
+      type: DataTypes.STRING(3),
+      allowNull: false,
+    },
+    testCard: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
     sequence: {
       type: DataTypes.INTEGER,
       allowNull: false,
