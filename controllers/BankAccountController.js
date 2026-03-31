@@ -1,18 +1,18 @@
-const BankAccountService = require('../services/BankAccountService');
+const BankAccountService = require("../services/BankAccountService");
 const bankAccountService = new BankAccountService();
 
 function handleBankAccountError(res, error) {
   console.error(error);
 
-  if (error.name === 'SequelizeUniqueConstraintError') {
-    return res.status(400).json({ error: 'IBAN already exists' });
+  if (error.name === "SequelizeUniqueConstraintError") {
+    return res.status(400).json({ error: "IBAN already exists" });
   }
 
   if (error.statusCode) {
     return res.status(error.statusCode).json({ error: error.message });
   }
 
-  return res.status(500).json({ error: 'Server Error' });
+  return res.status(500).json({ error: "Server Error" });
 }
 
 class BankAccountController {
@@ -22,7 +22,10 @@ class BankAccountController {
       const { id: userId } = req.user;
       // Optional classification filter: sender | receiver | both | all
       const classification = req.query.classification;
-      const accounts = await bankAccountService.getBankAccountsByUserId(userId, classification);
+      const accounts = await bankAccountService.getBankAccountsByUserId(
+        userId,
+        classification,
+      );
       res.json(accounts);
     } catch (error) {
       handleBankAccountError(res, error);
@@ -36,7 +39,7 @@ class BankAccountController {
       const { id } = req.params;
       const account = await bankAccountService.getBankAccountById(userId, id);
 
-      if (!account) return res.status(404).json({ error: 'Account not found' });
+      if (!account) return res.status(404).json({ error: "Account not found" });
 
       res.json(account);
     } catch (error) {
@@ -48,14 +51,14 @@ class BankAccountController {
   async createBankAccount(req, res) {
     try {
       const { id: userId } = req.user;
-      const { 
-        accountName, 
-        iban, 
-        accountHolder, 
-        accountCurrency, 
+      const {
+        accountName,
+        iban,
+        accountHolder,
+        accountCurrency,
         bic,
         swift_code,
-        intermediateBank, 
+        intermediateBank,
         note,
         beneficiaryAddress,
         classification,
@@ -89,8 +92,13 @@ class BankAccountController {
       const { id } = req.params;
       const updateData = req.body;
 
-      const updatedAccount = await bankAccountService.updateBankAccount(userId, id, updateData);
-      if (!updatedAccount) return res.status(404).json({ error: 'Account not found' });
+      const updatedAccount = await bankAccountService.updateBankAccount(
+        userId,
+        id,
+        updateData,
+      );
+      if (!updatedAccount)
+        return res.status(404).json({ error: "Account not found" });
 
       res.json(updatedAccount);
     } catch (error) {
@@ -105,9 +113,9 @@ class BankAccountController {
       const { id } = req.params;
 
       const result = await bankAccountService.deleteBankAccount(userId, id);
-      if (!result) return res.status(404).json({ error: 'Account not found' });
+      if (!result) return res.status(404).json({ error: "Account not found" });
 
-      res.json({ message: 'Account deleted successfully' });
+      res.json({ message: "Account deleted successfully" });
     } catch (error) {
       handleBankAccountError(res, error);
     }
@@ -121,11 +129,16 @@ class BankAccountController {
       const { newPosition } = req.body;
 
       if (!newPosition || newPosition < 1) {
-        return res.status(400).json({ error: 'Valid newPosition is required' });
+        return res.status(400).json({ error: "Valid newPosition is required" });
       }
 
-      const reorderedAccounts = await bankAccountService.reorderBankAccount(userId, id, newPosition);
-      if (!reorderedAccounts) return res.status(404).json({ error: 'Account not found' });
+      const reorderedAccounts = await bankAccountService.reorderBankAccount(
+        userId,
+        id,
+        newPosition,
+      );
+      if (!reorderedAccounts)
+        return res.status(404).json({ error: "Account not found" });
 
       res.json(reorderedAccounts);
     } catch (error) {
@@ -136,7 +149,11 @@ class BankAccountController {
   async getTestCards(req, res) {
     try {
       const cards = await bankAccountService.getTestCards(req.query.currency);
-      res.json(cards);
+      res.json({
+        success: true,
+        message: "Test cards retrieved successfully",
+        data: cards,
+      });
     } catch (error) {
       handleBankAccountError(res, error);
     }
@@ -148,7 +165,7 @@ class BankAccountController {
       const card = await bankAccountService.getTestCardByCurrency(currency);
 
       if (!card) {
-        return res.status(404).json({ error: 'Test card not found' });
+        return res.status(404).json({ error: "Test card not found" });
       }
 
       res.json(card);
@@ -160,7 +177,10 @@ class BankAccountController {
   async createAdminTestCard(req, res) {
     try {
       const { id: userId } = req.user;
-      const newTestCard = await bankAccountService.createAdminTestCard(userId, req.body);
+      const newTestCard = await bankAccountService.createAdminTestCard(
+        userId,
+        req.body,
+      );
 
       res.status(201).json(newTestCard);
     } catch (error) {
@@ -171,10 +191,13 @@ class BankAccountController {
   async updateAdminTestCard(req, res) {
     try {
       const { id } = req.params;
-      const updatedCard = await bankAccountService.updateAdminTestCard(id, req.body);
+      const updatedCard = await bankAccountService.updateAdminTestCard(
+        id,
+        req.body,
+      );
 
       if (!updatedCard) {
-        return res.status(404).json({ error: 'Account not found' });
+        return res.status(404).json({ error: "Account not found" });
       }
 
       res.json(updatedCard);

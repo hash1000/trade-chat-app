@@ -1,8 +1,8 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const BankAccountController = require('../controllers/BankAccountController');
-const authenticate = require('../middlewares/authenticate');
-const authorize = require('../middlewares/authorization');
+const BankAccountController = require("../controllers/BankAccountController");
+const authenticate = require("../middlewares/authenticate");
+const authorize = require("../middlewares/authorization");
 const {
   createBankAccountValidation,
   updateBankAccountValidation,
@@ -10,38 +10,64 @@ const {
   createAdminTestCardValidation,
   updateAdminTestCardValidation,
   testCardCurrencyParamValidation,
-} = require('../middlewares/bankAccountValidation');
+} = require("../middlewares/bankAccountValidation");
 
 const bankAccountController = new BankAccountController();
 
-router.get('/test-cards', authenticate, bankAccountController.getTestCards);
+// test-cards
+router.get("/test-cards", bankAccountController.getTestCards);
 router.get(
-  '/test-cards/:currency',
+  "/test-cards/:currency",
   authenticate,
   testCardCurrencyParamValidation,
   bankAccountController.getTestCardByCurrency,
 );
 router.post(
-  '/admin/test-cards',
+  "/admin/test-cards",
   authenticate,
-  authorize(['admin']),
+  authorize(["admin"]),
   createAdminTestCardValidation,
   bankAccountController.createAdminTestCard,
 );
 router.put(
-  '/admin/:id/test-card',
+  "/admin/:id/test-card",
   authenticate,
-  authorize(['admin']),
+  authorize(["admin"]),
   updateAdminTestCardValidation,
   bankAccountController.updateAdminTestCard,
 );
 
 // CRUD routes
-router.get('/', authenticate, bankAccountController.getBankAccounts);
-router.get('/:id', authenticate, idParamValidation, bankAccountController.getBankAccountById);
-router.post('/', authenticate, createBankAccountValidation, bankAccountController.createBankAccount);
-router.put('/:id', authenticate, updateBankAccountValidation, bankAccountController.updateBankAccount);
-router.delete('/:id', authenticate, idParamValidation, bankAccountController.deleteBankAccount);
-router.put('/:id/reorder', authenticate, idParamValidation, bankAccountController.reorderBankAccount);
+router.get("/", authenticate, bankAccountController.getBankAccounts);
+router.get(
+  "/:id",
+  authenticate,
+  idParamValidation,
+  bankAccountController.getBankAccountById,
+);
+router.post(
+  "/",
+  authenticate,
+  createBankAccountValidation,
+  bankAccountController.createBankAccount,
+);
+router.put(
+  "/:id",
+  authenticate,
+  updateBankAccountValidation,
+  bankAccountController.updateBankAccount,
+);
+router.delete(
+  "/:id",
+  authenticate,
+  idParamValidation,
+  bankAccountController.deleteBankAccount,
+);
+router.put(
+  "/:id/reorder",
+  authenticate,
+  idParamValidation,
+  bankAccountController.reorderBankAccount,
+);
 
 module.exports = router;

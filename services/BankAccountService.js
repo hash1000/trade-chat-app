@@ -1,6 +1,6 @@
-const BankAccountRepository = require('../repositories/BankAccountRepository');
+const BankAccountRepository = require("../repositories/BankAccountRepository");
 
-const TEST_CARD_CURRENCIES = ['USD', 'EUR'];
+const TEST_CARD_CURRENCIES = ["USD", "EUR"];
 
 class BankAccountService {
   constructor() {
@@ -8,7 +8,7 @@ class BankAccountService {
   }
 
   normalizeCurrency(value) {
-    if (value === undefined || value === null || value === '') {
+    if (value === undefined || value === null || value === "") {
       return null;
     }
 
@@ -17,7 +17,9 @@ class BankAccountService {
 
   assertValidCurrency(currency) {
     if (!currency || !/^[A-Z]{3}$/.test(currency)) {
-      const error = new Error('currency must be a 3-letter code like USD or EUR');
+      const error = new Error(
+        "currency must be a 3-letter code like USD or EUR",
+      );
       error.statusCode = 422;
       throw error;
     }
@@ -25,17 +27,23 @@ class BankAccountService {
 
   assertSupportedTestCardCurrency(currency) {
     if (!TEST_CARD_CURRENCIES.includes(currency)) {
-      const error = new Error('test card currency must be USD or EUR');
+      const error = new Error("test card currency must be USD or EUR");
       error.statusCode = 422;
       throw error;
     }
   }
 
-  async ensureTestCardCurrencyIsAvailable(currency, excludeAccountId = null) {
-    const existingTestCard = await this.bankAccountRepository.getTestCardByCurrency(
-      currency,
-      excludeAccountId,
-    );
+  async ensureTestCardCurrencyIsAvailable(
+    currency,
+    excludeAccount = null,
+    userId = null,
+  ) {
+    const existingTestCard =
+      await this.bankAccountRepository.getTestCardByCurrency(
+        currency,
+        excludeAccount ? excludeAccount.id : null,
+        userId,
+      );
 
     if (existingTestCard) {
       const error = new Error(`A test card already exists for ${currency}`);
@@ -45,7 +53,10 @@ class BankAccountService {
   }
 
   async getBankAccountsByUserId(userId, classification) {
-    return this.bankAccountRepository.getBankAccountsByUserId(userId, classification);
+    return this.bankAccountRepository.getBankAccountsByUserId(
+      userId,
+      classification,
+    );
   }
 
   async getBankAccountById(userId, accountId) {
@@ -73,18 +84,27 @@ class BankAccountService {
     delete safeUpdateData.userId;
     delete safeUpdateData.sequence;
 
-    if (safeUpdateData.currency !== undefined || safeUpdateData.accountCurrency !== undefined) {
+    if (
+      safeUpdateData.currency !== undefined ||
+      safeUpdateData.accountCurrency !== undefined
+    ) {
       const normalizedCurrency = this.normalizeCurrency(
         safeUpdateData.currency || safeUpdateData.accountCurrency,
       );
 
       this.assertValidCurrency(normalizedCurrency);
       safeUpdateData.accountCurrency =
-        safeUpdateData.accountCurrency || safeUpdateData.currency || normalizedCurrency;
+        safeUpdateData.accountCurrency ||
+        safeUpdateData.currency ||
+        normalizedCurrency;
       safeUpdateData.currency = normalizedCurrency;
     }
 
-    return this.bankAccountRepository.updateBankAccount(userId, accountId, safeUpdateData);
+    return this.bankAccountRepository.updateBankAccount(
+      userId,
+      accountId,
+      safeUpdateData,
+    );
   }
 
   async getTestCards(currency) {
@@ -109,10 +129,14 @@ class BankAccountService {
     const normalizedCurrency = this.normalizeCurrency(
       accountData.currency || accountData.accountCurrency,
     );
-
+    console.log(`A test card already exists for`, normalizedCurrency);
     this.assertValidCurrency(normalizedCurrency);
     this.assertSupportedTestCardCurrency(normalizedCurrency);
-    await this.ensureTestCardCurrencyIsAvailable(normalizedCurrency);
+    await this.ensureTestCardCurrencyIsAvailable(
+      normalizedCurrency,
+      null,
+      userId,
+    );
 
     return this.bankAccountRepository.createBankAccount(userId, {
       ...accountData,
@@ -123,14 +147,16 @@ class BankAccountService {
   }
 
   async updateAdminTestCard(accountId, updateData) {
-    const existingAccount = await this.bankAccountRepository.getAnyBankAccountById(accountId);
+    const existingAccount =
+      await this.bankAccountRepository.getAnyBankAccountById(accountId);
 
+    console.log(">>>>>>", existingAccount);
     if (!existingAccount) {
       return null;
     }
 
-    if (typeof updateData.testCard !== 'boolean') {
-      const error = new Error('testCard must be true or false');
+    if (typeof updateData.testCard !== "boolean") {
+      const error = new Error("testCard must be true or false");
       error.statusCode = 422;
       throw error;
     }
@@ -140,12 +166,17 @@ class BankAccountService {
     };
 
     const nextCurrency = this.normalizeCurrency(
-      updateData.currency || updateData.accountCurrency || existingAccount.currency,
+      updateData.currency ||
+        updateData.accountCurrency ||
+        existingAccount.currency,
     );
 
     this.assertValidCurrency(nextCurrency);
 
-    if (updateData.currency !== undefined || updateData.accountCurrency !== undefined) {
+    if (
+      updateData.currency !== undefined ||
+      updateData.accountCurrency !== undefined
+    ) {
       safeUpdateData.currency = nextCurrency;
       safeUpdateData.accountCurrency =
         updateData.accountCurrency || updateData.currency || nextCurrency;
@@ -153,18 +184,26 @@ class BankAccountService {
 
     if (updateData.testCard) {
       this.assertSupportedTestCardCurrency(nextCurrency);
-      await this.ensureTestCardCurrencyIsAvailable(nextCurrency, existingAccount.id);
+      await this.ensureTestCardCurrencyIsAvailable(
+        nextCurrency,
+        existingAccount,
+        existingAccount.userId,
+      );
 
       if (safeUpdateData.currency === undefined) {
         safeUpdateData.currency = nextCurrency;
       }
 
       if (safeUpdateData.accountCurrency === undefined) {
-        safeUpdateData.accountCurrency = existingAccount.accountCurrency || nextCurrency;
+        safeUpdateData.accountCurrency =
+          existingAccount.accountCurrency || nextCurrency;
       }
     }
 
-    return this.bankAccountRepository.updateAnyBankAccount(accountId, safeUpdateData);
+    return this.bankAccountRepository.updateAnyBankAccount(
+      accountId,
+      safeUpdateData,
+    );
   }
 
   async deleteBankAccount(userId, accountId) {
@@ -172,7 +211,11 @@ class BankAccountService {
   }
 
   async reorderBankAccount(userId, accountId, newPosition) {
-    return this.bankAccountRepository.reorderBankAccount(userId, accountId, newPosition);
+    return this.bankAccountRepository.reorderBankAccount(
+      userId,
+      accountId,
+      newPosition,
+    );
   }
 }
 

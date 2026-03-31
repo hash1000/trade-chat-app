@@ -1,14 +1,14 @@
-const BankAccount = require('../models/bankAccount');
-const { Op } = require('sequelize');
+const BankAccount = require("../models/bankAccount");
+const { Op } = require("sequelize");
 
 class BankAccountRepository {
   // classification may be 'sender', 'receiver', 'both' or 'all' (or undefined)
   async getBankAccountsByUserId(userId, classification) {
     const where = { userId };
 
-    if (classification && classification !== 'all') {
+    if (classification && classification !== "all") {
       // only include valid values
-      const allowed = ['sender', 'receiver', 'both'];
+      const allowed = ["sender", "receiver", "both"];
       if (allowed.includes(classification)) {
         where.classification = classification;
       }
@@ -16,7 +16,7 @@ class BankAccountRepository {
 
     return await BankAccount.findAll({
       where,
-      order: [['sequence', 'ASC']],
+      order: [["sequence", "ASC"]],
     });
   }
 
@@ -40,15 +40,19 @@ class BankAccountRepository {
     return await BankAccount.findAll({
       where,
       order: [
-        ['currency', 'ASC'],
-        ['sequence', 'ASC'],
-        ['id', 'ASC'],
+        ["currency", "ASC"],
+        ["sequence", "ASC"],
+        ["id", "ASC"],
       ],
     });
   }
 
-  async getTestCardByCurrency(currency, excludeAccountId = null) {
-    const where = { testCard: true, currency };
+  async getTestCardByCurrency(
+    currency,
+    excludeAccountId = null,
+    userId = null,
+  ) {
+    const where = { testCard: true, currency, userId };
 
     if (excludeAccountId) {
       where.id = { [Op.ne]: excludeAccountId };
@@ -56,14 +60,14 @@ class BankAccountRepository {
 
     return await BankAccount.findOne({
       where,
-      order: [['id', 'ASC']],
+      order: [["id", "ASC"]],
     });
   }
 
   async createBankAccount(userId, accountData) {
     const lastAccount = await BankAccount.findOne({
       where: { userId },
-      order: [['sequence', 'DESC']],
+      order: [["sequence", "DESC"]],
     });
 
     const nextSequence = lastAccount ? lastAccount.sequence + 1 : 1;
@@ -76,7 +80,9 @@ class BankAccountRepository {
   }
 
   async updateBankAccount(userId, accountId, updateData) {
-    const account = await BankAccount.findOne({ where: { id: accountId, userId } });
+    const account = await BankAccount.findOne({
+      where: { id: accountId, userId },
+    });
     if (!account) return null;
 
     const safeUpdateData = { ...updateData };
@@ -119,14 +125,17 @@ class BankAccountRepository {
 
       const deletedSequence = accountToDelete.sequence;
 
-      await BankAccount.destroy({ where: { id: accountId, userId }, transaction });
+      await BankAccount.destroy({
+        where: { id: accountId, userId },
+        transaction,
+      });
 
       await BankAccount.update(
-        { sequence: BankAccount.sequelize.literal('sequence - 1') },
+        { sequence: BankAccount.sequelize.literal("sequence - 1") },
         {
           where: { userId, sequence: { [Op.gt]: deletedSequence } },
           transaction,
-        }
+        },
       );
 
       await transaction.commit();
@@ -160,19 +169,25 @@ class BankAccountRepository {
 
       if (newPosition < currentPosition) {
         await BankAccount.update(
-          { sequence: BankAccount.sequelize.literal('sequence + 1') },
+          { sequence: BankAccount.sequelize.literal("sequence + 1") },
           {
-            where: { userId, sequence: { [Op.between]: [newPosition, currentPosition - 1] } },
+            where: {
+              userId,
+              sequence: { [Op.between]: [newPosition, currentPosition - 1] },
+            },
             transaction,
-          }
+          },
         );
       } else {
         await BankAccount.update(
-          { sequence: BankAccount.sequelize.literal('sequence - 1') },
+          { sequence: BankAccount.sequelize.literal("sequence - 1") },
           {
-            where: { userId, sequence: { [Op.between]: [currentPosition + 1, newPosition] } },
+            where: {
+              userId,
+              sequence: { [Op.between]: [currentPosition + 1, newPosition] },
+            },
             transaction,
-          }
+          },
         );
       }
 
