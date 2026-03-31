@@ -176,6 +176,61 @@ class WalletService {
     });
   }
 
+  async withdraw({
+    userId,
+    currency,
+    amount,
+    walletType = "PERSONAL",
+    receiptId = null,
+    meta = {},
+    performedBy = null,
+  }) {
+    return sequelize.transaction(async (t) => {
+      const wallet = await Wallet.findOne({
+        where: { userId, currency, walletType },
+        transaction: t,
+      });
+
+      if (!wallet) {
+        throw new Error("Wallet not found");
+      }
+
+      const before = Number(wallet.availableBalance) || 0;
+      const withdrawAmount = Number(amount);
+
+      if (!withdrawAmount || Number.isNaN(withdrawAmount) || withdrawAmount <= 0) {
+        throw new Error("Invalid amount");
+      }
+
+      if (before < withdrawAmount) {
+        throw new Error("Insufficient available balance");
+      }
+
+      const after = before - withdrawAmount;
+
+      wallet.availableBalance = after;
+      await wallet.save({ transaction: t });
+
+      const walletTransaction = await this.createWalletTransaction(
+        {
+          walletId: wallet.id,
+          userId,
+          type: "WITHDRAW",
+          amount: withdrawAmount,
+          currency,
+          balanceBefore: before,
+          balanceAfter: after,
+          receiptId,
+          meta,
+          performedBy,
+        },
+        t,
+      );
+
+      return { wallet, walletTransaction };
+    });
+  }
+
   async lockFunds({
     userId,
     currency,

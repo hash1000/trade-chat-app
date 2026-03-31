@@ -7,6 +7,7 @@ const InSufficientBalance = require("../errors/InSufficientBalance");
 const { User } = require("../models");
 const Role = require("../models/role");
 const path = require("path");
+const WalletService = require("./WalletService");
 
 const { PutObjectCommand, S3Client } = require("@aws-sdk/client-s3");
 const Wallet = require("../models/wallet");
@@ -21,6 +22,7 @@ const s3Client = new S3Client({
   },
 });
 const userService = new UserService();
+const walletService = new WalletService();
 
 class CartService {
   constructor() {
@@ -237,6 +239,32 @@ class CartService {
       paymentRequest.id,
     );
     return transaction;
+  }
+
+  async adminDecreasePayment(
+    adminUserId,
+    targetUserId,
+    amount,
+    currency,
+    description,
+    walletType = "PERSONAL",
+  ) {
+    const user = await userService.getUserById(targetUserId);
+    if (!user) {
+      throw new Error(`User with ID ${targetUserId} not found`);
+    }
+
+    return walletService.withdraw({
+      userId: targetUserId,
+      currency,
+      amount,
+      walletType,
+      meta: {
+        source: "admin_manual_decrease",
+        description: description || null,
+      },
+      performedBy: adminUserId,
+    });
   }
 
   async transferBalance(fromUserId, toUserId, amount, currency) {

@@ -7,6 +7,7 @@ const upload = multer({ storage });
 const { validateUpdateContact } = require("../middlewares/userValidation");
 
 const authMiddleware = require("../middlewares/authenticate");
+const authorize = require("../middlewares/authorization");
 const ChatController = require("../controllers/ChatController");
 const chatController = new ChatController();
 
@@ -65,6 +66,14 @@ router.post(
   "/create-payment",
   authMiddleware,
   chatController.sendPayment.bind(chatController)
+);
+
+// route for admin to decrease a user's wallet balance by currency
+router.post(
+  "/decrease-payment",
+  authMiddleware,
+  authorize(["admin"]),
+  chatController.adminDecreasePayment.bind(chatController)
 );
 
 router.post(

@@ -245,6 +245,78 @@ class ChatController {
     }
   }
 
+  async adminDecreasePayment(req, res) {
+    try {
+      const {
+        amount,
+        description,
+        requesteeId,
+        userId,
+        currency = "CNY",
+        walletType = "PERSONAL",
+      } = req.body;
+      const { id: adminUserId } = req.user;
+
+      const targetUserId = Number(userId || requesteeId);
+      const parsedAmount = Number(amount);
+      const normalizedCurrency = String(currency).trim().toUpperCase();
+      const normalizedWalletType = String(walletType).trim().toUpperCase();
+
+      if (!targetUserId || Number.isNaN(targetUserId) || targetUserId <= 0) {
+        return res.status(400).json({ error: "Valid userId or requesteeId is required" });
+      }
+
+      if (!parsedAmount || Number.isNaN(parsedAmount) || parsedAmount <= 0) {
+        return res.status(400).json({ error: "Invalid amount" });
+      }
+
+      if (normalizedCurrency.length !== 3) {
+        return res.status(400).json({ error: "currency must be a 3-letter code" });
+      }
+
+      if (!["PERSONAL", "COMPANY"].includes(normalizedWalletType)) {
+        return res.status(400).json({
+          error: "walletType must be PERSONAL or COMPANY",
+        });
+      }
+
+      const result = await chatService.adminDecreasePayment(
+        adminUserId,
+        targetUserId,
+        parsedAmount,
+        normalizedCurrency,
+        description,
+        normalizedWalletType,
+      );
+
+      return res.status(200).json({
+        success: true,
+        targetUserId,
+        currency: normalizedCurrency,
+        withdrawal: result.walletTransaction,
+        newBalance: result.wallet.availableBalance,
+      });
+    } catch (error) {
+      console.error("Admin decrease payment error:", error);
+
+      if (error.message === "Wallet not found" || error.message.includes("User with ID")) {
+        return res.status(404).json({ error: error.message });
+      }
+
+      if (
+        error.message === "Invalid amount" ||
+        error.message === "Insufficient available balance"
+      ) {
+        return res.status(400).json({ error: error.message });
+      }
+
+      return res.status(500).json({
+        error: error.message,
+        stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
+      });
+    }
+  }
+
   async sendPaymentRequest(req, res) {
     const { amount, currency, description, requesteeId } = req.body;
     const { id: requesterId } = req.user;
