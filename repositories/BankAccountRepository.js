@@ -57,8 +57,19 @@ class BankAccountRepository {
     if (excludeAccountId) {
       where.id = { [Op.ne]: excludeAccountId };
     }
-
+    console.log("Searching for test card with criteria:", where);
     return await BankAccount.findOne({
+      where,
+      order: [["id", "ASC"]],
+    });
+  }
+
+    async getAllTestCardByCurrency(
+    currency,
+  ) {
+    const where = { testCard: true, currency };
+    console.log("Searching for test card with criteria:", where);
+    return await BankAccount.findAll({
       where,
       order: [["id", "ASC"]],
     });

@@ -168,7 +168,11 @@ class BankAccountController {
         return res.status(404).json({ error: "Test card not found" });
       }
 
-      res.json(card);
+      res.json({
+        success: true,
+        message: "Test card retrieved successfully",
+        data: card,
+      });
     } catch (error) {
       handleBankAccountError(res, error);
     }

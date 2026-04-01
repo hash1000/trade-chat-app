@@ -122,7 +122,7 @@ class BankAccountService {
     const normalizedCurrency = this.normalizeCurrency(currency);
     this.assertValidCurrency(normalizedCurrency);
 
-    return this.bankAccountRepository.getTestCardByCurrency(normalizedCurrency);
+    return this.bankAccountRepository.getAllTestCardByCurrency(normalizedCurrency);
   }
 
   async createAdminTestCard(userId, accountData) {
