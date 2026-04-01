@@ -164,7 +164,7 @@ class BankAccountController {
       const { currency } = req.params;
       const card = await bankAccountService.getTestCardByCurrency(currency);
 
-      if (!card) {
+      if (!card || !card.length) {
         return res.status(404).json({ error: "Test card not found" });
       }
 

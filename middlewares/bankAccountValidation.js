@@ -1,9 +1,86 @@
 const { body, param, validationResult } = require("express-validator");
 
-const TEST_CARD_CURRENCIES = ["USD", "EUR"];
+const TEST_CARD_CURRENCIES = ["EUR", "USD"];
 
 const isThreeLetterCurrency = (value) =>
   typeof value === "string" && /^[A-Za-z]{3}$/.test(value.trim());
+
+const parseTestCardCurrencyInput = (value, options = {}) => {
+  const { allowEmpty = false } = options;
+
+  if (value === undefined) {
+    return [];
+  }
+
+  if (value === null || value === "") {
+    if (allowEmpty) {
+      return [];
+    }
+
+    throw new Error("Test card currency is required");
+  }
+
+  const rawValues = Array.isArray(value)
+    ? value
+    : String(value)
+        .split(/[^A-Za-z]+/)
+        .filter(Boolean);
+
+  const normalizedCurrencies = [...new Set(
+    rawValues
+      .map((entry) => String(entry || "").trim().toUpperCase())
+      .filter(Boolean),
+  )];
+
+  if (!normalizedCurrencies.length && allowEmpty) {
+    return [];
+  }
+
+  if (!normalizedCurrencies.length) {
+    throw new Error("Test card currency is required");
+  }
+
+  if (normalizedCurrencies.length > TEST_CARD_CURRENCIES.length) {
+    throw new Error("Test card can only use USD and EUR");
+  }
+
+  normalizedCurrencies.forEach((currency) => {
+    if (!TEST_CARD_CURRENCIES.includes(currency)) {
+      throw new Error("Test card currency must be USD or EUR");
+    }
+  });
+
+  return normalizedCurrencies.sort(
+    (left, right) =>
+      TEST_CARD_CURRENCIES.indexOf(left) - TEST_CARD_CURRENCIES.indexOf(right),
+  );
+};
+
+const ensureMatchingTestCardCurrencyFields = (req, allowEmpty = false) => {
+  if (
+    req.body.currency === undefined ||
+    req.body.accountCurrency === undefined
+  ) {
+    return true;
+  }
+
+  const currencyValues = parseTestCardCurrencyInput(req.body.currency, {
+    allowEmpty,
+  });
+  const accountCurrencyValues = parseTestCardCurrencyInput(
+    req.body.accountCurrency,
+    { allowEmpty },
+  );
+
+  if (
+    currencyValues.length !== accountCurrencyValues.length ||
+    currencyValues.some((currency, index) => currency !== accountCurrencyValues[index])
+  ) {
+    throw new Error("currency and accountCurrency must match for test cards");
+  }
+
+  return true;
+};
 
 // Validation rules for creating a bank account
 exports.createBankAccountValidation = [
@@ -187,10 +264,11 @@ exports.createAdminTestCardValidation = [
     .withMessage("Account holder must be between 2 and 100 characters"),
 
   body("accountCurrency")
-    .trim()
-    .notEmpty()
-    .withMessage("Account currency is required")
-    .withMessage("Account currency seems invalid"),
+    .optional({ nullable: true })
+    .custom((value) => {
+      parseTestCardCurrencyInput(value);
+      return true;
+    }),
 
   body("bic")
     .trim()
@@ -219,11 +297,22 @@ exports.createAdminTestCardValidation = [
     .isIn(["sender", "receiver", "both"])
     .withMessage("Classification must be one of sender, receiver or both"),
 
-  body("currency").custom((value) => {
-    const normalizedCurrency = String(value || "").trim().toUpperCase();
-    if (!TEST_CARD_CURRENCIES.includes(normalizedCurrency)) {
-      throw new Error("Test card currency must be USD or EUR");
+  body("currency")
+    .optional({ nullable: true })
+    .custom((value) => {
+      parseTestCardCurrencyInput(value);
+      return true;
+    }),
+
+  body().custom((_, { req }) => {
+    const rawCurrency = req.body.currency ?? req.body.accountCurrency;
+
+    if (rawCurrency === undefined) {
+      throw new Error("Test card currency is required");
     }
+
+    parseTestCardCurrencyInput(rawCurrency);
+    ensureMatchingTestCardCurrencyFields(req);
     return true;
   }),
 
@@ -234,19 +323,29 @@ exports.updateAdminTestCardValidation = [
   param("id").isInt().withMessage("Invalid bank account id"),
 
   body("testCard")
+    .optional()
     .isBoolean()
     .withMessage("testCard must be true or false")
     .toBoolean(),
 
+  body("accountCurrency")
+    .optional({ nullable: true })
+    .custom((value) => {
+      parseTestCardCurrencyInput(value, { allowEmpty: true });
+      return true;
+    }),
+
   body("currency")
     .optional({ nullable: true })
     .custom((value) => {
-      const normalizedCurrency = String(value || "").trim().toUpperCase();
-      if (!TEST_CARD_CURRENCIES.includes(normalizedCurrency)) {
-        throw new Error("Test card currency must be USD or EUR");
-      }
+      parseTestCardCurrencyInput(value, { allowEmpty: true });
       return true;
     }),
+
+  body().custom((_, { req }) => {
+    ensureMatchingTestCardCurrencyFields(req, true);
+    return true;
+  }),
 
   handleValidationErrors,
 ];

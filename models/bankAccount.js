@@ -34,8 +34,8 @@ const BankAccount = sequelize.define(
       allowNull: false,
     },
     accountCurrency: {
-      type: DataTypes.STRING,
-      allowNull: false,
+      type: DataTypes.STRING(20),
+      allowNull: true,
     },
     bic: {
       type: DataTypes.STRING,
@@ -59,8 +59,8 @@ const BankAccount = sequelize.define(
       defaultValue: 'both',
     },
     currency: {
-      type: DataTypes.STRING(3),
-      allowNull: false,
+      type: DataTypes.STRING(20),
+      allowNull: true,
     },
     testCard: {
       type: DataTypes.BOOLEAN,
