@@ -26,7 +26,7 @@ class BankAccountController {
         userId,
         classification,
       );
-      res.json(accounts);
+      res.json(bankAccountService.serializeBankAccounts(accounts));
     } catch (error) {
       handleBankAccountError(res, error);
     }
@@ -41,7 +41,7 @@ class BankAccountController {
 
       if (!account) return res.status(404).json({ error: "Account not found" });
 
-      res.json(account);
+      res.json(bankAccountService.serializeBankAccount(account));
     } catch (error) {
       handleBankAccountError(res, error);
     }
@@ -79,7 +79,7 @@ class BankAccountController {
         currency,
       });
 
-      res.status(201).json(newAccount);
+      res.status(201).json(bankAccountService.serializeBankAccount(newAccount));
     } catch (error) {
       handleBankAccountError(res, error);
     }
@@ -100,7 +100,7 @@ class BankAccountController {
       if (!updatedAccount)
         return res.status(404).json({ error: "Account not found" });
 
-      res.json(updatedAccount);
+      res.json(bankAccountService.serializeBankAccount(updatedAccount));
     } catch (error) {
       handleBankAccountError(res, error);
     }
@@ -140,7 +140,7 @@ class BankAccountController {
       if (!reorderedAccounts)
         return res.status(404).json({ error: "Account not found" });
 
-      res.json(reorderedAccounts);
+      res.json(bankAccountService.serializeBankAccounts(reorderedAccounts));
     } catch (error) {
       handleBankAccountError(res, error);
     }
@@ -152,7 +152,7 @@ class BankAccountController {
       res.json({
         success: true,
         message: "Test cards retrieved successfully",
-        data: cards,
+        data: bankAccountService.serializeBankAccounts(cards),
       });
     } catch (error) {
       handleBankAccountError(res, error);
@@ -171,7 +171,7 @@ class BankAccountController {
       res.json({
         success: true,
         message: "Test card retrieved successfully",
-        data: card,
+        data: bankAccountService.serializeBankAccounts(card),
       });
     } catch (error) {
       handleBankAccountError(res, error);
@@ -186,7 +186,7 @@ class BankAccountController {
         req.body,
       );
 
-      res.status(201).json(newTestCard);
+      res.status(201).json(bankAccountService.serializeBankAccount(newTestCard));
     } catch (error) {
       handleBankAccountError(res, error);
     }
@@ -204,7 +204,7 @@ class BankAccountController {
         return res.status(404).json({ error: "Account not found" });
       }
 
-      res.json(updatedCard);
+      res.json(bankAccountService.serializeBankAccount(updatedCard));
     } catch (error) {
       handleBankAccountError(res, error);
     }

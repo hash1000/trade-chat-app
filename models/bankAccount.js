@@ -59,7 +59,7 @@ const BankAccount = sequelize.define(
       defaultValue: 'both',
     },
     currency: {
-      type: DataTypes.STRING(20),
+      type: DataTypes.ENUM('USD', 'EUR'),
       allowNull: true,
     },
     testCard: {

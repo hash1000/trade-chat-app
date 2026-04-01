@@ -9,7 +9,11 @@ const parseTestCardCurrencyInput = (value, options = {}) => {
   const { allowEmpty = false } = options;
 
   if (value === undefined) {
-    return [];
+    if (allowEmpty) {
+      return [];
+    }
+
+    throw new Error("Test card currency is required");
   }
 
   if (value === null || value === "") {
@@ -20,11 +24,31 @@ const parseTestCardCurrencyInput = (value, options = {}) => {
     throw new Error("Test card currency is required");
   }
 
-  const rawValues = Array.isArray(value)
-    ? value
-    : String(value)
-        .split(/[^A-Za-z]+/)
+  let rawValues;
+
+  if (Array.isArray(value)) {
+    rawValues = value;
+  } else {
+    const normalizedValue = String(value).trim();
+
+    if (normalizedValue.startsWith("[")) {
+      try {
+        const parsedValue = JSON.parse(normalizedValue);
+
+        if (!Array.isArray(parsedValue)) {
+          throw new Error("Test card currency must be an array");
+        }
+
+        rawValues = parsedValue;
+      } catch (error) {
+        throw new Error("Test card currency must be a valid array string");
+      }
+    } else {
+      rawValues = normalizedValue
+        .split(/[\s,/]+/)
         .filter(Boolean);
+    }
+  }
 
   const normalizedCurrencies = [...new Set(
     rawValues
@@ -54,32 +78,6 @@ const parseTestCardCurrencyInput = (value, options = {}) => {
     (left, right) =>
       TEST_CARD_CURRENCIES.indexOf(left) - TEST_CARD_CURRENCIES.indexOf(right),
   );
-};
-
-const ensureMatchingTestCardCurrencyFields = (req, allowEmpty = false) => {
-  if (
-    req.body.currency === undefined ||
-    req.body.accountCurrency === undefined
-  ) {
-    return true;
-  }
-
-  const currencyValues = parseTestCardCurrencyInput(req.body.currency, {
-    allowEmpty,
-  });
-  const accountCurrencyValues = parseTestCardCurrencyInput(
-    req.body.accountCurrency,
-    { allowEmpty },
-  );
-
-  if (
-    currencyValues.length !== accountCurrencyValues.length ||
-    currencyValues.some((currency, index) => currency !== accountCurrencyValues[index])
-  ) {
-    throw new Error("currency and accountCurrency must match for test cards");
-  }
-
-  return true;
 };
 
 // Validation rules for creating a bank account
@@ -264,11 +262,7 @@ exports.createAdminTestCardValidation = [
     .withMessage("Account holder must be between 2 and 100 characters"),
 
   body("accountCurrency")
-    .optional({ nullable: true })
-    .custom((value) => {
-      parseTestCardCurrencyInput(value);
-      return true;
-    }),
+    .optional({ nullable: true }),
 
   body("bic")
     .trim()
@@ -298,23 +292,10 @@ exports.createAdminTestCardValidation = [
     .withMessage("Classification must be one of sender, receiver or both"),
 
   body("currency")
-    .optional({ nullable: true })
     .custom((value) => {
       parseTestCardCurrencyInput(value);
       return true;
     }),
-
-  body().custom((_, { req }) => {
-    const rawCurrency = req.body.currency ?? req.body.accountCurrency;
-
-    if (rawCurrency === undefined) {
-      throw new Error("Test card currency is required");
-    }
-
-    parseTestCardCurrencyInput(rawCurrency);
-    ensureMatchingTestCardCurrencyFields(req);
-    return true;
-  }),
 
   handleValidationErrors,
 ];
@@ -329,11 +310,7 @@ exports.updateAdminTestCardValidation = [
     .toBoolean(),
 
   body("accountCurrency")
-    .optional({ nullable: true })
-    .custom((value) => {
-      parseTestCardCurrencyInput(value, { allowEmpty: true });
-      return true;
-    }),
+    .optional({ nullable: true }),
 
   body("currency")
     .optional({ nullable: true })
@@ -341,11 +318,6 @@ exports.updateAdminTestCardValidation = [
       parseTestCardCurrencyInput(value, { allowEmpty: true });
       return true;
     }),
-
-  body().custom((_, { req }) => {
-    ensureMatchingTestCardCurrencyFields(req, true);
-    return true;
-  }),
 
   handleValidationErrors,
 ];

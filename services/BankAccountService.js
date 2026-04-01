@@ -52,11 +52,35 @@ class BankAccountService {
       throw error;
     }
 
-    const rawValues = Array.isArray(value)
-      ? value
-      : String(value)
-          .split(/[^A-Za-z]+/)
+    let rawValues;
+
+    if (Array.isArray(value)) {
+      rawValues = value;
+    } else {
+      const normalizedValue = String(value).trim();
+
+      if (normalizedValue.startsWith("[")) {
+        try {
+          const parsedValue = JSON.parse(normalizedValue);
+
+          if (!Array.isArray(parsedValue)) {
+            throw new Error("Test card currency must be an array");
+          }
+
+          rawValues = parsedValue;
+        } catch (error) {
+          const parseError = new Error(
+            "test card currency must be a valid array string",
+          );
+          parseError.statusCode = 422;
+          throw parseError;
+        }
+      } else {
+        rawValues = normalizedValue
+          .split(/[\s,/]+/)
           .filter(Boolean);
+      }
+    }
 
     const normalizedCurrencies = [...new Set(
       rawValues
@@ -120,28 +144,87 @@ class BankAccountService {
     return this.normalizeTestCardCurrencies(rawValue, { allowEmpty });
   }
 
+  getRequestedAdminTestCardCurrencies(data, options = {}) {
+    const {
+      allowEmpty = false,
+      fallback = [],
+      requireInput = false,
+    } = options;
+
+    if (!Object.prototype.hasOwnProperty.call(data, "currency")) {
+      if (requireInput) {
+        const error = new Error("test card currency is required");
+        error.statusCode = 422;
+        throw error;
+      }
+
+      return fallback;
+    }
+
+    return this.normalizeTestCardCurrencies(data.currency, { allowEmpty });
+  }
+
   getTestCardCurrenciesFromAccount(account) {
     if (!account) {
       return [];
     }
 
-    return this.normalizeTestCardCurrencies(
-      account.currency ?? account.accountCurrency,
-      { allowEmpty: true },
-    );
+    const serializedCurrencies =
+      account.accountCurrency ?? account.currency;
+
+    return this.normalizeTestCardCurrencies(serializedCurrencies, {
+      allowEmpty: true,
+    });
   }
 
   serializeTestCardCurrencies(currencies) {
-    return currencies.length ? currencies.join("/") : null;
+    return currencies.length ? JSON.stringify(currencies) : null;
+  }
+
+  getLegacyTestCardCurrency(currencies) {
+    if (!currencies.length || currencies.length > 1) {
+      return null;
+    }
+
+    return currencies[0];
   }
 
   buildTestCardCurrencyFields(currencies) {
     const serializedCurrencies = this.serializeTestCardCurrencies(currencies);
 
     return {
-      currency: serializedCurrencies,
+      currency: this.getLegacyTestCardCurrency(currencies),
       accountCurrency: serializedCurrencies,
     };
+  }
+
+  serializeBankAccount(account) {
+    if (!account) {
+      return account;
+    }
+
+    const plainAccount =
+      typeof account.get === "function"
+        ? account.get({ plain: true })
+        : { ...account };
+
+    if (!plainAccount.testCard) {
+      return plainAccount;
+    }
+
+    return {
+      ...plainAccount,
+      currency: this.getTestCardCurrenciesFromAccount(plainAccount),
+      accountCurrency: null,
+    };
+  }
+
+  serializeBankAccounts(accounts) {
+    if (!Array.isArray(accounts)) {
+      return [];
+    }
+
+    return accounts.map((account) => this.serializeBankAccount(account));
   }
 
   async reassignCurrenciesFromOtherTestCards(
@@ -253,7 +336,7 @@ class BankAccountService {
   }
 
   async createAdminTestCard(userId, accountData) {
-    const requestedCurrencies = this.getRequestedTestCardCurrencies(
+    const requestedCurrencies = this.getRequestedAdminTestCardCurrencies(
       accountData,
       { allowEmpty: false, requireInput: true },
     );
@@ -302,7 +385,7 @@ class BankAccountService {
         ? updateData.testCard
         : existingAccount.testCard;
 
-    const nextCurrencies = this.getRequestedTestCardCurrencies(updateData, {
+    const nextCurrencies = this.getRequestedAdminTestCardCurrencies(updateData, {
       allowEmpty: true,
       fallback: this.getTestCardCurrenciesFromAccount(existingAccount),
     });
