@@ -277,26 +277,6 @@ class BankAccountService {
   async updateBankAccount(userId, accountId, updateData) {
     const safeUpdateData = { ...updateData };
 
-    delete safeUpdateData.testCard;
-    delete safeUpdateData.userId;
-    delete safeUpdateData.sequence;
-
-    if (
-      safeUpdateData.currency !== undefined ||
-      safeUpdateData.accountCurrency !== undefined
-    ) {
-      const normalizedCurrency = this.normalizeCurrency(
-        safeUpdateData.currency || safeUpdateData.accountCurrency,
-      );
-
-      this.assertValidCurrency(normalizedCurrency);
-      safeUpdateData.accountCurrency =
-        safeUpdateData.accountCurrency ||
-        safeUpdateData.currency ||
-        normalizedCurrency;
-      safeUpdateData.currency = normalizedCurrency;
-    }
-
     return this.bankAccountRepository.updateBankAccount(
       userId,
       accountId,

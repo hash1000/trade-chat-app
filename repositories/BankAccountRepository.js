@@ -30,26 +30,56 @@ class BankAccountRepository {
     return await BankAccount.findByPk(accountId);
   }
 
-  async getAllTestCards(options = {}) {
-    const { transaction } = options;
+  async getTestCards(currency) {
+    const where = { testCard: true };
+
+    if (currency) {
+      where.currency = currency;
+    }
 
     return await BankAccount.findAll({
-      where: { testCard: true },
+      where,
       order: [
         ["currency", "ASC"],
         ["sequence", "ASC"],
         ["id", "ASC"],
       ],
-      transaction,
     });
   }
 
-  async createBankAccount(userId, accountData, options = {}) {
-    const { transaction } = options;
+  async getTestCardByCurrency(
+    currency,
+    excludeAccountId = null,
+    userId = null,
+  ) {
+    const where = { testCard: true, currency, userId };
+
+    if (excludeAccountId) {
+      where.id = { [Op.ne]: excludeAccountId };
+    }
+    console.log("Searching for test card with criteria:", where);
+    return await BankAccount.findOne({
+      where,
+      order: [["id", "ASC"]],
+    });
+  }
+
+    async getAllTestCardByCurrency(
+    currency,
+  ) {
+    const where = { testCard: true, currency};
+
+    console.log("Searching for test card with criteria:", where);
+    return await BankAccount.findOne({
+      where,
+      order: [["id", "ASC"]],
+    });
+  }
+
+  async createBankAccount(userId, accountData) {
     const lastAccount = await BankAccount.findOne({
       where: { userId },
       order: [["sequence", "DESC"]],
-      transaction,
     });
 
     const nextSequence = lastAccount ? lastAccount.sequence + 1 : 1;
@@ -58,7 +88,7 @@ class BankAccountRepository {
       userId,
       ...accountData,
       sequence: nextSequence,
-    }, { transaction });
+    });
   }
 
   async updateBankAccount(userId, accountId, updateData) {
@@ -76,9 +106,8 @@ class BankAccountRepository {
     return account;
   }
 
-  async updateAnyBankAccount(accountId, updateData, options = {}) {
-    const { transaction } = options;
-    const account = await BankAccount.findByPk(accountId, { transaction });
+  async updateAnyBankAccount(accountId, updateData) {
+    const account = await BankAccount.findByPk(accountId);
     if (!account) return null;
 
     const safeUpdateData = { ...updateData };
@@ -88,7 +117,7 @@ class BankAccountRepository {
     delete safeUpdateData.createdAt;
     delete safeUpdateData.updatedAt;
 
-    await account.update(safeUpdateData, { transaction });
+    await account.update(safeUpdateData);
     return account;
   }
 

@@ -214,20 +214,8 @@ exports.updateBankAccountValidation = [
       if (!isThreeLetterCurrency(value)) {
         throw new Error("Currency must be a 3-letter code like USD or EUR");
       }
-      return true;
     }),
-
-  body().custom((_, { req }) => {
-    if (
-      req.body.currency === undefined &&
-      req.body.accountCurrency !== undefined &&
-      !isThreeLetterCurrency(req.body.accountCurrency)
-    ) {
-      throw new Error("Currency must be a 3-letter code like USD or EUR");
-    }
-    return true;
-  }),
-
+    
   body("testCard")
     .not()
     .exists()
