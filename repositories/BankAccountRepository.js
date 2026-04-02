@@ -1,5 +1,5 @@
 const BankAccount = require("../models/bankAccount");
-const { Op } = require("sequelize");
+const { Op, literal } = require('sequelize')
 
 class BankAccountRepository {
   // classification may be 'sender', 'receiver', 'both' or 'all' (or undefined)
@@ -30,13 +30,28 @@ class BankAccountRepository {
     return await BankAccount.findByPk(accountId);
   }
 
-  async getTestCards(currency) {
+  async getAllTestCards() {
     const where = { testCard: true };
 
-    if (currency) {
-      where.currency = currency;
-    }
 
+    return await BankAccount.findAll({
+      where,
+      order: [
+        ["currency", "ASC"],
+        ["sequence", "ASC"],
+        ["id", "ASC"],
+      ],
+    });
+  }
+
+  async getTestCards(currency) {
+    const where = { testCard: true };
+  
+    if (currency) {
+      // MySQL JSON_CONTAINS
+      where.currency = literal(`JSON_CONTAINS(currency, '["${currency}"]')`);
+    }
+  
     return await BankAccount.findAll({
       where,
       order: [
@@ -64,12 +79,10 @@ class BankAccountRepository {
     });
   }
 
-    async getAllTestCardByCurrency(
+    async getTestCardByCurrency(
     currency,
   ) {
     const where = { testCard: true, currency};
-
-    console.log("Searching for test card with criteria:", where);
     return await BankAccount.findOne({
       where,
       order: [["id", "ASC"]],

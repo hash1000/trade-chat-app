@@ -148,6 +148,7 @@ class BankAccountController {
 
   async getTestCards(req, res) {
     try {
+    console.log("getTestCards",req.query.currency);
       const cards = await bankAccountService.getTestCards(req.query.currency);
       res.json({
         success: true,
@@ -178,19 +179,6 @@ class BankAccountController {
     }
   }
 
-  async createAdminTestCard(req, res) {
-    try {
-      const { id: userId } = req.user;
-      const newTestCard = await bankAccountService.createAdminTestCard(
-        userId,
-        req.body,
-      );
-
-      res.status(201).json(bankAccountService.serializeBankAccount(newTestCard));
-    } catch (error) {
-      handleBankAccountError(res, error);
-    }
-  }
 
   async updateAdminTestCard(req, res) {
     try {

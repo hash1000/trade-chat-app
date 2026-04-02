@@ -2,7 +2,6 @@ const BankAccountRepository = require("../repositories/BankAccountRepository");
 const BankAccount = require("../models/bankAccount");
 
 const TEST_CARD_CURRENCIES = ["EUR", "USD"];
-const MAX_TEST_CARD_COUNT = TEST_CARD_CURRENCIES.length;
 
 class BankAccountService {
   constructor() {
@@ -169,8 +168,7 @@ class BankAccountService {
       return [];
     }
 
-    const serializedCurrencies =
-      account.accountCurrency ?? account.currency;
+    const serializedCurrencies = account.currency;
 
     return this.normalizeTestCardCurrencies(serializedCurrencies, {
       allowEmpty: true,
@@ -229,30 +227,40 @@ class BankAccountService {
 
   async reassignCurrenciesFromOtherTestCards(
     assignedCurrencies,
-    excludeAccountId = null,
     transaction,
   ) {
+    // ensure array
+    const assigned = Array.isArray(assignedCurrencies)
+      ? assignedCurrencies
+      : [assignedCurrencies];
+  
     const allTestCards = await this.bankAccountRepository.getAllTestCards({
       transaction,
     });
-
+  
     for (const card of allTestCards) {
-      if (excludeAccountId && card.id === excludeAccountId) {
-        continue;
+  
+      let current = card.currency || [];
+  
+      // safety for old string data
+      if (typeof current === "string") {
+        current = [current];
       }
-
-      const currentCurrencies = this.getTestCardCurrenciesFromAccount(card);
-      const remainingCurrencies = currentCurrencies.filter(
-        (currency) => !assignedCurrencies.includes(currency),
+  
+      // remove assigned currencies
+      const remainingCurrencies = current.filter(
+        c => !assigned.includes(c)
       );
 
-      if (remainingCurrencies.length === currentCurrencies.length) {
-        continue;
-      }
-
+  
+      // if empty → null
+      const finalValue = remainingCurrencies.length ? remainingCurrencies : null;
+  
       await this.bankAccountRepository.updateAnyBankAccount(
         card.id,
-        this.buildTestCardCurrencyFields(remainingCurrencies),
+        { currency: finalValue, 
+          testCard: finalValue === null ? false : card.testCard   
+        }, // ✅ correct format
         { transaction },
       );
     }
@@ -285,18 +293,10 @@ class BankAccountService {
   }
 
   async getTestCards(currency) {
-    const cards = await this.bankAccountRepository.getAllTestCards();
+    console.log("getTestCards",currency);
+    const cards = await this.bankAccountRepository.getTestCards(currency);
 
-    if (!currency) {
-      return cards;
-    }
-
-    const normalizedCurrency = this.normalizeCurrency(currency);
-    this.assertValidCurrency(normalizedCurrency);
-
-    return cards.filter((card) =>
-      this.getTestCardCurrenciesFromAccount(card).includes(normalizedCurrency),
-    );
+    return cards;
   }
 
   async getTestCardByCurrency(currency) {
@@ -304,37 +304,6 @@ class BankAccountService {
     this.assertValidCurrency(normalizedCurrency);
 
     return this.getTestCards(normalizedCurrency);
-  }
-
-  async createAdminTestCard(userId, accountData) {
-    const requestedCurrencies = this.getRequestedAdminTestCardCurrencies(
-      accountData,
-      { allowEmpty: false, requireInput: true },
-    );
-
-    return BankAccount.sequelize.transaction(async (transaction) => {
-      const existingTestCards = await this.bankAccountRepository.getAllTestCards(
-        { transaction },
-      );
-
-      if (existingTestCards.length >= MAX_TEST_CARD_COUNT) {
-        const error = new Error("Only two admin test cards are allowed");
-        error.statusCode = 409;
-        throw error;
-      }
-
-      await this.reassignCurrenciesFromOtherTestCards(
-        requestedCurrencies,
-        null,
-        transaction,
-      );
-
-      return this.bankAccountRepository.createBankAccount(userId, {
-        ...accountData,
-        ...this.buildTestCardCurrencyFields(requestedCurrencies),
-        testCard: true,
-      }, { transaction });
-    });
   }
 
   async updateAdminTestCard(accountId, updateData) {
@@ -345,41 +314,19 @@ class BankAccountService {
       return null;
     }
 
-    if (!existingAccount.testCard) {
-      const error = new Error("Test card not found");
-      error.statusCode = 404;
-      throw error;
-    }
-
-    const nextTestCard =
-      typeof updateData.testCard === "boolean"
-        ? updateData.testCard
-        : existingAccount.testCard;
-
-    const nextCurrencies = this.getRequestedAdminTestCardCurrencies(updateData, {
-      allowEmpty: true,
-      fallback: this.getTestCardCurrenciesFromAccount(existingAccount),
-    });
-
     return BankAccount.sequelize.transaction(async (transaction) => {
       const safeUpdateData = {};
 
       if (typeof updateData.testCard === "boolean") {
         safeUpdateData.testCard = updateData.testCard;
+        safeUpdateData.currency = updateData.currency;
       }
 
-      if (nextTestCard) {
         await this.reassignCurrenciesFromOtherTestCards(
-          nextCurrencies,
-          existingAccount.id,
+          updateData.currency,
           transaction,
         );
 
-        Object.assign(
-          safeUpdateData,
-          this.buildTestCardCurrencyFields(nextCurrencies),
-        );
-      }
 
       return this.bankAccountRepository.updateAnyBankAccount(
         accountId,
