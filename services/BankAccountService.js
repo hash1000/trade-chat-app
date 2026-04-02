@@ -270,17 +270,8 @@ class BankAccountService {
   }
 
   async createBankAccount(userId, accountData) {
-    const normalizedCurrency = this.normalizeCurrency(
-      accountData.currency || accountData.accountCurrency,
-    );
 
-    this.assertValidCurrency(normalizedCurrency);
-
-    return this.bankAccountRepository.createBankAccount(userId, {
-      ...accountData,
-      accountCurrency: accountData.accountCurrency || normalizedCurrency,
-      currency: normalizedCurrency,
-    });
+    return this.bankAccountRepository.createBankAccount(userId, accountData);
   }
 
   async updateBankAccount(userId, accountId, updateData) {

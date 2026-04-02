@@ -140,13 +140,14 @@ exports.createBankAccountValidation = [
     .isIn(["sender", "receiver", "both"])
     .withMessage("Classification must be one of sender, receiver or both"),
 
-  body("currency").custom((value, { req }) => {
-    const candidate = value ?? req.body.accountCurrency;
-    if (!isThreeLetterCurrency(candidate)) {
-      throw new Error("Currency must be a 3-letter code like USD or EUR");
-    }
-    return true;
-  }),
+    body("currency")
+    .optional()
+    .custom((value) => {
+      if (!isThreeLetterCurrency(value)) {
+        throw new Error("Currency must be a 3-letter code like USD or EUR");
+      }
+      return true;
+    }),
 
   body("testCard")
     .not()
@@ -208,7 +209,7 @@ exports.updateBankAccountValidation = [
     .withMessage("Classification must be one of sender, receiver or both"),
 
   body("currency")
-    .optional({ nullable: true })
+    .optional()
     .custom((value) => {
       if (!isThreeLetterCurrency(value)) {
         throw new Error("Currency must be a 3-letter code like USD or EUR");
