@@ -26,6 +26,19 @@ router.get(
   walletController.adminListFxConvertTransactions.bind(walletController),
 );
 
+// get wallet_transactions DEPOSIT/WITHDRAW/LOCK/UNLOCK for a user (admin/accountant can specify ?userId=..., otherwise it's the authenticated user)
+router.get(
+  '/transactions',
+  authenticate,
+  walletController.listWalletTransactions.bind(walletController),
+);
+
+router.get(
+  '/my-transactions',
+  authenticate,
+  walletController.listMyWalletTransactions.bind(walletController),
+);
+
 // Admin/accountant: lock or unlock a user's wallet balance (available <-> locked, same currency)
 router.post(
   '/admin/lock',

@@ -690,6 +690,53 @@ class WalletService {
       throw err;
     }
   }
+
+  async listWalletTransactions({ page = 1, limit = 20, type } = {}) {
+    const offset = (page - 1) * limit;
+    const where = {};
+
+    if(type && !["DEPOSIT", "WITHDRAW", "LOCK", "UNLOCK", "TRANSFER_IN", "TRANSFER_OUT", "FX_CONVERT_IN", "FX_CONVERT_OUT"].includes(String(type).toUpperCase())) {
+      where.type = String(type).toUpperCase();
+    }
+
+    const transactions = await WalletTransaction.findAndCountAll({
+      limit,
+      offset,
+      order: [["createdAt", "DESC"]],
+      where
+    });
+
+    return {
+      data: transactions.rows,
+      total: transactions.count,
+      page,
+      limit,
+    };
+  }
+
+    async listMyWalletTransactions({ userId, page = 1, limit = 20, type } = {}) {
+    const offset = (page - 1) * limit;
+    const where = { userId };
+
+    if(type && !["DEPOSIT", "WITHDRAW", "LOCK", "UNLOCK", "TRANSFER_IN", "TRANSFER_OUT", "FX_CONVERT_IN", "FX_CONVERT_OUT"].includes(String(type).toUpperCase())) {
+      where.type = String(type).toUpperCase();
+    }
+
+    const transactions = await WalletTransaction.findAndCountAll({
+      limit,
+      offset,
+      order: [["createdAt", "DESC"]],
+      where
+    });
+
+    return {
+      data: transactions.rows,
+      total: transactions.count,
+      page,
+      limit,
+    };
+  }
+  
 }
 
 module.exports = WalletService;

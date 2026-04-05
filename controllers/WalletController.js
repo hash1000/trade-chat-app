@@ -238,6 +238,57 @@ class WalletController {
       });
     }
   }
+
+  async listWalletTransactions(req, res) {
+    try {
+      const { type , page = 1, limit = 20 } = req.query;
+      const result = await walletService.listWalletTransactions({
+        page,
+        limit,
+        type
+      });
+      return res.status(200).json({
+        success: true,
+        data: result.data,
+        total: result.total,
+        page: result.page,
+        limit: result.limit,
+      });
+    } catch (error) {
+      console.error("listMyWalletTransactions error:", error);
+      return res.status(500).json({
+        success: false,
+        error: "Server error. Please try again later.",
+      });
+    }
+  }
+
+  
+  async listMyWalletTransactions(req, res) {
+    try {
+      const { id: userId } = req.user;
+      const { type , page = 1, limit = 20 } = req.query;
+      const result = await walletService.listMyWalletTransactions({
+        userId,
+        page,
+        limit,
+        type
+      });
+      return res.status(200).json({
+        success: true,
+        data: result.data,
+        total: result.total,
+        page: result.page,
+        limit: result.limit,
+      });
+    } catch (error) {
+      console.error("listMyWalletTransactions error:", error);
+      return res.status(500).json({
+        success: false,
+        error: "Server error. Please try again later.",
+      });
+    }
+  }
 }
 
 module.exports = new WalletController();

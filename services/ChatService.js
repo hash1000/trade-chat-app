@@ -308,15 +308,46 @@ class CartService {
       const isSameUser = Number(fromUserId) === Number(toUserId);
       const isAdmin = String(senderRole || "").toLowerCase() === "admin";
       if (isSameUser && isAdmin) {
+       await walletService.createWalletTransaction({
+          walletId: senderWallet.id,
+          userId: toUserId,
+          type: "DEPOSIT",
+          amount,
+          currency,
+          balanceBefore: senderAvailableBalance,
+          balanceAfter: senderAvailableBalance + transferAmount,
+          receiptId: null,
+          meta: {
+            currency,
+            amountInSource: amount,
+            source: "admin deposite",
+          },
+          performedBy: fromUserId,
+        });
         senderWallet.availableBalance = senderAvailableBalance + transferAmount;
         await senderWallet.save();
-
-        console.log("Admin self-transfer completed");
         return;
       }
 
       if (senderAvailableBalance >= transferAmount) {
-  
+        await walletService.createWalletTransaction({
+          walletId: senderWallet.id,
+          userId: toUserId,
+          type: "DEPOSIT",
+          amount,
+          currency,
+          balanceBefore: senderAvailableBalance,
+          balanceAfter: senderAvailableBalance + transferAmount,
+          receiptId: null,
+          meta: {
+            currency,
+            amountInSource: amount,
+            source: "admin deposite to user ",
+            toUser: toUserId,
+          },
+          performedBy: fromUserId,
+        });
+
         senderWallet.availableBalance = senderAvailableBalance - transferAmount;
         await senderWallet.save();
   
