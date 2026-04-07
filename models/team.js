@@ -13,10 +13,10 @@ const Team = sequelize.define(
       type: DataTypes.STRING,
       allowNull: false,
     },
-    type: {
-      type: DataTypes.STRING,
-      allowNull: true,
-    },
+    // type: {
+    //   type: DataTypes.STRING,
+    //   allowNull: true,
+    // },
     profile_image: {
       type: DataTypes.STRING,
       allowNull: false,
