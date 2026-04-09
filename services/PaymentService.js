@@ -126,7 +126,7 @@ class PaymentService {
 
   // Inside paymentService.js
   async processTopupPayment(userId, amount, description) {
-    const user = await WalletService.getUserWalletById(userId);
+    const user = await walletService.getUserWalletById(userId);
     const roundedAmount = Math.round(amount * 100); // cents
 
     const session = await stripe.checkout.sessions.create({
