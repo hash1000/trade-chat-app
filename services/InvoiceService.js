@@ -5,11 +5,11 @@ const CustomError = require('../errors/CustomError')
 class InvoiceService {
   constructor () {
     this.invoiceRepository = new InvoiceRepository()
+    this.orderService = new OrderService()
   }
 
   async createInvoice (userId, orderId) {
-    const orderService = new OrderService()
-    const order = await orderService.getOrderById(orderId)
+    const order = await this.orderService.getOrderById(orderId)
     return await this.invoiceRepository.storeInvoice(userId, order)
   };
 

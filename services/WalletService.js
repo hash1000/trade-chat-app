@@ -1,5 +1,5 @@
 const { Op } = require("sequelize");
-const { User, Transaction } = require("../models");
+const { User, Transaction, Role } = require("../models");
 const sequelize = require("../config/database");
 const UserRepository = require("../repositories/UserRepository");
 const userRepository = new UserRepository();
@@ -109,7 +109,10 @@ class WalletService {
     }
 
     const pageNum = Math.max(1, parseInt(String(page), 10) || 1);
-    const limitNum = Math.min(100, Math.max(1, parseInt(String(limit), 10) || 20));
+    const limitNum = Math.min(
+      100,
+      Math.max(1, parseInt(String(limit), 10) || 20),
+    );
     const offset = (pageNum - 1) * limitNum;
 
     const where = {
@@ -198,7 +201,11 @@ class WalletService {
       const before = Number(wallet.availableBalance) || 0;
       const withdrawAmount = Number(amount);
 
-      if (!withdrawAmount || Number.isNaN(withdrawAmount) || withdrawAmount <= 0) {
+      if (
+        !withdrawAmount ||
+        Number.isNaN(withdrawAmount) ||
+        withdrawAmount <= 0
+      ) {
         throw new Error("Invalid amount");
       }
 
@@ -423,7 +430,8 @@ class WalletService {
         t,
       );
 
-      const lockedInReceiptCurrency = Number(receiptCurrencyWallet.lockedBalance) || 0;
+      const lockedInReceiptCurrency =
+        Number(receiptCurrencyWallet.lockedBalance) || 0;
       const amountToUnlockNum = Number(amountToUnlock);
 
       if (lockedInReceiptCurrency < amountToUnlockNum) {
@@ -436,14 +444,14 @@ class WalletService {
       // 2. Add to availableBalance: same wallet if same currency, else target-currency wallet
       // Same currency: use amountToUnlock (no conversion). Different: use amount (converted).
       const amountToAddToAvailable =
-        currency === receiptCurrency
-          ? amountToUnlockNum
-          : Number(amount);
+        currency === receiptCurrency ? amountToUnlockNum : Number(amount);
 
       if (currency === receiptCurrency) {
         // Same currency: add to same wallet's availableBalance
-        const beforeAvailable = Number(receiptCurrencyWallet.availableBalance) || 0;
-        receiptCurrencyWallet.availableBalance = beforeAvailable + amountToAddToAvailable;
+        const beforeAvailable =
+          Number(receiptCurrencyWallet.availableBalance) || 0;
+        receiptCurrencyWallet.availableBalance =
+          beforeAvailable + amountToAddToAvailable;
         await receiptCurrencyWallet.save({ transaction: t });
 
         await this.createWalletTransaction(
@@ -691,34 +699,85 @@ class WalletService {
     }
   }
 
-  async listWalletTransactions({ page = 1, limit = 20, type } = {}) {
+async listWalletTransactions({
+  page = 1,
+  limit = 20,
+  type,
+  currency,
+  userId,
+  wallet,
+  admin,
+} = {}) {
+  try {
+    // Calculate offset based on pagination
     const offset = (page - 1) * limit;
-    const where = {};
 
-    if(type && !["DEPOSIT", "WITHDRAW", "LOCK", "UNLOCK", "TRANSFER_IN", "TRANSFER_OUT", "FX_CONVERT_IN", "FX_CONVERT_OUT"].includes(String(type).toUpperCase())) {
-      where.type = String(type).toUpperCase();
+    // Dynamically build the where condition
+    const where = {};
+    if (type) where.type = type.toUpperCase();
+    if (userId) where.userId = userId;
+    if (currency) where.currency = currency.toUpperCase();
+
+    // Define include conditions based on flags
+    const include = [];
+    
+    // If admin is true, include performedBy (the user who performed the transaction)
+    if (admin) {
+      include.push({
+        model: User,
+        as: "performer",  // Alias for 'performedBy' in WalletTransaction model
+        include: [{ model: Role, as: "roles" }],  // Include roles of the user
+      });
     }
 
+    // If wallet is true, include the Wallet data
+    if (wallet) {
+      include.push({
+        model: Wallet,  // Assuming you have a Wallet model related to WalletTransaction
+        as: "wallet",  // Alias from WalletTransaction model for wallet info
+        required: false,  // To make sure it doesn't exclude transactions without a related wallet
+      });
+    }
+
+    // Fetch transactions with optimized query, including necessary associations
     const transactions = await WalletTransaction.findAndCountAll({
-      limit,
-      offset,
-      order: [["createdAt", "DESC"]],
-      where
+      limit,  // Limit to the specified number of items per page
+      offset, // Skip the previous pages' items
+      order: [["createdAt", "DESC"]],  // Order by creation date, descending
+      where,  // Apply the dynamic filters
+      include, // Include additional data based on the flags
     });
 
+    // Return paginated results
     return {
       data: transactions.rows,
       total: transactions.count,
       page,
       limit,
     };
+  } catch (error) {
+    console.error("Error fetching wallet transactions:", error);
+    throw new Error("Error fetching wallet transactions");
   }
+}
 
-    async listMyWalletTransactions({ userId, page = 1, limit = 20, type } = {}) {
+  async listMyWalletTransactions({ userId, page = 1, limit = 20, type } = {}) {
     const offset = (page - 1) * limit;
     const where = { userId };
 
-    if(type && !["DEPOSIT", "WITHDRAW", "LOCK", "UNLOCK", "TRANSFER_IN", "TRANSFER_OUT", "FX_CONVERT_IN", "FX_CONVERT_OUT"].includes(String(type).toUpperCase())) {
+    if (
+      type &&
+      ![
+        "DEPOSIT",
+        "WITHDRAW",
+        "LOCK",
+        "UNLOCK",
+        "TRANSFER_IN",
+        "TRANSFER_OUT",
+        "FX_CONVERT_IN",
+        "FX_CONVERT_OUT",
+      ].includes(String(type).toUpperCase())
+    ) {
       where.type = String(type).toUpperCase();
     }
 
@@ -726,7 +785,7 @@ class WalletService {
       limit,
       offset,
       order: [["createdAt", "DESC"]],
-      where
+      where,
     });
 
     return {
@@ -736,7 +795,6 @@ class WalletService {
       limit,
     };
   }
-  
 }
 
 module.exports = WalletService;

@@ -241,11 +241,15 @@ class WalletController {
 
   async listWalletTransactions(req, res) {
     try {
-      const { type , page = 1, limit = 20 } = req.query;
+      const { type , userId, wallet, admin, currency, page = 1, limit = 20 } = req.query;
       const result = await walletService.listWalletTransactions({
         page,
         limit,
-        type
+        type,
+        userId,
+        currency,
+        wallet,
+        admin
       });
       return res.status(200).json({
         success: true,

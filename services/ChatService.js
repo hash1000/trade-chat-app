@@ -1,9 +1,9 @@
+const sequelize = require("../config/database");
 const UserService = require("./UserService");
 const ChatRepository = require("../repositories/ChatRepository");
 const PaymentRepository = require("../repositories/PaymentRepository");
 const UserRepository = require("../repositories/UserRepository");
 const socket = require("../config/socket");
-const InSufficientBalance = require("../errors/InSufficientBalance");
 const { User } = require("../models");
 const Role = require("../models/role");
 const path = require("path");
@@ -189,7 +189,13 @@ class CartService {
   }
 
   // services/chatService.js
-  async sendPaymentRequest(requesterId, requesteeId, amount, currency, description) {
+  async sendPaymentRequest(
+    requesterId,
+    requesteeId,
+    amount,
+    currency,
+    description,
+  ) {
     try {
       const users = await userService.getUsersByIds([requesterId, requesteeId]);
       if (users.length !== 2) {
@@ -235,7 +241,7 @@ class CartService {
     // Now perform the balance transfer
     await this.transferBalance(requesterId, requesteeId, amount, currency);
 
-    const transaction = await this.chatRepository.getTransactionById( 
+    const transaction = await this.chatRepository.getTransactionById(
       paymentRequest.id,
     );
     return transaction;
@@ -273,7 +279,7 @@ class CartService {
     amount,
     currency,
     description,
-    walletType = "PERSONAL"
+    walletType = "PERSONAL",
   ) {
     const user = await userService.getUserById(targetUserId);
     if (!user) {
@@ -294,68 +300,40 @@ class CartService {
   }
 
   async transferBalance(fromUserId, toUserId, amount, currency) {
+    const t = await sequelize.transaction(); // Start a new transaction
     try {
-  
-      console.log("========== TRANSFER DEBUG START ==========");
-      console.log("From User:", fromUserId);
-      console.log("To User:", toUserId);
-      console.log("Amount:", amount);
-      console.log("Currency:", currency);
-  
+      // Fetch sender and recipient wallets inside the transaction
       const senderWallet = await Wallet.findOne({
         where: { userId: fromUserId, currency, walletType: "PERSONAL" },
-        include: [{ model: User, as: "user", include: [{ model: Role, as: "roles" }] }],
+        include: [
+          { model: User, as: "user", include: [{ model: Role, as: "roles" }] },
+        ],
+        transaction: t, // Pass the transaction
       });
 
       const recipientWallet = await Wallet.findOne({
         where: { userId: toUserId, currency, walletType: "PERSONAL" },
-        include: [{ model: User, as: "user", include: [{ model: Role, as: "roles" }] }],
+        include: [
+          { model: User, as: "user", include: [{ model: Role, as: "roles" }] },
+        ],
+        transaction: t, // Pass the transaction
       });
-  
-      console.log("Sender Wallet:", senderWallet?.toJSON());
-      console.log("Recipient Wallet:", recipientWallet?.toJSON());
-  
+
       if (!senderWallet || !recipientWallet) {
         throw new Error("Wallet not found for sender or recipient");
       }
-  
+
       const senderAvailableBalance = Number(senderWallet.availableBalance);
-      const recipientAvailableBalance = Number(recipientWallet.availableBalance);
+      const recipientAvailableBalance = Number(
+        recipientWallet.availableBalance,
+      );
       const transferAmount = Number(amount);
-  
-      console.log("Sender Balance (before):", senderAvailableBalance);
-      console.log("Recipient Balance (before):", recipientAvailableBalance);
-      console.log("Transfer Amount:", transferAmount);
-  
       const senderRole = senderWallet?.user?.roles?.[0]?.name;
-      console.log("Sender Role:", senderRole);
 
       // Admin self transfer: same user + admin role → credit availableBalance (no debit)
       const isSameUser = Number(fromUserId) === Number(toUserId);
       const isAdmin = String(senderRole || "").toLowerCase() === "admin";
       if (isSameUser && isAdmin) {
-       await walletService.createWalletTransaction({
-          walletId: senderWallet.id,
-          userId: toUserId,
-          type: "DEPOSIT",
-          amount,
-          currency,
-          balanceBefore: senderAvailableBalance,
-          balanceAfter: senderAvailableBalance + transferAmount,
-          receiptId: null,
-          meta: {
-            currency,
-            amountInSource: amount,
-            source: "admin deposite",
-          },
-          performedBy: fromUserId,
-        });
-        senderWallet.availableBalance = senderAvailableBalance + transferAmount;
-        await senderWallet.save();
-        return;
-      }
-
-      if (senderAvailableBalance >= transferAmount) {
         await walletService.createWalletTransaction({
           walletId: senderWallet.id,
           userId: toUserId,
@@ -368,28 +346,76 @@ class CartService {
           meta: {
             currency,
             amountInSource: amount,
-            source: "admin deposite to user ",
+            source: "admin deposit",
+          },
+          performedBy: fromUserId,
+          transaction: t, // Include the transaction
+        });
+
+        senderWallet.availableBalance = senderAvailableBalance + transferAmount;
+        await senderWallet.save({ transaction: t });
+
+        // Commit the transaction after all operations are successful
+        await t.commit();
+        return;
+      }
+
+      if (senderAvailableBalance >= transferAmount) {
+        // Withdrawal transaction
+        await walletService.createWalletTransaction({
+          walletId: senderWallet.id,
+          userId: fromUserId,
+          type: "WITHDRAW",
+          amount,
+          currency,
+          balanceBefore: senderAvailableBalance,
+          balanceAfter: senderAvailableBalance - transferAmount,
+          receiptId: null,
+          meta: {
+            currency,
+            amountInSource: amount,
+            source: "withdraw to user",
             toUser: toUserId,
           },
           performedBy: fromUserId,
+          transaction: t, // Include the transaction
         });
 
         senderWallet.availableBalance = senderAvailableBalance - transferAmount;
-        await senderWallet.save();
-  
+        await senderWallet.save({ transaction: t });
+
+        // Deposit transaction
+        await walletService.createWalletTransaction({
+          walletId: recipientWallet.id,
+          userId: toUserId,
+          type: "DEPOSIT",
+          amount,
+          currency,
+          balanceBefore: recipientAvailableBalance,
+          balanceAfter: recipientAvailableBalance + transferAmount,
+          receiptId: null,
+          meta: {
+            currency,
+            amountInSource: amount,
+            source: "deposit from user",
+            toUser: toUserId,
+          },
+          performedBy: fromUserId,
+          transaction: t, // Include the transaction
+        });
+
         recipientWallet.availableBalance =
           recipientAvailableBalance + transferAmount;
-        await recipientWallet.save();
-  
-        console.log("Transfer completed successfully");
-  
+        await recipientWallet.save({ transaction: t });
+
+        // Commit the transaction after all operations are successful
+        await t.commit();
       } else {
         throw new Error("Insufficient balance");
       }
-  
-      console.log("========== TRANSFER DEBUG END ==========");
-  
     } catch (error) {
+      // If any operation fails, rollback the transaction
+      await t.rollback();
       console.error("Error transferring balance:", error);
       throw error;
     }

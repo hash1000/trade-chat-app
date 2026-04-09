@@ -220,10 +220,6 @@ class PaymentService {
       const rate = parseFloat(rateData.finalRate.toFixed(5));
       const convertedAmount = Math.floor(amountInUsd * rate);
 
-      console.log(
-        `Converting $${amountInUsd} → ¥${convertedAmount} at rate ${rate}`,
-      );
-
       await sequelize.transaction(async (t) => {
         const user = await User.findByPk(userId, { transaction: t });
         if (!user) throw new Error(`User not found: ${userId}`);

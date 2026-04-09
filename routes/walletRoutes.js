@@ -30,6 +30,7 @@ router.get(
 router.get(
   '/transactions',
   authenticate,
+  authorize(['admin', 'accountant']),
   walletController.listWalletTransactions.bind(walletController),
 );
 
