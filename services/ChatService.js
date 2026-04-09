@@ -267,6 +267,32 @@ class CartService {
     });
   }
 
+  async adminAddPayment(
+    adminUserId,
+    targetUserId,
+    amount,
+    currency,
+    description,
+    walletType = "PERSONAL"
+  ) {
+    const user = await userService.getUserById(targetUserId);
+    if (!user) {
+      throw new Error(`User with ID ${targetUserId} not found`);
+    }
+
+    return walletService.deposit({
+      userId: targetUserId,
+      currency,
+      amount,
+      walletType,
+      meta: {
+        source: "admin_manual_add",
+        description: description || null,
+      },
+      performedBy: adminUserId,
+    });
+  }
+
   async transferBalance(fromUserId, toUserId, amount, currency) {
     try {
   

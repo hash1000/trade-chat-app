@@ -77,6 +77,13 @@ router.post(
 );
 
 router.post(
+  "/add-payment",
+  authMiddleware,
+  authorize(["admin"]),
+  chatController.adminAddPayment.bind(chatController)
+);
+
+router.post(
   "/bulk-forward",
   authMiddleware,
   upload.array("files"),
