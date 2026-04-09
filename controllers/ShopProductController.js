@@ -107,6 +107,60 @@ class ShopProductController {
       return res.status(500).json({ message: "Failed to list products" });
     }
   }
+
+  async getPublicProductsByShop(req, res) {
+    try {
+      const { shopId } = req.params;
+      const products = await productService.getPublicProductsByShop(shopId);
+
+      return res.json({
+        success: true,
+        message: "Successfully fetched products",
+        data: products,
+      });
+    } catch (error) {
+      return res
+        .status(error.statusCode || 500)
+        .json({ message: error.message || "Failed to fetch products" });
+    }
+  }
+
+  async getPublicProductById(req, res) {
+    try {
+      const { productId } = req.params;
+      const product = await productService.getPublicProductById(productId);
+
+      return res.json({
+        success: true,
+        message: "Successfully fetched product",
+        data: product,
+      });
+    } catch (error) {
+      return res
+        .status(error.statusCode || 500)
+        .json({ message: error.message || "Failed to fetch product" });
+    }
+  }
+
+  async getPublicPaginatedProducts(req, res) {
+    try {
+      const { page = 1, limit = 10, name, shopId } = req.query;
+      const products = await productService.getPublicPaginatedProducts(
+        page,
+        limit,
+        name,
+        shopId
+      );
+
+      return res.json({
+        success: true,
+        message: "Successfully fetched products",
+        data: products,
+      });
+    } catch (error) {
+      return res.status(500).json({ message: "Failed to list products" });
+    }
+  }
 }
 
 module.exports = ShopProductController;

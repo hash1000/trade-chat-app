@@ -5,6 +5,31 @@ const Shop = require("../models/shop");
 const ProductImage = require("../models/productImage");
 
 class ShopProductRepository {
+  _publicInclude() {
+    return [
+      {
+        model: ProductImage,
+        as: "productImages",
+      },
+      {
+        model: Shop,
+        as: "shop",
+        attributes: [
+          "id",
+          "name",
+          "profile_image",
+          "header_image",
+          "description",
+          "country",
+          "likes",
+          "rating",
+          "createdAt",
+          "updatedAt",
+        ],
+      },
+    ];
+  }
+
   async createProduct(data, transaction) {
     return ShopProduct.create(data, { transaction });
   }
@@ -49,6 +74,24 @@ class ShopProductRepository {
     return product;
   }
 
+  async getPublicById(productId) {
+    const product = await ShopProduct.findOne({
+      where: { id: productId },
+      include: this._publicInclude(),
+    });
+
+    if (!product) throw new CustomError("Product not found", 404);
+    return product;
+  }
+
+  async getPublicByShopId(shopId) {
+    return ShopProduct.findAll({
+      where: { shopId },
+      include: this._publicInclude(),
+      order: [["createdAt", "DESC"]],
+    });
+  }
+
   async getProductById(productId, userId) {
     const product = await ShopProduct.findByPk(productId);
     if (!product) throw new CustomError("Product not found", 404);
@@ -78,6 +121,35 @@ class ShopProductRepository {
       limit: Number(limit),
       offset,
       order: [["createdAt", "DESC"]],
+    });
+
+    return {
+      total: count,
+      totalPages: Math.ceil(count / limit),
+      currentPage: Number(page),
+      products: rows,
+    };
+  }
+
+  async getPublicPaginatedProducts(page, limit, name, shopId) {
+    const offset = (page - 1) * limit;
+    const where = {};
+
+    if (name) {
+      where.name = { [Op.like]: `%${name}%` };
+    }
+
+    if (shopId) {
+      where.shopId = shopId;
+    }
+
+    const { count, rows } = await ShopProduct.findAndCountAll({
+      where,
+      include: this._publicInclude(),
+      limit: Number(limit),
+      offset,
+      order: [["createdAt", "DESC"]],
+      distinct: true,
     });
 
     return {

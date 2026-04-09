@@ -14,6 +14,25 @@ const {
 
 const controller = new ShopProductController()
 
+// Public (no auth) product browsing
+router.get(
+  '/public/list',
+  getPaginatedProductsValidation,
+  controller.getPublicPaginatedProducts.bind(controller)
+)
+
+router.get(
+  '/public/shop/:shopId',
+  getProductsByShopValidation,
+  controller.getPublicProductsByShop.bind(controller)
+)
+
+router.get(
+  '/public/:productId',
+  getProductValidation,
+  controller.getPublicProductById.bind(controller)
+)
+
 router.post(
   '/',
   authMiddleware,

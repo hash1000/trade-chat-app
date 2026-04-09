@@ -9,7 +9,7 @@ class ProductService {
 
   async createProduct(userId, productData) {
     const {}= productData
-    const product=  this.productRepository.createProduct({
+    const product =  this.productRepository.createProduct({
       ...productData,
       userId,
     });

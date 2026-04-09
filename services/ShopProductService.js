@@ -108,6 +108,26 @@ class ShopProductService {
       shopId
     );
   }
+
+  async getPublicProductsByShop(shopId) {
+    const shop = await Shop.findByPk(shopId);
+    if (!shop) throw new CustomError("Shop not found", 404);
+
+    return this.productRepository.getPublicByShopId(shopId);
+  }
+
+  async getPublicProductById(productId) {
+    return this.productRepository.getPublicById(productId);
+  }
+
+  async getPublicPaginatedProducts(page, limit, name, shopId) {
+    return this.productRepository.getPublicPaginatedProducts(
+      page,
+      limit,
+      name,
+      shopId
+    );
+  }
 }
 
 module.exports = ShopProductService;
