@@ -5,6 +5,8 @@ const userService = new UserService();
 const WalletService = require("./WalletService");
 const CurrencyService = require("./CurrencyService");
 const Wallet = require("../models/wallet");
+const WalletTransaction = require("../models/walletTransaction");
+const crypto = require("crypto");
 const walletService = new WalletService();
 const currencyService = new CurrencyService();
 
@@ -307,30 +309,27 @@ class ReceiptService {
       );
 
       const performedBy = approverUser && approverUser.id ? approverUser.id : null;
-      if (receipt.isLock) {
-        await walletService.creditLocked({
-          userId,
-          currency,
-          amount: amountToCredit,
-          walletType: "PERSONAL",
-          receiptId: receipt.id,
-          meta: { source: "receipt_approve" },
-          performedBy,
-        });
-      } else {
-        await walletService.deposit({
-          userId,
-          currency,
-          amount: amountToCredit,
-          walletType: "PERSONAL",
-          receiptId: receipt.id,
-          meta: { source: "receipt_approve" },
-          performedBy,
-        });
-      }
+      const result = await walletService.receiptApproveDepositAndMaybeLock({
+        userId,
+        currency,
+        amount: amountToCredit,
+        walletType: "PERSONAL",
+        receiptId: receipt.id,
+        performedBy,
+        isLock: Boolean(receipt.isLock),
+      });
+
+      return {
+        message: "Receipt approved",
+        receipt,
+        transaction_group_ids: {
+          deposit: result.depositGroupId,
+          lock: result.lockGroupId,
+        },
+      };
     }
 
-    return { message: "Receipt  approved", receipt };
+    return { message: "Receipt approved", receipt };
   }
 
   async rejectReceipt(receiptId, approverUser = null) {
@@ -408,8 +407,23 @@ class ReceiptService {
 
     const userId = receipt.userId;
 
+    // Find the most recent LOCK group for this receipt (required for linkage)
+    const lastLockTx = await WalletTransaction.findOne({
+      where: { receiptId: receipt.id, type: "LOCK" },
+      order: [["createdAt", "DESC"]],
+    });
+    const previousLockGroupId = lastLockTx?.transaction_group_id;
+    if (!previousLockGroupId) {
+      const err = new Error(
+        "Missing lock reference: no LOCK transaction_group_id found for this receipt.",
+      );
+      err.name = "InvalidReceiptStateError";
+      throw err;
+    }
+
     // Move funds: lockedBalance -> availableBalance using WalletService
     const performedBy = adminUser && adminUser.id ? adminUser.id : null;
+    const groupId = crypto.randomUUID();
     await walletService.unlockFunds({
       userId,
       currency: targetCurrency,
@@ -419,9 +433,11 @@ class ReceiptService {
       walletType: "PERSONAL",
       receiptId: receipt.id,
       performedBy,
+      transaction_group_id: groupId,
       meta: {
         source: "receipt_unlock",
         unlockedBy: performedBy,
+        lock_reference_group_id: previousLockGroupId,
       },
     });
 
@@ -434,8 +450,13 @@ class ReceiptService {
       relockDisabled: !sameCurrency,
     });
 
-    // Return fresh copy with includes
-    return await this.receiptRepository.getReceiptByPk(receiptId);
+    // Return fresh copy with includes + linkage info
+    const refreshed = await this.receiptRepository.getReceiptByPk(receiptId);
+    return {
+      receipt: refreshed,
+      transaction_group_id: groupId,
+      meta: { lock_reference_group_id: previousLockGroupId },
+    };
   }
 
   /**
@@ -478,6 +499,7 @@ class ReceiptService {
       throw err;
     }
     const performedBy = adminUser && adminUser.id ? adminUser.id : null;
+    const groupId = crypto.randomUUID();
     await walletService.lockFunds({
       userId: receipt.userId,
       currency: receipt.currency,
@@ -489,11 +511,13 @@ class ReceiptService {
         lockedBy: performedBy,
       },
       performedBy,
+      transaction_group_id: groupId,
     });
 
     await receipt.update({ isLock: true });
 
-    return await this.receiptRepository.getReceiptByPk(receiptId);
+    const refreshed = await this.receiptRepository.getReceiptByPk(receiptId);
+    return { receipt: refreshed, transaction_group_id: groupId };
   }
 }
 

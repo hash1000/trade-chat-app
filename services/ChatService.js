@@ -8,6 +8,7 @@ const { User } = require("../models");
 const Role = require("../models/role");
 const path = require("path");
 const WalletService = require("./WalletService");
+const crypto = require("crypto");
 
 const { PutObjectCommand, S3Client } = require("@aws-sdk/client-s3");
 const Wallet = require("../models/wallet");
@@ -300,121 +301,150 @@ class CartService {
   }
 
   async transferBalance(fromUserId, toUserId, amount, currency) {
-    const t = await sequelize.transaction(); // Start a new transaction
+    const t = await sequelize.transaction();
     try {
-      // Fetch sender and recipient wallets inside the transaction
-      const senderWallet = await Wallet.findOne({
-        where: { userId: fromUserId, currency, walletType: "PERSONAL" },
-        include: [
-          { model: User, as: "user", include: [{ model: Role, as: "roles" }] },
-        ],
-        transaction: t, // Pass the transaction
-      });
+      const fromId = Number(fromUserId);
+      const toId = Number(toUserId);
+      const transferAmount = Number(amount);
+      const normalizedCurrency = String(currency || "").trim().toUpperCase();
 
-      const recipientWallet = await Wallet.findOne({
-        where: { userId: toUserId, currency, walletType: "PERSONAL" },
-        include: [
-          { model: User, as: "user", include: [{ model: Role, as: "roles" }] },
-        ],
-        transaction: t, // Pass the transaction
+      if (!Number.isFinite(fromId) || !Number.isFinite(toId)) {
+        throw new Error("Invalid sender/recipient userId");
+      }
+      if (!Number.isFinite(transferAmount) || transferAmount <= 0) {
+        throw new Error("Invalid transfer amount");
+      }
+      if (!normalizedCurrency || normalizedCurrency.length !== 3) {
+        throw new Error("Invalid currency");
+      }
+
+      const senderUser = await User.findByPk(fromId, {
+        include: [{ model: Role, as: "roles" }],
+        transaction: t,
       });
+      const senderRole = senderUser?.roles?.[0]?.name;
+      const isAdmin = String(senderRole || "").toLowerCase() === "admin";
+      const isSameUser = fromId === toId;
+
+      if (isSameUser && !isAdmin) {
+        throw new Error("Regular users cannot transfer balance to themselves.");
+      }
+
+      // Lock wallets in stable order to reduce deadlocks
+      const firstUserId = Math.min(fromId, toId);
+      const secondUserId = Math.max(fromId, toId);
+
+      const firstWallet = await Wallet.findOne({
+        where: { userId: firstUserId, currency: normalizedCurrency, walletType: "PERSONAL" },
+        transaction: t,
+        lock: t.LOCK.UPDATE,
+      });
+      const secondWallet =
+        secondUserId === firstUserId
+          ? firstWallet
+          : await Wallet.findOne({
+              where: { userId: secondUserId, currency: normalizedCurrency, walletType: "PERSONAL" },
+              transaction: t,
+              lock: t.LOCK.UPDATE,
+            });
+
+      const senderWallet = fromId === firstUserId ? firstWallet : secondWallet;
+      const recipientWallet = toId === firstUserId ? firstWallet : secondWallet;
 
       if (!senderWallet || !recipientWallet) {
         throw new Error("Wallet not found for sender or recipient");
       }
 
-      const senderAvailableBalance = Number(senderWallet.availableBalance);
-      const recipientAvailableBalance = Number(
-        recipientWallet.availableBalance,
-      );
-      const transferAmount = Number(amount);
-      const senderRole = senderWallet?.user?.roles?.[0]?.name;
+      const senderAvailableBalance = Number(senderWallet.availableBalance) || 0;
+      const recipientAvailableBalance = Number(recipientWallet.availableBalance) || 0;
 
-      // Admin self transfer: same user + admin role → credit availableBalance (no debit)
-      const isSameUser = Number(fromUserId) === Number(toUserId);
-      const isAdmin = String(senderRole || "").toLowerCase() === "admin";
+      // Admin self transfer: credit availableBalance (no debit)
       if (isSameUser && isAdmin) {
-        await walletService.createWalletTransaction({
-          walletId: senderWallet.id,
-          userId: toUserId,
-          type: "DEPOSIT",
-          amount,
-          currency,
-          balanceBefore: senderAvailableBalance,
-          balanceAfter: senderAvailableBalance + transferAmount,
-          receiptId: null,
-          meta: {
-            currency,
-            amountInSource: amount,
-            source: "admin deposit",
+        const after = senderAvailableBalance + transferAmount;
+        const groupId = crypto.randomUUID();
+
+        await walletService.createWalletTransaction(
+          {
+            transaction_group_id: groupId,
+            walletId: senderWallet.id,
+            userId: toId,
+            type: "DEPOSIT",
+            amount: transferAmount,
+            currency: normalizedCurrency,
+            receiptId: null,
+            meta: {
+              source: "admin_deposit_self",
+              balanceBefore: senderAvailableBalance,
+              balanceAfter: after,
+            },
+            performedBy: fromId,
           },
-          performedBy: fromUserId,
-          transaction: t, // Include the transaction
-        });
+          t,
+        );
 
-        senderWallet.availableBalance = senderAvailableBalance + transferAmount;
+        senderWallet.availableBalance = after;
         await senderWallet.save({ transaction: t });
-
-        // Commit the transaction after all operations are successful
         await t.commit();
-        return;
+        return { transaction_group_id: groupId };
       }
 
-      if (senderAvailableBalance >= transferAmount) {
-        // Withdrawal transaction
-        await walletService.createWalletTransaction({
-          walletId: senderWallet.id,
-          userId: fromUserId,
-          type: "WITHDRAW",
-          amount,
-          currency,
-          balanceBefore: senderAvailableBalance,
-          balanceAfter: senderAvailableBalance - transferAmount,
-          receiptId: null,
-          meta: {
-            currency,
-            amountInSource: amount,
-            source: "withdraw to user",
-            toUser: toUserId,
-          },
-          performedBy: fromUserId,
-          transaction: t, // Include the transaction
-        });
-
-        senderWallet.availableBalance = senderAvailableBalance - transferAmount;
-        await senderWallet.save({ transaction: t });
-
-        // Deposit transaction
-        await walletService.createWalletTransaction({
-          walletId: recipientWallet.id,
-          userId: toUserId,
-          type: "DEPOSIT",
-          amount,
-          currency,
-          balanceBefore: recipientAvailableBalance,
-          balanceAfter: recipientAvailableBalance + transferAmount,
-          receiptId: null,
-          meta: {
-            currency,
-            amountInSource: amount,
-            source: "deposit from user",
-            toUser: toUserId,
-          },
-          performedBy: fromUserId,
-          transaction: t, // Include the transaction
-        });
-
-        recipientWallet.availableBalance =
-          recipientAvailableBalance + transferAmount;
-        await recipientWallet.save({ transaction: t });
-
-        // Commit the transaction after all operations are successful
-        await t.commit();
-      } else {
+      if (senderAvailableBalance < transferAmount) {
         throw new Error("Insufficient balance");
       }
+
+      const groupId = crypto.randomUUID();
+
+      const senderAfter = senderAvailableBalance - transferAmount;
+      await walletService.createWalletTransaction(
+        {
+          transaction_group_id: groupId,
+          walletId: senderWallet.id,
+          userId: fromId,
+          type: "TRANSFER",
+          amount: -transferAmount,
+          currency: normalizedCurrency,
+          receiptId: null,
+          meta: {
+            source: "transfer_out",
+            toUser: toId,
+            balanceBefore: senderAvailableBalance,
+            balanceAfter: senderAfter,
+          },
+          performedBy: fromId,
+        },
+        t,
+      );
+
+      senderWallet.availableBalance = senderAfter;
+      await senderWallet.save({ transaction: t });
+
+      const recipientAfter = recipientAvailableBalance + transferAmount;
+      await walletService.createWalletTransaction(
+        {
+          transaction_group_id: groupId,
+          walletId: recipientWallet.id,
+          userId: toId,
+          type: "TRANSFER",
+          amount: transferAmount,
+          currency: normalizedCurrency,
+          receiptId: null,
+          meta: {
+            source: "transfer_in",
+            fromUser: fromId,
+            balanceBefore: recipientAvailableBalance,
+            balanceAfter: recipientAfter,
+          },
+          performedBy: fromId,
+        },
+        t,
+      );
+
+      recipientWallet.availableBalance = recipientAfter;
+      await recipientWallet.save({ transaction: t });
+
+      await t.commit();
+      return { transaction_group_id: groupId };
     } catch (error) {
-      // If any operation fails, rollback the transaction
       await t.rollback();
       console.error("Error transferring balance:", error);
       throw error;

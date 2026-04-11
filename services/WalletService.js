@@ -2,6 +2,7 @@ const { Op } = require("sequelize");
 const { User, Transaction, Role } = require("../models");
 const sequelize = require("../config/database");
 const UserRepository = require("../repositories/UserRepository");
+const crypto = require("crypto");
 const userRepository = new UserRepository();
 const Wallet = require("../models/wallet");
 const WalletTransaction = require("../models/walletTransaction");
@@ -10,6 +11,13 @@ const Receipt = require("../models/receipt");
 class WalletService {
   constructor() {
     // If you later introduce a CurrencyRepository, initialize it here
+  }
+
+  _makeGroupId(explicitGroupId) {
+    if (explicitGroupId != null && String(explicitGroupId).trim() !== "") {
+      return String(explicitGroupId).trim();
+    }
+    return crypto.randomUUID();
   }
   async getUserWalletById(userId) {
     return User.findByPk(userId);
@@ -69,28 +77,27 @@ class WalletService {
 
   async createWalletTransaction(
     {
+      transaction_group_id = null,
       walletId,
       userId,
       type,
       amount,
       currency,
-      balanceBefore = null,
-      balanceAfter = null,
       receiptId = null,
       meta = {},
       performedBy = null,
     },
     transaction,
   ) {
+    const groupId = this._makeGroupId(transaction_group_id);
     return WalletTransaction.create(
       {
+        transaction_group_id: groupId,
         walletId,
         userId,
         type,
         amount,
         currency,
-        balanceBefore,
-        balanceAfter,
         receiptId,
         meta,
         performedBy: performedBy != null ? Number(performedBy) : null,
@@ -102,7 +109,13 @@ class WalletService {
   /**
    * Wallet rows tied to FX conversion (USD→CNY etc.): no receipt, type IN/OUT only.
    */
-  async listFxConvertWalletTransactions({ userId, page = 1, limit = 20 } = {}) {
+  async listFxConvertWalletTransactions({
+    userId,
+    page = 1,
+    limit = 20,
+    grouped = false,
+    transaction_group_id,
+  } = {}) {
     const uid = Number(userId);
     if (Number.isNaN(uid) || uid <= 0) {
       throw new Error("userId is required");
@@ -118,8 +131,12 @@ class WalletService {
     const where = {
       userId: uid,
       receiptId: null,
-      type: { [Op.in]: ["FX_CONVERT_IN", "FX_CONVERT_OUT"] },
+      type: "CONVERT",
     };
+
+    if (transaction_group_id) {
+      where.transaction_group_id = String(transaction_group_id).trim();
+    }
 
     const { rows, count } = await WalletTransaction.findAndCountAll({
       where,
@@ -128,12 +145,25 @@ class WalletService {
       offset,
     });
 
-    return {
-      data: rows,
-      total: count,
-      page: pageNum,
-      limit: limitNum,
-    };
+    if (grouped) {
+      const groups = new Map();
+      for (const row of rows) {
+        const gid = row.transaction_group_id || "ungrouped";
+        if (!groups.has(gid)) groups.set(gid, []);
+        groups.get(gid).push(row);
+      }
+      return {
+        groups: Array.from(groups.entries()).map(([gid, items]) => ({
+          transaction_group_id: gid,
+          items,
+        })),
+        total: count,
+        page: pageNum,
+        limit: limitNum,
+      };
+    }
+
+    return { data: rows, total: count, page: pageNum, limit: limitNum };
   }
 
   async deposit({
@@ -144,8 +174,15 @@ class WalletService {
     receiptId = null,
     meta = {},
     performedBy = null,
+    transaction_group_id = null,
   }) {
     return sequelize.transaction(async (t) => {
+      const depositAmount = Number(amount);
+      if (!depositAmount || Number.isNaN(depositAmount) || depositAmount <= 0) {
+        throw new Error("Invalid amount");
+      }
+
+      const groupId = this._makeGroupId(transaction_group_id);
       const wallet = await this.getOrCreateWallet(
         userId,
         currency,
@@ -154,22 +191,21 @@ class WalletService {
       );
 
       const before = Number(wallet.availableBalance) || 0;
-      const after = before + Number(amount);
+      const after = before + depositAmount;
 
       wallet.availableBalance = after;
       await wallet.save({ transaction: t });
 
       await this.createWalletTransaction(
         {
+          transaction_group_id: groupId,
           walletId: wallet.id,
           userId,
           type: "DEPOSIT",
-          amount,
+          amount: depositAmount,
           currency,
-          balanceBefore: before,
-          balanceAfter: after,
           receiptId,
-          meta,
+          meta: { ...meta, balanceBefore: before, balanceAfter: after },
           performedBy,
         },
         t,
@@ -187,6 +223,7 @@ class WalletService {
     receiptId = null,
     meta = {},
     performedBy = null,
+    transaction_group_id = null,
   }) {
     return sequelize.transaction(async (t) => {
       const wallet = await Wallet.findOne({
@@ -218,23 +255,124 @@ class WalletService {
       wallet.availableBalance = after;
       await wallet.save({ transaction: t });
 
+      const groupId = this._makeGroupId(transaction_group_id);
       const walletTransaction = await this.createWalletTransaction(
         {
+          transaction_group_id: groupId,
           walletId: wallet.id,
           userId,
           type: "WITHDRAW",
-          amount: withdrawAmount,
+          amount: -withdrawAmount,
           currency,
-          balanceBefore: before,
-          balanceAfter: after,
           receiptId,
-          meta,
+          meta: { ...meta, balanceBefore: before, balanceAfter: after },
           performedBy,
         },
         t,
       );
 
       return { wallet, walletTransaction };
+    });
+  }
+
+  /**
+   * Receipt approval flow: always DEPOSIT, then optionally LOCK (same currency).
+   * Returns the generated group ids for traceability.
+   */
+  async receiptApproveDepositAndMaybeLock({
+    userId,
+    currency,
+    amount,
+    walletType = "PERSONAL",
+    receiptId,
+    performedBy = null,
+    isLock = false,
+  }) {
+    const depositAmount = Number(amount);
+    const normalizedCurrency = String(currency || "")
+      .trim()
+      .toUpperCase();
+    if (!depositAmount || Number.isNaN(depositAmount) || depositAmount <= 0) {
+      throw new Error("Invalid amount");
+    }
+    if (!normalizedCurrency || normalizedCurrency.length !== 3) {
+      throw new Error("Invalid currency");
+    }
+
+    const depositGroupId = this._makeGroupId(null);
+    const lockGroupId = isLock ? this._makeGroupId(null) : null;
+
+    return sequelize.transaction(async (t) => {
+      const wallet = await this.getOrCreateWallet(
+        userId,
+        normalizedCurrency,
+        walletType,
+        t,
+      );
+
+      const availableBeforeDeposit = Number(wallet.availableBalance) || 0;
+      const availableAfterDeposit = availableBeforeDeposit + depositAmount;
+      wallet.availableBalance = availableAfterDeposit;
+      await wallet.save({ transaction: t });
+
+      await this.createWalletTransaction(
+        {
+          transaction_group_id: depositGroupId,
+          walletId: wallet.id,
+          userId,
+          type: "DEPOSIT",
+          amount: depositAmount,
+          currency: normalizedCurrency,
+          receiptId: receiptId || null,
+          meta: {
+            source: "receipt_approve",
+            balanceBefore: availableBeforeDeposit,
+            balanceAfter: availableAfterDeposit,
+          },
+          performedBy,
+        },
+        t,
+      );
+
+      if (!isLock) {
+        return { wallet, depositGroupId, lockGroupId };
+      }
+
+      const lockedBefore = Number(wallet.lockedBalance) || 0;
+      const availableBeforeLock = Number(wallet.availableBalance) || 0;
+      if (availableBeforeLock < depositAmount) {
+        throw new Error("Insufficient available balance to lock after deposit");
+      }
+
+      const availableAfterLock = availableBeforeLock - depositAmount;
+      const lockedAfter = lockedBefore + depositAmount;
+      wallet.availableBalance = availableAfterLock;
+      wallet.lockedBalance = lockedAfter;
+      await wallet.save({ transaction: t });
+
+      await this.createWalletTransaction(
+        {
+          transaction_group_id: lockGroupId,
+          walletId: wallet.id,
+          userId,
+          type: "LOCK",
+          amount: -depositAmount,
+          currency: normalizedCurrency,
+          receiptId: receiptId || null,
+          meta: {
+            source: "receipt_lock",
+            lockedBy: performedBy,
+            balanceBefore: availableBeforeLock,
+            balanceAfter: availableAfterLock,
+            lockedBefore,
+            lockedAfter,
+          },
+          performedBy,
+        },
+        t,
+      );
+
+      return { wallet, depositGroupId, lockGroupId };
     });
   }
 
@@ -246,6 +384,7 @@ class WalletService {
     receiptId = null,
     meta = {},
     performedBy = null,
+    transaction_group_id = null,
   }) {
     return sequelize.transaction(async (t) => {
       const wallet = await this.getOrCreateWallet(
@@ -257,6 +396,9 @@ class WalletService {
 
       const available = Number(wallet.availableBalance) || 0;
       const lockAmount = Number(amount);
+      if (!lockAmount || Number.isNaN(lockAmount) || lockAmount <= 0) {
+        throw new Error("Invalid amount");
+      }
 
       if (available < lockAmount) {
         throw new Error("Insufficient available balance");
@@ -271,18 +413,20 @@ class WalletService {
       wallet.lockedBalance = afterLocked;
       await wallet.save({ transaction: t });
 
+      const groupId = this._makeGroupId(transaction_group_id);
       await this.createWalletTransaction(
         {
+          transaction_group_id: groupId,
           walletId: wallet.id,
           userId,
           type: "LOCK",
-          amount,
+          amount: -lockAmount,
           currency,
-          balanceBefore: beforeAvailable,
-          balanceAfter: afterAvailable,
           receiptId,
           meta: {
             ...meta,
+            balanceBefore: beforeAvailable,
+            balanceAfter: afterAvailable,
             lockedBefore: beforeLocked,
             lockedAfter: afterLocked,
           },
@@ -291,7 +435,7 @@ class WalletService {
         t,
       );
 
-      return wallet;
+      return { wallet, transaction_group_id: groupId };
     });
   }
 
@@ -306,6 +450,7 @@ class WalletService {
     walletType = "PERSONAL",
     meta = {},
     performedBy = null,
+    transaction_group_id = null,
   }) {
     return sequelize.transaction(async (t) => {
       const wallet = await this.getOrCreateWallet(
@@ -334,18 +479,20 @@ class WalletService {
       wallet.availableBalance = afterAvailable;
       await wallet.save({ transaction: t });
 
+      const groupId = this._makeGroupId(transaction_group_id);
       await this.createWalletTransaction(
         {
+          transaction_group_id: groupId,
           walletId: wallet.id,
           userId,
           type: "UNLOCK",
           amount: unlockAmount,
           currency,
-          balanceBefore: beforeAvailable,
-          balanceAfter: afterAvailable,
           receiptId: null,
           meta: {
             ...meta,
+            balanceBefore: beforeAvailable,
+            balanceAfter: afterAvailable,
             lockedBefore: beforeLocked,
             lockedAfter: afterLocked,
           },
@@ -354,7 +501,7 @@ class WalletService {
         t,
       );
 
-      return wallet;
+      return { wallet, transaction_group_id: groupId };
     });
   }
 
@@ -370,6 +517,7 @@ class WalletService {
     receiptId = null,
     meta = {},
     performedBy = null,
+    transaction_group_id = null,
   }) {
     return sequelize.transaction(async (t) => {
       const wallet = await this.getOrCreateWallet(
@@ -385,17 +533,23 @@ class WalletService {
       wallet.lockedBalance = afterLocked;
       await wallet.save({ transaction: t });
 
+      const groupId = this._makeGroupId(transaction_group_id);
       await this.createWalletTransaction(
         {
+          transaction_group_id: groupId,
           walletId: wallet.id,
           userId,
           type: "LOCK",
-          amount,
+          // This operation does not change availableBalance (locked balance only)
+          amount: 0,
           currency,
-          balanceBefore: beforeLocked,
-          balanceAfter: afterLocked,
           receiptId,
-          meta,
+          meta: {
+            ...meta,
+            lockedBefore: beforeLocked,
+            lockedAfter: afterLocked,
+            lockedDelta: Number(amount),
+          },
           performedBy,
         },
         t,
@@ -415,8 +569,10 @@ class WalletService {
     receiptId = null,
     meta = {},
     performedBy = null,
+    transaction_group_id = null,
   }) {
     return sequelize.transaction(async (t) => {
+      const groupId = this._makeGroupId(transaction_group_id);
       const receipt = await Receipt.findOne({
         where: { id: receiptId },
         transaction: t,
@@ -456,16 +612,17 @@ class WalletService {
 
         await this.createWalletTransaction(
           {
+            transaction_group_id: groupId,
             walletId: receiptCurrencyWallet.id,
             userId,
             type: "UNLOCK",
             amount: amountToAddToAvailable,
             currency: receiptCurrency,
-            balanceBefore: beforeAvailable,
-            balanceAfter: beforeAvailable + amountToAddToAvailable,
             receiptId,
             meta: {
               ...meta,
+              balanceBefore: beforeAvailable,
+              balanceAfter: beforeAvailable + amountToAddToAvailable,
               lockedBefore: lockedInReceiptCurrency,
               lockedAfter: afterLocked,
             },
@@ -494,16 +651,17 @@ class WalletService {
 
       await this.createWalletTransaction(
         {
+          transaction_group_id: groupId,
           walletId: targetWallet.id,
           userId,
           type: "UNLOCK",
           amount: amountToAddToAvailable,
           currency,
-          balanceBefore: beforeAvailable,
-          balanceAfter: afterAvailable,
           receiptId,
           meta: {
             ...meta,
+            balanceBefore: beforeAvailable,
+            balanceAfter: afterAvailable,
             lockedBefore: lockedInReceiptCurrency,
             lockedAfter: afterLocked,
             receiptCurrency,
@@ -536,75 +694,109 @@ class WalletService {
     rate,
     walletType = "PERSONAL",
     meta = {},
+    performedBy = null,
+    transaction_group_id = null,
   }) {
+    const uid = Number(userId);
+    const fromCur = String(fromCurrency || "")
+      .trim()
+      .toUpperCase();
+    const toCur = String(toCurrency || "")
+      .trim()
+      .toUpperCase();
     const amountFrom = Number(amountInSource);
     const r = Number(rate);
-    if (!amountFrom || amountFrom <= 0 || !r || r <= 0) {
-      throw new Error("Invalid amount or rate");
+
+    if (!uid || Number.isNaN(uid)) throw new Error("Invalid userId");
+    if (!fromCur || fromCur.length !== 3)
+      throw new Error("Invalid fromCurrency");
+    if (!toCur || toCur.length !== 3) throw new Error("Invalid toCurrency");
+    if (fromCur === toCur)
+      throw new Error("fromCurrency and toCurrency must differ");
+    if (!amountFrom || Number.isNaN(amountFrom) || amountFrom <= 0) {
+      throw new Error("Invalid amount");
     }
+    if (!r || Number.isNaN(r) || r <= 0) {
+      throw new Error("Invalid rate");
+    }
+
     const amountTarget = amountFrom / r;
+    const groupId = this._makeGroupId(transaction_group_id);
 
     return sequelize.transaction(async (t) => {
       const fromWallet = await this.getOrCreateWallet(
-        userId,
-        fromCurrency,
+        uid,
+        fromCur,
         walletType,
         t,
       );
-      console.log("fromWallet", fromWallet);
-      const toWallet = await this.getOrCreateWallet(
-        userId,
-        toCurrency,
-        walletType,
-        t,
-      );
-      console.log("toWallet", toWallet);
-      const fromAvailable = Number(fromWallet.availableBalance) || 0;
-      console.log("fromAvailable", fromAvailable, amountFrom);
-      console.log("amountTarget", amountTarget);
-      if (fromAvailable < amountTarget) {
-        console.log("Insufficient funds in source currency");
+      const toWallet = await this.getOrCreateWallet(uid, toCur, walletType, t);
+
+      const fromBefore = Number(fromWallet.availableBalance) || 0;
+      if (fromBefore < amountFrom) {
         throw new Error("Insufficient funds in source currency");
       }
 
-      const fromBefore = fromAvailable;
-      const fromAfter = fromBefore - amountTarget;
+      const fromAfter = fromBefore - amountFrom;
       fromWallet.availableBalance = fromAfter;
       await fromWallet.save({ transaction: t });
+
       await this.createWalletTransaction(
         {
+          transaction_group_id: groupId,
           walletId: fromWallet.id,
-          userId,
-          type: "FX_CONVERT_OUT",
-          amount: amountFrom,
-          currency: fromCurrency,
-          balanceBefore: fromBefore,
-          balanceAfter: fromAfter,
-          meta: { ...meta, toCurrency, amountInTarget: amountTarget, rate: r },
+          userId: uid,
+          type: "CONVERT",
+          amount: -amountFrom,
+          currency: fromCur,
+          receiptId: null,
+          meta: {
+            ...meta,
+            direction: "out",
+            toCurrency: toCur,
+            amountInTarget: amountTarget,
+            rate: r,
+            balanceBefore: fromBefore,
+            balanceAfter: fromAfter,
+          },
+          performedBy,
         },
         t,
       );
+
       const toBefore = Number(toWallet.availableBalance) || 0;
-      const toAfter = toBefore + amountFrom;
+      const toAfter = toBefore + amountTarget;
       toWallet.availableBalance = toAfter;
       await toWallet.save({ transaction: t });
+
       await this.createWalletTransaction(
         {
+          transaction_group_id: groupId,
           walletId: toWallet.id,
-          userId,
-          type: "FX_CONVERT_IN",
+          userId: uid,
+          type: "CONVERT",
           amount: amountTarget,
-          currency: toCurrency,
-          balanceBefore: toBefore,
-          balanceAfter: toAfter,
-          meta: { ...meta, fromCurrency, amountInSource: amountFrom, rate: r },
+          currency: toCur,
+          receiptId: null,
+          meta: {
+            ...meta,
+            direction: "in",
+            fromCurrency: fromCur,
+            amountInSource: amountFrom,
+            rate: r,
+            balanceBefore: toBefore,
+            balanceAfter: toAfter,
+          },
+          performedBy,
         },
         t,
       );
+
       return {
+        transaction_group_id: groupId,
         fromWallet,
         toWallet,
-        amountFrom,
+        amountInSource: amountFrom,
         amountInTarget: amountTarget,
         rate: r,
       };
@@ -631,154 +823,122 @@ class WalletService {
   }
 
   async convertUsdToCny(userId, usdAmount, rate) {
-    const transaction = await sequelize.transaction();
-    try {
-      if (!usdAmount || Number(usdAmount) <= 0) {
-        throw new Error("Invalid amount to convert");
-      }
-
-      const user = await User.findByPk(userId, { transaction });
-      if (!user) throw new Error("User not found");
-
-      const currentUsdBalance = Number(user.usdWalletBalance) || 0;
-      const convertAmount = Number(usdAmount);
-      if (currentUsdBalance < convertAmount) {
-        throw new Error("Insufficient USD wallet balance");
-      }
-
-      // Get current USD -> CNY rate
-      // const rate = await currencyService.getCurrentRate('USD', 'CNY');
-      const converted = convertAmount / Number(rate);
-
-      // Update balances
-      const newUsdBalance = currentUsdBalance - convertAmount;
-      const newPersonalBalance =
-        (Number(user.personalWalletBalance) || 0) + rate;
-
-      await user.update(
-        {
-          usdWalletBalance: newUsdBalance,
-          personalWalletBalance: newPersonalBalance,
-        },
-        { transaction },
-      );
-
-      // Create a transaction record for audit
-      await Transaction.create(
-        {
-          orderId: `conversion-${Date.now()}`,
-          userId: user.id,
-          amount: rate,
-          usdAmount: convertAmount,
-          rate: Number(rate),
-          currency: "CNY",
-          type: "conversion",
-          status: "completed",
-          paymentMethod: "conversion",
-          metadata: { note: "USD->CNY conversion" },
-        },
-        { transaction },
-      );
-
-      await transaction.commit();
-
-      return {
-        success: true,
-        userId: user.id,
-        usdDeducted: convertAmount,
-        cnyAdded: rate,
-        rate: Number(rate),
-        balances: {
-          usdWalletBalance: newUsdBalance,
-          personalWalletBalance: newPersonalBalance,
-        },
-      };
-    } catch (err) {
-      await transaction.rollback();
-      throw err;
-    }
+    return this.fxConvert({
+      userId,
+      fromCurrency: "USD",
+      toCurrency: "CNY",
+      amountInSource: usdAmount,
+      rate,
+      walletType: "PERSONAL",
+      meta: { source: "convert_usd_to_cny" },
+      performedBy: userId,
+    });
   }
 
-async listWalletTransactions({
-  page = 1,
-  limit = 20,
-  type,
-  currency,
-  userId,
-  wallet,
-  admin,
-} = {}) {
-  try {
-    // Calculate offset based on pagination
+  async listWalletTransactions({
+    page = 1,
+    limit = 10,
+    type,
+    currency,
+    userId,
+    receiptId,
+    startDate,
+    endDate,
+  } = {}) {
     const offset = (page - 1) * limit;
 
-    // Dynamically build the where condition
     const where = {};
+
     if (type) where.type = type.toUpperCase();
-    if (userId) where.userId = userId;
     if (currency) where.currency = currency.toUpperCase();
+    if (userId) where.userId = userId;
+    if (receiptId) where.receiptId = receiptId;
 
-    // Define include conditions based on flags
-    const include = [];
-    
-    // If admin is true, include performedBy (the user who performed the transaction)
-    if (admin) {
-      include.push({
-        model: User,
-        as: "performer",  // Alias for 'performedBy' in WalletTransaction model
-        include: [{ model: Role, as: "roles" }],  // Include roles of the user
-      });
+    if (startDate && endDate) {
+      where.createdAt = {
+        [Op.between]: [new Date(startDate), new Date(endDate)],
+      };
     }
 
-    // If wallet is true, include the Wallet data
-    if (wallet) {
-      include.push({
-        model: Wallet,  // Assuming you have a Wallet model related to WalletTransaction
-        as: "wallet",  // Alias from WalletTransaction model for wallet info
-        required: false,  // To make sure it doesn't exclude transactions without a related wallet
-      });
-    }
-
-    // Fetch transactions with optimized query, including necessary associations
-    const transactions = await WalletTransaction.findAndCountAll({
-      limit,  // Limit to the specified number of items per page
-      offset, // Skip the previous pages' items
-      order: [["createdAt", "DESC"]],  // Order by creation date, descending
-      where,  // Apply the dynamic filters
-      include, // Include additional data based on the flags
+    // STEP 1: Get rows
+    const transactions = await WalletTransaction.findAll({
+      where,
+      order: [["createdAt", "DESC"]],
+      limit,
+      offset,
     });
 
-    // Return paginated results
+
+    // STEP 2: Group
+    const grouped = {};
+
+    for (const tx of transactions) {
+      const groupId = tx.transaction_group_id || "ungrouped";
+
+      if (!grouped[groupId]) {
+        grouped[groupId] = {
+          transaction_group_id: groupId,
+          transactions: [],
+          summary: {
+            total_credit: 0,
+            total_debit: 0,
+          },
+          meta: null,
+        };
+      }
+
+      grouped[groupId].transactions.push(tx);
+
+      // Credit / Debit summary
+      const amount = Number(tx.amount);
+      if (amount > 0) grouped[groupId].summary.total_credit += amount;
+      else grouped[groupId].summary.total_debit += amount;
+
+      // Capture linking meta (like unlock → lock)
+      if (tx.meta?.lock_reference_group_id) {
+        grouped[groupId].meta = {
+          lock_reference_group_id: tx.meta.lock_reference_group_id,
+        };
+      }
+    }
+
+    const groupedArray = Object.values(grouped);
+
     return {
-      data: transactions.rows,
-      total: transactions.count,
+      data: groupedArray,
       page,
       limit,
+      count: groupedArray.length,
     };
-  } catch (error) {
-    console.error("Error fetching wallet transactions:", error);
-    throw new Error("Error fetching wallet transactions");
   }
-}
 
-  async listMyWalletTransactions({ userId, page = 1, limit = 20, type } = {}) {
+  async listMyWalletTransactions({
+    userId,
+    page = 1,
+    limit = 20,
+    type,
+    transaction_group_id,
+  } = {}) {
     const offset = (page - 1) * limit;
     const where = { userId };
+    if (transaction_group_id) {
+      where.transaction_group_id = String(transaction_group_id).trim();
+    }
 
-    if (
-      type &&
-      ![
+    if (type) {
+      const normalizedType = String(type).toUpperCase();
+      const allowed = [
         "DEPOSIT",
         "WITHDRAW",
         "LOCK",
         "UNLOCK",
-        "TRANSFER_IN",
-        "TRANSFER_OUT",
-        "FX_CONVERT_IN",
-        "FX_CONVERT_OUT",
-      ].includes(String(type).toUpperCase())
-    ) {
-      where.type = String(type).toUpperCase();
+        "TRANSFER",
+        "CONVERT",
+      ];
+      if (!allowed.includes(normalizedType)) {
+        throw new Error("Invalid type filter");
+      }
+      where.type = normalizedType;
     }
 
     const transactions = await WalletTransaction.findAndCountAll({

@@ -11,6 +11,10 @@ const WalletTransaction = sequelize.define(
       primaryKey: true,
       autoIncrement: true,
     },
+    transaction_group_id: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
     walletId: {
       type: DataTypes.INTEGER,
       allowNull: false,
@@ -29,10 +33,8 @@ const WalletTransaction = sequelize.define(
         "WITHDRAW",
         "LOCK",
         "UNLOCK",
-        "TRANSFER_IN",
-        "TRANSFER_OUT",
-        "FX_CONVERT_IN",
-        "FX_CONVERT_OUT",
+        "TRANSFER",
+        "CONVERT"
       ),
       allowNull: false,
     },
@@ -44,15 +46,7 @@ const WalletTransaction = sequelize.define(
       type: DataTypes.STRING(3),
       allowNull: false,
     },
-    balanceBefore: {
-      type: DataTypes.DECIMAL(20, 8),
-      allowNull: true,
-    },
-    balanceAfter: {
-      type: DataTypes.DECIMAL(20, 8),
-      allowNull: true,
-    },
-    performedBy:{
+    performedBy: {
       allowNull: true,
       type: DataTypes.INTEGER,
       references: {
@@ -61,14 +55,22 @@ const WalletTransaction = sequelize.define(
       },
     },
     meta: {
-      type: DataTypes.JSONB,
+      type: DataTypes.JSON,
       allowNull: true,
     },
   },
   {
     tableName: "wallet_transactions",
-  },
+    indexes: [
+      { fields: ["transaction_group_id"] },
+      { fields: ["walletId"] },
+      { fields: ["userId"] },
+      { fields: ["receiptId"] },
+      { fields: ["createdAt"] },
+      { fields: ["walletId", "createdAt"] },
+      { fields: ["userId", "createdAt"] },
+    ],
+  }
 );
-
 
 module.exports = WalletTransaction;
