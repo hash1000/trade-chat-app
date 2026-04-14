@@ -36,7 +36,7 @@ const Wallet = sequelize.define(
       defaultValue: 0,
     },
     accountNumber: {
-      type: DataTypes.STRING,
+      type: DataTypes.STRING(20),
       unique: true,
       allowNull: false,
     },

@@ -5,7 +5,7 @@ module.exports = {
   async up(queryInterface, Sequelize) {
     // 1. Add column nullable first
     await queryInterface.addColumn("wallets", "accountNumber", {
-      type: Sequelize.STRING,
+      type: Sequelize.STRING(20),
       allowNull: true,
     });
 
