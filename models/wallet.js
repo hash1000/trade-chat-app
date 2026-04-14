@@ -1,7 +1,6 @@
 // models/wallet.js
 const { DataTypes } = require("sequelize");
 const sequelize = require("../config/database");
-const User = require("./user");
 
 const Wallet = sequelize.define(
   "Wallet",
@@ -36,6 +35,11 @@ const Wallet = sequelize.define(
       allowNull: false,
       defaultValue: 0,
     },
+    accountNumber: {
+      type: DataTypes.STRING,
+      unique: true,
+      allowNull: false,
+    },
   },
   {
     tableName: "wallets",
@@ -44,9 +48,12 @@ const Wallet = sequelize.define(
         unique: true,
         fields: ["userId", "currency", "walletType"],
       },
+      {
+        unique: true,
+        fields: ["accountNumber"],
+      },
     ],
   },
 );
-
 
 module.exports = Wallet;

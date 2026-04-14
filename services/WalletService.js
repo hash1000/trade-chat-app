@@ -7,11 +7,10 @@ const userRepository = new UserRepository();
 const Wallet = require("../models/wallet");
 const WalletTransaction = require("../models/walletTransaction");
 const Receipt = require("../models/receipt");
+const { generateWalletAccountNumber } = require("../utilities/walletUtils");
 
 class WalletService {
-  constructor() {
-    // If you later introduce a CurrencyRepository, initialize it here
-  }
+  constructor() {}
 
   _makeGroupId(explicitGroupId) {
     if (explicitGroupId != null && String(explicitGroupId).trim() !== "") {
@@ -19,6 +18,7 @@ class WalletService {
     }
     return crypto.randomUUID();
   }
+
   async getUserWalletById(userId) {
     return User.findByPk(userId);
   }
@@ -42,10 +42,30 @@ class WalletService {
   }
 
   async createWallet(userId, currency, walletType = "PERSONAL") {
+    const Walletcurrency = {
+      USD: "1",
+      EUR: "2",
+      CNY: "3",
+    };
+
+    // Check if the currency exists in the mapping
+    if (!Walletcurrency[currency]) {
+      console.log("Invalid currency:", currency);
+      throw new Error("Currency not supported");
+    }
+
+    const accountNumber = generateWalletAccountNumber(Walletcurrency[currency]);
+    console.log("accountNumber", accountNumber);
+
     const [wallet, created] = await Wallet.findOrCreate({
       where: { userId, currency, walletType },
-      defaults: { availableBalance: 0, lockedBalance: 0 },
+      defaults: {
+        availableBalance: 0,
+        lockedBalance: 0,
+        accountNumber,
+      },
     });
+
     return { wallet, created };
   }
 
@@ -867,7 +887,6 @@ class WalletService {
       limit,
       offset,
     });
-
 
     // STEP 2: Group
     const grouped = {};
