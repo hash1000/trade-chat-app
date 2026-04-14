@@ -5,7 +5,7 @@ module.exports = {
   async up(queryInterface, Sequelize) {
     // 1. Add column nullable first
     await queryInterface.addColumn("wallets", "accountNumber", {
-      type: Sequelize.STRING(20),
+      type: Sequelize.STRING(20),  // Keep it 20 if expected account number length is large
       allowNull: true,
     });
 
@@ -25,9 +25,7 @@ module.exports = {
         console.log("Invalid currency:", wallet.currency);
         throw new Error("Currency not supported");
       }
-      const accountNumber = generateWalletAccountNumber(
-        walletCurrency[wallet.currency],
-      ); // import your function
+      const accountNumber = generateWalletAccountNumber(walletCurrency[wallet.currency]).slice(0, 20); // Adjust the length
       console.log(accountNumber);
       await queryInterface.sequelize.query(
         `UPDATE wallets SET accountNumber = :accountNumber WHERE id = :id`,
@@ -37,9 +35,9 @@ module.exports = {
       );
     }
 
-    // 3. Make NOT NULL
+    // 3. Make NOT NULL and adjust the column length if needed
     await queryInterface.changeColumn("wallets", "accountNumber", {
-      type: Sequelize.STRING(12),
+      type: Sequelize.STRING(20),  // Make sure column size is enough
       allowNull: false,
     });
 
