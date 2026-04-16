@@ -307,9 +307,12 @@ class WalletController {
         total: result.total,
         page: result.page,
         limit: result.limit,
+        count: result.count,
+        income_expense_by_currency: result.income_expense_by_currency,
+        transfer_totals: result.transfer_totals,
       });
     } catch (error) {
-      console.error("listMyWalletTransactions error:", error);
+      console.error("listWalletTransactions error:", error);
       return res.status(500).json({
         success: false,
         error: "Server error. Please try again later.",
@@ -343,6 +346,7 @@ class WalletController {
         page: result.page,
         limit: result.limit,
         income_expense_by_currency: result.income_expense_by_currency,
+        transfer_totals: result.transfer_totals,
       });
     } catch (error) {
       console.error("listMyWalletTransactions error:", error);

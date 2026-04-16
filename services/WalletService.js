@@ -19,6 +19,62 @@ class WalletService {
     return crypto.randomUUID();
   }
 
+  /**
+   * TRANSFER-only: per-currency income/expense amounts and transaction counts.
+   * Always includes USD, EUR, CNY (zeros if no activity). Other currencies are appended when present.
+   */
+  _buildTransferIncomeExpenseSummary(transferRows) {
+    const defaultCurrencies = ["USD", "EUR", "CNY"];
+    const byCurrency = {};
+    for (const c of defaultCurrencies) {
+      byCurrency[c] = {
+        income: 0,
+        expense: 0,
+        income_count: 0,
+        expense_count: 0,
+      };
+    }
+
+    const totals = {
+      income_amount: 0,
+      expense_amount: 0,
+      income_count: 0,
+      expense_count: 0,
+    };
+
+    for (const tx of transferRows) {
+      if (tx.type && tx.type !== "TRANSFER") continue;
+
+      const currency = String(tx.currency || "").toUpperCase();
+      if (!currency) continue;
+
+      if (!byCurrency[currency]) {
+        byCurrency[currency] = {
+          income: 0,
+          expense: 0,
+          income_count: 0,
+          expense_count: 0,
+        };
+      }
+
+      const amount = Number(tx.amount) || 0;
+      if (amount > 0) {
+        byCurrency[currency].income += amount;
+        byCurrency[currency].income_count += 1;
+        totals.income_amount += amount;
+        totals.income_count += 1;
+      } else if (amount < 0) {
+        const abs = Math.abs(amount);
+        byCurrency[currency].expense += abs;
+        byCurrency[currency].expense_count += 1;
+        totals.expense_amount += abs;
+        totals.expense_count += 1;
+      }
+    }
+
+    return { income_expense_by_currency: byCurrency, transfer_totals: totals };
+  }
+
   async getUserWalletById(userId) {
     return User.findByPk(userId);
   }
@@ -864,15 +920,26 @@ class WalletService {
     receiptId,
     startDate,
     endDate,
+    transaction_group_id,
   } = {}) {
-    const offset = (page - 1) * limit;
+    const pageNum = Math.max(1, parseInt(String(page), 10) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(String(limit), 10) || 10));
+    const offset = (pageNum - 1) * limitNum;
 
     const where = {};
 
-    if (type) where.type = type.toUpperCase();
-    if (currency) where.currency = currency.toUpperCase();
-    if (userId) where.userId = userId;
-    if (receiptId) where.receiptId = receiptId;
+    if (type) where.type = String(type).toUpperCase();
+    if (currency) where.currency = String(currency).toUpperCase();
+    if (userId) {
+      const uid = Number(userId);
+      if (!Number.isNaN(uid) && uid > 0) where.userId = uid;
+    }
+    if (receiptId != null && receiptId !== "") {
+      where.receiptId = receiptId;
+    }
+    if (transaction_group_id) {
+      where.transaction_group_id = String(transaction_group_id).trim();
+    }
 
     if (startDate && endDate) {
       where.createdAt = {
@@ -880,15 +947,14 @@ class WalletService {
       };
     }
 
-    // STEP 1: Get rows
-    const transactions = await WalletTransaction.findAll({
-      where,
-      order: [["createdAt", "DESC"]],
-      limit,
-      offset,
-    });
+    const { rows: transactions, count: totalRows } =
+      await WalletTransaction.findAndCountAll({
+        where,
+        order: [["createdAt", "DESC"]],
+        limit: limitNum,
+        offset,
+      });
 
-    // STEP 2: Group
     const grouped = {};
 
     for (const tx of transactions) {
@@ -908,12 +974,10 @@ class WalletService {
 
       grouped[groupId].transactions.push(tx);
 
-      // Credit / Debit summary
       const amount = Number(tx.amount);
       if (amount > 0) grouped[groupId].summary.total_credit += amount;
       else grouped[groupId].summary.total_debit += amount;
 
-      // Capture linking meta (like unlock → lock)
       if (tx.meta?.lock_reference_group_id) {
         grouped[groupId].meta = {
           lock_reference_group_id: tx.meta.lock_reference_group_id,
@@ -923,11 +987,45 @@ class WalletService {
 
     const groupedArray = Object.values(grouped);
 
+    let income_expense_by_currency = null;
+    let transfer_totals = null;
+
+    if (where.userId != null) {
+      const transferWhere = {
+        userId: where.userId,
+        type: "TRANSFER",
+      };
+      if (currency) transferWhere.currency = String(currency).toUpperCase();
+      if (receiptId != null && receiptId !== "") {
+        transferWhere.receiptId = receiptId;
+      }
+      if (transaction_group_id) {
+        transferWhere.transaction_group_id = String(transaction_group_id).trim();
+      }
+      if (startDate && endDate) {
+        transferWhere.createdAt = {
+          [Op.between]: [new Date(startDate), new Date(endDate)],
+        };
+      }
+
+      const transferRows = await WalletTransaction.findAll({
+        where: transferWhere,
+        attributes: ["amount", "currency", "type"],
+      });
+
+      const summary = this._buildTransferIncomeExpenseSummary(transferRows);
+      income_expense_by_currency = summary.income_expense_by_currency;
+      transfer_totals = summary.transfer_totals;
+    }
+
     return {
       data: groupedArray,
-      page,
-      limit,
+      page: pageNum,
+      limit: limitNum,
       count: groupedArray.length,
+      total: totalRows,
+      income_expense_by_currency,
+      transfer_totals,
     };
   }
 
@@ -970,27 +1068,19 @@ class WalletService {
       where,
     });
 
-    const incomeExpenseByCurrency = {};
-    for (const tx of transactions.rows) {
-      if (tx.type !== "TRANSFER") continue;
-
-      const currency = String(tx.currency || "").toUpperCase();
-      if (!currency) continue;
-
-      if (!incomeExpenseByCurrency[currency]) {
-        incomeExpenseByCurrency[currency] = {
-          income: 0,
-          expense: 0,
-        };
-      }
-
-      const amount = Number(tx.amount) || 0;
-      if (amount > 0) {
-        incomeExpenseByCurrency[currency].income += amount;
-      } else if (amount < 0) {
-        incomeExpenseByCurrency[currency].expense += Math.abs(amount);
-      }
+    const transferSummaryWhere = { userId, type: "TRANSFER" };
+    if (transaction_group_id) {
+      transferSummaryWhere.transaction_group_id =
+        String(transaction_group_id).trim();
     }
+
+    const transferRowsForSummary = await WalletTransaction.findAll({
+      where: transferSummaryWhere,
+      attributes: ["amount", "currency", "type"],
+    });
+
+    const { income_expense_by_currency, transfer_totals } =
+      this._buildTransferIncomeExpenseSummary(transferRowsForSummary);
 
     if (grouped) {
       const groupedMap = {};
@@ -1031,7 +1121,8 @@ class WalletService {
         total: transactions.count,
         page: pageNum,
         limit: limitNum,
-        income_expense_by_currency: incomeExpenseByCurrency,
+        income_expense_by_currency,
+        transfer_totals,
       };
     }
 
@@ -1040,7 +1131,8 @@ class WalletService {
       total: transactions.count,
       page: pageNum,
       limit: limitNum,
-      income_expense_by_currency: incomeExpenseByCurrency,
+      income_expense_by_currency,
+      transfer_totals,
     };
   }
 }
