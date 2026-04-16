@@ -936,9 +936,12 @@ class WalletService {
     page = 1,
     limit = 20,
     type,
+    grouped = false,
     transaction_group_id,
   } = {}) {
-    const offset = (page - 1) * limit;
+    const pageNum = Math.max(1, parseInt(String(page), 10) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(String(limit), 10) || 20));
+    const offset = (pageNum - 1) * limitNum;
     const where = { userId };
     if (transaction_group_id) {
       where.transaction_group_id = String(transaction_group_id).trim();
@@ -961,17 +964,83 @@ class WalletService {
     }
 
     const transactions = await WalletTransaction.findAndCountAll({
-      limit,
+      limit: limitNum,
       offset,
       order: [["createdAt", "DESC"]],
       where,
     });
 
+    const incomeExpenseByCurrency = {};
+    for (const tx of transactions.rows) {
+      if (tx.type !== "TRANSFER") continue;
+
+      const currency = String(tx.currency || "").toUpperCase();
+      if (!currency) continue;
+
+      if (!incomeExpenseByCurrency[currency]) {
+        incomeExpenseByCurrency[currency] = {
+          income: 0,
+          expense: 0,
+        };
+      }
+
+      const amount = Number(tx.amount) || 0;
+      if (amount > 0) {
+        incomeExpenseByCurrency[currency].income += amount;
+      } else if (amount < 0) {
+        incomeExpenseByCurrency[currency].expense += Math.abs(amount);
+      }
+    }
+
+    if (grouped) {
+      const groupedMap = {};
+
+      for (const tx of transactions.rows) {
+        const groupId = tx.transaction_group_id || "ungrouped";
+
+        if (!groupedMap[groupId]) {
+          groupedMap[groupId] = {
+            transaction_group_id: groupId,
+            transactions: [],
+            summary: {
+              total_credit: 0,
+              total_debit: 0,
+            },
+            meta: null,
+          };
+        }
+
+        groupedMap[groupId].transactions.push(tx);
+
+        const amount = Number(tx.amount) || 0;
+        if (amount > 0) {
+          groupedMap[groupId].summary.total_credit += amount;
+        } else if (amount < 0) {
+          groupedMap[groupId].summary.total_debit += Math.abs(amount);
+        }
+
+        if (tx.meta?.lock_reference_group_id) {
+          groupedMap[groupId].meta = {
+            lock_reference_group_id: tx.meta.lock_reference_group_id,
+          };
+        }
+      }
+
+      return {
+        data: Object.values(groupedMap),
+        total: transactions.count,
+        page: pageNum,
+        limit: limitNum,
+        income_expense_by_currency: incomeExpenseByCurrency,
+      };
+    }
+
     return {
       data: transactions.rows,
       total: transactions.count,
-      page,
-      limit,
+      page: pageNum,
+      limit: limitNum,
+      income_expense_by_currency: incomeExpenseByCurrency,
     };
   }
 }

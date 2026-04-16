@@ -321,12 +321,19 @@ class WalletController {
   async listMyWalletTransactions(req, res) {
     try {
       const { id: userId } = req.user;
-      const { type, transaction_group_id, page = 1, limit = 20 } = req.query;
+      const {
+        type,
+        grouped = false,
+        transaction_group_id,
+        page = 1,
+        limit = 20,
+      } = req.query;
       const result = await walletService.listMyWalletTransactions({
         userId,
         page,
         limit,
         type,
+        grouped: String(grouped) === "true" || String(grouped) === "1",
         transaction_group_id,
       });
       return res.status(200).json({
@@ -335,6 +342,7 @@ class WalletController {
         total: result.total,
         page: result.page,
         limit: result.limit,
+        income_expense_by_currency: result.income_expense_by_currency,
       });
     } catch (error) {
       console.error("listMyWalletTransactions error:", error);
