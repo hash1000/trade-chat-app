@@ -6,7 +6,8 @@ class ServiceController {
     try {
       const includeTeams = req.query.includeTeams === "true";
       const includeMembers = req.query.includeMembers === "true";
-      const services = await serviceService.getAll({ includeTeams, includeMembers });
+      const includeCategories = req.query.includeCategories === "true";
+      const services = await serviceService.getAll({ includeTeams, includeMembers, includeCategories });
       return res.status(200).json({ success: true, data: services });
     } catch (error) {
       console.error("ServiceController.list error:", error);
@@ -19,7 +20,8 @@ class ServiceController {
       const { id } = req.params;
       const includeTeams = req.query.includeTeams !== "false";
       const includeMembers = req.query.includeMembers === "true";
-      const service = await serviceService.getById(id, { includeTeams, includeMembers });
+      const includeCategories = req.query.includeCategories !== "false";
+      const service = await serviceService.getById(id, { includeTeams, includeMembers, includeCategories });
       if (!service) {
         return res.status(404).json({ success: false, error: "Service not found." });
       }
@@ -32,7 +34,7 @@ class ServiceController {
 
   async create(req, res) {
     try {
-      const { name, profile_image, type, description, teamIds } = req.body;
+      const { name, profile_image, type, description, teamIds, categoryId, categoryIds } = req.body;
       if (!name || typeof name !== "string" || !name.trim()) {
         return res.status(400).json({ success: false, error: "name is required." });
       }
@@ -50,12 +52,20 @@ class ServiceController {
       if (Array.isArray(teamIds) && teamIds.length > 0) {
         await serviceService.addTeams(service.id, teamIds);
       }
+      const categoriesToAssign = Array.isArray(categoryIds)
+        ? categoryIds
+        : categoryId != null
+          ? [categoryId]
+          : [];
+      if (categoriesToAssign.length > 0) {
+        await serviceService.addCategories(service.id, categoriesToAssign);
+      }
 
-      const data = await serviceService.getById(service.id, { includeTeams: true, includeMembers: true });
+      const data = await serviceService.getById(service.id, { includeTeams: true, includeMembers: true, includeCategories: true });
       return res.status(201).json({ success: true, data });
     } catch (error) {
       console.error("ServiceController.create error:", error);
-      if (error.name === "InvalidTeamIdError") {
+      if (error.name === "InvalidTeamIdError" || error.name === "InvalidCategoryIdError") {
         return res.status(400).json({ success: false, error: error.message });
       }
       return res.status(500).json({ success: false, error: "Server error. Please try again later." });
@@ -65,7 +75,7 @@ class ServiceController {
   async update(req, res) {
     try {
       const { id } = req.params;
-      const { name, profile_image, type, description, teamIds } = req.body;
+      const { name, profile_image, type, description, teamIds, categoryId, categoryIds } = req.body;
       const service = await serviceService.getById(id);
       if (!service) {
         return res.status(404).json({ success: false, error: "Service not found." });
@@ -81,12 +91,20 @@ class ServiceController {
       if (teamIds !== undefined) {
         await serviceService.setTeams(id, Array.isArray(teamIds) ? teamIds : []);
       }
+      if (categoryIds !== undefined || categoryId !== undefined) {
+        const categoriesToAssign = Array.isArray(categoryIds)
+          ? categoryIds
+          : categoryId != null
+            ? [categoryId]
+            : [];
+        await serviceService.setCategories(id, categoriesToAssign);
+      }
 
-      const data = await serviceService.getById(id, { includeTeams: true, includeMembers: true });
+      const data = await serviceService.getById(id, { includeTeams: true, includeMembers: true, includeCategories: true });
       return res.status(200).json({ success: true, data });
     } catch (error) {
       console.error("ServiceController.update error:", error);
-      if (error.name === "InvalidTeamIdError") {
+      if (error.name === "InvalidTeamIdError" || error.name === "InvalidCategoryIdError") {
         return res.status(400).json({ success: false, error: error.message });
       }
       return res.status(500).json({ success: false, error: "Server error. Please try again later." });
@@ -147,6 +165,49 @@ class ServiceController {
       return res.status(200).json({ success: true, data: updated });
     } catch (error) {
       console.error("ServiceController.removeTeam error:", error);
+      return res.status(500).json({ success: false, error: "Server error. Please try again later." });
+    }
+  }
+
+  async addCategory(req, res) {
+    try {
+      const { id: serviceId } = req.params;
+      const { categoryId: singleCategoryId, categoryIds } = req.body;
+      const service = await serviceService.getById(serviceId);
+      if (!service) {
+        return res.status(404).json({ success: false, error: "Service not found." });
+      }
+      if (Array.isArray(categoryIds) && categoryIds.length > 0) {
+        await serviceService.addCategories(Number(serviceId), categoryIds);
+      } else if (singleCategoryId != null) {
+        await serviceService.addCategory(Number(serviceId), Number(singleCategoryId));
+      } else {
+        return res.status(400).json({ success: false, error: "categoryId or categoryIds (array) is required." });
+      }
+
+      const updated = await serviceService.getById(serviceId, { includeTeams: true, includeMembers: true, includeCategories: true });
+      return res.status(200).json({ success: true, data: updated });
+    } catch (error) {
+      console.error("ServiceController.addCategory error:", error);
+      if (error.name === "InvalidCategoryIdError") {
+        return res.status(400).json({ success: false, error: error.message });
+      }
+      return res.status(500).json({ success: false, error: "Server error. Please try again later." });
+    }
+  }
+
+  async removeCategory(req, res) {
+    try {
+      const { id: serviceId, categoryId } = req.params;
+      const removed = await serviceService.removeCategory(Number(serviceId), Number(categoryId));
+      if (!removed) {
+        return res.status(404).json({ success: false, error: "Category not found in service." });
+      }
+
+      const updated = await serviceService.getById(serviceId, { includeTeams: true, includeMembers: true, includeCategories: true });
+      return res.status(200).json({ success: true, data: updated });
+    } catch (error) {
+      console.error("ServiceController.removeCategory error:", error);
       return res.status(500).json({ success: false, error: "Server error. Please try again later." });
     }
   }

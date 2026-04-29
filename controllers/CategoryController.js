@@ -5,7 +5,13 @@ class CategoryController {
   async getCategories(req, res) {
     try {
       const { id: userId } = req.user;
-      const categories = await categoryService.getCategoriesByUserId(userId);
+      const { type } = req.query;
+      const filters = {};
+      if (typeof type === "string" && type.trim()) {
+        filters.type = type.trim();
+      }
+
+      const categories = await categoryService.getCategoriesByUserId(userId, filters);
 
       return res.status(200).json({
         success: true,
@@ -13,7 +19,7 @@ class CategoryController {
       });
     } catch (error) {
       console.error("getCategories Error:", error);
-      return res.status(500).json({ success: false, error: "Server Error" });
+      return res.status(500).json({ success: false, error: error.message || "Server Error" });
     }
   }
 
@@ -36,19 +42,17 @@ class CategoryController {
       });
     } catch (error) {
       console.error("getCategoryById Error:", error);
-      return res.status(500).json({ success: false, error: "Server Error" });
+      return res.status(500).json({ success: false, error: error.message || "Server Error" });
     }
   }
 
   async createCategory(req, res) {
     try {
       const { id: userId } = req.user;
-      const { title } = req.body;
-
-      console.log("title", title, userId);
+      const { title, type } = req.body;
 
       // Attempt to create the category
-      const category = await categoryService.createCategory(userId, title);
+      const category = await categoryService.createCategory(userId, title, type);
 
       return res.status(201).json({
         success: true,
@@ -77,12 +81,12 @@ class CategoryController {
     try {
       const { id: userId } = req.user;
       const categoryId = req.params.id;
-      const { title } = req.body;
+      const { title, type } = req.body;
 
       const updated = await categoryService.updateCategory(
         userId,
         categoryId,
-        title
+        { title, type }
       );
 
       return res.status(200).json({
@@ -91,8 +95,8 @@ class CategoryController {
         data: updated,
       });
     } catch (error) {
-      console.error("updateCategory Error:", error);
-      return res.status(500).json({ success: false, error: "Server Error" });
+      console.error("updateCategory", error);
+      return res.status(500).json({ success: false, error: error.message || "Internal Server Error" });
     }
   }
 
@@ -110,7 +114,7 @@ class CategoryController {
       return res.status(200).json(result);
     } catch (error) {
       console.error("pinCategory Error:", error);
-      return res.status(500).json({ success: false, error: "Server Error" });
+      return res.status(500).json({ success: false, error: error.message || "Server Error" });
     }
   }
 
@@ -129,16 +133,9 @@ class CategoryController {
     } catch (error) {
       console.error("deleteCategory Error:", error);
 
-      if (error.message === "Category not found") {
-        return res.status(404).json({
-          success: false,
-          error: "Category not found",
-        });
-      }
-
       return res.status(500).json({
         success: false,
-        error: "Server Error",
+        error: error.message || "Server Error",
       });
     }
   }

@@ -1,20 +1,6 @@
 const Category = require("../models/category");
-const ShortList = require("../models/shortList");
 
 class CategoryRepository {
-  async findAll(userId) {
-    return await Category.findAll({
-      where: { userId },
-      include: [
-        {
-          model: ShortList,
-          as: "shortList",
-        },
-      ],
-      order: [["sequence", "ASC"]],
-    });
-  }
-
   async getCategoryById(userId, categoryId) {
     return await Category.findOne({
       where: { id: categoryId, userId },
@@ -33,17 +19,27 @@ class CategoryRepository {
     });
   }
 
-  // Find all categories for a user
-  async findAll(userId) {
+  async findAll(userId, filters = {}) {
+    const where = { userId };
+    if (filters.type !== undefined) {
+      where.type = filters.type;
+    }
+
     return await Category.findAll({
-      where: { userId },
+      where,
+      order: [["createdAt", "DESC"]],
     });
   }
 
   // Find category by title
-  async findByTitle(userId, title) {
+  async findByTitle(userId, title, type) {
+    const where = { userId, title };
+    if (type !== undefined) {
+      where.type = type;
+    }
+
     return await Category.findOne({
-      where: { userId, title },
+      where,
     });
   }
 
@@ -56,10 +52,11 @@ class CategoryRepository {
     return result > 0; // Returns true if deletion was successful
   }
 
-  async createCategory(userId, title) {
+  async createCategory(userId, title, type) {
     return await Category.create({
       userId,
       title,
+      type,
     });
   }
 
@@ -71,8 +68,8 @@ class CategoryRepository {
     });
   }
 
-  async updateCategory(id, userId, title) {
-    return await Category.update({ title }, { where: { id, userId } });
+  async updateCategory(id, userId, data) {
+    return await Category.update(data, { where: { id, userId } });
   }
 
   async exists(categoryId) {

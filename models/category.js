@@ -15,6 +15,10 @@ const Category = sequelize.define(
       type: DataTypes.STRING,
       allowNull: false,
     },
+    type: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
     pin: {
       type: DataTypes.BOOLEAN,
       allowNull: true,

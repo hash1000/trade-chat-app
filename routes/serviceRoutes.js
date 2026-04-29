@@ -14,5 +14,7 @@ router.put("/:id", authMiddleware,authorize(["admin"]), checkIntegerParam("id"),
 router.delete("/:id", authMiddleware,authorize(["admin"]), checkIntegerParam("id"), serviceController.delete.bind(serviceController));
 router.post("/:id/teams", authMiddleware, checkIntegerParam("id"), serviceController.addTeam.bind(serviceController));
 router.delete("/:id/teams/:teamId", authMiddleware, checkIntegerParam("id"), checkIntegerParam("teamId"), serviceController.removeTeam.bind(serviceController));
+router.post("/:id/categories", authMiddleware, checkIntegerParam("id"), serviceController.addCategory.bind(serviceController));
+router.delete("/:id/categories/:categoryId", authMiddleware, checkIntegerParam("id"), checkIntegerParam("categoryId"), serviceController.removeCategory.bind(serviceController));
 
 module.exports = router;

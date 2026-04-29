@@ -4,6 +4,10 @@ exports.addCategoryValidator = [
     body("title")
     .notEmpty()
     .withMessage("title is required"),
+    body("type")
+    .optional()
+    .isString()
+    .withMessage("type must be a string"),
   handleValidationErrors
 ]
 

@@ -1,22 +1,20 @@
 const Category = require("../models/category");
 const sequelize = require("../config/database");
 const CategoryRepository = require("../repositories/CategoryRepository");
-const ListItemRepository = require("../repositories/ShortListRepository");
 
 class CategoryService {
   constructor() {
     this.categoryRepository = new CategoryRepository();
-    this.listItemRepository = new ListItemRepository();
   }
 
   // ===========================================
   //                 CATEGORY
   // ===========================================
 
-  async getCategoriesByUserId(userId) {
+  async getCategoriesByUserId(userId, filters = {}) {
     if (!userId) throw new Error("User ID is required");
 
-    const categories = await this.categoryRepository.findAll(userId);
+    const categories = await this.categoryRepository.findAll(userId, filters);
     return categories || [];
   }
 
@@ -24,17 +22,26 @@ class CategoryService {
     return await this.categoryRepository.getCategoryById(userId, categoryId);
   }
 
-  async createCategory(userId, title) {
-    console.log("userId, title", userId, title);
+  async createCategory(userId, title, type) {
+    const normalizedTitle = typeof title === "string" ? title.trim() : title;
+    const normalizedType = typeof type === "string" && type.trim() ? type.trim() : undefined;
 
     // Optional: prevent duplicate title (per user)
-    const existing = await this.categoryRepository.findByTitle(userId, title);
+    const existing = await this.categoryRepository.findByTitle(
+      userId,
+      normalizedTitle,
+      normalizedType
+    );
 
     if (existing) {
       throw new Error("Category with this title already exists");
     }
 
-    return await this.categoryRepository.createCategory(userId, title);
+    return await this.categoryRepository.createCategory(
+      userId,
+      normalizedTitle,
+      normalizedType
+    );
   }
 
   async pinCategory(userId, categoryId) {
@@ -86,22 +93,37 @@ class CategoryService {
     }
   }
 
-  async updateCategory(userId, categoryId, title) {
+  async updateCategory(userId, categoryId, data) {
     // Check if category exists for this user
     const category = await this.categoryRepository.findById(categoryId, userId);
     if (!category) {
       throw new Error("Category not found");
     }
 
+    const updateData = {};
+    if (data.title !== undefined) {
+      updateData.title = typeof data.title === "string" ? data.title.trim() : data.title;
+    }
+    if (data.type !== undefined) {
+      updateData.type = typeof data.type === "string" && data.type.trim() ? data.type.trim() : null;
+    }
+
+    const nextTitle = updateData.title !== undefined ? updateData.title : category.title;
+    const nextType = updateData.type !== undefined ? updateData.type : category.type;
+
     // Check if another category with same title exists
-    const duplicate = await this.categoryRepository.findByTitle(userId, title);
-    if (duplicate && duplicate.id !== categoryId) {
+    const duplicate = await this.categoryRepository.findByTitle(
+      userId,
+      nextTitle,
+      nextType
+    );
+    if (duplicate && Number(duplicate.id) !== Number(categoryId)) {
       throw new Error("Another category with this title already exists");
     }
 
-    await this.categoryRepository.updateCategory(categoryId, userId, title);
+    await this.categoryRepository.updateCategory(categoryId, userId, updateData);
 
-    return { id: categoryId, title };
+    return { id: categoryId, title: nextTitle, type: nextType };
   }
 
   // Delete category by userId and categoryId

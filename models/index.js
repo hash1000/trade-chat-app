@@ -29,6 +29,7 @@ const Team = require("./team");
 const TeamMember = require("./teamMember");
 const Service = require("./service");
 const TeamServiceLink = require("./teamService");
+const ServiceCategoryLink = require("./serviceCategory");
 const PaymentRequest = require("./payment_request");
 
 // Define all associations
@@ -208,6 +209,20 @@ function defineAssociations() {
     as: "teams",
   });
 
+  // Service <-> Category many-to-many
+  Service.belongsToMany(Category, {
+    through: ServiceCategoryLink,
+    foreignKey: "serviceId",
+    otherKey: "categoryId",
+    as: "categories",
+  });
+  Category.belongsToMany(Service, {
+    through: ServiceCategoryLink,
+    foreignKey: "categoryId",
+    otherKey: "serviceId",
+    as: "services",
+  });
+
   WalletTransaction.belongsTo(Wallet, { foreignKey: "walletId", as: "wallet" });
   WalletTransaction.belongsTo(User, { foreignKey: "userId", as: "user" });
   WalletTransaction.belongsTo(Receipt, {
@@ -247,4 +262,6 @@ module.exports = {
   TeamMember,
   Service,
   TeamServiceLink,
+  ServiceCategoryLink,
+  Category,
 };

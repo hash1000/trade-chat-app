@@ -43,6 +43,25 @@ class ServiceService {
       await this.serviceRepository.addTeams(serviceId, teamIds);
     }
   }
+
+  async addCategory(serviceId, categoryId) {
+    return this.serviceRepository.addCategory(serviceId, categoryId);
+  }
+
+  async addCategories(serviceId, categoryIds) {
+    return this.serviceRepository.addCategories(serviceId, categoryIds);
+  }
+
+  async removeCategory(serviceId, categoryId) {
+    return this.serviceRepository.removeCategory(serviceId, categoryId);
+  }
+
+  async setCategories(serviceId, categoryIds) {
+    await this.serviceRepository.removeAllCategories(serviceId);
+    if (Array.isArray(categoryIds) && categoryIds.length > 0) {
+      await this.serviceRepository.addCategories(serviceId, categoryIds);
+    }
+  }
 }
 
 module.exports = ServiceService;

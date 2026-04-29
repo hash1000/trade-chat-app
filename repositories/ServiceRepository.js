@@ -1,5 +1,12 @@
 const { Op } = require("sequelize");
-const { Service, Team, TeamServiceLink, User } = require("../models");
+const {
+  Service,
+  Team,
+  TeamServiceLink,
+  User,
+  Category,
+  ServiceCategoryLink,
+} = require("../models");
 
 class ServiceRepository {
   buildIncludes(options = {}) {
@@ -26,6 +33,14 @@ class ServiceRepository {
       include.push(teamInclude);
     }
 
+    if (options.includeCategories) {
+      include.push({
+        model: Category,
+        as: "categories",
+        through: { attributes: [] },
+      });
+    }
+
     return include;
   }
 
@@ -37,6 +52,7 @@ class ServiceRepository {
     const queryOptions = { ...options };
     delete queryOptions.includeTeams;
     delete queryOptions.includeMembers;
+    delete queryOptions.includeCategories;
 
     return Service.findByPk(id, {
       include: this.buildIncludes(options),
@@ -48,6 +64,7 @@ class ServiceRepository {
     const queryOptions = { ...options };
     delete queryOptions.includeTeams;
     delete queryOptions.includeMembers;
+    delete queryOptions.includeCategories;
 
     return Service.findAll({
       include: this.buildIncludes(options),
@@ -117,6 +134,60 @@ class ServiceRepository {
 
   async removeAllTeams(serviceId) {
     await TeamServiceLink.destroy({ where: { serviceId } });
+  }
+
+  async addCategory(serviceId, categoryId) {
+    const [createdCategoryId] = await this.addCategories(serviceId, [categoryId]);
+    return createdCategoryId;
+  }
+
+  async addCategories(serviceId, categoryIds) {
+    if (!Array.isArray(categoryIds) || categoryIds.length === 0) return [];
+    const numericIds = [
+      ...new Set(
+        categoryIds
+          .map((id) => Number(id))
+          .filter((id) => !Number.isNaN(id) && id > 0)
+      ),
+    ];
+    if (numericIds.length === 0) return [];
+
+    const existingCategories = await Category.findAll({
+      where: { id: { [Op.in]: numericIds } },
+      attributes: ["id"],
+    });
+    const existingIds = new Set(
+      existingCategories.map((category) => category.id)
+    );
+    const missingIds = numericIds.filter((id) => !existingIds.has(id));
+    if (missingIds.length > 0) {
+      const err = new Error(`Category(s) not found: ${missingIds.join(", ")}`);
+      err.name = "InvalidCategoryIdError";
+      err.missingCategoryIds = missingIds;
+      throw err;
+    }
+
+    await Promise.all(
+      numericIds.map((categoryId) =>
+        ServiceCategoryLink.findOrCreate({
+          where: { categoryId, serviceId },
+          defaults: { categoryId, serviceId },
+        })
+      )
+    );
+
+    return numericIds;
+  }
+
+  async removeCategory(serviceId, categoryId) {
+    const deleted = await ServiceCategoryLink.destroy({
+      where: { categoryId, serviceId },
+    });
+    return deleted > 0;
+  }
+
+  async removeAllCategories(serviceId) {
+    await ServiceCategoryLink.destroy({ where: { serviceId } });
   }
 }
 
