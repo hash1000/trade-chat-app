@@ -4,8 +4,8 @@ const {
   Team,
   TeamServiceLink,
   User,
-  Category,
-  ServiceCategoryLink,
+  PublicCategory,
+  ServicePublicCategory
 } = require("../models");
 
 class ServiceRepository {
@@ -35,8 +35,8 @@ class ServiceRepository {
 
     if (options.includeCategories) {
       include.push({
-        model: Category,
-        as: "categories",
+        model: PublicCategory,
+        as: "publicCategories",
         through: { attributes: [] },
       });
     }
@@ -152,7 +152,7 @@ class ServiceRepository {
     ];
     if (numericIds.length === 0) return [];
 
-    const existingCategories = await Category.findAll({
+    const existingCategories = await PublicCategory.findAll({
       where: { id: { [Op.in]: numericIds } },
       attributes: ["id"],
     });
@@ -169,9 +169,9 @@ class ServiceRepository {
 
     await Promise.all(
       numericIds.map((categoryId) =>
-        ServiceCategoryLink.findOrCreate({
-          where: { categoryId, serviceId },
-          defaults: { categoryId, serviceId },
+        ServicePublicCategory.findOrCreate({
+          where: { publicCategoryId: categoryId, serviceId },
+          defaults: { publicCategoryId: categoryId, serviceId },
         })
       )
     );
@@ -180,14 +180,14 @@ class ServiceRepository {
   }
 
   async removeCategory(serviceId, categoryId) {
-    const deleted = await ServiceCategoryLink.destroy({
-      where: { categoryId, serviceId },
+    const deleted = await ServicePublicCategory.destroy({
+      where: { publicCategoryId: categoryId, serviceId },
     });
     return deleted > 0;
   }
 
   async removeAllCategories(serviceId) {
-    await ServiceCategoryLink.destroy({ where: { serviceId } });
+    await ServicePublicCategory.destroy({ where: { serviceId } });
   }
 }
 

@@ -14,7 +14,8 @@ const Ledger = require("./ledger");
 const Income = require("./ledgerIncome");
 const Expense = require("./ledgerExpense");
 const PaymentType = require("./paymentType");
-const Category = require("./category");
+const Category = require("./categories");
+const PublicCategory = require("./publicCategories");
 const Shop = require("./shop");
 const ShopProduct = require("./shopProduct");
 const AddToCart = require("./AddToCart");
@@ -31,6 +32,7 @@ const Service = require("./service");
 const TeamServiceLink = require("./teamService");
 const ServiceCategoryLink = require("./serviceCategory");
 const PaymentRequest = require("./payment_request");
+const ServicePublicCategory = require("./publicServiceCategories");
 
 // Define all associations
 function defineAssociations() {
@@ -214,7 +216,7 @@ function defineAssociations() {
     through: ServiceCategoryLink,
     foreignKey: "serviceId",
     otherKey: "categoryId",
-    as: "categories",
+    as: "userCategories",
   });
   Category.belongsToMany(Service, {
     through: ServiceCategoryLink,
@@ -222,6 +224,22 @@ function defineAssociations() {
     otherKey: "serviceId",
     as: "services",
   });
+
+
+// Service <-> PublicCategory (GLOBAL)
+Service.belongsToMany(PublicCategory, {
+  through: ServicePublicCategory,
+  foreignKey: "serviceId",
+  otherKey: "publicCategoryId",
+  as: "publicCategories"
+});
+
+PublicCategory.belongsToMany(Service, {
+  through: ServicePublicCategory,
+  foreignKey: "publicCategoryId",
+  otherKey: "serviceId",
+  as: "services",
+});
 
   WalletTransaction.belongsTo(Wallet, { foreignKey: "walletId", as: "wallet" });
   WalletTransaction.belongsTo(User, { foreignKey: "userId", as: "user" });
@@ -263,5 +281,7 @@ module.exports = {
   Service,
   TeamServiceLink,
   ServiceCategoryLink,
+  ServicePublicCategory,
   Category,
+  PublicCategory
 };

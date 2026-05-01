@@ -1,6 +1,6 @@
 // repositories/ShortListRepository.js
 const { User, Role } = require("../models");
-const Category = require("../models/category");
+const Category = require("../models/categories");
 const List = require("../models/list");
 const ShortList = require("../models/shortList");
 
