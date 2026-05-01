@@ -1083,6 +1083,18 @@ class WalletService {
     const transactions = await WalletTransaction.findAndCountAll({
       limit: limitNum,
       offset,
+      include: [
+        {
+          model: User,
+          as: "user",
+          attributes: ["id", "username", "email"],
+        },
+        {
+          model: User,
+          as: "performer",
+          attributes: ["id", "username", "email"],
+        },
+      ],
       order: [["createdAt", "DESC"]],
       where,
     });
