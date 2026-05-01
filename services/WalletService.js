@@ -923,7 +923,10 @@ class WalletService {
     transaction_group_id,
   } = {}) {
     const pageNum = Math.max(1, parseInt(String(page), 10) || 1);
-    const limitNum = Math.min(100, Math.max(1, parseInt(String(limit), 10) || 10));
+    const limitNum = Math.min(
+      100,
+      Math.max(1, parseInt(String(limit), 10) || 10),
+    );
     const offset = (pageNum - 1) * limitNum;
 
     const where = {};
@@ -950,6 +953,18 @@ class WalletService {
     const { rows: transactions, count: totalRows } =
       await WalletTransaction.findAndCountAll({
         where,
+        include: [
+          {
+            model: User,
+            as: "user",
+            attributes: ["id", "username", "email"],
+          },
+          {
+            model: User,
+            as: "performer",
+            attributes: ["id", "username", "email"],
+          },
+        ],
         order: [["createdAt", "DESC"]],
         limit: limitNum,
         offset,
@@ -1000,7 +1015,8 @@ class WalletService {
         transferWhere.receiptId = receiptId;
       }
       if (transaction_group_id) {
-        transferWhere.transaction_group_id = String(transaction_group_id).trim();
+        transferWhere.transaction_group_id =
+          String(transaction_group_id).trim();
       }
       if (startDate && endDate) {
         transferWhere.createdAt = {
@@ -1038,7 +1054,10 @@ class WalletService {
     transaction_group_id,
   } = {}) {
     const pageNum = Math.max(1, parseInt(String(page), 10) || 1);
-    const limitNum = Math.min(100, Math.max(1, parseInt(String(limit), 10) || 20));
+    const limitNum = Math.min(
+      100,
+      Math.max(1, parseInt(String(limit), 10) || 20),
+    );
     const offset = (pageNum - 1) * limitNum;
     const where = { userId };
     if (transaction_group_id) {
