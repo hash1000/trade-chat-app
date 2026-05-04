@@ -39,7 +39,7 @@ class PublicCategoryRepository {
     }
 
     return await PublicCategory.findOne({
-      where,
+      where
     });
   }
 

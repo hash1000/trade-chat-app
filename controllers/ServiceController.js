@@ -34,7 +34,7 @@ class ServiceController {
 
   async create(req, res) {
     try {
-      const { name, profile_image, type, description, teamIds, categoryId, categoryIds } = req.body;
+      const { name, profile_image, type, description, location, teamIds, categoryId, categoryIds } = req.body;
       if (!name || typeof name !== "string" || !name.trim()) {
         return res.status(400).json({ success: false, error: "name is required." });
       }
@@ -47,6 +47,7 @@ class ServiceController {
         profile_image: profile_image.trim(),
         type: type ? type.trim() : undefined,
         description: description ? description.trim() : undefined,
+        location: location ? location.trim() : undefined,
       });
 
       if (Array.isArray(teamIds) && teamIds.length > 0) {
@@ -75,7 +76,7 @@ class ServiceController {
   async update(req, res) {
     try {
       const { id } = req.params;
-      const { name, profile_image, type, description, teamIds, categoryId, categoryIds } = req.body;
+      const { name, profile_image, type, description, location, teamIds, categoryId, categoryIds } = req.body;
       const service = await serviceService.getById(id);
       if (!service) {
         return res.status(404).json({ success: false, error: "Service not found." });
@@ -86,6 +87,7 @@ class ServiceController {
       if (profile_image !== undefined) updateData.profile_image = typeof profile_image === "string" ? profile_image.trim() : profile_image;
       if (type !== undefined) updateData.type = typeof type === "string" ? type.trim() : type;
       if (description !== undefined) updateData.description = typeof description === "string" ? description.trim() : description;
+      if (location !== undefined) updateData.location = typeof location === "string" ? location.trim() : location;
 
       await serviceService.update(id, updateData);
       if (teamIds !== undefined) {

@@ -21,6 +21,10 @@ const Service = sequelize.define(
       type: DataTypes.STRING,
       allowNull: true,
     },
+    location: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
     description: {
       type: DataTypes.TEXT,
       allowNull: true,
