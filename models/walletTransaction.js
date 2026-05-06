@@ -23,6 +23,10 @@ const WalletTransaction = sequelize.define(
       type: DataTypes.INTEGER,
       allowNull: false,
     },
+    receiverId: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    },
     receiptId: {
       type: DataTypes.INTEGER,
       allowNull: true,

@@ -283,7 +283,8 @@ class WalletController {
     try {
       const {
         type,
-        userId,
+        user,
+        myTransactions,
         wallet,
         admin,
         currency,
@@ -291,11 +292,14 @@ class WalletController {
         page = 1,
         limit = 20,
       } = req.query;
+      const { id: userId } = req.user;
       const result = await walletService.listWalletTransactions({
         page,
         limit,
         type,
+        user,
         userId,
+        myTransactions,
         currency,
         wallet,
         admin,

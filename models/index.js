@@ -243,6 +243,7 @@ PublicCategory.belongsToMany(Service, {
 
   WalletTransaction.belongsTo(Wallet, { foreignKey: "walletId", as: "wallet" });
   WalletTransaction.belongsTo(User, { foreignKey: "userId", as: "user" });
+  WalletTransaction.belongsTo(User, { as: "receiver", foreignKey: "receiverId" });
   WalletTransaction.belongsTo(Receipt, {
     foreignKey: "receiptId",
     as: "receipt",

@@ -916,6 +916,8 @@ class WalletService {
     limit = 10,
     type,
     currency,
+    myTransactions,
+    user,
     userId,
     receiptId,
     startDate,
@@ -934,8 +936,10 @@ class WalletService {
     if (type) where.type = String(type).toUpperCase();
     if (currency) where.currency = String(currency).toUpperCase();
     if (userId) {
-      const uid = Number(userId);
-      if (!Number.isNaN(uid) && uid > 0) where.userId = uid;
+      const uid = myTransactions ? Number(userId) : Number(user);
+      if (!Number.isNaN(uid) && uid > 0) {
+        where[Op.or] = [{ userId: uid }, { receiverId: uid }];
+      }
     }
     if (receiptId != null && receiptId !== "") {
       where.receiptId = receiptId;
@@ -957,6 +961,11 @@ class WalletService {
           {
             model: User,
             as: "user",
+            attributes: ["id", "username", "email"],
+          },
+           {
+            model: User,
+            as: "receiver",
             attributes: ["id", "username", "email"],
           },
           {
@@ -1087,6 +1096,11 @@ class WalletService {
         {
           model: User,
           as: "user",
+          attributes: ["id", "username", "email"],
+        },
+        {
+          model: User,
+          as: "receiver",
           attributes: ["id", "username", "email"],
         },
         {
