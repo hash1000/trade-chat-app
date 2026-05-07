@@ -324,23 +324,27 @@ class WalletController {
     }
   }
 
-  
-  async listMyWalletTransactions(req, res) {
+  async listWalletMyTransactions(req, res) {
     try {
-      const { id: userId } = req.user;
       const {
         type,
-        grouped = false,
+        wallet,
+        admin,
+        currency,
         transaction_group_id,
         page = 1,
         limit = 20,
       } = req.query;
-      const result = await walletService.listMyWalletTransactions({
-        userId,
+      const { id: userId } = req.user;
+      const result = await walletService.listWalletTransactions({
         page,
         limit,
         type,
-        grouped: String(grouped) === "true" || String(grouped) === "1",
+        user: userId,
+        myTransactions: true,
+        currency,
+        wallet,
+        admin,
         transaction_group_id,
       });
       return res.status(200).json({
@@ -349,11 +353,12 @@ class WalletController {
         total: result.total,
         page: result.page,
         limit: result.limit,
+        count: result.count,
         income_expense_by_currency: result.income_expense_by_currency,
         transfer_totals: result.transfer_totals,
       });
     } catch (error) {
-      console.error("listMyWalletTransactions error:", error);
+      console.error("listWalletTransactions error:", error);
       return res.status(500).json({
         success: false,
         error: "Server error. Please try again later.",

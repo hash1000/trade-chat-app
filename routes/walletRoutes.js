@@ -37,7 +37,7 @@ router.get(
 router.get(
   '/my-transactions',
   authenticate,
-  walletController.listMyWalletTransactions.bind(walletController),
+  walletController.listWalletMyTransactions.bind(walletController),
 );
 
 // Admin/accountant: lock or unlock a user's wallet balance (available <-> locked, same currency)
