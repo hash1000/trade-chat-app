@@ -937,11 +937,9 @@ class WalletService {
 
     if (type) where.type = String(type).toUpperCase();
     if (currency) where.currency = String(currency).toUpperCase();
-    if (userId) {
-      const uid = myTransactions ? Number(userId) : Number(user);
-      if (!Number.isNaN(uid) && uid > 0) {
-        where[Op.or] = [{ userId: uid }, { receiverId: uid }];
-      }
+    const uid = myTransactions ? Number(user) : Number(userId);
+    if (!Number.isNaN(uid) && uid > 0) {
+      where[Op.or] = [{ userId: uid }, { receiverId: uid }];
     }
     if (receiptId != null && receiptId !== "") {
       where.receiptId = receiptId;
@@ -965,7 +963,7 @@ class WalletService {
             as: "user",
             attributes: ["id", "username", "email"],
           },
-           {
+          {
             model: User,
             as: "receiver",
             attributes: ["id", "username", "email"],
@@ -1016,34 +1014,31 @@ class WalletService {
     let income_expense_by_currency = null;
     let transfer_totals = null;
 
-    if (where.userId != null) {
-      const transferWhere = {
-        userId: where.userId,
-        type: "TRANSFER",
-      };
-      if (currency) transferWhere.currency = String(currency).toUpperCase();
-      if (receiptId != null && receiptId !== "") {
-        transferWhere.receiptId = receiptId;
-      }
-      if (transaction_group_id) {
-        transferWhere.transaction_group_id =
-          String(transaction_group_id).trim();
-      }
-      if (startDate && endDate) {
-        transferWhere.createdAt = {
-          [Op.between]: [new Date(startDate), new Date(endDate)],
-        };
-      }
-
-      const transferRows = await WalletTransaction.findAll({
-        where: transferWhere,
-        attributes: ["amount", "currency", "type"],
-      });
-
-      const summary = this._buildTransferIncomeExpenseSummary(transferRows);
-      income_expense_by_currency = summary.income_expense_by_currency;
-      transfer_totals = summary.transfer_totals;
+    const transferWhere = {
+      userId: myTransactions ? Number(user) : Number(userId),
+      type: "TRANSFER",
+    };
+    if (currency) transferWhere.currency = String(currency).toUpperCase();
+    if (receiptId != null && receiptId !== "") {
+      transferWhere.receiptId = receiptId;
     }
+    if (transaction_group_id) {
+      transferWhere.transaction_group_id = String(transaction_group_id).trim();
+    }
+    if (startDate && endDate) {
+      transferWhere.createdAt = {
+        [Op.between]: [new Date(startDate), new Date(endDate)],
+      };
+    }
+
+    const transferRows = await WalletTransaction.findAll({
+      where: transferWhere,
+      attributes: ["amount", "currency", "type"],
+    });
+
+    const summary = this._buildTransferIncomeExpenseSummary(transferRows);
+    income_expense_by_currency = summary.income_expense_by_currency;
+    transfer_totals = summary.transfer_totals;
 
     return {
       data: groupedArray,
@@ -1055,7 +1050,6 @@ class WalletService {
       transfer_totals,
     };
   }
-
 }
 
 module.exports = WalletService;
