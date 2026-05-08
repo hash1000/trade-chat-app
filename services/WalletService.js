@@ -159,6 +159,7 @@ class WalletService {
       type,
       amount,
       currency,
+      description= null,
       receiverId = null,
       receiptId = null,
       meta = {},
@@ -175,6 +176,7 @@ class WalletService {
         type,
         amount,
         currency,
+        description,
         receiverId,
         receiptId,
         meta,
@@ -247,6 +249,7 @@ class WalletService {
   async deposit({
     userId,
     currency,
+    description,
     amount,
     walletType = "PERSONAL",
     receiptId = null,
@@ -282,6 +285,7 @@ class WalletService {
           type: "DEPOSIT",
           amount: depositAmount,
           currency,
+          description,
           receiptId,
           meta: { ...meta, balanceBefore: before, balanceAfter: after },
           performedBy,
@@ -296,6 +300,7 @@ class WalletService {
   async withdraw({
     userId,
     currency,
+    description,
     amount,
     walletType = "PERSONAL",
     receiptId = null,
@@ -342,6 +347,7 @@ class WalletService {
           type: "WITHDRAW",
           amount: -withdrawAmount,
           currency,
+          description,
           receiptId,
           meta: { ...meta, balanceBefore: before, balanceAfter: after },
           performedBy,
@@ -360,6 +366,7 @@ class WalletService {
   async receiptApproveDepositAndMaybeLock({
     userId,
     currency,
+    description,
     amount,
     walletType = "PERSONAL",
     receiptId,
@@ -401,6 +408,7 @@ class WalletService {
           type: "DEPOSIT",
           amount: depositAmount,
           currency: normalizedCurrency,
+          description,
           receiptId: receiptId || null,
           meta: {
             source: "receipt_approve",
@@ -436,6 +444,7 @@ class WalletService {
           type: "LOCK",
           amount: -depositAmount,
           currency: normalizedCurrency,
+          description,
           receiptId: receiptId || null,
           meta: {
             source: "receipt_lock",
@@ -457,6 +466,7 @@ class WalletService {
   async lockFunds({
     userId,
     currency,
+    description,
     amount,
     walletType = "PERSONAL",
     receiptId = null,
@@ -500,6 +510,7 @@ class WalletService {
           type: "LOCK",
           amount: -lockAmount,
           currency,
+          description,
           receiptId,
           meta: {
             ...meta,
@@ -524,6 +535,7 @@ class WalletService {
   async unlockLockedToAvailable({
     userId,
     currency,
+    description,
     amount,
     walletType = "PERSONAL",
     meta = {},
@@ -566,6 +578,7 @@ class WalletService {
           type: "UNLOCK",
           amount: unlockAmount,
           currency,
+          description,
           receiptId: null,
           meta: {
             ...meta,
@@ -590,6 +603,7 @@ class WalletService {
   async creditLocked({
     userId,
     currency,
+    description,
     amount,
     walletType = "PERSONAL",
     receiptId = null,
@@ -621,6 +635,7 @@ class WalletService {
           // This operation does not change availableBalance (locked balance only)
           amount: 0,
           currency,
+          description,
           receiptId,
           meta: {
             ...meta,
@@ -640,6 +655,7 @@ class WalletService {
   async unlockFunds({
     userId,
     currency,
+    description,
     amountToUnlock,
     receiptCurrency,
     amount,
@@ -696,6 +712,7 @@ class WalletService {
             type: "UNLOCK",
             amount: amountToAddToAvailable,
             currency: receiptCurrency,
+            description: description,
             receiptId,
             meta: {
               ...meta,
@@ -735,6 +752,7 @@ class WalletService {
           type: "UNLOCK",
           amount: amountToAddToAvailable,
           currency,
+          description: description,
           receiptId,
           meta: {
             ...meta,
@@ -768,6 +786,7 @@ class WalletService {
     userId,
     fromCurrency = "USD",
     toCurrency,
+    description,
     amountInSource,
     rate,
     walletType = "PERSONAL",
@@ -827,6 +846,7 @@ class WalletService {
           type: "CONVERT",
           amount: -amountFrom,
           currency: fromCur,
+          description: description,
           receiptId: null,
           meta: {
             ...meta,
@@ -855,6 +875,7 @@ class WalletService {
           type: "CONVERT",
           amount: amountTarget,
           currency: toCur,
+          description: description,
           receiptId: null,
           meta: {
             ...meta,

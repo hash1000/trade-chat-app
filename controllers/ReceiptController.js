@@ -128,7 +128,7 @@ class ReceiptController {
       const { id } = req.params;
 
       // allow optional newAmount in body to override credited amount
-      const { newAmount } = req.body || {};
+      const { newAmount, description } = req.body || {};
 
       // isLock is controlled via query string (?isLock=true/false)
       let isLock = null;
@@ -143,6 +143,7 @@ class ReceiptController {
         req.user,
         newAmount,
         isLock,
+        description,
       );
 
       if (!approved) {
@@ -223,9 +224,10 @@ class ReceiptController {
   async unlockReceiptFunds(req, res) {
     try {
       const { id  } = req.params;
-      const { currency } = req.body;
+      const { currency , description } = req.body;
       const unlocked = await receiptService.unlockLockedReceiptFunds(
         id,
+        description,
         req.user,
         currency
       );
@@ -259,7 +261,8 @@ class ReceiptController {
   async lockReceiptFunds(req, res) {
     try {
       const { id } = req.params;
-      const locked = await receiptService.lockReceiptFunds(id, req.user);
+      const { description } = req.body;
+      const locked = await receiptService.lockReceiptFunds(id, description, req.user);
 
       if (!locked) {
         return res

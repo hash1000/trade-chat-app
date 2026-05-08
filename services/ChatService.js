@@ -240,7 +240,7 @@ class CartService {
     );
 
     // Now perform the balance transfer
-    await this.transferBalance(requesterId, requesteeId, amount, currency);
+    await this.transferBalance(requesterId, requesteeId, amount, currency, description);
 
     const transaction = await this.chatRepository.getTransactionById(
       paymentRequest.id,
@@ -264,6 +264,7 @@ class CartService {
     return walletService.withdraw({
       userId: targetUserId,
       currency,
+      description,
       amount,
       walletType,
       meta: {
@@ -371,6 +372,7 @@ class CartService {
             type: "DEPOSIT",
             amount: transferAmount,
             currency: normalizedCurrency,
+            description: description,
             receiptId: null,
             meta: {
               source: "admin_deposit_self",
@@ -404,6 +406,7 @@ class CartService {
           type: "TRANSFER",
           amount: -transferAmount,
           currency: normalizedCurrency,
+          description: description,
           receiptId: null,
           meta: {
             source: "transfer_out",
@@ -429,6 +432,7 @@ class CartService {
           type: "TRANSFER",
           amount: transferAmount,
           currency: normalizedCurrency,
+          description: description,
           receiptId: null,
           meta: {
             source: "transfer_in",

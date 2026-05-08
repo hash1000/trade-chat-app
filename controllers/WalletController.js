@@ -148,6 +148,7 @@ class WalletController {
       const {
         userId,
         currency,
+        description,
         amount,
         walletType,
         transaction_group_id,
@@ -176,6 +177,7 @@ class WalletController {
       const result = await walletService.unlockLockedToAvailable({
         userId: targetUserId,
         currency: String(currency).trim().toUpperCase(),
+        description: description,
         amount: amt,
         walletType: wt,
         meta: {

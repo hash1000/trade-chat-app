@@ -258,6 +258,7 @@ class ReceiptService {
     approverUser = null,
     newAmount = null,
     isLockOverride = null,
+    description = null,
   ) {
     // fetch receipt
     const receipt = await this.receiptRepository.findReceiptById(receiptId);
@@ -311,6 +312,7 @@ class ReceiptService {
         await walletService.creditLocked({
           userId,
           currency,
+          description,
           amount: amountToCredit,
           walletType: "PERSONAL",
           receiptId: receipt.id,
@@ -321,6 +323,7 @@ class ReceiptService {
         await walletService.deposit({
           userId,
           currency,
+          description,
           amount: amountToCredit,
           walletType: "PERSONAL",
           receiptId: receipt.id,
@@ -346,7 +349,7 @@ class ReceiptService {
     return receipt;
   }
 
-  async unlockLockedReceiptFunds(receiptId, adminUser = null, currency) {
+  async unlockLockedReceiptFunds(receiptId, description, adminUser = null, currency) {
     // Load receipt with user & bank accounts (admin-level access)
     const receipt = await this.receiptRepository.getReceiptByPk(receiptId);
     if (!receipt) {
@@ -413,6 +416,7 @@ class ReceiptService {
     await walletService.unlockFunds({
       userId,
       currency: targetCurrency,
+      description: description,
       amountToUnlock,
       receiptCurrency: receipt.currency,
       amount: convertedAmount,
@@ -443,7 +447,7 @@ class ReceiptService {
    * (same currency). Only if receipt is approved, currently unlocked, and user has
    * sufficient available balance in receipt currency.
    */
-  async lockReceiptFunds(receiptId, adminUser = null) {
+  async lockReceiptFunds(receiptId, description, adminUser = null) {
     const receipt = await this.receiptRepository.getReceiptByPk(receiptId);
     if (!receipt) {
       return null;
@@ -481,6 +485,7 @@ class ReceiptService {
     await walletService.lockFunds({
       userId: receipt.userId,
       currency: receipt.currency,
+      description: description,
       amount: amountToLock,
       walletType: "PERSONAL",
       receiptId: receipt.id,
