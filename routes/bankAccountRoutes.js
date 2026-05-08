@@ -7,14 +7,12 @@ const {
   createBankAccountValidation,
   updateBankAccountValidation,
   idParamValidation,
-  createAdminTestCardValidation,
   updateAdminTestCardValidation,
-  testCardCurrencyParamValidation,
 } = require("../middlewares/bankAccountValidation");
 
 const bankAccountController = new BankAccountController();
 
-// test-cards
+// ── Test cards ────────────────────────────────────────────────────────────────
 router.get("/test-cards", bankAccountController.getTestCards);
 
 router.put(
@@ -25,37 +23,18 @@ router.put(
   bankAccountController.updateAdminTestCard,
 );
 
-// CRUD routes
+// ── Wallet linking ────────────────────────────────────────────────────────────
+// Must be before /:id to avoid "default" being captured as an id param
+router.get("/default", authenticate, bankAccountController.getDefault);
+router.post("/:id/link", authenticate, idParamValidation, bankAccountController.linkToWallet);
+router.delete("/:id/link", authenticate, idParamValidation, bankAccountController.unlinkFromWallet);
+
+// ── CRUD ──────────────────────────────────────────────────────────────────────
 router.get("/", authenticate, bankAccountController.getBankAccounts);
-router.get(
-  "/:id",
-  authenticate,
-  idParamValidation,
-  bankAccountController.getBankAccountById,
-);
-router.post(
-  "/",
-  authenticate,
-  createBankAccountValidation,
-  bankAccountController.createBankAccount,
-);
-router.put(
-  "/:id",
-  authenticate,
-  updateBankAccountValidation,
-  bankAccountController.updateBankAccount,
-);
-router.delete(
-  "/:id",
-  authenticate,
-  idParamValidation,
-  bankAccountController.deleteBankAccount,
-);
-router.put(
-  "/:id/reorder",
-  authenticate,
-  idParamValidation,
-  bankAccountController.reorderBankAccount,
-);
+router.get("/:id", authenticate, idParamValidation, bankAccountController.getBankAccountById);
+router.post("/", authenticate, createBankAccountValidation, bankAccountController.createBankAccount);
+router.put("/:id", authenticate, updateBankAccountValidation, bankAccountController.updateBankAccount);
+router.delete("/:id", authenticate, idParamValidation, bankAccountController.deleteBankAccount);
+router.put("/:id/reorder", authenticate, idParamValidation, bankAccountController.reorderBankAccount);
 
 module.exports = router;

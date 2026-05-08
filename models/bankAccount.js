@@ -1,9 +1,9 @@
 // models/BankAccount.js
-const { DataTypes } = require('sequelize');
-const sequelize = require('../config/database');
+const { DataTypes } = require("sequelize");
+const sequelize = require("../config/database");
 
 const BankAccount = sequelize.define(
-  'BankAccount',
+  "BankAccount",
   {
     id: {
       allowNull: false,
@@ -27,7 +27,7 @@ const BankAccount = sequelize.define(
     },
     swift_code: {
       type: DataTypes.STRING,
-      allowNull: false
+      allowNull: false,
     },
     accountHolder: {
       type: DataTypes.STRING,
@@ -43,7 +43,7 @@ const BankAccount = sequelize.define(
     },
     intermediateBank: {
       type: DataTypes.STRING,
-      allowNull: true, 
+      allowNull: true,
     },
     beneficiaryAddress: {
       type: DataTypes.STRING,
@@ -54,12 +54,12 @@ const BankAccount = sequelize.define(
       allowNull: true,
     },
     classification: {
-      type: DataTypes.ENUM('sender', 'receiver', 'both'),
+      type: DataTypes.ENUM("sender", "receiver", "both"),
       allowNull: false,
-      defaultValue: 'both',
+      defaultValue: "both",
     },
     currency: {
-      type: DataTypes.ENUM('USD', 'EUR'),
+      type: DataTypes.ENUM("USD", "EUR"),
       allowNull: true,
     },
     testCard: {
@@ -72,11 +72,16 @@ const BankAccount = sequelize.define(
       allowNull: false,
       defaultValue: 0,
     },
+    walletId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      unique: true, // enforces one bank account per wallet at DB level
+    },
   },
   {
     timestamps: true,
-    tableName: 'bank_accounts',
-  }
+    tableName: "bank_accounts",
+  },
 );
 
 module.exports = BankAccount;

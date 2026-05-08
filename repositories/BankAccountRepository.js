@@ -1,5 +1,6 @@
 const BankAccount = require("../models/bankAccount");
-const { Op, literal } = require('sequelize')
+const { Op, literal } = require('sequelize');
+const Wallet = require("../models/wallet");
 
 class BankAccountRepository {
   // classification may be 'sender', 'receiver', 'both' or 'all' (or undefined)
@@ -224,6 +225,29 @@ class BankAccountRepository {
       await transaction.rollback();
       throw error;
     }
+  }
+
+  // ── Wallet linking (pure DB, no business logic) ──────────────────────────
+
+  async findWalletById(walletId, userId) {
+    return await Wallet.findOne({ where: { id: walletId, userId } });
+  }
+
+  async findLinkedAccountForWallet(walletId) {
+    return await BankAccount.findOne({ where: { walletId } });
+  }
+
+  async linkToWallet(account, walletId) {
+    return await account.update({ walletId });
+  }
+
+  async unlinkFromWallet(account) {
+    return await account.update({ walletId: null });
+  }
+
+  async getDefaultBankAccount(userId, walletId) {
+    // "default" is simply whichever account is linked — there can only be one
+    return await BankAccount.findOne({ where: { userId, walletId } });
   }
 }
 

@@ -197,6 +197,74 @@ class BankAccountController {
       handleBankAccountError(res, error);
     }
   }
+
+  // ── Wallet linking ──────────────────────────────────────────────────────────
+
+  // POST /bank-accounts/:id/link
+  async linkToWallet(req, res) {
+    try {
+      const { id: userId } = req.user;
+      const { id: bankAccountId } = req.params;
+      const { walletId } = req.body;
+
+      if (!walletId) {
+        return res.status(400).json({ error: "walletId is required" });
+      }
+
+      const account = await bankAccountService.linkBankAccountToWallet(
+        userId,
+        bankAccountId,
+        walletId,
+      );
+      if (!account) return res.status(404).json({ error: "Account not found" });
+
+      res.json(bankAccountService.serializeBankAccount(account));
+    } catch (error) {
+      handleBankAccountError(res, error);
+    }
+  }
+
+  // DELETE /bank-accounts/:id/link
+  async unlinkFromWallet(req, res) {
+    try {
+      const { id: userId } = req.user;
+      const { id: bankAccountId } = req.params;
+
+      const account = await bankAccountService.unlinkBankAccountFromWallet(
+        userId,
+        bankAccountId,
+      );
+      if (!account) return res.status(404).json({ error: "Account not found" });
+
+      res.json(bankAccountService.serializeBankAccount(account));
+    } catch (error) {
+      handleBankAccountError(res, error);
+    }
+  }
+
+  // GET /bank-accounts/default?walletId=5
+  async getDefault(req, res) {
+    try {
+      const { id: userId } = req.user;
+      const { walletId } = req.query;
+
+      if (!walletId) {
+        return res.status(400).json({ error: "walletId is required" });
+      }
+
+      const account = await bankAccountService.getDefaultBankAccount(
+        userId,
+        walletId,
+      );
+      if (!account) {
+        return res.status(404).json({ error: "No bank account linked to this wallet" });
+      }
+
+      res.json(bankAccountService.serializeBankAccount(account));
+    } catch (error) {
+      handleBankAccountError(res, error);
+    }
+  }
 }
 
 module.exports = BankAccountController;

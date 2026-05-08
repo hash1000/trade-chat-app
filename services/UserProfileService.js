@@ -43,23 +43,10 @@ class UserService {
       updatedAt: w.updatedAt,
     }));
 
-    // Aggregate totals across all wallets
-    const totalWalletAvailable = walletDtos.reduce(
-      (sum, w) => sum + (w.availableBalance || 0),
-      0,
-    );
-    const totalWalletLocked = walletDtos.reduce(
-      (sum, w) => sum + (w.lockedBalance || 0),
-      0,
-    );
 
     // Optional summary for quick access to common wallets (USD/EUR personal)
-    const usdWallet = wallets.find(
-      (w) => w.currency === "USD" && w.walletType === "PERSONAL",
-    );
-    const eurWallet = wallets.find(
-      (w) => w.currency === "EUR" && w.walletType === "PERSONAL",
-    );
+    const usdWallet = wallets.find((w) => w.currency === "USD");
+    const eurWallet = wallets.find((w) => w.currency === "EUR");
 
     const walletSummary = {
       USD: {

@@ -19,39 +19,37 @@ module.exports = {
       }
     });
 
-  for(const wallet of toUserE){
-
-          await queryInterface.sequelize.query(
-            `
+    for (const wallet of toUserE) {
+      await queryInterface.sequelize.query(
+        `
             UPDATE wallet_transactions
             SET receiverId = :receiverId
             WHERE id = :id
             `,
-            {
-              replacements: {
-                receiverId: Number(wallet.user),
-                id: Number(wallet.id),
-              },
-          }
-        );
-        }
+        {
+          replacements: {
+            receiverId: Number(wallet.user),
+            id: Number(wallet.id),
+          },
+        },
+      );
+    }
 
-        for(const wallet of fromUser){
-
-          await queryInterface.sequelize.query(
-            `
+    for (const wallet of fromUser) {
+      await queryInterface.sequelize.query(
+        `
             UPDATE wallet_transactions
             SET receiverId = :receiverId
             WHERE id = :id
             `,
-            {
-              replacements: {
-                receiverId: Number(wallet.user),
-                id: Number(wallet.id),
-              },
-          }
-        );
-        }
+        {
+          replacements: {
+            receiverId: Number(wallet.user),
+            id: Number(wallet.id),
+          },
+        },
+      );
+    }
   },
 
   async down(queryInterface, Sequelize) {},

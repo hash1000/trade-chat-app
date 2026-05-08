@@ -347,6 +347,54 @@ class BankAccountService {
       newPosition,
     );
   }
+
+  async linkBankAccountToWallet(userId, bankAccountId, walletId) {
+    const account = await this.bankAccountRepository.getBankAccountById(
+      userId,
+      bankAccountId,
+    );
+    if (!account) return null;
+
+    // Verify wallet belongs to this user
+    const wallet = await this.bankAccountRepository.findWalletById(walletId, userId);
+    if (!wallet) {
+      const error = new Error("Wallet not found");
+      error.statusCode = 404;
+      throw error;
+    }
+
+    // Reject if this bank account is already linked to a different wallet
+    if (account.walletId && account.walletId !== Number(walletId)) {
+      const error = new Error("Bank account is already linked to another wallet");
+      error.statusCode = 409;
+      throw error;
+    }
+
+    // Reject if the target wallet already has a different bank account linked
+    const existingLink = await this.bankAccountRepository.findLinkedAccountForWallet(walletId);
+    if (existingLink && existingLink.id !== Number(bankAccountId)) {
+      const error = new Error("Wallet already has a linked bank account. Unlink it first.");
+      error.statusCode = 409;
+      throw error;
+    }
+
+    return this.bankAccountRepository.linkToWallet(account, walletId);
+  }
+
+  async unlinkBankAccountFromWallet(userId, bankAccountId) {
+    const account = await this.bankAccountRepository.getBankAccountById(
+      userId,
+      bankAccountId,
+    );
+    if (!account) return null;
+
+    return this.bankAccountRepository.unlinkFromWallet(account);
+  }
+
+  async getDefaultBankAccount(userId, walletId) {
+    return this.bankAccountRepository.getDefaultBankAccount(userId, walletId);
+  }
+
 }
 
 module.exports = BankAccountService;

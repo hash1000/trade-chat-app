@@ -225,25 +225,27 @@ function defineAssociations() {
     as: "services",
   });
 
+  // Service <-> PublicCategory (GLOBAL)
+  Service.belongsToMany(PublicCategory, {
+    through: ServicePublicCategory,
+    foreignKey: "serviceId",
+    otherKey: "publicCategoryId",
+    as: "publicCategories",
+  });
 
-// Service <-> PublicCategory (GLOBAL)
-Service.belongsToMany(PublicCategory, {
-  through: ServicePublicCategory,
-  foreignKey: "serviceId",
-  otherKey: "publicCategoryId",
-  as: "publicCategories"
-});
-
-PublicCategory.belongsToMany(Service, {
-  through: ServicePublicCategory,
-  foreignKey: "publicCategoryId",
-  otherKey: "serviceId",
-  as: "services",
-});
+  PublicCategory.belongsToMany(Service, {
+    through: ServicePublicCategory,
+    foreignKey: "publicCategoryId",
+    otherKey: "serviceId",
+    as: "services",
+  });
 
   WalletTransaction.belongsTo(Wallet, { foreignKey: "walletId", as: "wallet" });
   WalletTransaction.belongsTo(User, { foreignKey: "userId", as: "user" });
-  WalletTransaction.belongsTo(User, { as: "receiver", foreignKey: "receiverId" });
+  WalletTransaction.belongsTo(User, {
+    as: "receiver",
+    foreignKey: "receiverId",
+  });
   WalletTransaction.belongsTo(Receipt, {
     foreignKey: "receiptId",
     as: "receipt",
@@ -257,6 +259,9 @@ PublicCategory.belongsToMany(Service, {
     foreignKey: "performedBy",
     as: "performedWalletTransactions",
   });
+
+  Wallet.hasOne(BankAccount, { foreignKey: "walletId", as: "bankAccount" });
+  BankAccount.belongsTo(Wallet, { foreignKey: "walletId", as: "wallet" });
 }
 
 // Initialize associations
@@ -284,5 +289,5 @@ module.exports = {
   ServiceCategoryLink,
   ServicePublicCategory,
   Category,
-  PublicCategory
+  PublicCategory,
 };
