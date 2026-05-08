@@ -13,6 +13,7 @@ const {
 } = require("../notifications");
 
 const CustomError = require("../errors/CustomError");
+const BankAccount = require("../models/bankAccount");
 
 const userRepository = new UserRepository();
 const reactionRepository = new ReactionRepository();
@@ -24,25 +25,49 @@ class UserService {
   async getUserProfileById(profileId, userId) {
     const my_reaction = await reactionRepository.getReactions(
       userId,
-      profileId
+      profileId,
     );
     const user = await userRepository.getUserProfile(profileId);
 
-    // Load all wallets for this user (multi-currency, all types)
+    // Load all wallets with their linked bank account in one query
     const wallets = await Wallet.findAll({
       where: { userId: profileId },
+      include: [
+        {
+          model: BankAccount,
+          as: "bankAccount",
+          required: false,
+        },
+      ],
     });
 
-    const walletDtos = wallets.map((w) => ({
-      id: w.id,
-      currency: w.currency,
-      walletType: w.walletType,
-      availableBalance: Number(w.availableBalance),
-      lockedBalance: Number(w.lockedBalance),
-      createdAt: w.createdAt,
-      updatedAt: w.updatedAt,
-    }));
-
+    const walletDtos = wallets.map((w) => {
+      const ba = w.bankAccount;
+      return {
+        id: w.id,
+        currency: w.currency,
+        walletType: w.walletType,
+        availableBalance: Number(w.availableBalance),
+        lockedBalance: Number(w.lockedBalance),
+        createdAt: w.createdAt,
+        updatedAt: w.updatedAt,
+        linkedBankAccount: ba
+          ? {
+              id: ba.id,
+              accountName: ba.accountName,
+              accountHolder: ba.accountHolder,
+              iban: ba.iban,
+              swift_code: ba.swift_code,
+              bic: ba.bic,
+              accountCurrency: ba.accountCurrency,
+              beneficiaryAddress: ba.beneficiaryAddress,
+              intermediateBank: ba.intermediateBank,
+              note: ba.note,
+              classification: ba.classification,
+            }
+          : null,
+      };
+    });
 
     // Optional summary for quick access to common wallets (USD/EUR personal)
     const usdWallet = wallets.find((w) => w.currency === "USD");
@@ -58,22 +83,18 @@ class UserService {
         locked: eurWallet ? Number(eurWallet.lockedBalance) : 0,
       },
     };
+
     const favourite = await userFavouriteRepository.get(userId, profileId);
     const friendship = await friendsRepository.get(userId, profileId);
-
-    const favourited = favourite ? true : false;
-    const liked = my_reaction && my_reaction.type === "like" ? true : false;
-    const disliked =
-      my_reaction && my_reaction.type === "dislike" ? true : false;
 
     return {
       ...user,
       wallets: walletDtos,
       walletSummary,
       friendship,
-      liked,
-      disliked,
-      favourited,
+      liked: my_reaction?.type === "like",
+      disliked: my_reaction?.type === "dislike",
+      favourited: !!favourite,
     };
   }
 
@@ -88,7 +109,7 @@ class UserService {
     try {
       const my_reaction = await reactionRepository.getReactions(
         userId,
-        profileId
+        profileId,
       );
       if (my_reaction) {
         if (my_reaction.type !== type) {
@@ -99,33 +120,33 @@ class UserService {
             userId,
             profileId,
             type,
-            transaction
+            transaction,
           );
           if (type === "like") {
             await userRepository.updateReactionCount(
               profileId,
               "dislikes",
               dislikeCount - 1,
-              transaction
+              transaction,
             );
             await userRepository.updateReactionCount(
               profileId,
               "likes",
               likeCount + 1,
-              transaction
+              transaction,
             );
           } else if (type === "dislike") {
             await userRepository.updateReactionCount(
               profileId,
               "likes",
               likeCount - 1,
-              transaction
+              transaction,
             );
             await userRepository.updateReactionCount(
               profileId,
               "dislikes",
               dislikeCount + 1,
-              transaction
+              transaction,
             );
           }
         }
@@ -136,13 +157,13 @@ class UserService {
           userId,
           profileId,
           type,
-          transaction
+          transaction,
         );
         await userRepository.updateReactionCount(
           profileId,
           `${type}s`,
           reactionCount + 1,
-          transaction
+          transaction,
         );
       }
       await transaction.commit();
@@ -163,7 +184,7 @@ class UserService {
         userId,
         profileId,
         type,
-        transaction
+        transaction,
       );
       if (updated > 0) {
         const reactionCount = user[`${type}s`] || 0;
@@ -171,7 +192,7 @@ class UserService {
           profileId,
           `${type}s`,
           reactionCount - 1,
-          transaction
+          transaction,
         );
       }
       await transaction.commit();
@@ -205,7 +226,7 @@ class UserService {
           await new RequestAcceptedNotification(
             otherUser.fcm,
             {},
-            myUser
+            myUser,
           ).sendNotification();
         }
       }
@@ -218,7 +239,7 @@ class UserService {
         await new AddRequestNotification(
           otherUser.fcm,
           {},
-          myUser
+          myUser,
         ).sendNotification();
       }
     }
