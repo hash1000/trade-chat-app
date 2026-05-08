@@ -16,33 +16,54 @@ const paymentService = new PaymentService();
 const walletService = new WalletService();
 
 class UserService {
+
   async createUser(userData) {
-    let transaction;
-    try {
-      transaction = await sequelize.transaction();
-      const { password, ...data } = userData;
-      const hashedPassword = await bcrypt.hash(password, 10);
+  let transaction;
 
-      const newUser = await userRepository.create(
-        {
-          password: hashedPassword,
-          ...data,
-        },
-        { transaction }
+  try {
+    transaction = await sequelize.transaction();
+
+    const { password, ...data } = userData;
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const newUser = await userRepository.create(
+      {
+        password: hashedPassword,
+        ...data,
+      },
+      { transaction }
+    );
+
+    const role = await userRepository.assignRoleToUser(
+      newUser.id,
+      "user",
+      transaction
+    );
+
+    if (role && newUser) {
+      await walletService.createDefaultWalletsForUser(
+        newUser.id,
+        transaction
       );
-
-     const role = await userRepository.assignRoleToUser(newUser.id, "user", transaction);
-     if (role && newUser ) {
-       await walletService.createDefaultWalletsForUser(newUser.id, transaction);
-     }
-      await transaction.commit();
-      return newUser;
-    } catch (error) {
-      if (transaction) await transaction.rollback();
-      console.error("Error in createUser:", error);
-      throw new CustomError(`Failed to create user: ${error.message}`, 500);
     }
+
+    await transaction.commit();
+
+    return newUser;
+  } catch (error) {
+    if (transaction) {
+      await transaction.rollback();
+    }
+
+    console.error("Error in createUser:", error);
+
+    throw new CustomError(
+      `Failed to create user: ${error.message}`,
+      500
+    );
   }
+}
 
   async updateGoogleUser(user, userData) {
     try {

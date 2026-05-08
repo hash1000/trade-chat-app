@@ -131,21 +131,60 @@ class WalletService {
     walletType = "PERSONAL",
     transaction,
   ) {
+    const Walletcurrency = {
+      USD: "1",
+      EUR: "2",
+      CNY: "3",
+    };
+
+    if (!Walletcurrency[currency]) {
+      throw new Error("Currency not supported");
+    }
+
+    const accountNumber = generateWalletAccountNumber(
+      Walletcurrency[currency],
+    ).slice(0, 20);
+
     const [wallet] = await Wallet.findOrCreate({
-      where: { userId, currency, walletType },
-      defaults: { availableBalance: 0, lockedBalance: 0 },
-      transaction,
+      where: {
+        userId,
+        currency,
+        walletType,
+      },
+
+      defaults: {
+        availableBalance: 0,
+        lockedBalance: 0,
+        accountNumber,
+      },
+
+      transaction, // IMPORTANT
     });
+
     return wallet;
   }
 
-  async createDefaultWalletsForUser(userId) {
+  async createDefaultWalletsForUser(userId, transaction) {
     const currencies = ["CNY", "USD", "EUR"];
     const wallets = [];
 
     for (const currency of currencies) {
-      const wallet = await this.getOrCreateWallet(userId, currency, "PERSONAL");
-      wallets.push(wallet);
+      const personalWallet = await this.getOrCreateWallet(
+        userId,
+        currency,
+        "PERSONAL",
+        transaction,
+      );
+
+      const companyWallet = await this.getOrCreateWallet(
+        userId,
+        currency,
+        "COMPANY",
+        transaction,
+      );
+
+      wallets.push(personalWallet);
+      wallets.push(companyWallet);
     }
 
     return wallets;
@@ -159,7 +198,7 @@ class WalletService {
       type,
       amount,
       currency,
-      description= null,
+      description = null,
       receiverId = null,
       receiptId = null,
       meta = {},
