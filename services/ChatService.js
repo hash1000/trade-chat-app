@@ -301,7 +301,7 @@ class CartService {
     });
   }
 
-  async transferBalance(fromUserId, toUserId, amount, currency) {
+  async transferBalance(fromUserId, toUserId, amount, currency, description) {
     const t = await sequelize.transaction();
     try {
       const fromId = Number(fromUserId);
