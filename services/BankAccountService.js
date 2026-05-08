@@ -75,17 +75,15 @@ class BankAccountService {
           throw parseError;
         }
       } else {
-        rawValues = normalizedValue
-          .split(/[\s,/]+/)
-          .filter(Boolean);
+        rawValues = normalizedValue.split(/[\s,/]+/).filter(Boolean);
       }
     }
 
-    const normalizedCurrencies = [...new Set(
-      rawValues
-        .map((entry) => this.normalizeCurrency(entry))
-        .filter(Boolean),
-    )];
+    const normalizedCurrencies = [
+      ...new Set(
+        rawValues.map((entry) => this.normalizeCurrency(entry)).filter(Boolean),
+      ),
+    ];
 
     if (!normalizedCurrencies.length && allowEmpty) {
       return [];
@@ -120,11 +118,7 @@ class BankAccountService {
   }
 
   getRequestedTestCardCurrencies(data, options = {}) {
-    const {
-      allowEmpty = false,
-      fallback = [],
-      requireInput = false,
-    } = options;
+    const { allowEmpty = false, fallback = [], requireInput = false } = options;
 
     if (!this.hasTestCardCurrencyInput(data)) {
       if (requireInput) {
@@ -144,11 +138,7 @@ class BankAccountService {
   }
 
   getRequestedAdminTestCardCurrencies(data, options = {}) {
-    const {
-      allowEmpty = false,
-      fallback = [],
-      requireInput = false,
-    } = options;
+    const { allowEmpty = false, fallback = [], requireInput = false } = options;
 
     if (!Object.prototype.hasOwnProperty.call(data, "currency")) {
       if (requireInput) {
@@ -225,41 +215,37 @@ class BankAccountService {
     return accounts.map((account) => this.serializeBankAccount(account));
   }
 
-  async reassignCurrenciesFromOtherTestCards(
-    assignedCurrencies,
-    transaction,
-  ) {
+  async reassignCurrenciesFromOtherTestCards(assignedCurrencies, transaction) {
     // ensure array
     const assigned = Array.isArray(assignedCurrencies)
       ? assignedCurrencies
       : [assignedCurrencies];
-  
+
     const allTestCards = await this.bankAccountRepository.getAllTestCards({
       transaction,
     });
-  
+
     for (const card of allTestCards) {
-  
       let current = card.currency || [];
-  
+
       // safety for old string data
       if (typeof current === "string") {
         current = [current];
       }
-  
-      // remove assigned currencies
-      const remainingCurrencies = current.filter(
-        c => !assigned.includes(c)
-      );
 
-  
+      // remove assigned currencies
+      const remainingCurrencies = current.filter((c) => !assigned.includes(c));
+
       // if empty → null
-      const finalValue = remainingCurrencies.length ? remainingCurrencies : null;
-  
+      const finalValue = remainingCurrencies.length
+        ? remainingCurrencies
+        : null;
+
       await this.bankAccountRepository.updateAnyBankAccount(
         card.id,
-        { currency: finalValue, 
-          testCard: finalValue === null ? false : card.testCard   
+        {
+          currency: finalValue,
+          testCard: finalValue === null ? false : card.testCard,
         }, // ✅ correct format
         { transaction },
       );
@@ -278,7 +264,6 @@ class BankAccountService {
   }
 
   async createBankAccount(userId, accountData) {
-
     return this.bankAccountRepository.createBankAccount(userId, accountData);
   }
 
@@ -293,7 +278,7 @@ class BankAccountService {
   }
 
   async getTestCards(currency) {
-    console.log("getTestCards",currency);
+    console.log("getTestCards", currency);
     const cards = await this.bankAccountRepository.getTestCards(currency);
 
     return cards;
@@ -322,11 +307,10 @@ class BankAccountService {
         safeUpdateData.currency = updateData.currency;
       }
 
-        await this.reassignCurrenciesFromOtherTestCards(
-          updateData.currency,
-          transaction,
-        );
-
+      await this.reassignCurrenciesFromOtherTestCards(
+        updateData.currency,
+        transaction,
+      );
 
       return this.bankAccountRepository.updateAnyBankAccount(
         accountId,
@@ -348,37 +332,48 @@ class BankAccountService {
     );
   }
 
-  async linkBankAccountToWallet(userId, bankAccountId, walletId) {
+  async linkBankAccountToWallet(userId, bankAccountId, type, currency) {
     const account = await this.bankAccountRepository.getBankAccountById(
       userId,
       bankAccountId,
     );
     if (!account) return null;
 
-    // Verify wallet belongs to this user
-    const wallet = await this.bankAccountRepository.findWalletById(walletId, userId);
+    // Resolve walletId from userId + type + currency
+    const wallet = await this.bankAccountRepository.findWalletByTypeAndCurrency(
+      userId,
+      type,
+      currency,
+    );
     if (!wallet) {
-      const error = new Error("Wallet not found");
+      const error = new Error(
+        `No wallet found for type '${type}' and currency '${currency}'`,
+      );
       error.statusCode = 404;
       throw error;
     }
 
     // Reject if this bank account is already linked to a different wallet
-    if (account.walletId && account.walletId !== Number(walletId)) {
-      const error = new Error("Bank account is already linked to another wallet");
+    if (account.walletId && account.walletId !== wallet.id) {
+      const error = new Error(
+        "Bank account is already linked to another wallet",
+      );
       error.statusCode = 409;
       throw error;
     }
 
     // Reject if the target wallet already has a different bank account linked
-    const existingLink = await this.bankAccountRepository.findLinkedAccountForWallet(walletId);
+    const existingLink =
+      await this.bankAccountRepository.findLinkedAccountForWallet(wallet.id);
     if (existingLink && existingLink.id !== Number(bankAccountId)) {
-      const error = new Error("Wallet already has a linked bank account. Unlink it first.");
+      const error = new Error(
+        "Wallet already has a linked bank account. Unlink it first.",
+      );
       error.statusCode = 409;
       throw error;
     }
 
-    return this.bankAccountRepository.linkToWallet(account, walletId);
+    return this.bankAccountRepository.linkToWallet(account, wallet.id);
   }
 
   async unlinkBankAccountFromWallet(userId, bankAccountId) {
@@ -388,13 +383,26 @@ class BankAccountService {
     );
     if (!account) return null;
 
-    return this.bankAccountRepository.unlinkFromWallet(account);
+    const result = await this.bankAccountRepository.unlinkFromWallet(account);
+    return result;
   }
 
-  async getDefaultBankAccount(userId, walletId) {
-    return this.bankAccountRepository.getDefaultBankAccount(userId, walletId);
-  }
+  async getLinkedBankAccount(userId, type, currency) {
+    const wallet = await this.bankAccountRepository.findWalletByTypeAndCurrency(
+      userId,
+      type,
+      currency,
+    );
+    if (!wallet) {
+      const error = new Error(
+        `No wallet found for type '${type}' and currency '${currency}'`,
+      );
+      error.statusCode = 404;
+      throw error;
+    }
 
+    return this.bankAccountRepository.findLinkedAccountForWallet(wallet.id);
+  }
 }
 
 module.exports = BankAccountService;

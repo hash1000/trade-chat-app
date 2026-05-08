@@ -24,8 +24,7 @@ router.put(
 );
 
 // ── Wallet linking ────────────────────────────────────────────────────────────
-// Must be before /:id to avoid "default" being captured as an id param
-router.get("/default", authenticate, bankAccountController.getDefault);
+router.get("/linked-wallet", authenticate, bankAccountController.getLinkedWallet);
 router.post("/:id/link", authenticate, idParamValidation, bankAccountController.linkToWallet);
 router.delete("/:id/link", authenticate, idParamValidation, bankAccountController.unlinkFromWallet);
 

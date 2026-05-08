@@ -200,21 +200,22 @@ class BankAccountController {
 
   // ── Wallet linking ──────────────────────────────────────────────────────────
 
-  // POST /bank-accounts/:id/link
+// POST /bank-accounts/:id/link
   async linkToWallet(req, res) {
     try {
       const { id: userId } = req.user;
       const { id: bankAccountId } = req.params;
-      const { walletId } = req.body;
+      const { type, currency } = req.body;
 
-      if (!walletId) {
-        return res.status(400).json({ error: "walletId is required" });
+      if (!type || !currency) {
+        return res.status(400).json({ error: "type and currency are required" });
       }
 
       const account = await bankAccountService.linkBankAccountToWallet(
         userId,
         bankAccountId,
-        walletId,
+        type,
+        currency,
       );
       if (!account) return res.status(404).json({ error: "Account not found" });
 
@@ -242,19 +243,20 @@ class BankAccountController {
     }
   }
 
-  // GET /bank-accounts/default?walletId=5
-  async getDefault(req, res) {
+  // GET /bank-accounts/linked-wallet?type=PERSONAL&currency=USD
+  async getLinkedWallet(req, res) {
     try {
       const { id: userId } = req.user;
-      const { walletId } = req.query;
+      const { type, currency } = req.query;
 
-      if (!walletId) {
-        return res.status(400).json({ error: "walletId is required" });
+      if (!type || !currency) {
+        return res.status(400).json({ error: "type and currency are required" });
       }
 
-      const account = await bankAccountService.getDefaultBankAccount(
+      const account = await bankAccountService.getLinkedBankAccount(
         userId,
-        walletId,
+        type,
+        currency,
       );
       if (!account) {
         return res.status(404).json({ error: "No bank account linked to this wallet" });

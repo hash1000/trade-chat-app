@@ -229,8 +229,10 @@ class BankAccountRepository {
 
   // ── Wallet linking (pure DB, no business logic) ──────────────────────────
 
-  async findWalletById(walletId, userId) {
-    return await Wallet.findOne({ where: { id: walletId, userId } });
+  async findWalletByTypeAndCurrency(userId, type, currency) {
+    return await Wallet.findOne({
+      where: { userId, walletType: type, currency },
+    });
   }
 
   async findLinkedAccountForWallet(walletId) {
