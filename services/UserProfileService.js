@@ -49,6 +49,7 @@ class UserService {
         walletType: w.walletType,
         availableBalance: Number(w.availableBalance),
         lockedBalance: Number(w.lockedBalance),
+        accountNumber: w.accountNumber,
         createdAt: w.createdAt,
         updatedAt: w.updatedAt,
         linkedBankAccount: ba
@@ -63,7 +64,7 @@ class UserService {
               beneficiaryAddress: ba.beneficiaryAddress,
               intermediateBank: ba.intermediateBank,
               note: ba.note,
-              classification: ba.classification,
+              classification: ba.classification
             }
           : null,
       };
