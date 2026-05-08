@@ -1,5 +1,5 @@
 const BankAccount = require("../models/bankAccount");
-const { Op, literal } = require('sequelize');
+const { Op, literal } = require("sequelize");
 const Wallet = require("../models/wallet");
 
 class BankAccountRepository {
@@ -17,6 +17,13 @@ class BankAccountRepository {
 
     return await BankAccount.findAll({
       where,
+      include: [
+        {
+          model: Wallet,
+          as: "wallet",
+          required: false,
+        },
+      ],
       order: [["sequence", "ASC"]],
     });
   }
@@ -34,7 +41,6 @@ class BankAccountRepository {
   async getAllTestCards() {
     const where = { testCard: true };
 
-
     return await BankAccount.findAll({
       where,
       order: [
@@ -47,12 +53,12 @@ class BankAccountRepository {
 
   async getTestCards(currency) {
     const where = { testCard: true };
-  
+
     if (currency) {
       // MySQL JSON_CONTAINS
       where.currency = literal(`JSON_CONTAINS(currency, '["${currency}"]')`);
     }
-  
+
     return await BankAccount.findAll({
       where,
       order: [
@@ -80,10 +86,8 @@ class BankAccountRepository {
     });
   }
 
-    async getTestCardByCurrency(
-    currency,
-  ) {
-    const where = { testCard: true, currency};
+  async getTestCardByCurrency(currency) {
+    const where = { testCard: true, currency };
     return await BankAccount.findOne({
       where,
       order: [["id", "ASC"]],
