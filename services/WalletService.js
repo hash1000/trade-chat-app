@@ -980,7 +980,7 @@ class WalletService {
     currency,
     myTransactions,
     user,
-    userId,
+    userId = 0,
     receiptId,
     startDate,
     endDate,
