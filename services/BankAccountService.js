@@ -354,7 +354,7 @@ class BankAccountService {
     }
 
     // Reject if this bank account is already linked to a different wallet
-    if (account.walletId && account.walletId !== wallet.id) {
+    if (account.walletId && account.walletId === wallet.id) {
       const error = new Error(
         "Bank account is already linked to another wallet",
       );

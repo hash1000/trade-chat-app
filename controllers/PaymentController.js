@@ -350,7 +350,7 @@ class PaymentController {
 
   async adminConvertCurrency(req, res) {
     try {
-      const { amount, current_rate, fromCurrency = "USD", toCurrency = "CNY", userId } = req.body;
+      const { amount, current_rate, fromCurrency = "USD", toCurrency = "CNY", userId , description } = req.body;
 
       const amt = Number(amount);
       const rate = Number(current_rate);
