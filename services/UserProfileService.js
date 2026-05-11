@@ -27,22 +27,27 @@ class UserService {
       userId,
       profileId,
     );
+
     const user = await userRepository.getUserProfile(profileId);
 
-    // Load all wallets with their linked bank account in one query
+    // Load wallets with linked bank accounts
     const wallets = await Wallet.findAll({
-      where: { userId: profileId },
+      where: {
+        userId: profileId,
+      },
       include: [
         {
           model: BankAccount,
-          as: "bankAccount",
+          as: "bankAccounts",
           required: false,
+          through: {
+            attributes: [],
+          },
         },
       ],
     });
 
     const walletDtos = wallets.map((w) => {
-      const ba = w.bankAccount;
       return {
         id: w.id,
         currency: w.currency,
@@ -52,49 +57,64 @@ class UserService {
         accountNumber: w.accountNumber,
         createdAt: w.createdAt,
         updatedAt: w.updatedAt,
-        linkedBankAccount: ba
-          ? {
-              id: ba.id,
-              accountName: ba.accountName,
-              accountHolder: ba.accountHolder,
-              iban: ba.iban,
-              swift_code: ba.swift_code,
-              bic: ba.bic,
-              accountCurrency: ba.accountCurrency,
-              beneficiaryAddress: ba.beneficiaryAddress,
-              intermediateBank: ba.intermediateBank,
-              note: ba.note,
-              classification: ba.classification
-            }
-          : null,
+
+        linkedBankAccounts: w.bankAccounts.map((ba) => ({
+          id: ba.id,
+          accountName: ba.accountName,
+          accountHolder: ba.accountHolder,
+          iban: ba.iban,
+          swift_code: ba.swift_code,
+          bic: ba.bic,
+          accountCurrency: ba.accountCurrency,
+          beneficiaryAddress: ba.beneficiaryAddress,
+          intermediateBank: ba.intermediateBank,
+          note: ba.note,
+          classification: ba.classification,
+          currency: ba.currency,
+        })),
       };
     });
 
-    // Optional summary for quick access to common wallets (USD/EUR personal)
-    const usdWallet = wallets.find((w) => w.currency === "USD");
-    const eurWallet = wallets.find((w) => w.currency === "EUR");
+    // Optional wallet summary
+    const usdWallet = wallets.find(
+      (w) => w.currency === "USD" && w.walletType === "PERSONAL",
+    );
+
+    const eurWallet = wallets.find(
+      (w) => w.currency === "EUR" && w.walletType === "PERSONAL",
+    );
 
     const walletSummary = {
       USD: {
         available: usdWallet ? Number(usdWallet.availableBalance) : 0,
+
         locked: usdWallet ? Number(usdWallet.lockedBalance) : 0,
       },
+
       EUR: {
         available: eurWallet ? Number(eurWallet.availableBalance) : 0,
+
         locked: eurWallet ? Number(eurWallet.lockedBalance) : 0,
       },
     };
 
     const favourite = await userFavouriteRepository.get(userId, profileId);
+
     const friendship = await friendsRepository.get(userId, profileId);
 
     return {
       ...user,
+
       wallets: walletDtos,
+
       walletSummary,
+
       friendship,
+
       liked: my_reaction?.type === "like",
+
       disliked: my_reaction?.type === "dislike",
+
       favourited: !!favourite,
     };
   }

@@ -9,8 +9,8 @@ class BankAccountRepository {
     const where = { userId };
 
     if (classification && classification !== "all") {
-      // only include valid values
       const allowed = ["sender", "receiver", "both"];
+
       if (allowed.includes(classification)) {
         where.classification = classification;
       }
@@ -21,8 +21,11 @@ class BankAccountRepository {
       include: [
         {
           model: Wallet,
-          as: "wallet",
+          as: "wallets",
           required: false,
+          through: {
+            attributes: [],
+          },
         },
       ],
       order: [["sequence", "ASC"]],
