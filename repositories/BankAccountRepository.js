@@ -1,6 +1,7 @@
 const BankAccount = require("../models/bankAccount");
 const { Op, literal } = require("sequelize");
 const Wallet = require("../models/wallet");
+const BankAccountWallet = require("../models/bankAccountWallet");
 
 class BankAccountRepository {
   // classification may be 'sender', 'receiver', 'both' or 'all' (or undefined)
@@ -35,7 +36,14 @@ class BankAccountRepository {
   }
 
   async getAnyBankAccountById(accountId) {
-    return await BankAccount.findByPk(accountId);
+    return await BankAccount.findByPk(accountId, {
+      include: [
+        {
+          model: Wallet,
+          as: "wallets",
+        },
+      ],
+    });
   }
 
   async getAllTestCards() {
@@ -239,21 +247,41 @@ class BankAccountRepository {
     });
   }
 
-  async findLinkedAccountForWallet(walletId) {
-    return await BankAccount.findOne({ where: { walletId } });
+  //  BankAccountWallet is the join table that tracks wallet links, allowing us to enforce the 2-wallet limit per bank account
+  async countLinkedWallets(bankAccountId) {
+    return BankAccountWallet.count({
+      where: { bankAccountId },
+    });
   }
 
-  async linkToWallet(account, walletId) {
-    return await account.update({ walletId });
+  async findBankAccountWalletByWalletId(walletId) {
+    return BankAccountWallet.findOne({
+      where: { walletId },
+    });
   }
 
-  async unlinkFromWallet(account) {
-    return await account.update({ walletId: null });
+  async createBankAccountWallet(bankAccountId, walletId) {
+    return await BankAccountWallet.create({
+      bankAccountId,
+      walletId,
+    });
   }
 
-  async getDefaultBankAccount(userId, walletId) {
-    // "default" is simply whichever account is linked — there can only be one
-    return await BankAccount.findOne({ where: { userId, walletId } });
+  async deleteBankAccountWallet(bankAccountId) {
+    return await BankAccountWallet.destroy({
+      where: { bankAccountId },
+    });
+  }
+
+  async findBankAccountByWalletId(walletId) {
+    return await Wallet.findByPk(walletId, {
+      include: [
+        {
+          model: BankAccount,
+          as: "bankAccounts",
+        },
+      ],
+    });
   }
 }
 

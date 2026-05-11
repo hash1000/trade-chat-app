@@ -72,11 +72,6 @@ const BankAccount = sequelize.define(
       allowNull: false,
       defaultValue: 0,
     },
-    walletId: {
-      type: DataTypes.INTEGER,
-      allowNull: true,
-      unique: true, // enforces one bank account per wallet at DB level
-    },
   },
   {
     timestamps: true,

@@ -25,8 +25,9 @@ router.put(
 
 // ── Wallet linking ────────────────────────────────────────────────────────────
 router.get("/linked-wallet", authenticate, bankAccountController.getLinkedWallet);
+router.get("/available-wallets", authenticate, bankAccountController.getAvailableWallets);
 router.post("/:id/link", authenticate, idParamValidation, bankAccountController.linkToWallet);
-router.delete("/:id/link", authenticate, idParamValidation, bankAccountController.unlinkFromWallet);
+router.delete("/link-account/:id", authenticate, idParamValidation, bankAccountController.unlinkFromWallet);
 
 // ── CRUD ──────────────────────────────────────────────────────────────────────
 router.get("/", authenticate, bankAccountController.getBankAccounts);

@@ -8,6 +8,7 @@ const Wallet = require("../models/wallet");
 const WalletTransaction = require("../models/walletTransaction");
 const Receipt = require("../models/receipt");
 const { generateWalletAccountNumber } = require("../utilities/walletUtils");
+const BankAccount = require("../models/bankAccount");
 
 class WalletService {
   constructor() {}
@@ -123,6 +124,21 @@ class WalletService {
     });
 
     return { wallet, created };
+  }
+
+  async findAllUserWallet(userId) {
+    return await Wallet.findAll({
+      where: {
+        userId,
+      },
+      include: [
+        {
+          model: BankAccount,
+          as: "bankAccounts",
+          required: false,
+        },
+      ],
+    });
   }
 
   async getOrCreateWallet(

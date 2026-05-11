@@ -260,8 +260,19 @@ function defineAssociations() {
     as: "performedWalletTransactions",
   });
 
-  Wallet.hasOne(BankAccount, { foreignKey: "walletId", as: "bankAccount" });
-  BankAccount.belongsTo(Wallet, { foreignKey: "walletId", as: "wallet" });
+  BankAccount.belongsToMany(Wallet, {
+    through: "bank_account_wallets",
+    foreignKey: "bankAccountId",
+    otherKey: "walletId",
+    as: "wallets",
+  });
+
+  Wallet.belongsToMany(BankAccount, {
+    through: "bank_account_wallets",
+    foreignKey: "walletId",
+    otherKey: "bankAccountId",
+    as: "bankAccounts",
+  });
 }
 
 // Initialize associations

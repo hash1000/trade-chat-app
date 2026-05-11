@@ -1,11 +1,12 @@
 const BankAccountRepository = require("../repositories/BankAccountRepository");
-const BankAccount = require("../models/bankAccount");
+const WalletService = require("./WalletService");
 
 const TEST_CARD_CURRENCIES = ["EUR", "USD"];
 
 class BankAccountService {
   constructor() {
     this.bankAccountRepository = new BankAccountRepository();
+    this.walletService = new WalletService();
   }
 
   normalizeCurrency(value) {
@@ -333,18 +334,22 @@ class BankAccountService {
   }
 
   async linkBankAccountToWallet(userId, bankAccountId, type, currency) {
-    const account = await this.bankAccountRepository.getBankAccountById(
-      userId,
-      bankAccountId,
-    );
-    if (!account) return null;
+    const totalLinks =
+      await this.bankAccountRepository.countLinkedWallets(bankAccountId);
 
-    // Resolve walletId from userId + type + currency
+    if (totalLinks >= 2) {
+      const error = new Error("Maximum 2 wallets allowed");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    // find wallet
     const wallet = await this.bankAccountRepository.findWalletByTypeAndCurrency(
       userId,
       type,
       currency,
     );
+
     if (!wallet) {
       const error = new Error(
         `No wallet found for type '${type}' and currency '${currency}'`,
@@ -353,38 +358,42 @@ class BankAccountService {
       throw error;
     }
 
-    // Reject if this bank account is already linked to a different wallet
-    if (account.walletId && account.walletId === wallet.id) {
-      const error = new Error(
-        "Bank account is already linked to another wallet",
+    // check wallet already linked
+    const existingWalletLink =
+      await this.bankAccountRepository.findBankAccountWalletByWalletId(
+        wallet.id,
       );
-      error.statusCode = 409;
+
+    if (existingWalletLink) {
+      const error = new Error(
+        "Wallet already linked with another bank account",
+      );
+      error.statusCode = 400;
       throw error;
     }
 
-    // Reject if the target wallet already has a different bank account linked
-    const existingLink =
-      await this.bankAccountRepository.findLinkedAccountForWallet(wallet.id);
-    if (existingLink && existingLink.id !== Number(bankAccountId)) {
-      const error = new Error(
-        "Wallet already has a linked bank account. Unlink it first.",
-      );
-      error.statusCode = 409;
-      throw error;
-    }
+    // create link
+    const link = await this.bankAccountRepository.createBankAccountWallet(
+      bankAccountId,
+      wallet.id,
+    );
 
-    return this.bankAccountRepository.linkToWallet(account, wallet.id);
+    return link;
   }
 
-  async unlinkBankAccountFromWallet(userId, bankAccountId) {
-    const account = await this.bankAccountRepository.getBankAccountById(
-      userId,
-      bankAccountId,
-    );
-    if (!account) return null;
+  async unlinkBankAccountFromWallet(bankAccountId) {
+    const totalLinks =
+      await this.bankAccountRepository.countLinkedWallets(bankAccountId);
 
-    const result = await this.bankAccountRepository.unlinkFromWallet(account);
-    return result;
+    if (totalLinks === 0) {
+      const error = new Error("Wallet link not found");
+      error.statusCode = 404;
+      throw error;
+    }
+
+    await this.bankAccountRepository.deleteBankAccountWallet(bankAccountId);
+
+    return true;
   }
 
   async getLinkedBankAccount(userId, type, currency) {
@@ -393,6 +402,7 @@ class BankAccountService {
       type,
       currency,
     );
+
     if (!wallet) {
       const error = new Error(
         `No wallet found for type '${type}' and currency '${currency}'`,
@@ -401,7 +411,21 @@ class BankAccountService {
       throw error;
     }
 
-    return this.bankAccountRepository.findLinkedAccountForWallet(wallet.id);
+    const account = await this.bankAccountRepository.findBankAccountByWalletId(
+      wallet.id,
+    );
+
+    return account;
+  }
+
+  async getAvailableWallets(userId) {
+    const wallets = await this.walletService.findAllUserWallet(userId);
+
+    const available = wallets.filter(
+      (wallet) => wallet.bankAccounts.length === 0,
+    );
+
+    return available;
   }
 }
 

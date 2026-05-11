@@ -148,7 +148,7 @@ class BankAccountController {
 
   async getTestCards(req, res) {
     try {
-    console.log("getTestCards",req.query.currency);
+      console.log("getTestCards", req.query.currency);
       const cards = await bankAccountService.getTestCards(req.query.currency);
       res.json({
         success: true,
@@ -179,7 +179,6 @@ class BankAccountController {
     }
   }
 
-
   async updateAdminTestCard(req, res) {
     try {
       const { id } = req.params;
@@ -200,7 +199,7 @@ class BankAccountController {
 
   // ── Wallet linking ──────────────────────────────────────────────────────────
 
-// POST /bank-accounts/:id/link
+  // POST /bank-accounts/:id/link
   async linkToWallet(req, res) {
     try {
       const { id: userId } = req.user;
@@ -208,36 +207,42 @@ class BankAccountController {
       const { type, currency } = req.body;
 
       if (!type || !currency) {
-        return res.status(400).json({ error: "type and currency are required" });
+        return res.status(400).json({
+          success: false,
+          message: "type and currency are required",
+        });
       }
 
-      const account = await bankAccountService.linkBankAccountToWallet(
+      const result = await bankAccountService.linkBankAccountToWallet(
         userId,
         bankAccountId,
         type,
         currency,
       );
-      if (!account) return res.status(404).json({ error: "Account not found" });
 
-      res.json(bankAccountService.serializeBankAccount(account));
+      return res.status(200).json({
+        success: true,
+        result,
+        message: "Wallet linked successfully",
+      });
     } catch (error) {
       handleBankAccountError(res, error);
     }
   }
 
-  // DELETE /bank-accounts/:id/link
+  // DELETE /bank-accounts/:bankAccountId/link/:walletId
   async unlinkFromWallet(req, res) {
     try {
-      const { id: userId } = req.user;
       const { id: bankAccountId } = req.params;
 
-      const account = await bankAccountService.unlinkBankAccountFromWallet(
-        userId,
-        bankAccountId,
+      await bankAccountService.unlinkBankAccountFromWallet(
+        bankAccountId
       );
-      if (!account) return res.status(404).json({ error: "Account not found" });
 
-      res.json(bankAccountService.serializeBankAccount(account));
+      return res.status(200).json({
+        success: true,
+        message: "Wallet unlinked successfully",
+      });
     } catch (error) {
       handleBankAccountError(res, error);
     }
@@ -250,7 +255,10 @@ class BankAccountController {
       const { type, currency } = req.query;
 
       if (!type || !currency) {
-        return res.status(400).json({ error: "type and currency are required" });
+        return res.status(400).json({
+          success: false,
+          message: "type and currency are required",
+        });
       }
 
       const account = await bankAccountService.getLinkedBankAccount(
@@ -258,11 +266,35 @@ class BankAccountController {
         type,
         currency,
       );
+
       if (!account) {
-        return res.status(404).json({ error: "No bank account linked to this wallet" });
+        return res.status(404).json({
+          success: false,
+          message: "No bank account linked to this wallet",
+        });
       }
 
-      res.json(bankAccountService.serializeBankAccount(account));
+      return res.status(200).json({
+        success: true,
+        result: bankAccountService.serializeBankAccount(account),
+      });
+    } catch (error) {
+      handleBankAccountError(res, error);
+    }
+  }
+
+  // GET /wallets/available
+  async getAvailableWallets(req, res) {
+    try {
+      const { id: userId } = req.user;
+
+      const wallets = await bankAccountService.getAvailableWallets(userId);
+
+      return res.status(200).json({
+        success: true,
+        result: wallets,
+        message: "Available wallets retrieved successfully",
+      });
     } catch (error) {
       handleBankAccountError(res, error);
     }
