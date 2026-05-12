@@ -1,7 +1,9 @@
+const BankAccount = require("../models/bankAccount");
 const BankAccountRepository = require("../repositories/BankAccountRepository");
 const WalletService = require("./WalletService");
 
 const TEST_CARD_CURRENCIES = ["EUR", "USD"];
+const MAX_TEST_CARD_COUNT = TEST_CARD_CURRENCIES.length;
 
 class BankAccountService {
   constructor() {
@@ -279,9 +281,7 @@ class BankAccountService {
   }
 
   async getTestCards(currency) {
-    console.log("getTestCards", currency);
     const cards = await this.bankAccountRepository.getTestCards(currency);
-
     return cards;
   }
 
@@ -290,6 +290,40 @@ class BankAccountService {
     this.assertValidCurrency(normalizedCurrency);
 
     return this.getTestCards(normalizedCurrency);
+  }
+
+  async createAdminTestCard(userId, accountData) {
+    const requestedCurrencies = this.getRequestedAdminTestCardCurrencies(
+      accountData,
+      { allowEmpty: false, requireInput: true },
+    );
+
+    return BankAccount.sequelize.transaction(async (transaction) => {
+      const existingTestCards =
+        await this.bankAccountRepository.getAllTestCards({ transaction });
+
+      if (existingTestCards.length >= MAX_TEST_CARD_COUNT) {
+        const error = new Error("Only two admin test cards are allowed");
+        error.statusCode = 409;
+        throw error;
+      }
+
+      await this.reassignCurrenciesFromOtherTestCards(
+        requestedCurrencies,
+        null,
+        transaction,
+      );
+
+      return this.bankAccountRepository.createBankAccount(
+        userId,
+        {
+          ...accountData,
+          // ...this.buildTestCardCurrencyFields(requestedCurrencies),
+          testCard: true,
+        },
+        { transaction },
+      );
+    });
   }
 
   async updateAdminTestCard(accountId, updateData) {

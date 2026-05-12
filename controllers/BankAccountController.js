@@ -179,6 +179,22 @@ class BankAccountController {
     }
   }
 
+  async createAdminTestCard(req, res) {
+    try {
+      const { id: userId } = req.user;
+      const newTestCard = await bankAccountService.createAdminTestCard(
+        userId,
+        req.body,
+      );
+
+      res
+        .status(201)
+        .json(bankAccountService.serializeBankAccount(newTestCard));
+    } catch (error) {
+      handleBankAccountError(res, error);
+    }
+  }
+
   async updateAdminTestCard(req, res) {
     try {
       const { id } = req.params;
@@ -235,9 +251,7 @@ class BankAccountController {
     try {
       const { id: bankAccountId } = req.params;
 
-      await bankAccountService.unlinkBankAccountFromWallet(
-        bankAccountId
-      );
+      await bankAccountService.unlinkBankAccountFromWallet(bankAccountId);
 
       return res.status(200).json({
         success: true,

@@ -8,12 +8,27 @@ const {
   updateBankAccountValidation,
   idParamValidation,
   updateAdminTestCardValidation,
+  createAdminTestCardValidation,
+  testCardCurrencyParamValidation,
 } = require("../middlewares/bankAccountValidation");
 
 const bankAccountController = new BankAccountController();
 
 // ── Test cards ────────────────────────────────────────────────────────────────
 router.get("/test-cards", bankAccountController.getTestCards);
+router.get(
+  "/test-cards/:currency",
+  authenticate,
+  testCardCurrencyParamValidation,
+  bankAccountController.getTestCardByCurrency,
+);
+router.post(
+  "/admin/test-cards",
+  authenticate,
+  authorize(["admin"]),
+  createAdminTestCardValidation,
+  bankAccountController.createAdminTestCard,
+);
 
 router.put(
   "/admin/:id/test-card",

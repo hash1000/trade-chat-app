@@ -71,7 +71,7 @@ const BankAccount = sequelize.define(
       type: DataTypes.INTEGER,
       allowNull: false,
       defaultValue: 0,
-    },
+    }
   },
   {
     timestamps: true,
