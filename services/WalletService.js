@@ -8,7 +8,6 @@ const Wallet = require("../models/wallet");
 const WalletTransaction = require("../models/walletTransaction");
 const Receipt = require("../models/receipt");
 const { generateWalletAccountNumber } = require("../utilities/walletUtils");
-const BankAccount = require("../models/bankAccount");
 
 class WalletService {
   constructor() {}

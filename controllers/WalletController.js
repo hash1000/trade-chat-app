@@ -91,7 +91,7 @@ class WalletController {
    */
   async adminLockUserFunds(req, res) {
     try {
-      const { userId, currency, amount, walletType, transaction_group_id } = req.body || {};
+      const { userId, currency, amount, walletType, transaction_group_id , description } = req.body || {};
       const targetUserId = Number(userId);
       if (!targetUserId || targetUserId <= 0 || Number.isNaN(targetUserId)) {
         return res.status(400).json({ success: false, error: "userId is required." });
@@ -116,8 +116,9 @@ class WalletController {
         currency: String(currency).trim().toUpperCase(),
         amount: amt,
         walletType: wt,
+        description: description,
         receiptId: null,
-        meta: { source: "admin_wallet_lock" },
+        meta: { source: "admin_wallet_lock", description },
         performedBy: req.user?.id ?? null,
         transaction_group_id,
       });
