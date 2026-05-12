@@ -313,11 +313,26 @@ class PaymentController {
   // Convert USD wallet → target currency wallet (e.g. CNY, EUR). Uses wallet + walletTransaction.
   async convertCurrency(req, res) {
     try {
-      const { amount, current_rate, fromCurrency = "USD", toCurrency = "CNY", description } = req.body;
+      const {
+        amount,
+        type,
+        current_rate,
+        fromCurrency = "USD",
+        toCurrency = "CNY",
+        description,
+      } = req.body;
       const { id: userId } = req.user;
 
       const amt = Number(amount);
       const rate = Number(current_rate);
+      const validTypes = ["PERSONAL", "COMPANY"];
+
+      if (type && !validTypes.includes(type.toUpperCase())) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid type. Supported types are: ${validTypes.join(", ")}`,
+        });
+      }
       if (!amt || amt <= 0 || !rate || rate <= 0) {
         return res.status(400).json({
           success: false,
@@ -325,7 +340,15 @@ class PaymentController {
         });
       }
 
-      const data = await paymentService.transferAmount(userId, amt, rate, fromCurrency, toCurrency, description);
+      const data = await paymentService.transferAmount(
+        userId,
+        amt,
+        type,
+        rate,
+        fromCurrency,
+        toCurrency,
+        description,
+      );
 
       return res.json({
         success: true,
@@ -350,10 +373,26 @@ class PaymentController {
 
   async adminConvertCurrency(req, res) {
     try {
-      const { amount, current_rate, fromCurrency = "USD", toCurrency = "CNY", userId , description } = req.body;
+      const {
+        amount,
+        type,
+        current_rate,
+        fromCurrency = "USD",
+        toCurrency = "CNY",
+        userId,
+        description,
+      } = req.body;
 
       const amt = Number(amount);
       const rate = Number(current_rate);
+      const validTypes = ["PERSONAL", "COMPANY"];
+
+      if (type && !validTypes.includes(type.toUpperCase())) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid type. Supported types are: ${validTypes.join(", ")}`,
+        });
+      }
       if (!amt || amt <= 0 || !rate || rate <= 0) {
         return res.status(400).json({
           success: false,
@@ -361,7 +400,15 @@ class PaymentController {
         });
       }
 
-      const data = await paymentService.transferAmount(userId, amt, rate, fromCurrency, toCurrency, description);
+      const data = await paymentService.transferAmount(
+        userId,
+        amt,
+        type,
+        rate,
+        fromCurrency,
+        toCurrency,
+        description,
+      );
 
       return res.json({
         success: true,
@@ -389,8 +436,13 @@ class PaymentController {
     try {
       const { currency = "CNY", baseCurrency = "USD" } = req.query;
 
-      console.log(`Getting adjusted rate for ${currency} with base ${baseCurrency}...`);
-      const rateInfo = await currencyService.getAdjustedRate(currency, baseCurrency);
+      console.log(
+        `Getting adjusted rate for ${currency} with base ${baseCurrency}...`,
+      );
+      const rateInfo = await currencyService.getAdjustedRate(
+        currency,
+        baseCurrency,
+      );
 
       return res.json({
         success: true,
@@ -866,7 +918,7 @@ class PaymentController {
     }
   }
 
-    async reorderIncome(req, res) {
+  async reorderIncome(req, res) {
     try {
       const { id } = req.params;
       const { newPosition } = req.body;
@@ -875,7 +927,10 @@ class PaymentController {
         return res.status(400).json({ error: "Valid newPosition is required" });
       }
 
-      const reorderedLedgers = await paymentService.reorderIncome(id, newPosition);
+      const reorderedLedgers = await paymentService.reorderIncome(
+        id,
+        newPosition,
+      );
       if (!reorderedLedgers)
         return res.status(404).json({ error: "Ledger not found" });
       res.json({
@@ -941,30 +996,28 @@ class PaymentController {
   }
 
   async reorderExpense(req, res) {
-  try {
-    const { id } = req.params;
-    const { newPosition } = req.body;
+    try {
+      const { id } = req.params;
+      const { newPosition } = req.body;
 
-    if (!newPosition || newPosition < 1) {
-      return res.status(400).json({ error: "Valid newPosition is required" });
+      if (!newPosition || newPosition < 1) {
+        return res.status(400).json({ error: "Valid newPosition is required" });
+      }
+
+      const result = await paymentService.reorderExpense(id, newPosition);
+
+      if (!result) return res.status(404).json({ error: "Expense not found" });
+
+      res.json({
+        success: true,
+        message: "Expense sequence updated",
+        data: result,
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: "Server Error" });
     }
-
-    const result = await paymentService.reorderExpense(id, newPosition);
-
-    if (!result)
-      return res.status(404).json({ error: "Expense not found" });
-
-    res.json({
-      success: true,
-      message: "Expense sequence updated",
-      data: result,
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Server Error" });
   }
-}
-
 }
 
 module.exports = PaymentController;

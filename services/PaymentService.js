@@ -52,7 +52,7 @@ class PaymentService {
    * @param {string} fromCurrency - e.g. "EUR"
    * @param {string} toCurrency - e.g. "CNY"
    */
-  async transferAmount(userId, amount, currentRate, fromCurrency = "USD", toCurrency = "CNY", description = null) {
+  async transferAmount(userId, amount, type, currentRate, fromCurrency = "USD", toCurrency = "CNY", description = null) {
     return walletService.fxConvert({
       userId,
       fromCurrency,
@@ -60,7 +60,7 @@ class PaymentService {
       description,
       amountInSource: Number(amount),
       rate: Number(currentRate),
-      walletType: "PERSONAL",
+      walletType: type,
       meta: { source: "payment_convert" },
     });
   }
