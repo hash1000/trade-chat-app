@@ -319,8 +319,14 @@ class ChatController {
 
   async adminAddPayment(req, res) {
     try {
-      console.log("Admin add payment request body:", req.body);
-      const { amount, description, requesteeId, userId, currency = "CNY", walletType = "PERSONAL" } = req.body;
+      const {
+        amount,
+        description,
+        requesteeId,
+        userId,
+        currency = "CNY",
+        walletType = "PERSONAL",
+      } = req.body;
       const { id: adminUserId } = req.user;
 
       const targetUserId = Number(userId || requesteeId);

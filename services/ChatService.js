@@ -292,6 +292,7 @@ class CartService {
       userId: targetUserId,
       currency,
       amount,
+      description,
       walletType,
       meta: {
         source: "admin_manual_add",
