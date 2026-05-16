@@ -240,7 +240,7 @@ class CartService {
     );
 
     // Now perform the balance transfer
-    await this.transferBalance(requesterId, requesteeId, walletType amount, currency, description);
+    await this.transferBalance(requesterId, requesteeId, walletType, amount, currency, description);
 
     const transaction = await this.chatRepository.getTransactionById(
       paymentRequest.id,
