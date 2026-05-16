@@ -218,7 +218,7 @@ class CartService {
     }
   }
 
-  async sendPayment(requesterId, requesteeId, amount, currency, description) {
+  async sendPayment(requesterId, requesteeId, amount, currency, walletType, description) {
     const user = await userService.getUserById(requesteeId);
     if (!user) {
       return { message: `User with ID ${requesteeId} not found` };
@@ -240,7 +240,7 @@ class CartService {
     );
 
     // Now perform the balance transfer
-    await this.transferBalance(requesterId, requesteeId, amount, currency, description);
+    await this.transferBalance(requesterId, requesteeId, walletType amount, currency, description);
 
     const transaction = await this.chatRepository.getTransactionById(
       paymentRequest.id,
@@ -302,7 +302,7 @@ class CartService {
     });
   }
 
-  async transferBalance(fromUserId, toUserId, amount, currency, description) {
+  async transferBalance(fromUserId, toUserId, walletType, amount, currency, description) {
     const t = await sequelize.transaction();
     try {
       const fromId = Number(fromUserId);
@@ -337,7 +337,7 @@ class CartService {
       const secondUserId = Math.max(fromId, toId);
 
       const firstWallet = await Wallet.findOne({
-        where: { userId: firstUserId, currency: normalizedCurrency, walletType: "PERSONAL" },
+        where: { userId: firstUserId, currency: normalizedCurrency, walletType },
         transaction: t,
         lock: t.LOCK.UPDATE,
       });
@@ -345,7 +345,7 @@ class CartService {
         secondUserId === firstUserId
           ? firstWallet
           : await Wallet.findOne({
-              where: { userId: secondUserId, currency: normalizedCurrency, walletType: "PERSONAL" },
+              where: { userId: secondUserId, currency: normalizedCurrency, walletType },
               transaction: t,
               lock: t.LOCK.UPDATE,
             });

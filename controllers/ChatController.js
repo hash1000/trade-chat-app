@@ -196,7 +196,7 @@ class ChatController {
 
   async sendPayment(req, res) {
     try {
-      const { amount, description, requesteeId , currency = "CNY" } = req.body;
+      const { amount, description, requesteeId , currency = "CNY", walletType } = req.body;
       const { id: requesterId } = req.user;
 
       // Validate input
@@ -228,6 +228,7 @@ class ChatController {
         requesteeId,
         amount,
         currency,
+        walletType,
         description,
       );
 
