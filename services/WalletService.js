@@ -1034,6 +1034,10 @@ class WalletService {
         where,
         include: [
           {
+            model: Wallet,
+            as: "wallet",
+          },
+          {
             model: User,
             as: "user",
             attributes: ["id", "username", "email"],

@@ -241,6 +241,11 @@ function defineAssociations() {
   });
 
   WalletTransaction.belongsTo(Wallet, { foreignKey: "walletId", as: "wallet" });
+  Wallet.hasMany(WalletTransaction, {
+    foreignKey: "walletId",
+    as: "transactions",
+  });
+
   WalletTransaction.belongsTo(User, { foreignKey: "userId", as: "user" });
   WalletTransaction.belongsTo(User, {
     as: "receiver",
