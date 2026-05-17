@@ -58,7 +58,9 @@ class WalletController {
 
       const parsed = Number(amount);
       if (!amount || Number.isNaN(parsed) || parsed <= 0) {
-        return res.status(400).json({ success: false, error: 'Invalid amount provided.' });
+        return res
+          .status(400)
+          .json({ success: false, error: "Invalid amount provided." });
       }
 
       const result = await walletService.fxConvert({
@@ -74,14 +76,17 @@ class WalletController {
       });
       return res.status(200).json({ success: true, data: result });
     } catch (error) {
-      console.error('convertUsdToCny error:', error);
-      if (error.message && error.message.includes('Insufficient')) {
+      console.error("convertUsdToCny error:", error);
+      if (error.message && error.message.includes("Insufficient")) {
         return res.status(400).json({ success: false, error: error.message });
       }
-      if (error.message && error.message.includes('Invalid amount')) {
+      if (error.message && error.message.includes("Invalid amount")) {
         return res.status(400).json({ success: false, error: error.message });
       }
-      return res.status(500).json({ success: false, error: 'Server error. Please try again later.' });
+      return res.status(500).json({
+        success: false,
+        error: "Server error. Please try again later.",
+      });
     }
   }
 
@@ -91,14 +96,25 @@ class WalletController {
    */
   async adminLockUserFunds(req, res) {
     try {
-      const { userId, currency, amount, walletType, transaction_group_id , description } = req.body || {};
+      const {
+        userId,
+        currency,
+        amount,
+        walletType,
+        transaction_group_id,
+        description,
+      } = req.body || {};
       const targetUserId = Number(userId);
       if (!targetUserId || targetUserId <= 0 || Number.isNaN(targetUserId)) {
-        return res.status(400).json({ success: false, error: "userId is required." });
+        return res
+          .status(400)
+          .json({ success: false, error: "userId is required." });
       }
       const amt = Number(amount);
       if (!amt || amt <= 0 || Number.isNaN(amt)) {
-        return res.status(400).json({ success: false, error: "amount must be a positive number." });
+        return res
+          .status(400)
+          .json({ success: false, error: "amount must be a positive number." });
       }
       if (!currency || String(currency).trim().length !== 3) {
         return res.status(400).json({
@@ -107,7 +123,8 @@ class WalletController {
         });
       }
       const wt =
-        walletType && ["PERSONAL", "COMPANY"].includes(String(walletType).toUpperCase())
+        walletType &&
+        ["PERSONAL", "COMPANY"].includes(String(walletType).toUpperCase())
           ? String(walletType).toUpperCase()
           : "PERSONAL";
 
@@ -130,7 +147,10 @@ class WalletController {
       });
     } catch (error) {
       console.error("adminLockUserFunds error:", error);
-      if (error.message && error.message.includes("Insufficient available balance")) {
+      if (
+        error.message &&
+        error.message.includes("Insufficient available balance")
+      ) {
         return res.status(400).json({ success: false, error: error.message });
       }
       return res.status(500).json({
@@ -158,11 +178,15 @@ class WalletController {
       } = req.body || {};
       const targetUserId = Number(userId);
       if (!targetUserId || targetUserId <= 0 || Number.isNaN(targetUserId)) {
-        return res.status(400).json({ success: false, error: "userId is required." });
+        return res
+          .status(400)
+          .json({ success: false, error: "userId is required." });
       }
       const amt = Number(amount);
       if (!amt || amt <= 0 || Number.isNaN(amt)) {
-        return res.status(400).json({ success: false, error: "amount must be a positive number." });
+        return res
+          .status(400)
+          .json({ success: false, error: "amount must be a positive number." });
       }
       if (!currency || String(currency).trim().length !== 3) {
         return res.status(400).json({
@@ -171,7 +195,8 @@ class WalletController {
         });
       }
       const wt =
-        walletType && ["PERSONAL", "COMPANY"].includes(String(walletType).toUpperCase())
+        walletType &&
+        ["PERSONAL", "COMPANY"].includes(String(walletType).toUpperCase())
           ? String(walletType).toUpperCase()
           : "PERSONAL";
 
@@ -197,7 +222,10 @@ class WalletController {
       });
     } catch (error) {
       console.error("adminUnlockUserFunds error:", error);
-      if (error.message && error.message.includes("Insufficient locked balance")) {
+      if (
+        error.message &&
+        error.message.includes("Insufficient locked balance")
+      ) {
         return res.status(400).json({ success: false, error: error.message });
       }
       if (error.message && error.message.includes("Invalid amount")) {
@@ -217,8 +245,12 @@ class WalletController {
   async listMyFxConvertTransactions(req, res) {
     try {
       const { id: userId } = req.user;
-      const { page = 1, limit = 20, grouped = false, transaction_group_id } =
-        req.query;
+      const {
+        page = 1,
+        limit = 20,
+        grouped = false,
+        transaction_group_id,
+      } = req.query;
       const result = await walletService.listFxConvertWalletTransactions({
         userId,
         page,
@@ -256,8 +288,12 @@ class WalletController {
           error: "userId query parameter is required.",
         });
       }
-      const { page = 1, limit = 20, grouped = false, transaction_group_id } =
-        req.query;
+      const {
+        page = 1,
+        limit = 20,
+        grouped = false,
+        transaction_group_id,
+      } = req.query;
       const result = await walletService.listFxConvertWalletTransactions({
         userId: targetUserId,
         page,
@@ -290,10 +326,19 @@ class WalletController {
         wallet,
         admin,
         currency,
+        walletType,
         transaction_group_id,
         page = 1,
         limit = 20,
       } = req.query;
+      const allowedWalletTypes = ["PERSONAL", "COMPANY"];
+
+      if (
+        walletType &&
+        !allowedWalletTypes.includes(String(walletType).toUpperCase())
+      ) {
+        throw new Error("Invalid wallet type");
+      }
       const result = await walletService.listWalletTransactions({
         page,
         limit,
@@ -302,6 +347,7 @@ class WalletController {
         myTransactions: false,
         currency,
         wallet,
+        walletType,
         admin,
         transaction_group_id,
       });
@@ -331,11 +377,20 @@ class WalletController {
         wallet,
         admin,
         currency,
+        walletType,
         transaction_group_id,
         page = 1,
         limit = 20,
       } = req.query;
       const { id: userId } = req.user;
+      const allowedWalletTypes = ["PERSONAL", "COMPANY"];
+
+      if (
+        walletType &&
+        !allowedWalletTypes.includes(String(walletType).toUpperCase())
+      ) {
+        throw new Error("Invalid wallet type");
+      }
       const result = await walletService.listWalletTransactions({
         page,
         limit,
@@ -344,6 +399,7 @@ class WalletController {
         myTransactions: true,
         currency,
         wallet,
+        walletType,
         admin,
         transaction_group_id,
       });

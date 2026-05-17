@@ -992,7 +992,8 @@ class WalletService {
     page = 1,
     limit = 10,
     type,
-    currency,
+    currency,  
+    walletType,
     myTransactions,
     user,
     userId = 0,
@@ -1036,7 +1037,12 @@ class WalletService {
           {
             model: Wallet,
             as: "wallet",
-          },
+             where: walletType
+          ? {
+              walletType: String(walletType).toUpperCase(),
+            }
+          : undefined,
+         },
           {
             model: User,
             as: "user",
