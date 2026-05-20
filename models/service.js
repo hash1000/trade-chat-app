@@ -29,11 +29,21 @@ const Service = sequelize.define(
       type: DataTypes.TEXT,
       allowNull: true,
     },
+    price: {
+      type: DataTypes.DECIMAL(20, 8),
+      allowNull: true,
+      defaultValue: null,
+    },
+    priceCurrency: {
+      type: DataTypes.STRING(3),
+      allowNull: false,
+      defaultValue: "USD",
+    },
   },
   {
     tableName: "services",
     timestamps: true,
-  }
+  },
 );
 
 module.exports = Service;

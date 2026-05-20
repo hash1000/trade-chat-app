@@ -33,6 +33,7 @@ const TeamServiceLink = require("./teamService");
 const ServiceCategoryLink = require("./serviceCategory");
 const PaymentRequest = require("./payment_request");
 const ServicePublicCategory = require("./publicServiceCategories");
+const ServicePurchase = require("./servicePurchase");
 
 // Define all associations
 function defineAssociations() {
@@ -277,6 +278,19 @@ function defineAssociations() {
     foreignKey: "walletId",
     otherKey: "bankAccountId",
     as: "bankAccounts",
+  });
+
+  User.hasMany(ServicePurchase, { foreignKey: "userId" });
+  ServicePurchase.belongsTo(User, { foreignKey: "userId" });
+
+  Service.hasMany(ServicePurchase, { foreignKey: "serviceId" });
+  ServicePurchase.belongsTo(Service, { foreignKey: "serviceId" });
+
+  WalletTransaction.hasOne(ServicePurchase, {
+    foreignKey: "walletTransactionId",
+  });
+  ServicePurchase.belongsTo(WalletTransaction, {
+    foreignKey: "walletTransactionId",
   });
 }
 
