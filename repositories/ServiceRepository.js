@@ -7,17 +7,37 @@ const {
   User,
   PublicCategory,
   ServicePublicCategory,
+  Wallet,
 } = require("../models");
 
 class ServiceRepository {
   buildIncludes(options = {}) {
     const include = [];
 
-    // Always include the service owner
     include.push({
       model: User,
       as: "owner",
-      attributes: ["id", "firstName", "lastName", "username", "email", "profilePic"],
+      attributes: [
+        "id",
+        "firstName",
+        "lastName",
+        "username",
+        "email",
+        "profilePic",
+      ],
+    });
+
+    // ⭐ NEW: payout wallet
+    include.push({
+      model: Wallet,
+      as: "payoutWallet",
+      attributes: [
+        "id",
+        "currency",
+        "walletType",
+        "accountNumber",
+        "availableBalance",
+      ],
     });
 
     if (options.includeTeams || options.includeMembers) {
@@ -33,7 +53,14 @@ class ServiceRepository {
             model: User,
             as: "members",
             through: { attributes: [] },
-            attributes: ["id", "firstName", "lastName", "username", "email", "profilePic"],
+            attributes: [
+              "id",
+              "firstName",
+              "lastName",
+              "username",
+              "email",
+              "profilePic",
+            ],
           },
         ];
       }
@@ -106,7 +133,11 @@ class ServiceRepository {
   async addTeams(serviceId, teamIds) {
     if (!Array.isArray(teamIds) || teamIds.length === 0) return [];
     const numericIds = [
-      ...new Set(teamIds.map((id) => Number(id)).filter((id) => !Number.isNaN(id) && id > 0)),
+      ...new Set(
+        teamIds
+          .map((id) => Number(id))
+          .filter((id) => !Number.isNaN(id) && id > 0),
+      ),
     ];
     if (numericIds.length === 0) return [];
 
@@ -128,15 +159,17 @@ class ServiceRepository {
         TeamServiceLink.findOrCreate({
           where: { teamId, serviceId },
           defaults: { teamId, serviceId },
-        })
-      )
+        }),
+      ),
     );
 
     return numericIds;
   }
 
   async removeTeam(serviceId, teamId) {
-    const deleted = await TeamServiceLink.destroy({ where: { teamId, serviceId } });
+    const deleted = await TeamServiceLink.destroy({
+      where: { teamId, serviceId },
+    });
     return deleted > 0;
   }
 
@@ -145,7 +178,9 @@ class ServiceRepository {
   }
 
   async addCategory(serviceId, categoryId) {
-    const [createdCategoryId] = await this.addCategories(serviceId, [categoryId]);
+    const [createdCategoryId] = await this.addCategories(serviceId, [
+      categoryId,
+    ]);
     return createdCategoryId;
   }
 
@@ -153,7 +188,9 @@ class ServiceRepository {
     if (!Array.isArray(categoryIds) || categoryIds.length === 0) return [];
     const numericIds = [
       ...new Set(
-        categoryIds.map((id) => Number(id)).filter((id) => !Number.isNaN(id) && id > 0)
+        categoryIds
+          .map((id) => Number(id))
+          .filter((id) => !Number.isNaN(id) && id > 0),
       ),
     ];
     if (numericIds.length === 0) return [];
@@ -176,8 +213,8 @@ class ServiceRepository {
         ServicePublicCategory.findOrCreate({
           where: { publicCategoryId: categoryId, serviceId },
           defaults: { publicCategoryId: categoryId, serviceId },
-        })
-      )
+        }),
+      ),
     );
 
     return numericIds;

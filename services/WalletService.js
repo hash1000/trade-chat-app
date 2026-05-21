@@ -1074,7 +1074,6 @@ class WalletService {
         attributes: ["id", "username", "email"],
         required: false,
       },
-      // ── Resolve the business entity when referenceType is SERVICE_PURCHASE ──
       {
         model: ServicePurchase,
         as: "servicePurchase",

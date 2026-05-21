@@ -300,7 +300,19 @@ function defineAssociations() {
     foreignKey: "serviceId",
     as: "purchases",
   });
-  WalletTransaction.hasOne(ServicePurchase, { foreignKey: "walletTransactionId", as: "servicePurchase" });
+  WalletTransaction.hasOne(ServicePurchase, {
+    foreignKey: "walletTransactionId",
+    as: "servicePurchase",
+  });
+
+  Service.belongsTo(Wallet, {
+    foreignKey: "payoutWalletId",
+    as: "payoutWallet",
+  });
+  Wallet.hasMany(Service, {
+    foreignKey: "payoutWalletId",
+    as: "services",
+  });
 }
 
 // Initialize associations
