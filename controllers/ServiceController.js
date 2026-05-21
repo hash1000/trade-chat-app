@@ -301,21 +301,68 @@ class ServiceController {
     }
   }
 
+  // controllers/ServiceController.js
+
   async delete(req, res) {
     try {
       const { id } = req.params;
+      const { id: userId } = req.user; // 👈 important
+
       const service = await serviceService.getById(id);
+
       if (!service) {
-        return res
-          .status(404)
-          .json({ success: false, error: "Service not found." });
+        return res.status(404).json({
+          success: false,
+          error: "Service not found.",
+        });
       }
-      await serviceService.delete(id);
-      return res
-        .status(200)
-        .json({ success: true, message: "Service deleted." });
+
+      await serviceService.delete(id, userId);
+
+      return res.status(200).json({
+        success: true,
+        message: "Service deleted successfully (soft delete).",
+      });
     } catch (error) {
       console.error("ServiceController.delete error:", error);
+
+      return res.status(500).json({
+        success: false,
+        error: "Server error. Please try again later.",
+      });
+    }
+  }
+
+  async restore(req, res) {
+    try {
+      const { id } = req.params;
+
+      const service = await serviceService.getByIdWithDeleted(id);
+
+      if (!service) {
+        return res.status(404).json({
+          success: false,
+          error: "Service not found.",
+        });
+      }
+
+      if (!service.deletedAt) {
+        return res.status(400).json({
+          success: false,
+          error: "Service is not deleted.",
+        });
+      }
+
+      const restored = await serviceService.restore(id);
+
+      return res.status(200).json({
+        success: true,
+        message: "Service restored successfully.",
+        data: restored,
+      });
+    } catch (error) {
+      console.error("ServiceController.restore error:", error);
+
       return res.status(500).json({
         success: false,
         error: "Server error. Please try again later.",

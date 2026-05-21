@@ -52,16 +52,28 @@ const Service = sequelize.define(
       type: DataTypes.DECIMAL(20, 8),
       allowNull: false,
     },
+
+    deletedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+
+    deletedBy: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      comment: "User who deleted this service",
+    },
   },
   {
     tableName: "services",
     timestamps: true,
-
+    paranoid: false,
     indexes: [
       { fields: ["userId"] },
       { fields: ["payoutWalletId"] },
+      { fields: ["deletedAt"] },
     ],
-  }
+  },
 );
 
 module.exports = Service;

@@ -14,6 +14,13 @@ router.get("/:id", authMiddleware, checkIntegerParam("id"), serviceController.ge
 router.post("/", authMiddleware,authorize(["admin"]), serviceController.create.bind(serviceController));
 router.put("/:id", authMiddleware,authorize(["admin"]), checkIntegerParam("id"), serviceController.update.bind(serviceController));
 router.delete("/:id", authMiddleware,authorize(["admin"]), checkIntegerParam("id"), serviceController.delete.bind(serviceController));
+router.post(
+  "/:id/restore",
+  authMiddleware,
+  authorize(["admin"]),
+  checkIntegerParam("id"),
+  serviceController.restore.bind(serviceController)
+);
 router.post("/:id/teams", authMiddleware, checkIntegerParam("id"), serviceController.addTeam.bind(serviceController));
 router.delete("/:id/teams/:teamId", authMiddleware, checkIntegerParam("id"), checkIntegerParam("teamId"), serviceController.removeTeam.bind(serviceController));
 router.post("/:id/categories", authMiddleware, checkIntegerParam("id"), serviceController.addCategory.bind(serviceController));

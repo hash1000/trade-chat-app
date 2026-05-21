@@ -1,3 +1,4 @@
+const { Service } = require("../models");
 const ServiceRepository = require("../repositories/ServiceRepository");
 
 class ServiceService {
@@ -13,6 +14,10 @@ class ServiceService {
     return this.serviceRepository.findByPk(id, options);
   }
 
+  async getByIdWithDeleted(id) {
+    return this.serviceRepository.findByPkWithDeleted(id);
+  }
+
   async getAll(options = {}) {
     return this.serviceRepository.findAll(options);
   }
@@ -21,8 +26,21 @@ class ServiceService {
     return this.serviceRepository.update(id, data);
   }
 
-  async delete(id) {
-    return this.serviceRepository.delete(id);
+  async delete(id, deletedBy) {
+    return this.serviceRepository.delete(id, deletedBy);
+  }
+
+  async restore(id) {
+    const service = await Service.findByPk(id, {
+      paranoid: false,
+    });
+
+    if (!service) return null;
+
+    return service.update({
+      deletedAt: null,
+      deletedBy: null,
+    });
   }
 
   async addTeam(serviceId, teamId) {

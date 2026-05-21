@@ -89,9 +89,19 @@ class ServiceRepository {
     delete queryOptions.includeMembers;
     delete queryOptions.includeCategories;
 
-    return Service.findByPk(id, {
+    return Service.findOne({
       include: this.buildIncludes(options),
+      where: {
+        id,
+        deletedAt: null,
+      },
       ...queryOptions,
+    });
+  }
+
+  async findByPkWithDeleted(id) {
+    return Service.findOne({
+      where: { id },
     });
   }
 
@@ -103,6 +113,9 @@ class ServiceRepository {
 
     return Service.findAll({
       include: this.buildIncludes(options),
+      where: {
+        deletedAt: null, // ✅ ignore soft deleted
+      },
       order: [["createdAt", "DESC"]],
       ...queryOptions,
     });
@@ -115,10 +128,35 @@ class ServiceRepository {
     return service;
   }
 
-  async delete(id) {
+  async delete(id, deletedBy = null) {
     const service = await Service.findByPk(id);
+
     if (!service) return null;
-    await service.destroy();
+
+    // already deleted
+    if (service.deletedAt) return service;
+
+    await service.update({
+      deletedAt: new Date(),
+      deletedBy,
+    });
+
+    return service;
+  }
+
+  async restore(id) {
+    const service = await this.serviceRepository.findByPkWithDeleted(id);
+
+    if (!service) return null;
+
+    // only restore if it was actually deleted
+    if (!service.deletedAt) return service;
+
+    await service.update({
+      deletedAt: null,
+      deletedBy: null,
+    });
+
     return service;
   }
 
