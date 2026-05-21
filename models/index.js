@@ -280,18 +280,27 @@ function defineAssociations() {
     as: "bankAccounts",
   });
 
-  User.hasMany(ServicePurchase, { foreignKey: "userId" });
-  ServicePurchase.belongsTo(User, { foreignKey: "userId" });
+  // --- Service ---
+  Service.belongsTo(User, { foreignKey: "userId", as: "owner" });
+  User.hasMany(Service, { foreignKey: "userId", as: "services" });
 
-  Service.hasMany(ServicePurchase, { foreignKey: "serviceId" });
-  ServicePurchase.belongsTo(Service, { foreignKey: "serviceId" });
-
-  WalletTransaction.hasOne(ServicePurchase, {
-    foreignKey: "walletTransactionId",
+  // --- ServicePurchase ---
+  ServicePurchase.belongsTo(User, { foreignKey: "userId", as: "buyer" });
+  ServicePurchase.belongsTo(Service, {
+    foreignKey: "serviceId",
+    as: "service",
   });
   ServicePurchase.belongsTo(WalletTransaction, {
     foreignKey: "walletTransactionId",
+    as: "transaction",
   });
+
+  User.hasMany(ServicePurchase, { foreignKey: "userId", as: "purchases" });
+  Service.hasMany(ServicePurchase, {
+    foreignKey: "serviceId",
+    as: "purchases",
+  });
+  WalletTransaction.hasOne(ServicePurchase, { foreignKey: "walletTransactionId", as: "servicePurchase" });
 }
 
 // Initialize associations
@@ -320,4 +329,7 @@ module.exports = {
   ServicePublicCategory,
   Category,
   PublicCategory,
+  Wallet,
+  WalletTransaction,
+  ServicePurchase,
 };

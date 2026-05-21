@@ -1,3 +1,4 @@
+// controllers/ServiceController.js
 const ServiceService = require("../services/ServiceService");
 const serviceService = new ServiceService();
 
@@ -34,7 +35,9 @@ class ServiceController {
 
   async create(req, res) {
     try {
-      const { name, profile_image, type, description, location, teamIds, categoryId, categoryIds } = req.body;
+      const { id: userId } = req.user;
+      const { name, profile_image, type, description, location, price, priceCurrency, teamIds, categoryId, categoryIds } = req.body;
+
       if (!name || typeof name !== "string" || !name.trim()) {
         return res.status(400).json({ success: false, error: "name is required." });
       }
@@ -43,16 +46,20 @@ class ServiceController {
       }
 
       const service = await serviceService.create({
+        userId,                                          // ← owner
         name: name.trim(),
         profile_image: profile_image.trim(),
         type: type ? type.trim() : undefined,
         description: description ? description.trim() : undefined,
         location: location ? location.trim() : undefined,
+        price: price !== undefined ? Number(price) : undefined,
+        priceCurrency: priceCurrency ? priceCurrency.trim() : undefined,
       });
 
       if (Array.isArray(teamIds) && teamIds.length > 0) {
         await serviceService.addTeams(service.id, teamIds);
       }
+
       const categoriesToAssign = Array.isArray(categoryIds)
         ? categoryIds
         : categoryId != null
@@ -62,7 +69,11 @@ class ServiceController {
         await serviceService.addCategories(service.id, categoriesToAssign);
       }
 
-      const data = await serviceService.getById(service.id, { includeTeams: true, includeMembers: true, includeCategories: true });
+      const data = await serviceService.getById(service.id, {
+        includeTeams: true,
+        includeMembers: true,
+        includeCategories: true,
+      });
       return res.status(201).json({ success: true, data });
     } catch (error) {
       console.error("ServiceController.create error:", error);
@@ -77,19 +88,22 @@ class ServiceController {
     try {
       const { id } = req.params;
       const { name, profile_image, type, description, location, teamIds, categoryId, categoryIds } = req.body;
+
       const service = await serviceService.getById(id);
       if (!service) {
         return res.status(404).json({ success: false, error: "Service not found." });
       }
 
+      // userId is intentionally excluded here — ownership cannot be changed via update
       const updateData = {};
-      if (name !== undefined) updateData.name = typeof name === "string" ? name.trim() : name;
+      if (name !== undefined)          updateData.name          = typeof name === "string"          ? name.trim()          : name;
       if (profile_image !== undefined) updateData.profile_image = typeof profile_image === "string" ? profile_image.trim() : profile_image;
-      if (type !== undefined) updateData.type = typeof type === "string" ? type.trim() : type;
-      if (description !== undefined) updateData.description = typeof description === "string" ? description.trim() : description;
-      if (location !== undefined) updateData.location = typeof location === "string" ? location.trim() : location;
+      if (type !== undefined)          updateData.type          = typeof type === "string"          ? type.trim()          : type;
+      if (description !== undefined)   updateData.description   = typeof description === "string"   ? description.trim()   : description;
+      if (location !== undefined)      updateData.location      = typeof location === "string"      ? location.trim()      : location;
 
       await serviceService.update(id, updateData);
+
       if (teamIds !== undefined) {
         await serviceService.setTeams(id, Array.isArray(teamIds) ? teamIds : []);
       }
@@ -102,7 +116,11 @@ class ServiceController {
         await serviceService.setCategories(id, categoriesToAssign);
       }
 
-      const data = await serviceService.getById(id, { includeTeams: true, includeMembers: true, includeCategories: true });
+      const data = await serviceService.getById(id, {
+        includeTeams: true,
+        includeMembers: true,
+        includeCategories: true,
+      });
       return res.status(200).json({ success: true, data });
     } catch (error) {
       console.error("ServiceController.update error:", error);
@@ -162,7 +180,6 @@ class ServiceController {
       if (!removed) {
         return res.status(404).json({ success: false, error: "Team not found in service." });
       }
-
       const updated = await serviceService.getById(serviceId, { includeTeams: true, includeMembers: true });
       return res.status(200).json({ success: true, data: updated });
     } catch (error) {
@@ -187,7 +204,11 @@ class ServiceController {
         return res.status(400).json({ success: false, error: "categoryId or categoryIds (array) is required." });
       }
 
-      const updated = await serviceService.getById(serviceId, { includeTeams: true, includeMembers: true, includeCategories: true });
+      const updated = await serviceService.getById(serviceId, {
+        includeTeams: true,
+        includeMembers: true,
+        includeCategories: true,
+      });
       return res.status(200).json({ success: true, data: updated });
     } catch (error) {
       console.error("ServiceController.addCategory error:", error);
@@ -205,8 +226,11 @@ class ServiceController {
       if (!removed) {
         return res.status(404).json({ success: false, error: "Category not found in service." });
       }
-
-      const updated = await serviceService.getById(serviceId, { includeTeams: true, includeMembers: true, includeCategories: true });
+      const updated = await serviceService.getById(serviceId, {
+        includeTeams: true,
+        includeMembers: true,
+        includeCategories: true,
+      });
       return res.status(200).json({ success: true, data: updated });
     } catch (error) {
       console.error("ServiceController.removeCategory error:", error);

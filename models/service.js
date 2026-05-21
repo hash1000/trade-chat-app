@@ -1,3 +1,4 @@
+// models/service.js
 const { DataTypes } = require("sequelize");
 const sequelize = require("../config/database");
 
@@ -8,6 +9,11 @@ const Service = sequelize.define(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+    userId: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      comment: "Owner of this service",
     },
     name: {
       type: DataTypes.STRING,
@@ -43,7 +49,10 @@ const Service = sequelize.define(
   {
     tableName: "services",
     timestamps: true,
-  },
+    indexes: [
+      { fields: ["userId"] },
+    ],
+  }
 );
 
 module.exports = Service;

@@ -1,3 +1,4 @@
+// repositories/ServiceRepository.js
 const { Op } = require("sequelize");
 const {
   Service,
@@ -5,12 +6,19 @@ const {
   TeamServiceLink,
   User,
   PublicCategory,
-  ServicePublicCategory
+  ServicePublicCategory,
 } = require("../models");
 
 class ServiceRepository {
   buildIncludes(options = {}) {
     const include = [];
+
+    // Always include the service owner
+    include.push({
+      model: User,
+      as: "owner",
+      attributes: ["id", "firstName", "lastName", "username", "email", "profilePic"],
+    });
 
     if (options.includeTeams || options.includeMembers) {
       const teamInclude = {
@@ -98,14 +106,16 @@ class ServiceRepository {
 
   async addTeams(serviceId, teamIds) {
     if (!Array.isArray(teamIds) || teamIds.length === 0) return [];
-    const numericIds = [...new Set(teamIds.map((id) => Number(id)).filter((id) => !Number.isNaN(id) && id > 0))];
+    const numericIds = [
+      ...new Set(teamIds.map((id) => Number(id)).filter((id) => !Number.isNaN(id) && id > 0)),
+    ];
     if (numericIds.length === 0) return [];
 
     const existingTeams = await Team.findAll({
       where: { id: { [Op.in]: numericIds } },
       attributes: ["id"],
     });
-    const existingIds = new Set(existingTeams.map((team) => team.id));
+    const existingIds = new Set(existingTeams.map((t) => t.id));
     const missingIds = numericIds.filter((id) => !existingIds.has(id));
     if (missingIds.length > 0) {
       const err = new Error(`Team(s) not found: ${missingIds.join(", ")}`);
@@ -127,9 +137,7 @@ class ServiceRepository {
   }
 
   async removeTeam(serviceId, teamId) {
-    const deleted = await TeamServiceLink.destroy({
-      where: { teamId, serviceId },
-    });
+    const deleted = await TeamServiceLink.destroy({ where: { teamId, serviceId } });
     return deleted > 0;
   }
 
@@ -146,9 +154,7 @@ class ServiceRepository {
     if (!Array.isArray(categoryIds) || categoryIds.length === 0) return [];
     const numericIds = [
       ...new Set(
-        categoryIds
-          .map((id) => Number(id))
-          .filter((id) => !Number.isNaN(id) && id > 0)
+        categoryIds.map((id) => Number(id)).filter((id) => !Number.isNaN(id) && id > 0)
       ),
     ];
     if (numericIds.length === 0) return [];
@@ -157,9 +163,7 @@ class ServiceRepository {
       where: { id: { [Op.in]: numericIds } },
       attributes: ["id"],
     });
-    const existingIds = new Set(
-      existingCategories.map((category) => category.id)
-    );
+    const existingIds = new Set(existingCategories.map((c) => c.id));
     const missingIds = numericIds.filter((id) => !existingIds.has(id));
     if (missingIds.length > 0) {
       const err = new Error(`Category(s) not found: ${missingIds.join(", ")}`);

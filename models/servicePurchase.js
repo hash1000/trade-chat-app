@@ -13,6 +13,7 @@ const ServicePurchase = sequelize.define(
     userId: {
       type: DataTypes.INTEGER,
       allowNull: false,
+      comment: "Buyer",
     },
     serviceId: {
       type: DataTypes.INTEGER,
@@ -20,7 +21,7 @@ const ServicePurchase = sequelize.define(
     },
     walletTransactionId: {
       type: DataTypes.INTEGER,
-      allowNull: false,
+      allowNull: true, // null initially, filled after txn is created
     },
     amountPaid: {
       type: DataTypes.DECIMAL(20, 8),
@@ -43,6 +44,7 @@ const ServicePurchase = sequelize.define(
       { fields: ["userId"] },
       { fields: ["serviceId"] },
       { fields: ["userId", "serviceId"] },
+      { fields: ["walletTransactionId"] },
     ],
   }
 );

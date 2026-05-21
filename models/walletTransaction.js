@@ -1,7 +1,6 @@
 // models/walletTransaction.js
 const { DataTypes } = require("sequelize");
 const sequelize = require("../config/database");
-const User = require("./user");
 
 const WalletTransaction = sequelize.define(
   "WalletTransaction",
@@ -27,23 +26,8 @@ const WalletTransaction = sequelize.define(
       type: DataTypes.INTEGER,
       allowNull: true,
     },
-    description: {
-      type: DataTypes.TEXT,
-      allowNull: true,
-    },
-    receiptId: {
-      type: DataTypes.INTEGER,
-      allowNull: true,
-    },
     type: {
-      type: DataTypes.ENUM(
-        "DEPOSIT",
-        "WITHDRAW",
-        "LOCK",
-        "UNLOCK",
-        "TRANSFER",
-        "CONVERT"
-      ),
+      type: DataTypes.ENUM("DEPOSIT", "WITHDRAW", "LOCK", "UNLOCK", "TRANSFER", "CONVERT"),
       allowNull: false,
     },
     amount: {
@@ -54,13 +38,28 @@ const WalletTransaction = sequelize.define(
       type: DataTypes.STRING(3),
       allowNull: false,
     },
-    performedBy: {
+    description: {
+      type: DataTypes.TEXT,
       allowNull: true,
+    },
+    referenceType: {
+      // What business entity caused this transaction
+      // Only 'SERVICE_PURCHASE' for now
+      type: DataTypes.STRING(50),
+      allowNull: true,
+    },
+    referenceId: {
+      // PK of the row in the business table (service_purchases.id)
       type: DataTypes.INTEGER,
-      references: {
-        model: User,
-        key: "id",
-      },
+      allowNull: true,
+    },
+    receiptId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    performedBy: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
     },
     meta: {
       type: DataTypes.JSON,
@@ -74,6 +73,7 @@ const WalletTransaction = sequelize.define(
       { fields: ["walletId"] },
       { fields: ["userId"] },
       { fields: ["receiptId"] },
+      { fields: ["referenceType", "referenceId"] },  // ← lookup both together
       { fields: ["createdAt"] },
       { fields: ["walletId", "createdAt"] },
       { fields: ["userId", "createdAt"] },

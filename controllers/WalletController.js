@@ -1,7 +1,13 @@
 const WalletService = require("../services/WalletService");
 const walletService = new WalletService();
 
+const ALLOWED_WALLET_TYPES  = new Set(["PERSONAL", "COMPANY"]);
+const ALLOWED_TYPES         = new Set(["DEPOSIT", "WITHDRAW", "LOCK", "UNLOCK", "TRANSFER", "CONVERT"]);
+const ALLOWED_REFERENCE_TYPES = new Set(["SERVICE_PURCHASE"]); // extend as you add more
+
 class WalletController {
+  // controllers/WalletController.js — replace both duplicate methods with these two
+
   async createWallet(req, res) {
     try {
       const { id: userId } = req.user;
@@ -318,109 +324,132 @@ class WalletController {
     }
   }
 
-  async listWalletTransactions(req, res) {
-    try {
-      const {
-        type,
-        userId,
-        wallet,
-        admin,
-        currency,
-        walletType,
-        transaction_group_id,
-        page = 1,
-        limit = 20,
-      } = req.query;
-      const allowedWalletTypes = ["PERSONAL", "COMPANY"];
 
-      if (
-        walletType &&
-        !allowedWalletTypes.includes(String(walletType).toUpperCase())
-      ) {
-        throw new Error("Invalid wallet type");
-      }
-      const result = await walletService.listWalletTransactions({
-        page,
-        limit,
-        type,
-        userId,
-        myTransactions: false,
-        currency,
-        wallet,
-        walletType,
-        admin,
-        transaction_group_id,
-      });
-      return res.status(200).json({
-        success: true,
-        data: result.data,
-        total: result.total,
-        page: result.page,
-        limit: result.limit,
-        count: result.count,
-        income_expense_by_currency: result.income_expense_by_currency,
-        transfer_totals: result.transfer_totals,
-      });
-    } catch (error) {
-      console.error("listWalletTransactions error:", error);
-      return res.status(500).json({
-        success: false,
-        error: "Server error. Please try again later.",
-      });
+/**
+ * Admin: GET /api/wallet/transactions
+ * Supports filtering by userId, type, currency, walletType,
+ * referenceType, referenceId, date range, transaction_group_id
+ */
+async listWalletTransactions(req, res) {
+  try {
+    const {
+      type,
+      userId,
+      currency,
+      walletType,
+      transaction_group_id,
+      referenceType,
+      referenceId,
+      startDate,
+      endDate,
+      page  = 1,
+      limit = 20,
+    } = req.query;
+
+    if (walletType && !ALLOWED_WALLET_TYPES.has(String(walletType).toUpperCase())) {
+      return res.status(400).json({ success: false, error: "Invalid walletType. Allowed: PERSONAL, COMPANY." });
     }
-  }
 
-  async listWalletMyTransactions(req, res) {
-    try {
-      const {
-        type,
-        wallet,
-        admin,
-        currency,
-        walletType,
-        transaction_group_id,
-        page = 1,
-        limit = 20,
-      } = req.query;
-      const { id: userId } = req.user;
-      const allowedWalletTypes = ["PERSONAL", "COMPANY"];
-
-      if (
-        walletType &&
-        !allowedWalletTypes.includes(String(walletType).toUpperCase())
-      ) {
-        throw new Error("Invalid wallet type");
-      }
-      const result = await walletService.listWalletTransactions({
-        page,
-        limit,
-        type,
-        user: userId,
-        myTransactions: true,
-        currency,
-        wallet,
-        walletType,
-        admin,
-        transaction_group_id,
-      });
-      return res.status(200).json({
-        success: true,
-        data: result.data,
-        total: result.total,
-        page: result.page,
-        limit: result.limit,
-        count: result.count,
-        income_expense_by_currency: result.income_expense_by_currency,
-        transfer_totals: result.transfer_totals,
-      });
-    } catch (error) {
-      console.error("listWalletTransactions error:", error);
-      return res.status(500).json({
-        success: false,
-        error: "Server error. Please try again later.",
-      });
+    if (type && !ALLOWED_TYPES.has(String(type).toUpperCase())) {
+      return res.status(400).json({ success: false, error: `Invalid type. Allowed: ${[...ALLOWED_TYPES].join(", ")}.` });
     }
+
+    if (referenceType && !ALLOWED_REFERENCE_TYPES.has(String(referenceType).toUpperCase())) {
+      return res.status(400).json({ success: false, error: `Invalid referenceType. Allowed: ${[...ALLOWED_REFERENCE_TYPES].join(", ")}.` });
+    }
+
+    const result = await walletService.listWalletTransactions({
+      page,
+      limit,
+      type,
+      userId,
+      myTransactions: false,
+      currency,
+      walletType,
+      transaction_group_id,
+      referenceType,
+      referenceId,
+      startDate,
+      endDate,
+    });
+
+    return res.status(200).json({
+      success: true,
+      data:                      result.data,
+      total:                     result.total,
+      page:                      result.page,
+      limit:                     result.limit,
+      count:                     result.count,
+      income_expense_by_currency: result.income_expense_by_currency,
+      transfer_totals:            result.transfer_totals,
+    });
+  } catch (error) {
+    console.error("listWalletTransactions error:", error);
+    return res.status(500).json({ success: false, error: "Server error. Please try again later." });
   }
+}
+
+/**
+ * Authenticated user: GET /api/wallet/my-transactions
+ * Same filters — userId is always taken from req.user, never from query
+ */
+async listWalletMyTransactions(req, res) {
+  try {
+    const {
+      type,
+      currency,
+      walletType,
+      transaction_group_id,
+      referenceType,
+      referenceId,
+      startDate,
+      endDate,
+      page  = 1,
+      limit = 20,
+    } = req.query;
+
+    if (walletType && !ALLOWED_WALLET_TYPES.has(String(walletType).toUpperCase())) {
+      return res.status(400).json({ success: false, error: "Invalid walletType. Allowed: PERSONAL, COMPANY." });
+    }
+
+    if (type && !ALLOWED_TYPES.has(String(type).toUpperCase())) {
+      return res.status(400).json({ success: false, error: `Invalid type. Allowed: ${[...ALLOWED_TYPES].join(", ")}.` });
+    }
+
+    if (referenceType && !ALLOWED_REFERENCE_TYPES.has(String(referenceType).toUpperCase())) {
+      return res.status(400).json({ success: false, error: `Invalid referenceType. Allowed: ${[...ALLOWED_REFERENCE_TYPES].join(", ")}.` });
+    }
+
+    const result = await walletService.listWalletTransactions({
+      page,
+      limit,
+      type,
+      user: req.user.id,   // always from auth — never trust query param
+      myTransactions: true,
+      currency,
+      walletType,
+      transaction_group_id,
+      referenceType,
+      referenceId,
+      startDate,
+      endDate,
+    });
+
+    return res.status(200).json({
+      success: true,
+      data:                      result.data,
+      total:                     result.total,
+      page:                      result.page,
+      limit:                     result.limit,
+      count:                     result.count,
+      income_expense_by_currency: result.income_expense_by_currency,
+      transfer_totals:            result.transfer_totals,
+    });
+  } catch (error) {
+    console.error("listWalletMyTransactions error:", error);
+    return res.status(500).json({ success: false, error: "Server error. Please try again later." });
+  }
+}
 }
 
 module.exports = new WalletController();

@@ -2,125 +2,175 @@
 const { v4: uuidv4 } = require("uuid");
 const sequelize = require("../config/database");
 const { Wallet, WalletTransaction } = require("../models");
-const ServiceRepository = require("../repositories/ServiceRepository");
+const ServiceRepository         = require("../repositories/ServiceRepository");
 const ServicePurchaseRepository = require("../repositories/ServicePurchaseRepository");
 
 class ServicePurchaseService {
   constructor() {
-    this.serviceRepo = new ServiceRepository();
+    this.serviceRepo  = new ServiceRepository();
     this.purchaseRepo = new ServicePurchaseRepository();
   }
 
-  /**
-   * Purchase a service using the buyer's personal USD wallet.
-   * @param {number} buyerUserId
-   * @param {number} serviceId
-   * @returns {Promise<ServicePurchase>}
-   */
   async purchaseService(buyerUserId, serviceId) {
-    // 1. Load service and validate it has a USD price
+
+    // ─── 1. Load & validate service ───────────────────────────────────────────
     const service = await this.serviceRepo.findByPk(serviceId);
     if (!service) {
-      const err = new Error("Service not found.");
-      err.name = "NotFoundError";
-      throw err;
+      throw Object.assign(new Error("Service not found."), { name: "NotFoundError" });
     }
     if (service.price === null || service.price === undefined) {
-      const err = new Error("This service is not available for purchase.");
-      err.name = "ServiceNotPurchasableError";
-      throw err;
+      throw Object.assign(new Error("This service is not available for purchase."), { name: "ServiceNotPurchasableError" });
     }
     if (service.priceCurrency !== "USD") {
-      const err = new Error("Only USD-priced services are supported at this time.");
-      err.name = "UnsupportedCurrencyError";
-      throw err;
+      throw Object.assign(new Error("Only USD-priced services are supported."), { name: "UnsupportedCurrencyError" });
     }
 
-    const price = parseFloat(service.price); // safe: always stored as DECIMAL
+    // Guard: buyer cannot purchase their own service
+    if (service.userId === buyerUserId) {
+      throw Object.assign(new Error("You cannot purchase your own service."), { name: "SelfPurchaseError" });
+    }
 
-    // 2. Prevent double-purchase (optional — remove if re-purchasing is allowed)
+    const price = parseFloat(service.price);
+
+    // ─── 2. Prevent double purchase ───────────────────────────────────────────
     const existing = await this.purchaseRepo.findByUserAndService(buyerUserId, serviceId);
     if (existing) {
-      const err = new Error("You have already purchased this service.");
-      err.name = "AlreadyPurchasedError";
-      throw err;
+      throw Object.assign(new Error("You have already purchased this service."), { name: "AlreadyPurchasedError" });
     }
 
-    // 3. Load buyer's personal USD wallet
-    const wallet = await Wallet.findOne({
+    // ─── 3. Load both wallets (outside tx — just existence checks) ────────────
+    const buyerWallet = await Wallet.findOne({
       where: { userId: buyerUserId, currency: "USD", walletType: "PERSONAL" },
     });
-    if (!wallet) {
-      const err = new Error("USD personal wallet not found.");
-      err.name = "WalletNotFoundError";
-      throw err;
+    if (!buyerWallet) {
+      throw Object.assign(new Error("Your USD personal wallet was not found."), { name: "WalletNotFoundError" });
     }
 
-    const available = parseFloat(wallet.availableBalance);
-    if (available < price) {
-      const err = new Error(`Insufficient balance. Required: $${price}, Available: $${available}.`);
-      err.name = "InsufficientBalanceError";
-      throw err;
+    const ownerWallet = await Wallet.findOne({
+      where: { userId: service.userId, currency: "USD", walletType: "PERSONAL" },
+    });
+    if (!ownerWallet) {
+      throw Object.assign(new Error("Service owner does not have a USD wallet. Purchase cannot be completed."), { name: "OwnerWalletNotFoundError" });
     }
 
-    // 4. Wrap everything in a DB transaction for atomicity
-    const purchase = await sequelize.transaction(async (t) => {
-      // Deduct from wallet (optimistic lock via reload inside transaction)
-      await wallet.reload({ transaction: t, lock: t.LOCK.UPDATE });
+    // Pre-check before entering the DB transaction
+    if (parseFloat(buyerWallet.availableBalance) < price) {
+      throw Object.assign(
+        new Error(`Insufficient balance. Required: $${price}, Available: $${buyerWallet.availableBalance}.`),
+        { name: "InsufficientBalanceError" }
+      );
+    }
 
-      const freshBalance = parseFloat(wallet.availableBalance);
-      if (freshBalance < price) {
-        const err = new Error(`Insufficient balance. Required: $${price}, Available: $${freshBalance}.`);
-        err.name = "InsufficientBalanceError";
-        throw err;
+    // ─── 4. Atomic block — all five operations succeed or none do ─────────────
+    return sequelize.transaction(async (t) => {
+
+      // Re-read BOTH wallets with row locks to prevent race conditions
+      await buyerWallet.reload({ transaction: t, lock: t.LOCK.UPDATE });
+      await ownerWallet.reload({ transaction: t, lock: t.LOCK.UPDATE });
+
+      const buyerBalance = parseFloat(buyerWallet.availableBalance);
+      if (buyerBalance < price) {
+        throw Object.assign(
+          new Error(`Insufficient balance. Required: $${price}, Available: $${buyerBalance}.`),
+          { name: "InsufficientBalanceError" }
+        );
       }
 
-      await wallet.update(
-        { availableBalance: (freshBalance - price).toFixed(8) },
+      const ownerBalance = parseFloat(ownerWallet.availableBalance);
+      const groupId      = uuidv4(); // same group ID ties both transactions together
+
+      // ── 4a. Deduct from buyer wallet ────────────────────────────────────────
+      await buyerWallet.update(
+        { availableBalance: (buyerBalance - price).toFixed(8) },
         { transaction: t }
       );
 
-      // Create wallet transaction record
-      const txn = await WalletTransaction.create(
-        {
-          transaction_group_id: uuidv4(),
-          walletId: wallet.id,
-          userId: buyerUserId,
-          type: "WITHDRAW",
-          amount: price,
-          currency: "USD",
-          description: `Purchase of service: ${service.name} (ID: ${service.id})`,
-          performedBy: buyerUserId,
-          meta: { serviceId: service.id, serviceName: service.name },
-        },
+      // ── 4b. Credit to owner wallet ──────────────────────────────────────────
+      await ownerWallet.update(
+        { availableBalance: (ownerBalance + price).toFixed(8) },
         { transaction: t }
       );
 
-      // Create purchase record
-      const newPurchase = await this.purchaseRepo.create(
+      // ── 4c. Create purchase record (need its ID before creating transactions) ─
+      const purchase = await this.purchaseRepo.create(
         {
-          userId: buyerUserId,
+          userId:    buyerUserId,
           serviceId: service.id,
-          walletTransactionId: txn.id,
           amountPaid: price,
-          currency: "USD",
-          status: "COMPLETED",
+          currency:  "USD",
+          status:    "COMPLETED",
+          // walletTransactionId back-filled in step 4e
         },
-        { transaction: t } // ← pass to repo below
+        { transaction: t }
       );
 
-      // NOTE: if your repo's create() doesn't accept sequelize transaction options,
-      // call ServicePurchase.create({...}, { transaction: t }) directly here.
-      // Adjust based on your repo.create() signature.
+      // ── 4d. Buyer WITHDRAW transaction ──────────────────────────────────────
+      const buyerTxn = await WalletTransaction.create(
+        {
+          transaction_group_id: groupId,
+          walletId:      buyerWallet.id,
+          userId:        buyerUserId,
+          type:          "WITHDRAW",
+          amount:        price,
+          currency:      "USD",
+          description:   `Payment for service: ${service.name} (ID: ${service.id})`,
+          performedBy:   buyerUserId,
+          referenceType: "SERVICE_PURCHASE",
+          referenceId:   purchase.id,
+          meta: {
+            serviceId:    service.id,
+            serviceName:  service.name,
+            ownerUserId:  service.userId,
+          },
+        },
+        { transaction: t }
+      );
 
-      return newPurchase;
+      // ── 4e. Owner DEPOSIT transaction ────────────────────────────────────────
+      await WalletTransaction.create(
+        {
+          transaction_group_id: groupId,           // same group — links debit & credit
+          walletId:      ownerWallet.id,
+          userId:        service.userId,            // owner is the wallet holder
+          receiverId:    service.userId,
+          type:          "DEPOSIT",
+          amount:        price,
+          currency:      "USD",
+          description:   `Payment received for service: ${service.name} (ID: ${service.id})`,
+          performedBy:   buyerUserId,              // buyer triggered this
+          referenceType: "SERVICE_PURCHASE",
+          referenceId:   purchase.id,
+          meta: {
+            serviceId:   service.id,
+            serviceName: service.name,
+            buyerUserId,
+          },
+        },
+        { transaction: t }
+      );
+
+      // ── 4f. Back-fill buyer's wallet transaction ID on the purchase record ───
+      await purchase.update(
+        { walletTransactionId: buyerTxn.id },
+        { transaction: t }
+      );
+
+      return purchase;
     });
-
-    return purchase;
   }
 
+  /**
+   * Buyer: list my purchases.
+   */
   async getUserPurchases(userId) {
     return this.purchaseRepo.findByUser(userId);
+  }
+
+  /**
+   * Owner/admin: who bought my service.
+   */
+  async getServiceBuyers(serviceId) {
+    return this.purchaseRepo.findByService(serviceId);
   }
 }
 

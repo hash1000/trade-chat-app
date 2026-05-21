@@ -1,5 +1,5 @@
 const { Op } = require("sequelize");
-const { User, Transaction, Role } = require("../models");
+const { User, Transaction, Role, ServicePurchase, Service } = require("../models");
 const sequelize = require("../config/database");
 const UserRepository = require("../repositories/UserRepository");
 const crypto = require("crypto");
@@ -988,19 +988,23 @@ class WalletService {
     });
   }
 
+  // services/WalletService.js — replace your existing listWalletTransactions method
+
   async listWalletTransactions({
     page = 1,
     limit = 10,
     type,
-    currency,  
+    currency,
     walletType,
-    myTransactions,
-    user,
+    myTransactions = false,
+    user, 
     userId = 0,
     receiptId,
     startDate,
     endDate,
     transaction_group_id,
+    referenceType,
+    referenceId,
   } = {}) {
     const pageNum = Math.max(1, parseInt(String(page), 10) || 1);
     const limitNum = Math.min(
@@ -1009,17 +1013,22 @@ class WalletService {
     );
     const offset = (pageNum - 1) * limitNum;
 
+    // ─── Build WHERE ─────────────────────────────────────────────────────────────
     const where = {};
 
     if (type) where.type = String(type).toUpperCase();
     if (currency) where.currency = String(currency).toUpperCase();
+
+    // User filter — either the authenticated user or an admin-supplied userId
     const uid = myTransactions ? Number(user) : Number(userId);
     if (!Number.isNaN(uid) && uid > 0) {
       where[Op.or] = [{ userId: uid }, { receiverId: uid }];
     }
+
     if (receiptId != null && receiptId !== "") {
       where.receiptId = receiptId;
     }
+
     if (transaction_group_id) {
       where.transaction_group_id = String(transaction_group_id).trim();
     }
@@ -1030,48 +1039,83 @@ class WalletService {
       };
     }
 
+    // ─── Reference filters (SERVICE_PURCHASE etc.) ────────────────────────────
+    if (referenceType) {
+      where.referenceType = String(referenceType).toUpperCase();
+    }
+    if (referenceId != null && referenceId !== "") {
+      where.referenceId = Number(referenceId);
+    }
+
+    // ─── Build includes ──────────────────────────────────────────────────────────
+    const include = [
+      {
+        model: Wallet,
+        as: "wallet",
+        attributes: ["id", "currency", "walletType", "accountNumber"],
+        ...(walletType && {
+          where: { walletType: String(walletType).toUpperCase() },
+        }),
+      },
+      {
+        model: User,
+        as: "user",
+        attributes: ["id", "username", "email"],
+      },
+      {
+        model: User,
+        as: "receiver",
+        attributes: ["id", "username", "email"],
+        required: false,
+      },
+      {
+        model: User,
+        as: "performer",
+        attributes: ["id", "username", "email"],
+        required: false,
+      },
+      // ── Resolve the business entity when referenceType is SERVICE_PURCHASE ──
+      {
+        model: ServicePurchase,
+        as: "servicePurchase",
+        required: false,
+        include: [
+          {
+            model: Service,
+            as: "service",
+            attributes: [
+              "id",
+              "name",
+              "profile_image",
+              "price",
+              "priceCurrency",
+            ],
+          },
+        ],
+      },
+    ];
+
+    // ─── Query ───────────────────────────────────────────────────────────────────
     const { rows: transactions, count: totalRows } =
       await WalletTransaction.findAndCountAll({
         where,
-        include: [
-          {
-            model: Wallet,
-            as: "wallet",
-             where: walletType
-          ? {
-              walletType: String(walletType).toUpperCase(),
-            }
-          : undefined,
-         },
-          {
-            model: User,
-            as: "user",
-            attributes: ["id", "username", "email"],
-          },
-          {
-            model: User,
-            as: "receiver",
-            attributes: ["id", "username", "email"],
-          },
-          {
-            model: User,
-            as: "performer",
-            attributes: ["id", "username", "email"],
-          },
-        ],
+        include,
         order: [["createdAt", "DESC"]],
         limit: limitNum,
         offset,
+        distinct: true, // required for correct count when using includes
       });
 
+    // ─── Group by transaction_group_id ───────────────────────────────────────────
     const grouped = {};
 
     for (const tx of transactions) {
-      const groupId = tx.transaction_group_id || "ungrouped";
+      const groupId = tx.transaction_group_id || `ungrouped_${tx.id}`;
 
       if (!grouped[groupId]) {
         grouped[groupId] = {
-          transaction_group_id: groupId,
+          transaction_group_id:
+            groupId === `ungrouped_${tx.id}` ? null : groupId,
           transactions: [],
           summary: {
             total_credit: 0,
@@ -1084,8 +1128,11 @@ class WalletService {
       grouped[groupId].transactions.push(tx);
 
       const amount = Number(tx.amount);
-      if (amount > 0) grouped[groupId].summary.total_credit += amount;
-      else grouped[groupId].summary.total_debit += amount;
+      if (["DEPOSIT", "UNLOCK"].includes(tx.type)) {
+        grouped[groupId].summary.total_credit += amount;
+      } else {
+        grouped[groupId].summary.total_debit += amount;
+      }
 
       if (tx.meta?.lock_reference_group_id) {
         grouped[groupId].meta = {
@@ -1094,22 +1141,19 @@ class WalletService {
       }
     }
 
-    const groupedArray = Object.values(grouped);
-
-    let income_expense_by_currency = null;
-    let transfer_totals = null;
-
+    // ─── Transfer income/expense summary ─────────────────────────────────────────
     const transferWhere = {
-      userId: myTransactions ? Number(user) : Number(userId),
       type: "TRANSFER",
     };
+
+    // Scope to the same user as the main query
+    if (!Number.isNaN(uid) && uid > 0) {
+      transferWhere.userId = uid;
+    }
     if (currency) transferWhere.currency = String(currency).toUpperCase();
-    if (receiptId != null && receiptId !== "") {
-      transferWhere.receiptId = receiptId;
-    }
-    if (transaction_group_id) {
+    if (receiptId) transferWhere.receiptId = receiptId;
+    if (transaction_group_id)
       transferWhere.transaction_group_id = String(transaction_group_id).trim();
-    }
     if (startDate && endDate) {
       transferWhere.createdAt = {
         [Op.between]: [new Date(startDate), new Date(endDate)],
@@ -1122,17 +1166,15 @@ class WalletService {
     });
 
     const summary = this._buildTransferIncomeExpenseSummary(transferRows);
-    income_expense_by_currency = summary.income_expense_by_currency;
-    transfer_totals = summary.transfer_totals;
 
     return {
-      data: groupedArray,
+      data: Object.values(grouped),
       page: pageNum,
       limit: limitNum,
-      count: groupedArray.length,
+      count: Object.values(grouped).length,
       total: totalRows,
-      income_expense_by_currency,
-      transfer_totals,
+      income_expense_by_currency: summary.income_expense_by_currency,
+      transfer_totals: summary.transfer_totals,
     };
   }
 }

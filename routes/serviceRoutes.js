@@ -18,7 +18,7 @@ router.post("/:id/teams", authMiddleware, checkIntegerParam("id"), serviceContro
 router.delete("/:id/teams/:teamId", authMiddleware, checkIntegerParam("id"), checkIntegerParam("teamId"), serviceController.removeTeam.bind(serviceController));
 router.post("/:id/categories", authMiddleware, checkIntegerParam("id"), serviceController.addCategory.bind(serviceController));
 router.delete("/:id/categories/:categoryId", authMiddleware, checkIntegerParam("id"), checkIntegerParam("categoryId"), serviceController.removeCategory.bind(serviceController));
-// Buy a service (authenticated user pays from personal USD wallet)
+// Buy a service
 router.post(
   "/:id/purchase",
   authMiddleware,
@@ -26,11 +26,19 @@ router.post(
   purchaseController.purchase.bind(purchaseController)
 );
 
-// List current user's purchased services
+// Buyer: my purchases
 router.get(
   "/my/purchases",
   authMiddleware,
   purchaseController.myPurchases.bind(purchaseController)
+);
+
+// Owner/admin: who bought service X
+router.get(
+  "/:id/buyers",
+  authMiddleware,
+  checkIntegerParam("id"),
+  purchaseController.serviceBuyers.bind(purchaseController)
 );
 
 module.exports = router;
