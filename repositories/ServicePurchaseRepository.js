@@ -32,9 +32,9 @@ class ServicePurchaseRepository {
             "type",
             "location",
             "price",
-            "priceCurrency",
           ],
         },
+
         {
           model: WalletTransaction,
           as: "transaction",

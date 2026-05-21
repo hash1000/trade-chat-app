@@ -2,6 +2,8 @@
 const { DataTypes } = require("sequelize");
 const sequelize = require("../config/database");
 
+// models/servicePurchase.js
+
 const ServicePurchase = sequelize.define(
   "ServicePurchase",
   {
@@ -10,40 +12,63 @@ const ServicePurchase = sequelize.define(
       primaryKey: true,
       autoIncrement: true,
     },
+
     userId: {
       type: DataTypes.INTEGER,
       allowNull: false,
       comment: "Buyer",
     },
+
     serviceId: {
       type: DataTypes.INTEGER,
       allowNull: false,
     },
+
+    buyerWalletId: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    },
+
+    sellerWalletId: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    },
+
     walletTransactionId: {
       type: DataTypes.INTEGER,
-      allowNull: true, // null initially, filled after txn is created
+      allowNull: true,
     },
+
     amountPaid: {
       type: DataTypes.DECIMAL(20, 8),
       allowNull: false,
     },
-    currency: {
-      type: DataTypes.STRING(3),
-      allowNull: false,
-      defaultValue: "USD",
-    },
+
     status: {
-      type: DataTypes.ENUM("PENDING", "COMPLETED", "REFUNDED"),
+      type: DataTypes.ENUM(
+        "PENDING",
+        "COMPLETED",
+        "REFUNDED"
+      ),
       allowNull: false,
       defaultValue: "COMPLETED",
     },
   },
   {
     tableName: "service_purchases",
+
     indexes: [
       { fields: ["userId"] },
       { fields: ["serviceId"] },
-      { fields: ["userId", "serviceId"] },
+
+      {
+        unique: true,
+        fields: ["userId", "serviceId"],
+      },
+
+      { fields: ["buyerWalletId"] },
+      { fields: ["sellerWalletId"] },
+
       { fields: ["walletTransactionId"] },
     ],
   }

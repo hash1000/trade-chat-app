@@ -7,10 +7,10 @@ const CLIENT_ERRORS = new Set([
   "NotFoundError",
   "ServiceNotPurchasableError",
   "UnsupportedCurrencyError",
-  "SelfPurchaseError",           
+  "SelfPurchaseError",
   "AlreadyPurchasedError",
   "WalletNotFoundError",
-  "OwnerWalletNotFoundError",    
+  "OwnerWalletNotFoundError",
   "InsufficientBalanceError",
 ]);
 
@@ -18,19 +18,32 @@ class ServicePurchaseController {
   async purchase(req, res) {
     try {
       const { id: buyerUserId } = req.user;
-      const serviceId   = Number(req.params.id);
+      const { buyerWalletId, serviceId } = req.body;
 
-      const purchase = await purchaseService.purchaseService(buyerUserId, serviceId);
+      const purchase = await purchaseService.purchaseService(
+        buyerUserId,
+        serviceId,
+        buyerWalletId,
+      );
 
-      return res.status(201).json({ success: true, data: purchase });
+      return res.status(201).json({
+        success: true,
+        data: purchase,
+      });
     } catch (error) {
       console.error("ServicePurchaseController.purchase error:", error);
 
       if (CLIENT_ERRORS.has(error.name)) {
-        return res.status(400).json({ success: false, error: error.message });
+        return res.status(400).json({
+          success: false,
+          error: error.message,
+        });
       }
 
-      return res.status(500).json({ success: false, error: "Server error. Please try again later." });
+      return res.status(500).json({
+        success: false,
+        error: "Server error.",
+      });
     }
   }
 
@@ -45,7 +58,12 @@ class ServicePurchaseController {
       return res.status(200).json({ success: true, data: purchases });
     } catch (error) {
       console.error("ServicePurchaseController.myPurchases error:", error);
-      return res.status(500).json({ success: false, error: "Server error. Please try again later." });
+      return res
+        .status(500)
+        .json({
+          success: false,
+          error: "Server error. Please try again later.",
+        });
     }
   }
 
@@ -56,11 +74,16 @@ class ServicePurchaseController {
   async serviceBuyers(req, res) {
     try {
       const serviceId = Number(req.params.id);
-      const buyers    = await purchaseService.getServiceBuyers(serviceId);
+      const buyers = await purchaseService.getServiceBuyers(serviceId);
       return res.status(200).json({ success: true, data: buyers });
     } catch (error) {
       console.error("ServicePurchaseController.serviceBuyers error:", error);
-      return res.status(500).json({ success: false, error: "Server error. Please try again later." });
+      return res
+        .status(500)
+        .json({
+          success: false,
+          error: "Server error. Please try again later.",
+        });
     }
   }
 }

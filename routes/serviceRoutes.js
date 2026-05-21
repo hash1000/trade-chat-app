@@ -20,9 +20,8 @@ router.post("/:id/categories", authMiddleware, checkIntegerParam("id"), serviceC
 router.delete("/:id/categories/:categoryId", authMiddleware, checkIntegerParam("id"), checkIntegerParam("categoryId"), serviceController.removeCategory.bind(serviceController));
 // Buy a service
 router.post(
-  "/:id/purchase",
+  "/purchase",
   authMiddleware,
-  checkIntegerParam("id"),
   purchaseController.purchase.bind(purchaseController)
 );
 

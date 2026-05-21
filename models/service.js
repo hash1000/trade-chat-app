@@ -10,47 +10,56 @@ const Service = sequelize.define(
       primaryKey: true,
       autoIncrement: true,
     },
+
     userId: {
       type: DataTypes.INTEGER,
       allowNull: false,
-      comment: "Owner of this service",
+      comment: "Owner of service",
     },
+
+    payoutWalletId: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      comment: "Wallet that receives payments",
+    },
+
     name: {
       type: DataTypes.STRING,
       allowNull: false,
     },
+
     profile_image: {
       type: DataTypes.STRING,
       allowNull: false,
     },
+
     type: {
       type: DataTypes.STRING,
       allowNull: true,
     },
+
     location: {
       type: DataTypes.STRING,
       allowNull: true,
     },
+
     description: {
       type: DataTypes.TEXT,
       allowNull: true,
     },
+
     price: {
       type: DataTypes.DECIMAL(20, 8),
-      allowNull: true,
-      defaultValue: null,
-    },
-    priceCurrency: {
-      type: DataTypes.STRING(3),
       allowNull: false,
-      defaultValue: "USD",
     },
   },
   {
     tableName: "services",
     timestamps: true,
+
     indexes: [
       { fields: ["userId"] },
+      { fields: ["payoutWalletId"] },
     ],
   }
 );

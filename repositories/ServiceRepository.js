@@ -53,7 +53,6 @@ class ServiceRepository {
   }
 
   async create(data) {
-    console.log("Creating service with data:", data);
     return Service.create(data);
   }
 

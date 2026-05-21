@@ -1087,8 +1087,7 @@ class WalletService {
               "id",
               "name",
               "profile_image",
-              "price",
-              "priceCurrency",
+              "price"
             ],
           },
         ],
