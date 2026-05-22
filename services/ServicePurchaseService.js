@@ -98,17 +98,17 @@ class ServicePurchaseService {
       });
 
       // Prevent duplicate purchase
-      const existingPurchase = await this.purchaseRepo.findByUserAndService(
-        buyerUserId,
-        serviceId,
-        t,
-      );
+      // const existingPurchase = await this.purchaseRepo.findByUserAndService(
+      //   buyerUserId,
+      //   serviceId,
+      //   t,
+      // );
 
-      if (existingPurchase) {
-        throw Object.assign(new Error("You already purchased this service."), {
-          name: "AlreadyPurchasedError",
-        });
-      }
+      // if (existingPurchase) {
+      //   throw Object.assign(new Error("You already purchased this service."), {
+      //     name: "AlreadyPurchasedError",
+      //   });
+      // }
 
       const buyerBalance = parseFloat(buyerWallet.availableBalance);
 
