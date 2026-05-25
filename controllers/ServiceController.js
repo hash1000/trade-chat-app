@@ -60,7 +60,10 @@ class ServiceController {
         description,
         location,
         payoutWalletId,
+        pricing_type,
         price,
+        min_price,
+        max_price,
         teamIds,
         categoryId,
         categoryIds,
@@ -86,23 +89,73 @@ class ServiceController {
         });
       }
 
-      if (!payoutWalletId || Number.isNaN(Number(payoutWalletId))) {
+      // if (!payoutWalletId || Number.isNaN(Number(payoutWalletId))) {
+      //   return res.status(400).json({
+      //     success: false,
+      //     error: "payoutWalletId is required.",
+      //   });
+      // }
+
+      // if (
+      //   price === undefined ||
+      //   price === null ||
+      //   Number.isNaN(Number(price)) ||
+      //   Number(price) < 0
+      // ) {
+      //   return res.status(400).json({
+      //     success: false,
+      //     error: "Valid price is required.",
+      //   });
+      // }
+
+      // =========================
+      // Pricing Validation
+      // =========================
+
+      if (!pricing_type) {
         return res.status(400).json({
           success: false,
-          error: "payoutWalletId is required.",
+          error: "pricing_type is required.",
         });
       }
 
-      if (
-        price === undefined ||
-        price === null ||
-        Number.isNaN(Number(price)) ||
-        Number(price) < 0
-      ) {
+      const allowedPricingTypes = ["free", "fixed", "range"];
+
+      if (!allowedPricingTypes.includes(pricing_type)) {
         return res.status(400).json({
           success: false,
-          error: "Valid price is required.",
+          error: "Invalid pricing_type.",
         });
+      }
+
+      if (pricing_type === "fixed") {
+        if (!price || Number(price) <= 0) {
+          return res.status(400).json({
+            success: false,
+            error: "price is required for fixed pricing.",
+          });
+        }
+      }
+
+      if (pricing_type === "range") {
+        if (
+          min_price == null ||
+          max_price == null ||
+          Number(min_price) < 0 ||
+          Number(max_price) <= 0
+        ) {
+          return res.status(400).json({
+            success: false,
+            error: "min_price and max_price are required.",
+          });
+        }
+
+        if (Number(min_price) > Number(max_price)) {
+          return res.status(400).json({
+            success: false,
+            error: "min_price cannot be greater than max_price.",
+          });
+        }
       }
 
       // ─── Create service ─────────────────────────
@@ -111,18 +164,19 @@ class ServiceController {
         userId,
 
         name: name.trim(),
-
         profile_image: profile_image.trim(),
+        type: type ? type.trim() : undefined,
+        location: location.trim(),
+        description: description ? description.trim() : undefined,
 
-        type: type ? type.trim() : null,
+        pricing_type,
 
-        description: description ? description.trim() : null,
+        price: pricing_type === "fixed" ? price : 0,
 
-        location: location ? location.trim() : null,
+        min_price: pricing_type === "range" ? min_price : null,
 
-        payoutWalletId: Number(payoutWalletId),
-
-        price: Number(price),
+        max_price: pricing_type === "range" ? max_price : null,
+        payoutWalletId: payoutWalletId ? Number(payoutWalletId) : null,
       });
 
       // ─── Teams ──────────────────────────────────
@@ -148,6 +202,7 @@ class ServiceController {
         includeMembers: true,
         includeCategories: true,
       });
+      
 
       return res.status(201).json({
         success: true,

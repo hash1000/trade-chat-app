@@ -1,4 +1,3 @@
-// models/service.js
 const { DataTypes } = require("sequelize");
 const sequelize = require("../config/database");
 
@@ -9,18 +8,6 @@ const Service = sequelize.define(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
-    },
-
-    userId: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-      comment: "Owner of service",
-    },
-
-    payoutWalletId: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-      comment: "Wallet that receives payments",
     },
 
     name: {
@@ -48,32 +35,32 @@ const Service = sequelize.define(
       allowNull: true,
     },
 
+    pricing_type: {
+      type: DataTypes.ENUM("free", "fixed", "range"),
+      allowNull: false,
+      defaultValue: "fixed",
+    },
+
     price: {
       type: DataTypes.DECIMAL(20, 8),
       allowNull: false,
     },
 
-    deletedAt: {
-      type: DataTypes.DATE,
+    min_price: {
+      type: DataTypes.DECIMAL(10, 2),
       allowNull: true,
     },
 
-    deletedBy: {
-      type: DataTypes.INTEGER,
+    max_price: {
+      type: DataTypes.DECIMAL(10, 2),
       allowNull: true,
-      comment: "User who deleted this service",
-    },
+    }
+    
   },
   {
     tableName: "services",
     timestamps: true,
-    paranoid: false,
-    indexes: [
-      { fields: ["userId"] },
-      { fields: ["payoutWalletId"] },
-      { fields: ["deletedAt"] },
-    ],
-  },
+  }
 );
 
 module.exports = Service;
