@@ -1,5 +1,6 @@
 // repositories/ServiceRepository.js
 const { Op } = require("sequelize");
+const { Sequelize } = require("sequelize");
 const {
   Service,
   Team,
@@ -106,15 +107,34 @@ class ServiceRepository {
   }
 
   async findAll(options = {}) {
+    const { userId } = options;
+
     const queryOptions = { ...options };
     delete queryOptions.includeTeams;
     delete queryOptions.includeMembers;
     delete queryOptions.includeCategories;
+    delete queryOptions.userId;
+
+    const attributes = { include: [] };
+    if (userId) {
+      attributes.include.push([
+        Sequelize.literal(`
+          EXISTS (
+            SELECT 1
+            FROM service_purchases sp
+            WHERE sp.serviceId = Service.id
+            AND sp.userId = ${userId}
+          )
+        `),
+        "isPurchased",
+      ]);
+    }
 
     return Service.findAll({
+      attributes,
       include: this.buildIncludes(options),
       where: {
-        deletedAt: null, // ✅ ignore soft deleted
+        deletedAt: null,
       },
       order: [["createdAt", "DESC"]],
       ...queryOptions,

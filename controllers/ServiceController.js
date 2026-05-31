@@ -5,15 +5,23 @@ const serviceService = new ServiceService();
 class ServiceController {
   async list(req, res) {
     try {
+      const { id: userId } = req.user;
+
       const includeTeams = req.query.includeTeams === "true";
       const includeMembers = req.query.includeMembers === "true";
       const includeCategories = req.query.includeCategories === "true";
+
       const services = await serviceService.getAll({
+        userId,
         includeTeams,
         includeMembers,
         includeCategories,
       });
-      return res.status(200).json({ success: true, data: services });
+
+      return res.status(200).json({
+        success: true,
+        data: services,
+      });
     } catch (error) {
       console.error("ServiceController.list error:", error);
       return res.status(500).json({
@@ -179,7 +187,6 @@ class ServiceController {
         includeMembers: true,
         includeCategories: true,
       });
-      
 
       return res.status(201).json({
         success: true,
@@ -205,256 +212,207 @@ class ServiceController {
     }
   }
 
-async update(req, res) {
-  try {
-    const { id } = req.params;
+  async update(req, res) {
+    try {
+      const { id } = req.params;
 
-    const service = await serviceService.getById(id);
+      const service = await serviceService.getById(id);
 
-    if (!service) {
-      return res.status(404).json({
-        success: false,
-        error: "Service not found.",
-      });
-    }
-
-    const {
-      name,
-      profile_image,
-      type,
-      description,
-      location,
-      pricing_type,
-      price,
-      min_price,
-      max_price,
-      payoutWalletId,
-      teamIds,
-      categoryId,
-      categoryIds,
-    } = req.body;
-
-    // =========================================
-    // Determine final pricing type
-    // =========================================
-
-    const finalPricingType =
-      pricing_type || service.pricing_type;
-
-    // =========================================
-    // Validation
-    // =========================================
-
-    const allowedPricingTypes = [
-      "free",
-      "fixed",
-      "range",
-    ];
-
-    if (
-      pricing_type &&
-      !allowedPricingTypes.includes(pricing_type)
-    ) {
-      return res.status(400).json({
-        success: false,
-        error: "Invalid pricing_type.",
-      });
-    }
-
-    // Fixed Pricing Validation
-    if (finalPricingType === "fixed") {
-      const finalPrice =
-        price !== undefined ? price : service.price;
-
-      if (!finalPrice || Number(finalPrice) <= 0) {
-        return res.status(400).json({
+      if (!service) {
+        return res.status(404).json({
           success: false,
-          error: "price is required for fixed pricing.",
-        });
-      }
-    }
-
-    // Range Pricing Validation
-    if (finalPricingType === "range") {
-      const finalMinPrice =
-        min_price !== undefined
-          ? min_price
-          : service.min_price;
-
-      const finalMaxPrice =
-        max_price !== undefined
-          ? max_price
-          : service.max_price;
-
-      if (
-        finalMinPrice == null ||
-        finalMaxPrice == null
-      ) {
-        return res.status(400).json({
-          success: false,
-          error:
-            "min_price and max_price are required.",
+          error: "Service not found.",
         });
       }
 
-      if (
-        Number(finalMinPrice) >
-        Number(finalMaxPrice)
-      ) {
+      const {
+        name,
+        profile_image,
+        type,
+        description,
+        location,
+        pricing_type,
+        price,
+        min_price,
+        max_price,
+        payoutWalletId,
+        teamIds,
+        categoryId,
+        categoryIds,
+      } = req.body;
+
+      // =========================================
+      // Determine final pricing type
+      // =========================================
+
+      const finalPricingType = pricing_type || service.pricing_type;
+
+      // =========================================
+      // Validation
+      // =========================================
+
+      const allowedPricingTypes = ["free", "fixed", "range"];
+
+      if (pricing_type && !allowedPricingTypes.includes(pricing_type)) {
         return res.status(400).json({
           success: false,
-          error:
-            "min_price cannot be greater than max_price.",
+          error: "Invalid pricing_type.",
         });
       }
-    }
 
-    // =========================================
-    // Build Update Payload
-    // =========================================
+      // Fixed Pricing Validation
+      if (finalPricingType === "fixed") {
+        const finalPrice = price !== undefined ? price : service.price;
 
-    const updateData = {};
+        if (!finalPrice || Number(finalPrice) <= 0) {
+          return res.status(400).json({
+            success: false,
+            error: "price is required for fixed pricing.",
+          });
+        }
+      }
 
-    if (name !== undefined) {
-      updateData.name =
-        typeof name === "string"
-          ? name.trim()
-          : name;
-    }
+      // Range Pricing Validation
+      if (finalPricingType === "range") {
+        const finalMinPrice =
+          min_price !== undefined ? min_price : service.min_price;
 
-    if (profile_image !== undefined) {
-      updateData.profile_image =
-        typeof profile_image === "string"
-          ? profile_image.trim()
-          : profile_image;
-    }
+        const finalMaxPrice =
+          max_price !== undefined ? max_price : service.max_price;
 
-    if (type !== undefined) {
-      updateData.type =
-        typeof type === "string"
-          ? type.trim()
-          : type;
-    }
+        if (finalMinPrice == null || finalMaxPrice == null) {
+          return res.status(400).json({
+            success: false,
+            error: "min_price and max_price are required.",
+          });
+        }
 
-    if (description !== undefined) {
-      updateData.description =
-        typeof description === "string"
-          ? description.trim()
-          : description;
-    }
+        if (Number(finalMinPrice) > Number(finalMaxPrice)) {
+          return res.status(400).json({
+            success: false,
+            error: "min_price cannot be greater than max_price.",
+          });
+        }
+      }
 
-    if (location !== undefined) {
-      updateData.location =
-        typeof location === "string"
-          ? location.trim()
-          : location;
-    }
+      // =========================================
+      // Build Update Payload
+      // =========================================
 
-    if (pricing_type !== undefined) {
-      updateData.pricing_type = pricing_type;
-    }
+      const updateData = {};
 
-    if (payoutWalletId !== undefined) {
-      updateData.payoutWalletId =
-        payoutWalletId
+      if (name !== undefined) {
+        updateData.name = typeof name === "string" ? name.trim() : name;
+      }
+
+      if (profile_image !== undefined) {
+        updateData.profile_image =
+          typeof profile_image === "string"
+            ? profile_image.trim()
+            : profile_image;
+      }
+
+      if (type !== undefined) {
+        updateData.type = typeof type === "string" ? type.trim() : type;
+      }
+
+      if (description !== undefined) {
+        updateData.description =
+          typeof description === "string" ? description.trim() : description;
+      }
+
+      if (location !== undefined) {
+        updateData.location =
+          typeof location === "string" ? location.trim() : location;
+      }
+
+      if (pricing_type !== undefined) {
+        updateData.pricing_type = pricing_type;
+      }
+
+      if (payoutWalletId !== undefined) {
+        updateData.payoutWalletId = payoutWalletId
           ? Number(payoutWalletId)
           : null;
-    }
+      }
 
-    // =========================================
-    // Normalize pricing fields
-    // =========================================
+      // =========================================
+      // Normalize pricing fields
+      // =========================================
 
-    if (finalPricingType === "free") {
-      updateData.price = 0;
-      updateData.min_price = null;
-      updateData.max_price = null;
-    }
+      if (finalPricingType === "free") {
+        updateData.price = 0;
+        updateData.min_price = null;
+        updateData.max_price = null;
+      }
 
-    if (finalPricingType === "fixed") {
-      updateData.price =
-        price !== undefined
-          ? price
-          : service.price;
+      if (finalPricingType === "fixed") {
+        updateData.price = price !== undefined ? price : service.price;
 
-      updateData.min_price = null;
-      updateData.max_price = null;
-    }
+        updateData.min_price = null;
+        updateData.max_price = null;
+      }
 
-    if (finalPricingType === "range") {
-      updateData.price = 0;
+      if (finalPricingType === "range") {
+        updateData.price = 0;
 
-      updateData.min_price =
-        min_price !== undefined
-          ? min_price
-          : service.min_price;
+        updateData.min_price =
+          min_price !== undefined ? min_price : service.min_price;
 
-      updateData.max_price =
-        max_price !== undefined
-          ? max_price
-          : service.max_price;
-    }
+        updateData.max_price =
+          max_price !== undefined ? max_price : service.max_price;
+      }
 
-    // =========================================
-    // Update Service
-    // =========================================
+      // =========================================
+      // Update Service
+      // =========================================
 
-    await serviceService.update(id, updateData);
+      await serviceService.update(id, updateData);
 
-    // =========================================
-    // Teams
-    // =========================================
+      // =========================================
+      // Teams
+      // =========================================
 
-    if (teamIds !== undefined) {
-      await serviceService.setTeams(
-        id,
-        Array.isArray(teamIds) ? teamIds : []
-      );
-    }
+      if (teamIds !== undefined) {
+        await serviceService.setTeams(
+          id,
+          Array.isArray(teamIds) ? teamIds : [],
+        );
+      }
 
-    // =========================================
-    // Categories
-    // =========================================
+      // =========================================
+      // Categories
+      // =========================================
 
-    if (
-      categoryIds !== undefined ||
-      categoryId !== undefined
-    ) {
-      const categoriesToAssign =
-        Array.isArray(categoryIds)
+      if (categoryIds !== undefined || categoryId !== undefined) {
+        const categoriesToAssign = Array.isArray(categoryIds)
           ? categoryIds
           : categoryId != null
             ? [categoryId]
             : [];
 
-      await serviceService.setCategories(
-        id,
-        categoriesToAssign
-      );
+        await serviceService.setCategories(id, categoriesToAssign);
+      }
+
+      const data = await serviceService.getById(id, {
+        includeTeams: true,
+        includeMembers: true,
+        includeCategories: true,
+      });
+
+      return res.status(200).json({
+        success: true,
+        data,
+      });
+    } catch (error) {
+      console.error("ServiceController.update error:", error);
+
+      return res.status(500).json({
+        success: false,
+        error: "Server error. Please try again later.",
+      });
     }
-
-    const data = await serviceService.getById(id, {
-      includeTeams: true,
-      includeMembers: true,
-      includeCategories: true,
-    });
-
-    return res.status(200).json({
-      success: true,
-      data,
-    });
-  } catch (error) {
-    console.error(
-      "ServiceController.update error:",
-      error
-    );
-
-    return res.status(500).json({
-      success: false,
-      error: "Server error. Please try again later.",
-    });
   }
-}
 
   // controllers/ServiceController.js
 
