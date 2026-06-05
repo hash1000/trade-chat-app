@@ -12,7 +12,6 @@ const {
   ServiceFile,
 } = require("../models");
 
-
 class ServiceRepository {
   buildIncludes(options = {}) {
     const include = [];
@@ -92,31 +91,31 @@ class ServiceRepository {
     return Service.create(data);
   }
 
-async findByPk(id, options = {}) {
-  const queryOptions = { ...options };
+  async findByPk(id, options = {}) {
+    const queryOptions = { ...options };
 
-  delete queryOptions.includeTeams;
-  delete queryOptions.includeMembers;
-  delete queryOptions.includeCategories;
+    delete queryOptions.includeTeams;
+    delete queryOptions.includeMembers;
+    delete queryOptions.includeCategories;
 
-  const service = await Service.findOne({
-    include: this.buildIncludes(options),
-    where: {
-      id,
-      deletedAt: null,
-    },
-    ...queryOptions,
-  });
+    const service = await Service.findOne({
+      include: this.buildIncludes(options),
+      where: {
+        id,
+        deletedAt: null,
+      },
+      ...queryOptions,
+    });
 
-  if (!service) return null;
+    if (!service) return null;
 
-  const plain = service.toJSON();
+    const plain = service.toJSON();
 
-  plain.media = plain.files || [];
-  delete plain.files;
+    plain.media = plain.files || [];
+    delete plain.files;
 
-  return plain;
-}
+    return plain;
+  }
 
   async findByPkWithDeleted(id) {
     return Service.findOne({
@@ -124,21 +123,22 @@ async findByPk(id, options = {}) {
     });
   }
 
-async findAll(options = {}) {
-  const { userId } = options;
+  async findAll(options = {}) {
+    const { userId, includeDeleted = false } = options;
 
-  const queryOptions = { ...options };
+    const queryOptions = { ...options };
 
-  delete queryOptions.includeTeams;
-  delete queryOptions.includeMembers;
-  delete queryOptions.includeCategories;
-  delete queryOptions.userId;
+    delete queryOptions.includeTeams;
+    delete queryOptions.includeMembers;
+    delete queryOptions.includeCategories;
+    delete queryOptions.userId;
+    delete queryOptions.includeDeleted;
 
-  const attributes = { include: [] };
+    const attributes = { include: [] };
 
-  if (userId) {
-    attributes.include.push([
-      Sequelize.literal(`
+    if (userId) {
+      attributes.include.push([
+        Sequelize.literal(`
         EXISTS (
           SELECT 1
           FROM service_purchases sp
@@ -146,27 +146,35 @@ async findAll(options = {}) {
           AND sp.userId = ${userId}
         )
       `),
-      "isPurchased",
-    ]);
+        "isPurchased",
+      ]);
+    }
+
+    const services = await Service.findAll({
+      attributes,
+      include: this.buildIncludes(options),
+      where: includeDeleted
+        ? {
+            deletedAt: {
+              [Op.ne]: null,
+            },
+          }
+        : {
+            deletedAt: null,
+          },
+      order: [["createdAt", "DESC"]],
+      ...queryOptions,
+    });
+
+    return services.map((service) => {
+      const plain = service.toJSON();
+
+      plain.media = plain.files || [];
+      delete plain.files;
+
+      return plain;
+    });
   }
-
-  const services = await Service.findAll({
-    attributes,
-    include: this.buildIncludes(options),
-    where: { deletedAt: null },
-    order: [["createdAt", "DESC"]],
-    ...queryOptions,
-  });
-
-  return services.map((service) => {
-    const plain = service.toJSON();
-
-    plain.media = plain.files || [];
-    delete plain.files;
-
-    return plain;
-  });
-}
 
   async update(id, data) {
     const service = await Service.findByPk(id);
@@ -175,21 +183,25 @@ async findAll(options = {}) {
     return service;
   }
 
-  async delete(id, deletedBy = null) {
-    const service = await Service.findByPk(id);
+async delete(id, deletedBy = null) {
+  const service = await Service.findByPk(id);
 
-    if (!service) return null;
+  if (!service) return null;
 
-    // already deleted
-    if (service.deletedAt) return service;
+  // already deleted
+  if (service.deletedAt) return service;
 
-    await service.update({
-      deletedAt: new Date(),
-      deletedBy,
-    });
+  await service.update({
+  deletedAt: Sequelize.fn('NOW'),
+  deletedBy,
+});
 
-    return service;
-  }
+  await service.reload();
+
+  console.log(service.toJSON());
+
+  return service;
+}
 
   async restore(id) {
     const service = await this.serviceRepository.findByPkWithDeleted(id);

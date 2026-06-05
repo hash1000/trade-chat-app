@@ -12,12 +12,13 @@ class ServiceController {
       const includeTeams = req.query.includeTeams === "true";
       const includeMembers = req.query.includeMembers === "true";
       const includeCategories = req.query.includeCategories === "true";
-
+      const includeDeleted = req.query.includeDeleted === "true";
       const services = await serviceService.getAll({
         userId,
         includeTeams,
         includeMembers,
         includeCategories,
+        includeDeleted
       });
 
       return res.status(200).json({

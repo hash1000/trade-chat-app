@@ -10,6 +10,16 @@ const Service = sequelize.define(
       autoIncrement: true,
     },
 
+    userId: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    },
+
+    payoutWalletId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+
     name: {
       type: DataTypes.STRING,
       allowNull: false,
@@ -43,16 +53,21 @@ const Service = sequelize.define(
 
     price: {
       type: DataTypes.DECIMAL(20, 8),
-      allowNull: false,
+      allowNull: true,
+    },
+
+    fixed_price: {
+      type: DataTypes.DECIMAL(20, 8),
+      allowNull: true,
     },
 
     min_price: {
-      type: DataTypes.DECIMAL(10, 2),
+      type: DataTypes.DECIMAL(20, 8),
       allowNull: true,
     },
 
     max_price: {
-      type: DataTypes.DECIMAL(10, 2),
+      type: DataTypes.DECIMAL(20, 8),
       allowNull: true,
     },
 
@@ -61,11 +76,21 @@ const Service = sequelize.define(
       allowNull: false,
       defaultValue: [],
     },
+
+    deletedBy: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+
+    deletedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
   },
   {
     tableName: "services",
     timestamps: true,
-  }
+  },
 );
 
 module.exports = Service;
