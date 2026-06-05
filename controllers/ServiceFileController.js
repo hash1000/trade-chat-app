@@ -49,7 +49,6 @@ class ServiceFileController {
   async getServiceDetails(req, res) {
     try {
       const { serviceId } = req.params;
-
       const data = await serviceFileService.getServiceWithFiles(Number(serviceId));
 
       return res.status(200).json({ success: true, data });

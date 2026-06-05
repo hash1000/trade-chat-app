@@ -6,17 +6,47 @@ const authMiddleware = require("../middlewares/authenticate");
 const checkIntegerParam = require("../middlewares/paramIntegerValidation");
 const authorize = require("../middlewares/authorization");
 const ServicePurchaseController = require("../controllers/ServicePurchaseController");
-const { uploadServiceImages, uploadServiceDocuments } = require("../utilities/serviceFileMulter");
+const {
+  uploadServiceImages,
+  uploadServiceMedia,
+  uploadServiceCreateUpdate,
+} = require("../utilities/serviceFileMulter");
 
 const purchaseController = new ServicePurchaseController();
 const serviceController = new ServiceController();
 const serviceFileController = new ServiceFileController();
 
+// ── Core CRUD ─────────────────────────────────────────────────────────────────
+
 router.get("/", authMiddleware, serviceController.list.bind(serviceController));
-router.get("/:id", authMiddleware, checkIntegerParam("id"), serviceController.getById.bind(serviceController));
-router.post("/", authMiddleware,authorize(["admin"]), serviceController.create.bind(serviceController));
-router.put("/:id", authMiddleware,authorize(["admin"]), checkIntegerParam("id"), serviceController.update.bind(serviceController));
-router.delete("/:id", authMiddleware,authorize(["admin"]), checkIntegerParam("id"), serviceController.delete.bind(serviceController));
+
+// create — accepts optional images[] and media[] alongside JSON body fields
+router.post(
+  "/",
+  authMiddleware,
+  authorize(["admin"]),
+  serviceFileController.handleMulterError(uploadServiceCreateUpdate),
+  serviceController.create.bind(serviceController)
+);
+
+// update — accepts optional images[] and media[] to append new files
+router.put(
+  "/:id",
+  authMiddleware,
+  authorize(["admin"]),
+  checkIntegerParam("id"),
+  serviceFileController.handleMulterError(uploadServiceCreateUpdate),
+  serviceController.update.bind(serviceController)
+);
+
+router.delete(
+  "/:id",
+  authMiddleware,
+  authorize(["admin"]),
+  checkIntegerParam("id"),
+  serviceController.delete.bind(serviceController)
+);
+
 router.post(
   "/:id/restore",
   authMiddleware,
@@ -24,43 +54,39 @@ router.post(
   checkIntegerParam("id"),
   serviceController.restore.bind(serviceController)
 );
+
+// ── Teams & Categories ────────────────────────────────────────────────────────
+
 router.post("/:id/teams", authMiddleware, checkIntegerParam("id"), serviceController.addTeam.bind(serviceController));
 router.delete("/:id/teams/:teamId", authMiddleware, checkIntegerParam("id"), checkIntegerParam("teamId"), serviceController.removeTeam.bind(serviceController));
 router.post("/:id/categories", authMiddleware, checkIntegerParam("id"), serviceController.addCategory.bind(serviceController));
 router.delete("/:id/categories/:categoryId", authMiddleware, checkIntegerParam("id"), checkIntegerParam("categoryId"), serviceController.removeCategory.bind(serviceController));
-// Buy a service
-router.post(
-  "/purchase",
-  authMiddleware,
-  purchaseController.purchase.bind(purchaseController)
-);
 
-// Buyer: my purchases
-router.get(
-  "/my/purchases",
-  authMiddleware,
-  purchaseController.myPurchases.bind(purchaseController)
-);
+// ── Purchases ─────────────────────────────────────────────────────────────────
 
-// Owner/admin: who bought service X
-router.get(
-  "/:id/buyers",
-  authMiddleware,
-  checkIntegerParam("id"),
-  purchaseController.serviceBuyers.bind(purchaseController)
-);
+router.post("/purchase", authMiddleware, purchaseController.purchase.bind(purchaseController));
+router.get("/my/purchases", authMiddleware, purchaseController.myPurchases.bind(purchaseController));
+router.get("/:id/buyers", authMiddleware, checkIntegerParam("id"), purchaseController.serviceBuyers.bind(purchaseController));
 
 // ── Service Files ─────────────────────────────────────────────────────────────
 
-// GET /services/:serviceId  — returns service + images + documents
-router.get(
-  "/:serviceId/details",
+// Must be before /:id routes to avoid Express treating "files" as a param value
+router.delete(
+  "/files/:fileId",
   authMiddleware,
-  checkIntegerParam("serviceId"),
-  serviceFileController.getServiceDetails.bind(serviceFileController)
+  checkIntegerParam("fileId"),
+  serviceFileController.deleteFile.bind(serviceFileController)
 );
 
-// POST /services/:serviceId/images
+// GET /services/:id — returns service + images[] + media[]
+router.get(
+  "/:id",
+  authMiddleware,
+  checkIntegerParam("id"),
+  serviceController.getById.bind(serviceController)
+);
+
+// POST /services/:serviceId/images — upload gallery images only
 router.post(
   "/:serviceId/images",
   authMiddleware,
@@ -69,21 +95,13 @@ router.post(
   serviceFileController.uploadImages.bind(serviceFileController)
 );
 
-// POST /services/:serviceId/media
+// POST /services/:serviceId/media — upload images, videos, documents
 router.post(
   "/:serviceId/media",
   authMiddleware,
   checkIntegerParam("serviceId"),
-  serviceFileController.handleMulterError(uploadServiceDocuments),
+  serviceFileController.handleMulterError(uploadServiceMedia),
   serviceFileController.uploadMedia.bind(serviceFileController)
-);
-
-// DELETE /services/files/:fileId
-router.delete(
-  "/files/:fileId",
-  authMiddleware,
-  checkIntegerParam("fileId"),
-  serviceFileController.deleteFile.bind(serviceFileController)
 );
 
 module.exports = router;

@@ -184,9 +184,16 @@ class ServiceController {
         await serviceService.addCategories(service.id, categoriesToAssign);
       }
 
-      // ─── Gallery images (optional) ───────────────
-      if (Array.isArray(req.files) && req.files.length > 0) {
-        await serviceFileService.uploadImages(service.id, req.files);
+      // ─── Images (optional) ──────────────────────
+      const imageFiles = req.files?.images;
+      if (Array.isArray(imageFiles) && imageFiles.length > 0) {
+        await serviceFileService.uploadImages(service.id, imageFiles);
+      }
+
+      // ─── Media (optional) ───────────────────────
+      const mediaFiles = req.files?.media;
+      if (Array.isArray(mediaFiles) && mediaFiles.length > 0) {
+        await serviceFileService.uploadMedia(service.id, mediaFiles);
       }
 
       const data = await serviceService.getById(service.id, {
@@ -399,6 +406,24 @@ class ServiceController {
             : [];
 
         await serviceService.setCategories(id, categoriesToAssign);
+      }
+
+      // =========================================
+      // Images (optional — appends new ones)
+      // =========================================
+
+      const imageFiles = req.files?.images;
+      if (Array.isArray(imageFiles) && imageFiles.length > 0) {
+        await serviceFileService.uploadImages(Number(id), imageFiles);
+      }
+
+      // =========================================
+      // Media (optional — appends new ones)
+      // =========================================
+
+      const mediaFiles = req.files?.media;
+      if (Array.isArray(mediaFiles) && mediaFiles.length > 0) {
+        await serviceFileService.uploadMedia(Number(id), mediaFiles);
       }
 
       const data = await serviceService.getById(id, {

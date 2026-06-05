@@ -59,18 +59,40 @@ function mediaFilter(_req, file, cb) {
   cb(null, true);
 }
 
-// Used on POST /services (create) — optional images field
+// POST /services/:serviceId/images — gallery images only
 const uploadServiceImages = multer({
   storage: makeStorage(IMAGE_DIR),
   fileFilter: imageFilter,
   limits: { fileSize: 10 * 1024 * 1024, files: 20 },
 }).array("images");
 
-// Used on POST /services/:serviceId/media — images + videos + documents
+// POST /services/:serviceId/media — images + videos + documents
 const uploadServiceMedia = multer({
   storage: makeStorage(MEDIA_DIR),
   fileFilter: mediaFilter,
   limits: { fileSize: 100 * 1024 * 1024, files: 20 },
 }).array("media");
 
-module.exports = { uploadServiceImages, uploadServiceMedia };
+// POST /services (create) and PUT /services/:id (update)
+// Handles both fields: images[] → IMAGE_DIR, media[] → MEDIA_DIR
+const uploadServiceCreateUpdate = multer({
+  storage: multer.diskStorage({
+    destination: (_req, file, cb) => {
+      cb(null, file.fieldname === "images" ? IMAGE_DIR : MEDIA_DIR);
+    },
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname).toLowerCase();
+      cb(null, `${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`);
+    },
+  }),
+  fileFilter: (req, file, cb) => {
+    if (file.fieldname === "images") return imageFilter(req, file, cb);
+    return mediaFilter(req, file, cb);
+  },
+  limits: { fileSize: 100 * 1024 * 1024, files: 40 },
+}).fields([
+  { name: "images", maxCount: 20 },
+  { name: "media", maxCount: 20 },
+]);
+
+module.exports = { uploadServiceImages, uploadServiceMedia, uploadServiceCreateUpdate };

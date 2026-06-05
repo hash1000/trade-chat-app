@@ -12,11 +12,11 @@ const {
   ServiceFile,
 } = require("../models");
 
+const MEDIA_FILE_TYPES = new Set(["video", "pdf", "doc", "docx", "other"]);
+
 class ServiceRepository {
   buildIncludes(options = {}) {
     const include = [];
-    console.log("Associations:", Object.keys(Service.associations));
-    console.log("Files Association:", Service.associations.files);
 
     include.push({
       model: User,
@@ -46,7 +46,8 @@ class ServiceRepository {
 
     include.push({
       model: ServiceFile,
-      as: "files"
+      as: "files",
+      order: [["sort_order", "ASC"]],
     });
 
     if (options.includeTeams || options.includeMembers) {
@@ -92,21 +93,34 @@ class ServiceRepository {
     return Service.create(data);
   }
 
-  async findByPk(id, options = {}) {
-    const queryOptions = { ...options };
-    delete queryOptions.includeTeams;
-    delete queryOptions.includeMembers;
-    delete queryOptions.includeCategories;
+async findByPk(id, options = {}) {
+  const queryOptions = { ...options };
 
-    return Service.findOne({
-      include: this.buildIncludes(options),
-      where: {
-        id,
-        deletedAt: null,
-      },
-      ...queryOptions,
-    });
-  }
+  delete queryOptions.includeTeams;
+  delete queryOptions.includeMembers;
+  delete queryOptions.includeCategories;
+
+  const service = await Service.findOne({
+    include: this.buildIncludes(options),
+    where: {
+      id,
+      deletedAt: null,
+    },
+    ...queryOptions,
+  });
+
+  if (!service) return null;
+
+  const plain = service.toJSON();
+
+  const files = plain.files || [];
+
+  plain.images = files.filter(f => f.file_type === "image");
+  plain.media = files.filter(f => MEDIA_FILE_TYPES.has(f.file_type));
+  delete plain.files;
+
+  return plain;
+}
 
   async findByPkWithDeleted(id) {
     return Service.findOne({
@@ -114,40 +128,52 @@ class ServiceRepository {
     });
   }
 
-  async findAll(options = {}) {
-    const { userId } = options;
+async findAll(options = {}) {
+  const { userId } = options;
 
-    const queryOptions = { ...options };
-    delete queryOptions.includeTeams;
-    delete queryOptions.includeMembers;
-    delete queryOptions.includeCategories;
-    delete queryOptions.userId;
+  const queryOptions = { ...options };
 
-    const attributes = { include: [] };
-    if (userId) {
-      attributes.include.push([
-        Sequelize.literal(`
-          EXISTS (
-            SELECT 1
-            FROM service_purchases sp
-            WHERE sp.serviceId = Service.id
-            AND sp.userId = ${userId}
-          )
-        `),
-        "isPurchased",
-      ]);
-    }
+  delete queryOptions.includeTeams;
+  delete queryOptions.includeMembers;
+  delete queryOptions.includeCategories;
+  delete queryOptions.userId;
 
-    return Service.findAll({
-      attributes,
-      include: this.buildIncludes(options),
-      where: {
-        deletedAt: null,
-      },
-      order: [["createdAt", "DESC"]],
-      ...queryOptions,
-    });
+  const attributes = { include: [] };
+
+  if (userId) {
+    attributes.include.push([
+      Sequelize.literal(`
+        EXISTS (
+          SELECT 1
+          FROM service_purchases sp
+          WHERE sp.serviceId = Service.id
+          AND sp.userId = ${userId}
+        )
+      `),
+      "isPurchased",
+    ]);
   }
+
+  const services = await Service.findAll({
+    attributes,
+    include: this.buildIncludes(options),
+    where: { deletedAt: null },
+    order: [["createdAt", "DESC"]],
+    ...queryOptions,
+  });
+
+  return services.map((service) => {
+    const plain = service.toJSON();
+
+    const files = plain.files || [];
+
+    plain.images = files.filter(f => f.file_type === "image");
+    plain.media = files.filter(f => MEDIA_FILE_TYPES.has(f.file_type));
+    delete plain.files;
+
+    return plain;
+  });
+}
 
   async update(id, data) {
     const service = await Service.findByPk(id);
