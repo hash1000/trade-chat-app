@@ -56,11 +56,6 @@ const Service = sequelize.define(
       allowNull: true,
     },
 
-    fixed_price: {
-      type: DataTypes.DECIMAL(20, 8),
-      allowNull: true,
-    },
-
     min_price: {
       type: DataTypes.DECIMAL(20, 8),
       allowNull: true,
