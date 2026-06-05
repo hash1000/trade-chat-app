@@ -26,7 +26,7 @@ const ServiceFile = sequelize.define(
     },
 
     file_type: {
-      type: DataTypes.ENUM("image", "pdf", "doc", "docx", "other"),
+      type: DataTypes.ENUM("image", "video", "pdf", "doc", "docx", "other"),
       allowNull: false,
     },
 

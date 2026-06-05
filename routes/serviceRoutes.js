@@ -69,13 +69,13 @@ router.post(
   serviceFileController.uploadImages.bind(serviceFileController)
 );
 
-// POST /services/:serviceId/documents
+// POST /services/:serviceId/media
 router.post(
-  "/:serviceId/documents",
+  "/:serviceId/media",
   authMiddleware,
   checkIntegerParam("serviceId"),
   serviceFileController.handleMulterError(uploadServiceDocuments),
-  serviceFileController.uploadDocuments.bind(serviceFileController)
+  serviceFileController.uploadMedia.bind(serviceFileController)
 );
 
 // DELETE /services/files/:fileId

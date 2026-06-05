@@ -2,15 +2,28 @@ const path = require("path");
 const fs = require("fs");
 const { Service, ServiceFile } = require("../models");
 
+// Maps file extension → file_type ENUM value
 const FILE_TYPE_MAP = {
   ".jpg": "image",
   ".jpeg": "image",
   ".png": "image",
   ".webp": "image",
+  ".gif": "image",
+  ".bmp": "image",
+  ".tiff": "image",
+  ".mp4": "video",
+  ".mpeg": "video",
+  ".mov": "video",
+  ".avi": "video",
+  ".mkv": "video",
+  ".webm": "video",
   ".pdf": "pdf",
   ".doc": "doc",
   ".docx": "docx",
 };
+
+// file_types that belong in the "media" bucket (everything that is not a pure image)
+const MEDIA_TYPES = new Set(["video", "pdf", "doc", "docx", "other"]);
 
 class ServiceFileService {
   async assertServiceExists(serviceId) {
@@ -37,7 +50,7 @@ class ServiceFileService {
     return ServiceFile.bulkCreate(records);
   }
 
-  async uploadDocuments(serviceId, files) {
+  async uploadMedia(serviceId, files) {
     await this.assertServiceExists(serviceId);
 
     const records = files.map((file, index) => {
@@ -46,7 +59,7 @@ class ServiceFileService {
 
       return {
         service_id: serviceId,
-        file_url: `/uploads/services/documents/${file.filename}`,
+        file_url: `/uploads/services/media/${file.filename}`,
         file_name: file.originalname,
         file_type,
         sort_order: index,
@@ -70,9 +83,9 @@ class ServiceFileService {
     });
 
     const images = allFiles.filter((f) => f.file_type === "image");
-    const documents = allFiles.filter((f) => f.file_type !== "image");
+    const media = allFiles.filter((f) => MEDIA_TYPES.has(f.file_type));
 
-    return { ...service.toJSON(), images, documents };
+    return { ...service.toJSON(), images, media };
   }
 
   async deleteFile(fileId) {

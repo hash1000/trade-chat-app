@@ -7,14 +7,7 @@ const sequelize = new Sequelize({
   database: process.env.MYSQL_DATABASE,
   host: process.env.MYSQL_HOST,
   port: process.env.MYSQL_PORT,
-  // ssl: true,
   dialect: 'mysql',
-  // dialectOptions: {
-  //   ssl: {
-  //     minVersion: 'TLSv1',
-  //     ca: fs.readFileSync("../resources/ca-certificate.crt", "utf8")
-  //   }
-  // }
 })
 
 // Async function to handle database connection and default tags insertion

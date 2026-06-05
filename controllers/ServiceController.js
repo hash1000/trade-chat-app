@@ -1,6 +1,8 @@
 // controllers/ServiceController.js
 const ServiceService = require("../services/ServiceService");
+const ServiceFileService = require("../services/ServiceFileService");
 const serviceService = new ServiceService();
+const serviceFileService = new ServiceFileService();
 
 class ServiceController {
   async list(req, res) {
@@ -180,6 +182,11 @@ class ServiceController {
 
       if (categoriesToAssign.length > 0) {
         await serviceService.addCategories(service.id, categoriesToAssign);
+      }
+
+      // ─── Gallery images (optional) ───────────────
+      if (Array.isArray(req.files) && req.files.length > 0) {
+        await serviceFileService.uploadImages(service.id, req.files);
       }
 
       const data = await serviceService.getById(service.id, {

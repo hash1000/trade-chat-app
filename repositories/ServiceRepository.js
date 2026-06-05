@@ -9,11 +9,14 @@ const {
   PublicCategory,
   ServicePublicCategory,
   Wallet,
+  ServiceFile,
 } = require("../models");
 
 class ServiceRepository {
   buildIncludes(options = {}) {
     const include = [];
+    console.log("Associations:", Object.keys(Service.associations));
+    console.log("Files Association:", Service.associations.files);
 
     include.push({
       model: User,
@@ -39,6 +42,11 @@ class ServiceRepository {
         "accountNumber",
         "availableBalance",
       ],
+    });
+
+    include.push({
+      model: ServiceFile,
+      as: "files"
     });
 
     if (options.includeTeams || options.includeMembers) {

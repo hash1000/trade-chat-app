@@ -24,19 +24,19 @@ class ServiceFileController {
     }
   }
 
-  async uploadDocuments(req, res) {
+  async uploadMedia(req, res) {
     try {
       const { serviceId } = req.params;
 
       if (!req.files || req.files.length === 0) {
-        return res.status(400).json({ success: false, error: "No document files uploaded." });
+        return res.status(400).json({ success: false, error: "No media files uploaded." });
       }
 
-      const records = await serviceFileService.uploadDocuments(Number(serviceId), req.files);
+      const records = await serviceFileService.uploadMedia(Number(serviceId), req.files);
 
       return res.status(201).json({ success: true, data: records });
     } catch (error) {
-      console.error("ServiceFileController.uploadDocuments error:", error);
+      console.error("ServiceFileController.uploadMedia error:", error);
 
       if (error.statusCode) {
         return res.status(error.statusCode).json({ success: false, error: error.message });
@@ -82,7 +82,6 @@ class ServiceFileController {
     }
   }
 
-  // Multer error wrapper — call this in routes instead of raw multer
   handleMulterError(uploadFn) {
     return (req, res, next) => {
       uploadFn(req, res, (err) => {
