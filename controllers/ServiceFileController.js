@@ -3,27 +3,6 @@ const ServiceFileService = require("../services/ServiceFileService");
 const serviceFileService = new ServiceFileService();
 
 class ServiceFileController {
-  async uploadImages(req, res) {
-    try {
-      const { serviceId } = req.params;
-      if (!req.files || req.files.length === 0) {
-        return res.status(400).json({ success: false, error: "No image files uploaded." });
-      }
-
-      const records = await serviceFileService.uploadImages(Number(serviceId), req.files);
-
-      return res.status(201).json({ success: true, data: records });
-    } catch (error) {
-      console.error("ServiceFileController.uploadImages error:", error);
-
-      if (error.statusCode) {
-        return res.status(error.statusCode).json({ success: false, error: error.message });
-      }
-
-      return res.status(500).json({ success: false, error: "Server error. Please try again later." });
-    }
-  }
-
   async uploadMedia(req, res) {
     try {
       const { serviceId } = req.params;
@@ -37,23 +16,6 @@ class ServiceFileController {
       return res.status(201).json({ success: true, data: records });
     } catch (error) {
       console.error("ServiceFileController.uploadMedia error:", error);
-
-      if (error.statusCode) {
-        return res.status(error.statusCode).json({ success: false, error: error.message });
-      }
-
-      return res.status(500).json({ success: false, error: "Server error. Please try again later." });
-    }
-  }
-
-  async getServiceDetails(req, res) {
-    try {
-      const { serviceId } = req.params;
-      const data = await serviceFileService.getServiceWithFiles(Number(serviceId));
-
-      return res.status(200).json({ success: true, data });
-    } catch (error) {
-      console.error("ServiceFileController.getServiceDetails error:", error);
 
       if (error.statusCode) {
         return res.status(error.statusCode).json({ success: false, error: error.message });

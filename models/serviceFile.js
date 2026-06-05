@@ -26,8 +26,13 @@ const ServiceFile = sequelize.define(
     },
 
     file_type: {
-      type: DataTypes.ENUM("image", "video", "pdf", "doc", "docx", "other"),
+      type: DataTypes.ENUM("video", "pdf", "doc", "docx", "ppt", "pptx", "xls", "xlsx", "txt", "image", "other"),
       allowNull: false,
+    },
+
+    s3_key: {
+      type: DataTypes.STRING,
+      allowNull: true,
     },
 
     sort_order: {

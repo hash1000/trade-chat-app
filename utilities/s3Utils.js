@@ -1,5 +1,5 @@
 // ✅ FILE: utilities/s3Utils.js
-const { S3Client } = require("@aws-sdk/client-s3");
+const { S3Client, DeleteObjectCommand } = require("@aws-sdk/client-s3");
 const { Upload } = require("@aws-sdk/lib-storage");
 const { PassThrough } = require("stream");
 const path = require("path");
@@ -518,6 +518,16 @@ const uploadLargeFileToS3 = async ({
   };
 };
 
+const deleteFileFromS3 = async (key) => {
+  await s3Client.send(
+    new DeleteObjectCommand({
+      Bucket: process.env.SPACES_BUCKET_NAME,
+      Key: key,
+    })
+  );
+  console.log(`[S3 Delete] Deleted object: ${key}`);
+};
+
 module.exports = {
   uploadToS3,
   uploadLargeFileToS3,
@@ -527,5 +537,6 @@ module.exports = {
   bufferToStream,
   uploadMemoryFileToS3,
   uploadDiskFileToS3,
+  deleteFileFromS3,
   generateKey,
 };

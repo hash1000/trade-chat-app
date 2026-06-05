@@ -16,11 +16,7 @@ const MEMORY_LIMIT = 25 * 1024 * 1024;
 const DISK_LIMIT = 50 * 1024 * 1024;
 
 router.post("/upload", authMiddleware, async (req, res) => {
-  // const contentLength = parseInt(req.headers['content-length'] || '0');
 
-  // if (!req.headers['content-length']) {
-  //   return res.status(411).json({ error: 'Content-Length header required' });
-  // }
   console.log("Content-Length:", req.headers["content-length"]);
   if (contentLength <= MEMORY_LIMIT) {
     uploadMemory(req, res, (err) => {

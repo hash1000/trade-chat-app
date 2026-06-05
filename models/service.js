@@ -54,8 +54,13 @@ const Service = sequelize.define(
     max_price: {
       type: DataTypes.DECIMAL(10, 2),
       allowNull: true,
-    }
-    
+    },
+
+    images: {
+      type: DataTypes.JSON,
+      allowNull: false,
+      defaultValue: [],
+    },
   },
   {
     tableName: "services",

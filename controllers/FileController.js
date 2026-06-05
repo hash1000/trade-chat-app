@@ -118,13 +118,6 @@ async uploadStream(req, res) {
   const contentLength = parseInt(req.headers["content-length"] || "0");
   const contentType = req.headers["type"]; // Prioritize explicit type
 
-  console.log(`Starting video upload: ${fileName} (${contentLength} bytes)`);
-  console.log(`Headers:`, {
-    socketId,
-    fileName,
-    contentLength,
-    contentType
-  });
 
   if (!contentLength || !fileName || !socketId) {
     console.error('Missing required headers');
@@ -134,7 +127,6 @@ async uploadStream(req, res) {
   }
 
   try {
-    console.log(`Processing video stream for ${fileName}`);
     const result = await fileService.processStreamUpload({
       req,
       fileName,

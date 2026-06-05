@@ -1,98 +1,58 @@
 const multer = require("multer");
 const path = require("path");
-const fs = require("fs");
-
-const ALLOWED_IMAGE_MIMES = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif", "image/bmp", "image/tiff"];
-const ALLOWED_IMAGE_EXTS = [".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tiff"];
+const os = require("os");
 
 const ALLOWED_MEDIA_MIMES = [
-  // images
-  ...ALLOWED_IMAGE_MIMES,
-  // videos
+  "image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif", "image/bmp", "image/tiff",
   "video/mp4", "video/mpeg", "video/quicktime", "video/x-msvideo", "video/x-matroska", "video/webm",
-  // documents
   "application/pdf",
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "application/vnd.ms-excel",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   "application/vnd.ms-powerpoint",
   "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   "text/plain",
 ];
+
 const ALLOWED_MEDIA_EXTS = [
-  ...ALLOWED_IMAGE_EXTS,
+  ".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tiff",
   ".mp4", ".mpeg", ".mov", ".avi", ".mkv", ".webm",
-  ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt",
+  ".pdf", ".doc", ".docx", ".ppt", ".pptx", ".xls", ".xlsx", ".txt",
 ];
 
-const IMAGE_DIR = path.join(__dirname, "../uploads/services/images");
-const MEDIA_DIR = path.join(__dirname, "../uploads/services/media");
-
-[IMAGE_DIR, MEDIA_DIR].forEach((dir) => {
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+// Save to OS temp dir — files are read, uploaded to S3, then deleted
+const tempStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, os.tmpdir()),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, `svc_${Date.now()}_${Math.round(Math.random() * 1e6)}${ext}`);
+  },
 });
-
-function makeStorage(destination) {
-  return multer.diskStorage({
-    destination: (_req, _file, cb) => cb(null, destination),
-    filename: (_req, file, cb) => {
-      const ext = path.extname(file.originalname).toLowerCase();
-      cb(null, `${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`);
-    },
-  });
-}
-
-function imageFilter(_req, file, cb) {
-  const ext = path.extname(file.originalname).toLowerCase();
-  if (!ALLOWED_IMAGE_MIMES.includes(file.mimetype) || !ALLOWED_IMAGE_EXTS.includes(ext)) {
-    return cb(new multer.MulterError("LIMIT_UNEXPECTED_FILE", "Only image files (jpg, jpeg, png, webp, gif, bmp, tiff) are allowed."));
-  }
-  cb(null, true);
-}
 
 function mediaFilter(_req, file, cb) {
   const ext = path.extname(file.originalname).toLowerCase();
   if (!ALLOWED_MEDIA_MIMES.includes(file.mimetype) || !ALLOWED_MEDIA_EXTS.includes(ext)) {
-    return cb(new multer.MulterError("LIMIT_UNEXPECTED_FILE", "File type not allowed. Accepted: images, videos, pdf, doc, docx, xls, xlsx, ppt, pptx, txt."));
+    return cb(new multer.MulterError(
+      "LIMIT_UNEXPECTED_FILE",
+      "File type not allowed. Accepted: images, videos, pdf, doc, docx, ppt, pptx, xls, xlsx, txt."
+    ));
   }
   cb(null, true);
 }
 
-// POST /services/:serviceId/images — gallery images only
-const uploadServiceImages = multer({
-  storage: makeStorage(IMAGE_DIR),
-  fileFilter: imageFilter,
-  limits: { fileSize: 10 * 1024 * 1024, files: 20 },
-}).array("images");
-
-// POST /services/:serviceId/media — images + videos + documents
+// POST /services/:serviceId/media
 const uploadServiceMedia = multer({
-  storage: makeStorage(MEDIA_DIR),
+  storage: tempStorage,
   fileFilter: mediaFilter,
-  limits: { fileSize: 100 * 1024 * 1024, files: 20 },
+  limits: { fileSize: 500 * 1024 * 1024, files: 20 },
 }).array("media");
 
-// POST /services (create) and PUT /services/:id (update)
-// Handles both fields: images[] → IMAGE_DIR, media[] → MEDIA_DIR
+// POST/PUT /services — create and update (media[] field only; images are passed as JSON)
 const uploadServiceCreateUpdate = multer({
-  storage: multer.diskStorage({
-    destination: (_req, file, cb) => {
-      cb(null, file.fieldname === "images" ? IMAGE_DIR : MEDIA_DIR);
-    },
-    filename: (_req, file, cb) => {
-      const ext = path.extname(file.originalname).toLowerCase();
-      cb(null, `${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`);
-    },
-  }),
-  fileFilter: (req, file, cb) => {
-    if (file.fieldname === "images") return imageFilter(req, file, cb);
-    return mediaFilter(req, file, cb);
-  },
-  limits: { fileSize: 100 * 1024 * 1024, files: 40 },
-}).fields([
-  { name: "images", maxCount: 20 },
-  { name: "media", maxCount: 20 },
-]);
+  storage: tempStorage,
+  fileFilter: mediaFilter,
+  limits: { fileSize: 500 * 1024 * 1024, files: 20 },
+}).fields([{ name: "media", maxCount: 20 }]);
 
-module.exports = { uploadServiceImages, uploadServiceMedia, uploadServiceCreateUpdate };
+module.exports = { uploadServiceMedia, uploadServiceCreateUpdate };

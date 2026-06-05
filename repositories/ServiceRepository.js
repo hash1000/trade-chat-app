@@ -12,7 +12,6 @@ const {
   ServiceFile,
 } = require("../models");
 
-const MEDIA_FILE_TYPES = new Set(["video", "pdf", "doc", "docx", "other"]);
 
 class ServiceRepository {
   buildIncludes(options = {}) {
@@ -113,10 +112,7 @@ async findByPk(id, options = {}) {
 
   const plain = service.toJSON();
 
-  const files = plain.files || [];
-
-  plain.images = files.filter(f => f.file_type === "image");
-  plain.media = files.filter(f => MEDIA_FILE_TYPES.has(f.file_type));
+  plain.media = plain.files || [];
   delete plain.files;
 
   return plain;
@@ -165,10 +161,7 @@ async findAll(options = {}) {
   return services.map((service) => {
     const plain = service.toJSON();
 
-    const files = plain.files || [];
-
-    plain.images = files.filter(f => f.file_type === "image");
-    plain.media = files.filter(f => MEDIA_FILE_TYPES.has(f.file_type));
+    plain.media = plain.files || [];
     delete plain.files;
 
     return plain;

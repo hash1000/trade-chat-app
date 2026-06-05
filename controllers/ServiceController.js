@@ -77,6 +77,7 @@ class ServiceController {
         teamIds,
         categoryId,
         categoryIds,
+        images,
       } = req.body;
 
       // ─── Validation ─────────────────────────────
@@ -147,6 +148,18 @@ class ServiceController {
 
       // ─── Create service ─────────────────────────
 
+      // ─── Validate images ────────────────────────
+      let parsedImages = [];
+      if (images !== undefined && images !== null) {
+        parsedImages = typeof images === "string" ? JSON.parse(images) : images;
+        if (!Array.isArray(parsedImages) || parsedImages.some((v) => typeof v !== "string")) {
+          return res.status(400).json({
+            success: false,
+            error: "images must be an array of URL strings.",
+          });
+        }
+      }
+
       const service = await serviceService.create({
         userId,
 
@@ -164,6 +177,8 @@ class ServiceController {
 
         max_price: pricing_type === "range" ? max_price : null,
         payoutWalletId: payoutWalletId ? Number(payoutWalletId) : null,
+
+        images: parsedImages,
       });
 
       // ─── Teams ──────────────────────────────────
@@ -184,14 +199,8 @@ class ServiceController {
         await serviceService.addCategories(service.id, categoriesToAssign);
       }
 
-      // ─── Images (optional) ──────────────────────
-      const imageFiles = req.files?.images;
-      if (Array.isArray(imageFiles) && imageFiles.length > 0) {
-        await serviceFileService.uploadImages(service.id, imageFiles);
-      }
-
-      // ─── Media (optional) ───────────────────────
-      const mediaFiles = req.files?.media;
+      // ─── Media uploads (optional) ───────────────
+      const mediaFiles = req.files?.media ?? req.files;
       if (Array.isArray(mediaFiles) && mediaFiles.length > 0) {
         await serviceFileService.uploadMedia(service.id, mediaFiles);
       }
@@ -253,6 +262,7 @@ class ServiceController {
         teamIds,
         categoryId,
         categoryIds,
+        images,
       } = req.body;
 
       // =========================================
@@ -350,6 +360,17 @@ class ServiceController {
           : null;
       }
 
+      if (images !== undefined) {
+        const parsedImages = typeof images === "string" ? JSON.parse(images) : images;
+        if (!Array.isArray(parsedImages) || parsedImages.some((v) => typeof v !== "string")) {
+          return res.status(400).json({
+            success: false,
+            error: "images must be an array of URL strings.",
+          });
+        }
+        updateData.images = parsedImages;
+      }
+
       // =========================================
       // Normalize pricing fields
       // =========================================
@@ -409,19 +430,10 @@ class ServiceController {
       }
 
       // =========================================
-      // Images (optional — appends new ones)
+      // Media uploads (optional — appends new files)
       // =========================================
 
-      const imageFiles = req.files?.images;
-      if (Array.isArray(imageFiles) && imageFiles.length > 0) {
-        await serviceFileService.uploadImages(Number(id), imageFiles);
-      }
-
-      // =========================================
-      // Media (optional — appends new ones)
-      // =========================================
-
-      const mediaFiles = req.files?.media;
+      const mediaFiles = req.files?.media ?? req.files;
       if (Array.isArray(mediaFiles) && mediaFiles.length > 0) {
         await serviceFileService.uploadMedia(Number(id), mediaFiles);
       }

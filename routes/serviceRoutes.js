@@ -7,7 +7,6 @@ const checkIntegerParam = require("../middlewares/paramIntegerValidation");
 const authorize = require("../middlewares/authorization");
 const ServicePurchaseController = require("../controllers/ServicePurchaseController");
 const {
-  uploadServiceImages,
   uploadServiceMedia,
   uploadServiceCreateUpdate,
 } = require("../utilities/serviceFileMulter");
@@ -86,16 +85,7 @@ router.get(
   serviceController.getById.bind(serviceController)
 );
 
-// POST /services/:serviceId/images — upload gallery images only
-router.post(
-  "/:serviceId/images",
-  authMiddleware,
-  checkIntegerParam("serviceId"),
-  serviceFileController.handleMulterError(uploadServiceImages),
-  serviceFileController.uploadImages.bind(serviceFileController)
-);
-
-// POST /services/:serviceId/media — upload images, videos, documents
+// POST /services/:serviceId/media — upload media files (images, videos, docs, ppt, etc.)
 router.post(
   "/:serviceId/media",
   authMiddleware,
