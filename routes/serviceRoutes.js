@@ -1,13 +1,16 @@
 const express = require("express");
 const router = express.Router();
 const ServiceController = require("../controllers/ServiceController");
+const ServiceFileController = require("../controllers/ServiceFileController");
 const authMiddleware = require("../middlewares/authenticate");
 const checkIntegerParam = require("../middlewares/paramIntegerValidation");
 const authorize = require("../middlewares/authorization");
 const ServicePurchaseController = require("../controllers/ServicePurchaseController");
+const { uploadServiceImages, uploadServiceDocuments } = require("../utilities/serviceFileMulter");
 
 const purchaseController = new ServicePurchaseController();
 const serviceController = new ServiceController();
+const serviceFileController = new ServiceFileController();
 
 router.get("/", authMiddleware, serviceController.list.bind(serviceController));
 router.get("/:id", authMiddleware, checkIntegerParam("id"), serviceController.getById.bind(serviceController));
@@ -45,6 +48,42 @@ router.get(
   authMiddleware,
   checkIntegerParam("id"),
   purchaseController.serviceBuyers.bind(purchaseController)
+);
+
+// ── Service Files ─────────────────────────────────────────────────────────────
+
+// GET /services/:serviceId  — returns service + images + documents
+router.get(
+  "/:serviceId/details",
+  authMiddleware,
+  checkIntegerParam("serviceId"),
+  serviceFileController.getServiceDetails.bind(serviceFileController)
+);
+
+// POST /services/:serviceId/images
+router.post(
+  "/:serviceId/images",
+  authMiddleware,
+  checkIntegerParam("serviceId"),
+  serviceFileController.handleMulterError(uploadServiceImages),
+  serviceFileController.uploadImages.bind(serviceFileController)
+);
+
+// POST /services/:serviceId/documents
+router.post(
+  "/:serviceId/documents",
+  authMiddleware,
+  checkIntegerParam("serviceId"),
+  serviceFileController.handleMulterError(uploadServiceDocuments),
+  serviceFileController.uploadDocuments.bind(serviceFileController)
+);
+
+// DELETE /services/files/:fileId
+router.delete(
+  "/files/:fileId",
+  authMiddleware,
+  checkIntegerParam("fileId"),
+  serviceFileController.deleteFile.bind(serviceFileController)
 );
 
 module.exports = router;
