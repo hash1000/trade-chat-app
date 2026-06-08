@@ -16,6 +16,11 @@ exports.createTopupValidator = [
     .withMessage("Amount must be a number greater than 0")
     .notEmpty()
     .withMessage("Amount is required"),
+  body("walletType")
+    .notEmpty()
+    .withMessage("walletType is required")
+    .isIn(["PERSONAL", "COMPANY"])
+    .withMessage("walletType must be PERSONAL or COMPANY"),
   handleValidationErrors,
 ];
 

@@ -125,11 +125,12 @@ class PaymentService {
     return this.paymentRepository.unfavouritePayment(paymentId, userId);
   }
 
-  // Inside paymentService.js
-  async processTopupPayment(userId, amount, description) {
+  async processTopupPayment(userId, amount, walletType, description) {
     const user = await walletService.getUserWalletById(userId);
     const roundedAmount = Math.round(amount * 100); // cents
 
+    const baseUrl = process.env.baseUrl;
+    console.log("Processing top-up payment:", baseUrl)
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       mode: "payment",
@@ -147,16 +148,17 @@ class PaymentService {
         },
       ],
       metadata: {
-        userId: user.id,
+        userId: String(user.id),
         purpose: "wallet_topup",
+        walletType,
       },
-      success_url: `http://157.230.84.217:5000/wallet/topup-success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `http://157.230.84.217:5000/wallet/topup-cancelled`,
+      success_url: `${baseUrl}/wallet/topup-success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${baseUrl}/wallet/topup-cancelled`,
     });
 
     return {
       checkoutUrl: session.url,
-      checkoutSessionId: session.id, // 👈 Add this line!
+      checkoutSessionId: session.id,
       amount,
     };
   }
@@ -201,8 +203,8 @@ class PaymentService {
 
     const rawUserId = metadata.userId;
     const rawAmount = amount_total;
+    const walletType = metadata.walletType || "PERSONAL";
 
-    // Defensive validation
     if (!rawUserId || isNaN(rawUserId)) {
       throw new Error("Invalid or missing userId in metadata.");
     }
@@ -214,44 +216,60 @@ class PaymentService {
     const userId = parseInt(rawUserId);
     const amountInUsd = parseFloat((rawAmount / 100).toFixed(2));
 
+    // USD wallet type receives USD directly; PERSONAL (CNY) gets converted
+    const isUsdWallet = walletType === "COMPANY";
+
     try {
-      const rateData = await currencyService.getAdjustedRate("CNY");
-      if (!rateData?.finalRate) throw new Error("Currency rate fetch failed");
+      let depositCurrency, depositAmount, rate;
 
-      const rate = parseFloat(rateData.finalRate.toFixed(5));
-      const convertedAmount = Math.floor(amountInUsd * rate);
+      if (isUsdWallet) {
+        depositCurrency = "USD";
+        depositAmount = amountInUsd;
+        rate = 1;
+      } else {
+        const rateData = await currencyService.getAdjustedRate("CNY");
+        if (!rateData?.finalRate) throw new Error("Currency rate fetch failed");
+        rate = parseFloat(rateData.finalRate.toFixed(5));
+        depositCurrency = "CNY";
+        depositAmount = Math.floor(amountInUsd * rate);
+      }
 
-      await sequelize.transaction(async (t) => {
-        const user = await User.findByPk(userId, { transaction: t });
-        if (!user) throw new Error(`User not found: ${userId}`);
+      await walletService.deposit({
+        userId,
+        currency: depositCurrency,
+        walletType,
+        amount: amountInUsd,
+        description: `Stripe top-up via session ${sessionId}`,
+        meta: {
+          stripeSessionId: sessionId,
+          usdAmount: amountInUsd,
+          rate,
+          email: customer_details?.email || null,
+          name: customer_details?.name || null,
+        },
+      });
 
-        user.personalWalletBalance += convertedAmount;
-        await user.save({ transaction: t });
-
-        await Transaction.create(
-          {
-            userId,
-            amount: convertedAmount,
-            usdAmount: amountInUsd,
-            rate,
-            currency: "CNY",
-            type: "wallet_topup",
-            status: "completed",
-            orderId: `topup_${sessionId.slice(-8)}`,
-            reference: sessionId,
-            paymentMethod: payment_method_types?.[0] || "card",
-            metadata: {
-              stripeEvent: "checkout.session.completed",
-              email: customer_details?.email || null,
-              name: customer_details?.name || null,
-            },
-          },
-          { transaction: t },
-        );
+      await Transaction.create({
+        userId,
+        amount: depositAmount,
+        usdAmount: amountInUsd,
+        rate,
+        currency: depositCurrency,
+        type: "wallet_topup",
+        status: "completed",
+        orderId: `topup_${sessionId.slice(-8)}`,
+        paymentMethod: payment_method_types?.[0] || "card",
+        metadata: {
+          stripeEvent: "checkout.session.completed",
+          stripeSessionId: sessionId,
+          walletType,
+          email: customer_details?.email || null,
+          name: customer_details?.name || null,
+        },
       });
 
       console.log(
-        `💰 Wallet top-up successful: $${amountInUsd} → ¥${convertedAmount}`,
+        `💰 Wallet top-up: $${amountInUsd} USD → ${walletType} wallet (userId: ${userId})`,
       );
     } catch (err) {
       console.error("❌ Payment processing failed:", err);

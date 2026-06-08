@@ -231,7 +231,7 @@ class PaymentController {
 
   async initiateTopup(req, res) {
     try {
-      const { amount, description } = req.body;
+      const { amount, walletType, description } = req.body;
       const { id: userId } = req.user;
 
       if (!amount || isNaN(amount) || amount <= 0) {
@@ -241,6 +241,7 @@ class PaymentController {
       const result = await paymentService.processTopupPayment(
         userId,
         amount,
+        walletType,
         description,
       );
 

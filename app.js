@@ -45,6 +45,26 @@ app.use(express.static(path.join(__dirname, "public")));
 
 // Routes
 app.use("/api", routes);
+
+// Stripe redirect pages
+const { Transaction } = require("./models");
+
+app.get("/wallet/topup-success", async (req, res) => {
+  const { session_id } = req.query;
+  let transaction = null;
+  if (session_id) {
+    const suffix = session_id.slice(-8);
+    transaction = await Transaction.findOne({
+      where: { orderId: `topup_${suffix}`, type: "wallet_topup", status: "completed" },
+    });
+  }
+  res.render("topup-success", { transaction });
+});
+
+app.get("/wallet/topup-cancelled", (req, res) => {
+  res.render("topup-cancelled");
+});
+
 app.get("/view", (req, res) => {
   res.render("index", {
     title: "Fast File Upload",
