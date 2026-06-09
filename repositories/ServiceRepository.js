@@ -85,6 +85,13 @@ class ServiceRepository {
       });
     }
 
+    if (options.isLiked) {
+      include.push({
+        model: ServiceLike,
+        as: "likes",
+        attributes: ["id", "userId", "createdAt"],
+      });
+    }
     return include;
   }
 
@@ -93,13 +100,48 @@ class ServiceRepository {
   }
 
   async findByPk(id, options = {}) {
+    const { userId } = options;
     const queryOptions = { ...options };
 
     delete queryOptions.includeTeams;
     delete queryOptions.includeMembers;
     delete queryOptions.includeCategories;
+    delete queryOptions.isLiked;
+    delete queryOptions.userId;
+
+    const attributes = { include: [] };
+
+    if (userId) {
+      attributes.include.push([
+        Sequelize.literal(`
+          EXISTS (
+            SELECT 1 FROM service_purchases sp
+            WHERE sp.serviceId = Service.id AND sp.userId = ${userId}
+          )
+        `),
+        "isPurchased",
+      ]);
+
+      attributes.include.push([
+        Sequelize.literal(`
+          EXISTS (
+            SELECT 1 FROM service_likes sl
+            WHERE sl.serviceId = Service.id AND sl.userId = ${userId}
+          )
+        `),
+        "isLikedByMe",
+      ]);
+    }
+
+    attributes.include.push([
+      Sequelize.literal(`(
+        SELECT COUNT(*) FROM service_likes sl WHERE sl.serviceId = Service.id
+      )`),
+      "likesCount",
+    ]);
 
     const service = await Service.findOne({
+      attributes,
       include: this.buildIncludes(options),
       where: {
         id,
@@ -150,7 +192,24 @@ class ServiceRepository {
       `),
         "isPurchased",
       ]);
+
+      attributes.include.push([
+        Sequelize.literal(`
+          EXISTS (
+            SELECT 1 FROM service_likes sl
+            WHERE sl.serviceId = Service.id AND sl.userId = ${userId}
+          )
+        `),
+        "isLikedByMe",
+      ]);
     }
+
+    attributes.include.push([
+      Sequelize.literal(`(
+        SELECT COUNT(*) FROM service_likes sl WHERE sl.serviceId = Service.id
+      )`),
+      "likesCount",
+    ]);
 
     const where = includeDeleted
       ? { deletedAt: { [Op.ne]: null } }
@@ -189,25 +248,25 @@ class ServiceRepository {
     return service;
   }
 
-async delete(id, deletedBy = null) {
-  const service = await Service.findByPk(id);
+  async delete(id, deletedBy = null) {
+    const service = await Service.findByPk(id);
 
-  if (!service) return null;
+    if (!service) return null;
 
-  // already deleted
-  if (service.deletedAt) return service;
+    // already deleted
+    if (service.deletedAt) return service;
 
-  await service.update({
-  deletedAt: Sequelize.fn('NOW'),
-  deletedBy,
-});
+    await service.update({
+      deletedAt: Sequelize.fn("NOW"),
+      deletedBy,
+    });
 
-  await service.reload();
+    await service.reload();
 
-  console.log(service.toJSON());
+    console.log(service.toJSON());
 
-  return service;
-}
+    return service;
+  }
 
   async restore(id) {
     const service = await this.serviceRepository.findByPkWithDeleted(id);

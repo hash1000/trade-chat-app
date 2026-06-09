@@ -39,13 +39,17 @@ class ServiceController {
   async getById(req, res) {
     try {
       const { id } = req.params;
+      const { id: userId } = req.user;
       const includeTeams = req.query.includeTeams !== "false";
       const includeMembers = req.query.includeMembers === "true";
       const includeCategories = req.query.includeCategories !== "false";
+      const isLiked = req.query.isLiked === "true";
       const service = await serviceService.getById(id, {
+        userId,
         includeTeams,
         includeMembers,
         includeCategories,
+        isLiked,
       });
       if (!service) {
         return res
