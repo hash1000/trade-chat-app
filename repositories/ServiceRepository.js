@@ -10,6 +10,7 @@ const {
   ServicePublicCategory,
   Wallet,
   ServiceFile,
+  ServiceLike,
 } = require("../models");
 
 class ServiceRepository {
@@ -124,7 +125,7 @@ class ServiceRepository {
   }
 
   async findAll(options = {}) {
-    const { userId, includeDeleted = false } = options;
+    const { userId, includeDeleted = false, isLiked = false } = options;
 
     const queryOptions = { ...options };
 
@@ -133,6 +134,7 @@ class ServiceRepository {
     delete queryOptions.includeCategories;
     delete queryOptions.userId;
     delete queryOptions.includeDeleted;
+    delete queryOptions.isLiked;
 
     const attributes = { include: [] };
 
@@ -150,18 +152,22 @@ class ServiceRepository {
       ]);
     }
 
+    const where = includeDeleted
+      ? { deletedAt: { [Op.ne]: null } }
+      : { deletedAt: null };
+
+    if (isLiked && userId) {
+      where.id = {
+        [Op.in]: Sequelize.literal(`(
+          SELECT serviceId FROM service_likes WHERE userId = ${userId}
+        )`),
+      };
+    }
+
     const services = await Service.findAll({
       attributes,
       include: this.buildIncludes(options),
-      where: includeDeleted
-        ? {
-            deletedAt: {
-              [Op.ne]: null,
-            },
-          }
-        : {
-            deletedAt: null,
-          },
+      where,
       order: [["createdAt", "DESC"]],
       ...queryOptions,
     });
@@ -326,6 +332,28 @@ async delete(id, deletedBy = null) {
 
   async removeAllCategories(serviceId) {
     await ServicePublicCategory.destroy({ where: { serviceId } });
+  }
+
+  async likeService(userId, serviceId) {
+    const [like, created] = await ServiceLike.findOrCreate({
+      where: { userId, serviceId },
+      defaults: { userId, serviceId },
+    });
+    return { like, created };
+  }
+
+  async unlikeService(userId, serviceId) {
+    const deleted = await ServiceLike.destroy({ where: { userId, serviceId } });
+    return deleted > 0;
+  }
+
+  async getLikesCount(serviceId) {
+    return ServiceLike.count({ where: { serviceId } });
+  }
+
+  async hasUserLiked(userId, serviceId) {
+    const like = await ServiceLike.findOne({ where: { userId, serviceId } });
+    return like !== null;
   }
 }
 

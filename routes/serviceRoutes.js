@@ -61,6 +61,13 @@ router.delete("/:id/teams/:teamId", authMiddleware, checkIntegerParam("id"), che
 router.post("/:id/categories", authMiddleware, checkIntegerParam("id"), serviceController.addCategory.bind(serviceController));
 router.delete("/:id/categories/:categoryId", authMiddleware, checkIntegerParam("id"), checkIntegerParam("categoryId"), serviceController.removeCategory.bind(serviceController));
 
+// ── Likes ─────────────────────────────────────────────────────────────────────
+
+router.post("/:id/like", authMiddleware, checkIntegerParam("id"), serviceController.likeService.bind(serviceController));
+router.delete("/:id/like", authMiddleware, checkIntegerParam("id"), serviceController.unlikeService.bind(serviceController));
+router.get("/:id/likes/count", authMiddleware, checkIntegerParam("id"), serviceController.getServiceLikesCount.bind(serviceController));
+router.get("/:id/likes/me", authMiddleware, checkIntegerParam("id"), serviceController.checkUserLikedService.bind(serviceController));
+
 // ── Purchases ─────────────────────────────────────────────────────────────────
 
 router.post("/purchase", authMiddleware, purchaseController.purchase.bind(purchaseController));

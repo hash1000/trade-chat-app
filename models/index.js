@@ -35,6 +35,7 @@ const PaymentRequest = require("./payment_request");
 const ServicePublicCategory = require("./publicServiceCategories");
 const ServicePurchase = require("./servicePurchase");
 const ServiceFile = require("./serviceFile");
+const ServiceLike = require("./serviceLike");
 
 // Define all associations
 function defineAssociations() {
@@ -318,6 +319,13 @@ function defineAssociations() {
   // Service <-> ServiceFile
   Service.hasMany(ServiceFile, { foreignKey: "service_id", as: "files" });
   ServiceFile.belongsTo(Service, { foreignKey: "service_id", as: "service" });
+
+  // Service <-> ServiceLike
+  Service.hasMany(ServiceLike, { foreignKey: "serviceId", as: "likes" });
+  ServiceLike.belongsTo(Service, { foreignKey: "serviceId", as: "service" });
+
+  User.hasMany(ServiceLike, { foreignKey: "userId", as: "serviceLikes" });
+  ServiceLike.belongsTo(User, { foreignKey: "userId", as: "user" });
 }
 
 // Initialize associations
@@ -350,4 +358,5 @@ module.exports = {
   WalletTransaction,
   ServicePurchase,
   ServiceFile,
+  ServiceLike,
 };

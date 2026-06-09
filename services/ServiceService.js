@@ -80,6 +80,22 @@ class ServiceService {
       await this.serviceRepository.addCategories(serviceId, categoryIds);
     }
   }
+
+  async likeService(userId, serviceId) {
+    return this.serviceRepository.likeService(userId, serviceId);
+  }
+
+  async unlikeService(userId, serviceId) {
+    return this.serviceRepository.unlikeService(userId, serviceId);
+  }
+
+  async getLikesCount(serviceId) {
+    return this.serviceRepository.getLikesCount(serviceId);
+  }
+
+  async hasUserLiked(userId, serviceId) {
+    return this.serviceRepository.hasUserLiked(userId, serviceId);
+  }
 }
 
 module.exports = ServiceService;

@@ -13,12 +13,14 @@ class ServiceController {
       const includeMembers = req.query.includeMembers === "true";
       const includeCategories = req.query.includeCategories === "true";
       const includeDeleted = req.query.includeDeleted === "true";
+      const isLiked = req.query.isLiked === "true";
       const services = await serviceService.getAll({
         userId,
         includeTeams,
         includeMembers,
         includeCategories,
-        includeDeleted
+        includeDeleted,
+        isLiked,
       });
 
       return res.status(200).json({
@@ -658,6 +660,70 @@ class ServiceController {
         success: false,
         error: "Server error. Please try again later.",
       });
+    }
+  }
+
+  async likeService(req, res) {
+    try {
+      const { id: userId } = req.user;
+      const serviceId = Number(req.params.id);
+
+      const { created } = await serviceService.likeService(userId, serviceId);
+      if (!created) {
+        return res
+          .status(409)
+          .json({ success: false, error: "You have already liked this service." });
+      }
+
+      const likesCount = await serviceService.getLikesCount(serviceId);
+      return res.status(200).json({ success: true, data: { liked: true, likesCount } });
+    } catch (error) {
+      console.error("ServiceController.likeService error:", error);
+      return res.status(500).json({ success: false, error: "Server error. Please try again later." });
+    }
+  }
+
+  async unlikeService(req, res) {
+    try {
+      const { id: userId } = req.user;
+      const serviceId = Number(req.params.id);
+
+      const removed = await serviceService.unlikeService(userId, serviceId);
+      if (!removed) {
+        return res
+          .status(404)
+          .json({ success: false, error: "You have not liked this service." });
+      }
+
+      const likesCount = await serviceService.getLikesCount(serviceId);
+      return res.status(200).json({ success: true, data: { liked: false, likesCount } });
+    } catch (error) {
+      console.error("ServiceController.unlikeService error:", error);
+      return res.status(500).json({ success: false, error: "Server error. Please try again later." });
+    }
+  }
+
+  async getServiceLikesCount(req, res) {
+    try {
+      const serviceId = Number(req.params.id);
+      const likesCount = await serviceService.getLikesCount(serviceId);
+      return res.status(200).json({ success: true, data: { likesCount } });
+    } catch (error) {
+      console.error("ServiceController.getServiceLikesCount error:", error);
+      return res.status(500).json({ success: false, error: "Server error. Please try again later." });
+    }
+  }
+
+
+  async checkUserLikedService(req, res) {
+    try {
+      const { id: userId } = req.user;
+      const serviceId = Number(req.params.id);
+      const liked = await serviceService.hasUserLiked(userId, serviceId);
+      return res.status(200).json({ success: true, data: { liked } });
+    } catch (error) {
+      console.error("ServiceController.checkUserLikedService error:", error);
+      return res.status(500).json({ success: false, error: "Server error. Please try again later." });
     }
   }
 }
