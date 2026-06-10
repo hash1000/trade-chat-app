@@ -11,6 +11,7 @@ const {
   Wallet,
   ServiceFile,
   ServiceLike,
+  ServiceView,
 } = require("../models");
 
 class ServiceRepository {
@@ -42,6 +43,12 @@ class ServiceRepository {
         "availableBalance",
       ],
     });
+
+    // include.push({
+    //   model: ServiceView,
+    //   as: "views",
+    //   attributes: ["id", "userId", "createdAt"], // ← whatever fields you need
+    // });
 
     include.push({
       model: ServiceFile,
@@ -140,6 +147,13 @@ class ServiceRepository {
       "likesCount",
     ]);
 
+    attributes.include.push([
+      Sequelize.literal(`(
+    SELECT COUNT(*) FROM service_views sv WHERE sv.serviceId = Service.id
+  )`),
+      "viewCount",
+    ]);
+
     const service = await Service.findOne({
       attributes,
       include: this.buildIncludes(options),
@@ -209,6 +223,13 @@ class ServiceRepository {
         SELECT COUNT(*) FROM service_likes sl WHERE sl.serviceId = Service.id
       )`),
       "likesCount",
+    ]);
+
+    attributes.include.push([
+      Sequelize.literal(`(
+    SELECT COUNT(*) FROM service_views sv WHERE sv.serviceId = Service.id
+  )`),
+      "viewCount",
     ]);
 
     const where = includeDeleted
@@ -413,6 +434,19 @@ class ServiceRepository {
   async hasUserLiked(userId, serviceId) {
     const like = await ServiceLike.findOne({ where: { userId, serviceId } });
     return like !== null;
+  }
+
+  async recordView(userId, serviceId) {
+    console.log(`Recording view for user ${userId} on service ${serviceId}`);
+    const [view, created] = await ServiceView.findOrCreate({
+      where: { userId, serviceId },
+      defaults: { userId, serviceId },
+    });
+    return { view, created };
+  }
+
+  async getViewsCount(serviceId) {
+    return ServiceView.count({ where: { serviceId } });
   }
 }
 

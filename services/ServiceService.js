@@ -96,6 +96,14 @@ class ServiceService {
   async hasUserLiked(userId, serviceId) {
     return this.serviceRepository.hasUserLiked(userId, serviceId);
   }
+
+  async recordView(userId, serviceId) {
+    return this.serviceRepository.recordView(userId, serviceId);
+  }
+
+  async getViewsCount(serviceId) {
+    return this.serviceRepository.getViewsCount(serviceId);
+  }
 }
 
 module.exports = ServiceService;

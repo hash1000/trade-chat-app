@@ -36,6 +36,7 @@ const ServicePublicCategory = require("./publicServiceCategories");
 const ServicePurchase = require("./servicePurchase");
 const ServiceFile = require("./serviceFile");
 const ServiceLike = require("./serviceLike");
+const ServiceView = require("./serviceView");
 
 // Define all associations
 function defineAssociations() {
@@ -326,6 +327,13 @@ function defineAssociations() {
 
   User.hasMany(ServiceLike, { foreignKey: "userId", as: "serviceLikes" });
   ServiceLike.belongsTo(User, { foreignKey: "userId", as: "user" });
+
+  // Service <-> ServiceView
+  Service.hasMany(ServiceView, { foreignKey: "serviceId", as: "views" });
+  ServiceView.belongsTo(Service, { foreignKey: "serviceId", as: "service" });
+
+  User.hasMany(ServiceView, { foreignKey: "userId", as: "serviceViews" });
+  ServiceView.belongsTo(User, { foreignKey: "userId", as: "user" });
 }
 
 // Initialize associations
@@ -359,4 +367,5 @@ module.exports = {
   ServicePurchase,
   ServiceFile,
   ServiceLike,
+  ServiceView,
 };

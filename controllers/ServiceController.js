@@ -56,6 +56,8 @@ class ServiceController {
           .status(404)
           .json({ success: false, error: "Service not found." });
       }
+      // fire-and-forget — never throws, never delays response
+      serviceService.recordView(userId, id).catch(() => {});
       return res.status(200).json({ success: true, data: service });
     } catch (error) {
       console.error("ServiceController.getById error:", error);
@@ -159,7 +161,10 @@ class ServiceController {
       let parsedImages = [];
       if (images !== undefined && images !== null) {
         parsedImages = typeof images === "string" ? JSON.parse(images) : images;
-        if (!Array.isArray(parsedImages) || parsedImages.some((v) => typeof v !== "string")) {
+        if (
+          !Array.isArray(parsedImages) ||
+          parsedImages.some((v) => typeof v !== "string")
+        ) {
           return res.status(400).json({
             success: false,
             error: "images must be an array of URL strings.",
@@ -368,8 +373,12 @@ class ServiceController {
       }
 
       if (images !== undefined) {
-        const parsedImages = typeof images === "string" ? JSON.parse(images) : images;
-        if (!Array.isArray(parsedImages) || parsedImages.some((v) => typeof v !== "string")) {
+        const parsedImages =
+          typeof images === "string" ? JSON.parse(images) : images;
+        if (
+          !Array.isArray(parsedImages) ||
+          parsedImages.some((v) => typeof v !== "string")
+        ) {
           return res.status(400).json({
             success: false,
             error: "images must be an array of URL strings.",
@@ -676,14 +685,24 @@ class ServiceController {
       if (!created) {
         return res
           .status(409)
-          .json({ success: false, error: "You have already liked this service." });
+          .json({
+            success: false,
+            error: "You have already liked this service.",
+          });
       }
 
       const likesCount = await serviceService.getLikesCount(serviceId);
-      return res.status(200).json({ success: true, data: { liked: true, likesCount } });
+      return res
+        .status(200)
+        .json({ success: true, data: { liked: true, likesCount } });
     } catch (error) {
       console.error("ServiceController.likeService error:", error);
-      return res.status(500).json({ success: false, error: "Server error. Please try again later." });
+      return res
+        .status(500)
+        .json({
+          success: false,
+          error: "Server error. Please try again later.",
+        });
     }
   }
 
@@ -700,10 +719,17 @@ class ServiceController {
       }
 
       const likesCount = await serviceService.getLikesCount(serviceId);
-      return res.status(200).json({ success: true, data: { liked: false, likesCount } });
+      return res
+        .status(200)
+        .json({ success: true, data: { liked: false, likesCount } });
     } catch (error) {
       console.error("ServiceController.unlikeService error:", error);
-      return res.status(500).json({ success: false, error: "Server error. Please try again later." });
+      return res
+        .status(500)
+        .json({
+          success: false,
+          error: "Server error. Please try again later.",
+        });
     }
   }
 
@@ -714,10 +740,14 @@ class ServiceController {
       return res.status(200).json({ success: true, data: { likesCount } });
     } catch (error) {
       console.error("ServiceController.getServiceLikesCount error:", error);
-      return res.status(500).json({ success: false, error: "Server error. Please try again later." });
+      return res
+        .status(500)
+        .json({
+          success: false,
+          error: "Server error. Please try again later.",
+        });
     }
   }
-
 
   async checkUserLikedService(req, res) {
     try {
@@ -727,7 +757,30 @@ class ServiceController {
       return res.status(200).json({ success: true, data: { liked } });
     } catch (error) {
       console.error("ServiceController.checkUserLikedService error:", error);
-      return res.status(500).json({ success: false, error: "Server error. Please try again later." });
+      return res
+        .status(500)
+        .json({
+          success: false,
+          error: "Server error. Please try again later.",
+        });
+    }
+  }
+
+  async recordView(req, res) {
+    try {
+      const { id: userId } = req.user;
+      const serviceId = Number(req.params.id);
+      await serviceService.recordView(userId, serviceId);
+      const viewCount = await serviceService.getViewsCount(serviceId);
+      return res.status(200).json({ success: true, data: { viewCount } });
+    } catch (error) {
+      console.error("ServiceController.recordView error:", error);
+      return res
+        .status(500)
+        .json({
+          success: false,
+          error: "Server error. Please try again later.",
+        });
     }
   }
 }
