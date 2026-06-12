@@ -322,6 +322,8 @@ class ServiceController {
         support247,
         tags,
         replyTime,
+        isTopChoice,
+        isQRMVerified,
       } = req.body;
 
       // =========================================
@@ -410,7 +412,8 @@ class ServiceController {
       }
 
       if (replyTime !== undefined) {
-        updateData.replyTime = typeof replyTime === "string" ? replyTime.trim() : replyTime;
+        updateData.replyTime =
+          typeof replyTime === "string" ? replyTime.trim() : replyTime;
       }
 
       if (pricing_type !== undefined) {
@@ -483,6 +486,12 @@ class ServiceController {
 
         updateData.max_price =
           max_price !== undefined ? max_price : service.max_price;
+      }
+      if (isTopChoice !== undefined || isQRMVerified !== undefined) {
+        updateData.isTopChoice = isTopChoice === true || isTopChoice === "true";
+
+        updateData.isQRMVerified =
+          isQRMVerified === true || isQRMVerified === "true";
       }
 
       // =========================================
@@ -754,12 +763,10 @@ class ServiceController {
 
       const { created } = await serviceService.likeService(userId, serviceId);
       if (!created) {
-        return res
-          .status(409)
-          .json({
-            success: false,
-            error: "You have already liked this service.",
-          });
+        return res.status(409).json({
+          success: false,
+          error: "You have already liked this service.",
+        });
       }
 
       const likesCount = await serviceService.getLikesCount(serviceId);
@@ -768,12 +775,10 @@ class ServiceController {
         .json({ success: true, data: { liked: true, likesCount } });
     } catch (error) {
       console.error("ServiceController.likeService error:", error);
-      return res
-        .status(500)
-        .json({
-          success: false,
-          error: "Server error. Please try again later.",
-        });
+      return res.status(500).json({
+        success: false,
+        error: "Server error. Please try again later.",
+      });
     }
   }
 
@@ -795,12 +800,10 @@ class ServiceController {
         .json({ success: true, data: { liked: false, likesCount } });
     } catch (error) {
       console.error("ServiceController.unlikeService error:", error);
-      return res
-        .status(500)
-        .json({
-          success: false,
-          error: "Server error. Please try again later.",
-        });
+      return res.status(500).json({
+        success: false,
+        error: "Server error. Please try again later.",
+      });
     }
   }
 
@@ -811,12 +814,10 @@ class ServiceController {
       return res.status(200).json({ success: true, data: { likesCount } });
     } catch (error) {
       console.error("ServiceController.getServiceLikesCount error:", error);
-      return res
-        .status(500)
-        .json({
-          success: false,
-          error: "Server error. Please try again later.",
-        });
+      return res.status(500).json({
+        success: false,
+        error: "Server error. Please try again later.",
+      });
     }
   }
 
@@ -828,12 +829,10 @@ class ServiceController {
       return res.status(200).json({ success: true, data: { liked } });
     } catch (error) {
       console.error("ServiceController.checkUserLikedService error:", error);
-      return res
-        .status(500)
-        .json({
-          success: false,
-          error: "Server error. Please try again later.",
-        });
+      return res.status(500).json({
+        success: false,
+        error: "Server error. Please try again later.",
+      });
     }
   }
 
@@ -846,7 +845,12 @@ class ServiceController {
       return res.status(200).json({ success: true, data: { viewCount } });
     } catch (error) {
       console.error("ServiceController.recordView error:", error);
-      return res.status(500).json({ success: false, error: "Server error. Please try again later." });
+      return res
+        .status(500)
+        .json({
+          success: false,
+          error: "Server error. Please try again later.",
+        });
     }
   }
 
@@ -856,20 +860,49 @@ class ServiceController {
       const serviceId = Number(req.params.id);
       const { rating, comment } = req.body;
 
-      if (!rating || !Number.isInteger(Number(rating)) || Number(rating) < 1 || Number(rating) > 5) {
-        return res.status(400).json({ success: false, error: "rating must be an integer between 1 and 5." });
+      if (
+        !rating ||
+        !Number.isInteger(Number(rating)) ||
+        Number(rating) < 1 ||
+        Number(rating) > 5
+      ) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            error: "rating must be an integer between 1 and 5.",
+          });
       }
 
-      await serviceService.rateService(userId, serviceId, Number(rating), comment ?? null);
+      await serviceService.rateService(
+        userId,
+        serviceId,
+        Number(rating),
+        comment ?? null,
+      );
 
       const service = await serviceService.getById(serviceId, { userId });
-      return res.status(200).json({ success: true, data: { ratingAvg: service.ratingAvg, ratingCount: service.ratingCount, myRating: service.myRating } });
+      return res
+        .status(200)
+        .json({
+          success: true,
+          data: {
+            ratingAvg: service.ratingAvg,
+            ratingCount: service.ratingCount,
+            myRating: service.myRating,
+          },
+        });
     } catch (error) {
       console.error("ServiceController.rateService error:", error);
       if (error.name === "NotPurchasedError") {
         return res.status(403).json({ success: false, error: error.message });
       }
-      return res.status(500).json({ success: false, error: "Server error. Please try again later." });
+      return res
+        .status(500)
+        .json({
+          success: false,
+          error: "Server error. Please try again later.",
+        });
     }
   }
 
@@ -880,14 +913,30 @@ class ServiceController {
 
       const removed = await serviceService.deleteRating(userId, serviceId);
       if (!removed) {
-        return res.status(404).json({ success: false, error: "You have not rated this service." });
+        return res
+          .status(404)
+          .json({ success: false, error: "You have not rated this service." });
       }
 
       const service = await serviceService.getById(serviceId, { userId });
-      return res.status(200).json({ success: true, data: { ratingAvg: service.ratingAvg, ratingCount: service.ratingCount, myRating: null } });
+      return res
+        .status(200)
+        .json({
+          success: true,
+          data: {
+            ratingAvg: service.ratingAvg,
+            ratingCount: service.ratingCount,
+            myRating: null,
+          },
+        });
     } catch (error) {
       console.error("ServiceController.deleteRating error:", error);
-      return res.status(500).json({ success: false, error: "Server error. Please try again later." });
+      return res
+        .status(500)
+        .json({
+          success: false,
+          error: "Server error. Please try again later.",
+        });
     }
   }
 
@@ -898,16 +947,28 @@ class ServiceController {
 
       const service = await serviceService.getById(id);
       if (!service) {
-        return res.status(404).json({ success: false, error: "Service not found." });
+        return res
+          .status(404)
+          .json({ success: false, error: "Service not found." });
       }
 
+      const parseBool = (v) =>
+        v === true || v === "true" || v === 1 || v === "1";
       const badgeData = {};
-      if (isTopChoice !== undefined) badgeData.isTopChoice = isTopChoice === true || isTopChoice === "true";
-      if (isQRMVerified !== undefined) badgeData.isQRMVerified = isQRMVerified === true || isQRMVerified === "true";
+      if (isTopChoice !== undefined)
+        badgeData.isTopChoice = parseBool(isTopChoice);
+      if (isQRMVerified !== undefined)
+        badgeData.isQRMVerified = parseBool(isQRMVerified);
 
       if (Object.keys(badgeData).length === 0) {
-        return res.status(400).json({ success: false, error: "Provide at least one of: isTopChoice, isQRMVerified." });
+        return res
+          .status(400)
+          .json({
+            success: false,
+            error: "Provide at least one of: isTopChoice, isQRMVerified.",
+          });
       }
+      console.log("Updating badges for service", id, badgeData);
 
       await serviceService.updateBadges(id, badgeData);
 
@@ -915,7 +976,12 @@ class ServiceController {
       return res.status(200).json({ success: true, data: updated });
     } catch (error) {
       console.error("ServiceController.updateBadges error:", error);
-      return res.status(500).json({ success: false, error: "Server error. Please try again later." });
+      return res
+        .status(500)
+        .json({
+          success: false,
+          error: "Server error. Please try again later.",
+        });
     }
   }
 }
