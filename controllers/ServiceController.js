@@ -111,6 +111,7 @@ class ServiceController {
         insured,
         moneyBack,
         support247,
+        replyTime,
         tags,
       } = req.body;
 
@@ -231,6 +232,7 @@ class ServiceController {
         moneyBack: moneyBack === true || moneyBack === "true",
         support247: support247 === true || support247 === "true",
         tags: parsedTags,
+        replyTime: replyTime ? replyTime.trim() : undefined,
       });
 
       // ─── Teams ──────────────────────────────────
@@ -319,6 +321,7 @@ class ServiceController {
         moneyBack,
         support247,
         tags,
+        replyTime,
       } = req.body;
 
       // =========================================
@@ -404,6 +407,10 @@ class ServiceController {
       if (location !== undefined) {
         updateData.location =
           typeof location === "string" ? location.trim() : location;
+      }
+
+      if (replyTime !== undefined) {
+        updateData.replyTime = typeof replyTime === "string" ? replyTime.trim() : replyTime;
       }
 
       if (pricing_type !== undefined) {

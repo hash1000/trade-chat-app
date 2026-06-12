@@ -39,7 +39,10 @@ const Service = sequelize.define(
       type: DataTypes.STRING,
       allowNull: true,
     },
-
+    replyTime: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
     description: {
       type: DataTypes.TEXT,
       allowNull: true,
