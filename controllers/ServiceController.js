@@ -916,11 +916,7 @@ class ServiceController {
         return res.status(400).json({ success: false, error: "rating must be an integer between 1 and 5." });
       }
 
-      const updated = await serviceService.updateRating(userId, serviceId, Number(rating), comment);
-      console.log("updateRating result:", updated);
-      if (!updated) {
-        return res.status(404).json({ success: false, error: "You have not rated this service yet." });
-      }
+      await serviceService.updateRating(userId, serviceId, Number(rating), comment);
 
       const service = await serviceService.getById(serviceId, { userId });
       return res.status(200).json({ success: true, data: { ratingAvg: service.ratingAvg, ratingCount: service.ratingCount, myRating: service.myRating } });

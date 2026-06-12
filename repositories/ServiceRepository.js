@@ -468,11 +468,15 @@ class ServiceRepository {
       transaction: t,
     });
 
-    if (!existing) return false;
-    await existing.update(
-      { rating, ...(comment !== undefined && { comment }) },
-      { transaction: t }
-    );
+    if (existing) {
+      await existing.update(
+        { rating, ...(comment !== undefined && { comment }) },
+        { transaction: t }
+      );
+    } else {
+      await ServiceRating.create({ userId, serviceId, rating, comment: comment ?? null }, { transaction: t });
+    }
+
     await this._recomputeRating(serviceId, t);
     return true;
   }
