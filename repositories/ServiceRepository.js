@@ -1,6 +1,7 @@
 // repositories/ServiceRepository.js
 const { Op } = require("sequelize");
 const { Sequelize } = require("sequelize");
+const sequelize = require("../config/database");
 const {
   Service,
   Team,
@@ -12,6 +13,8 @@ const {
   ServiceFile,
   ServiceLike,
   ServiceView,
+  ServiceRating,
+  ServicePurchase,
 } = require("../models");
 
 class ServiceRepository {
@@ -170,6 +173,16 @@ class ServiceRepository {
 
     plain.media = plain.files || [];
     delete plain.files;
+
+    if (userId) {
+      const myRatingRow = await ServiceRating.findOne({
+        where: { serviceId: id, userId },
+        attributes: ["rating", "comment"],
+      });
+      plain.myRating = myRatingRow ? myRatingRow.toJSON() : null;
+    } else {
+      plain.myRating = null;
+    }
 
     return plain;
   }
@@ -447,6 +460,56 @@ class ServiceRepository {
 
   async getViewsCount(serviceId) {
     return ServiceView.count({ where: { serviceId } });
+  }
+
+  async upsertRating(userId, serviceId, rating, comment, t) {
+    const existing = await ServiceRating.findOne({
+      where: { userId, serviceId },
+      transaction: t,
+    });
+
+    if (existing) {
+      await existing.update({ rating, comment: comment ?? existing.comment }, { transaction: t });
+    } else {
+      await ServiceRating.create({ userId, serviceId, rating, comment }, { transaction: t });
+    }
+
+    await this._recomputeRating(serviceId, t);
+  }
+
+  async deleteRating(userId, serviceId, t) {
+    const deleted = await ServiceRating.destroy({
+      where: { userId, serviceId },
+      transaction: t,
+    });
+
+    if (deleted > 0) {
+      await this._recomputeRating(serviceId, t);
+    }
+
+    return deleted > 0;
+  }
+
+  async _recomputeRating(serviceId, t) {
+    const [result] = await sequelize.query(
+      `SELECT COUNT(*) AS cnt, AVG(rating) AS avg FROM service_ratings WHERE serviceId = :serviceId`,
+      { replacements: { serviceId }, type: sequelize.QueryTypes.SELECT, transaction: t }
+    );
+
+    const count = parseInt(result.cnt, 10) || 0;
+    const avg = count > 0 ? parseFloat(parseFloat(result.avg).toFixed(2)) : 0;
+
+    await Service.update(
+      { ratingCount: count, ratingAvg: avg },
+      { where: { id: serviceId }, transaction: t }
+    );
+  }
+
+  async updateBadges(serviceId, data) {
+    const service = await Service.findByPk(serviceId);
+    if (!service) return null;
+    await service.update(data);
+    return service;
   }
 }
 

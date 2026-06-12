@@ -4,6 +4,27 @@ const ServiceFileService = require("../services/ServiceFileService");
 const serviceService = new ServiceService();
 const serviceFileService = new ServiceFileService();
 
+function parseTags(raw) {
+  let arr = typeof raw === "string" ? JSON.parse(raw) : raw;
+  if (!Array.isArray(arr) || arr.some((t) => typeof t !== "string")) {
+    const err = new Error("tags must be an array of strings.");
+    err.name = "ValidationError";
+    throw err;
+  }
+  arr = [...new Set(arr.map((t) => t.trim().toLowerCase()))];
+  if (arr.length > 10) {
+    const err = new Error("tags may not exceed 10 items.");
+    err.name = "ValidationError";
+    throw err;
+  }
+  if (arr.some((t) => t.length > 30)) {
+    const err = new Error("Each tag may not exceed 30 characters.");
+    err.name = "ValidationError";
+    throw err;
+  }
+  return arr;
+}
+
 class ServiceController {
   async list(req, res) {
     try {
@@ -87,6 +108,10 @@ class ServiceController {
         categoryId,
         categoryIds,
         images,
+        insured,
+        moneyBack,
+        support247,
+        tags,
       } = req.body;
 
       // ─── Validation ─────────────────────────────
@@ -172,6 +197,16 @@ class ServiceController {
         }
       }
 
+      // ─── Validate + parse tags ───────────────────
+      let parsedTags = [];
+      if (tags !== undefined && tags !== null) {
+        try {
+          parsedTags = parseTags(tags);
+        } catch (e) {
+          return res.status(400).json({ success: false, error: e.message });
+        }
+      }
+
       const service = await serviceService.create({
         userId,
 
@@ -191,6 +226,11 @@ class ServiceController {
         payoutWalletId: payoutWalletId ? Number(payoutWalletId) : null,
 
         images: parsedImages,
+
+        insured: insured === true || insured === "true",
+        moneyBack: moneyBack === true || moneyBack === "true",
+        support247: support247 === true || support247 === "true",
+        tags: parsedTags,
       });
 
       // ─── Teams ──────────────────────────────────
@@ -275,6 +315,10 @@ class ServiceController {
         categoryId,
         categoryIds,
         images,
+        insured,
+        moneyBack,
+        support247,
+        tags,
       } = req.body;
 
       // =========================================
@@ -385,6 +429,26 @@ class ServiceController {
           });
         }
         updateData.images = parsedImages;
+      }
+
+      if (insured !== undefined) {
+        updateData.insured = insured === true || insured === "true";
+      }
+
+      if (moneyBack !== undefined) {
+        updateData.moneyBack = moneyBack === true || moneyBack === "true";
+      }
+
+      if (support247 !== undefined) {
+        updateData.support247 = support247 === true || support247 === "true";
+      }
+
+      if (tags !== undefined) {
+        try {
+          updateData.tags = parseTags(tags);
+        } catch (e) {
+          return res.status(400).json({ success: false, error: e.message });
+        }
       }
 
       // =========================================
@@ -775,12 +839,76 @@ class ServiceController {
       return res.status(200).json({ success: true, data: { viewCount } });
     } catch (error) {
       console.error("ServiceController.recordView error:", error);
-      return res
-        .status(500)
-        .json({
-          success: false,
-          error: "Server error. Please try again later.",
-        });
+      return res.status(500).json({ success: false, error: "Server error. Please try again later." });
+    }
+  }
+
+  async rateService(req, res) {
+    try {
+      const { id: userId } = req.user;
+      const serviceId = Number(req.params.id);
+      const { rating, comment } = req.body;
+
+      if (!rating || !Number.isInteger(Number(rating)) || Number(rating) < 1 || Number(rating) > 5) {
+        return res.status(400).json({ success: false, error: "rating must be an integer between 1 and 5." });
+      }
+
+      await serviceService.rateService(userId, serviceId, Number(rating), comment ?? null);
+
+      const service = await serviceService.getById(serviceId, { userId });
+      return res.status(200).json({ success: true, data: { ratingAvg: service.ratingAvg, ratingCount: service.ratingCount, myRating: service.myRating } });
+    } catch (error) {
+      console.error("ServiceController.rateService error:", error);
+      if (error.name === "NotPurchasedError") {
+        return res.status(403).json({ success: false, error: error.message });
+      }
+      return res.status(500).json({ success: false, error: "Server error. Please try again later." });
+    }
+  }
+
+  async deleteRating(req, res) {
+    try {
+      const { id: userId } = req.user;
+      const serviceId = Number(req.params.id);
+
+      const removed = await serviceService.deleteRating(userId, serviceId);
+      if (!removed) {
+        return res.status(404).json({ success: false, error: "You have not rated this service." });
+      }
+
+      const service = await serviceService.getById(serviceId, { userId });
+      return res.status(200).json({ success: true, data: { ratingAvg: service.ratingAvg, ratingCount: service.ratingCount, myRating: null } });
+    } catch (error) {
+      console.error("ServiceController.deleteRating error:", error);
+      return res.status(500).json({ success: false, error: "Server error. Please try again later." });
+    }
+  }
+
+  async updateBadges(req, res) {
+    try {
+      const { id } = req.params;
+      const { isTopChoice, isQRMVerified } = req.body;
+
+      const service = await serviceService.getById(id);
+      if (!service) {
+        return res.status(404).json({ success: false, error: "Service not found." });
+      }
+
+      const badgeData = {};
+      if (isTopChoice !== undefined) badgeData.isTopChoice = isTopChoice === true || isTopChoice === "true";
+      if (isQRMVerified !== undefined) badgeData.isQRMVerified = isQRMVerified === true || isQRMVerified === "true";
+
+      if (Object.keys(badgeData).length === 0) {
+        return res.status(400).json({ success: false, error: "Provide at least one of: isTopChoice, isQRMVerified." });
+      }
+
+      await serviceService.updateBadges(id, badgeData);
+
+      const updated = await serviceService.getById(id);
+      return res.status(200).json({ success: true, data: updated });
+    } catch (error) {
+      console.error("ServiceController.updateBadges error:", error);
+      return res.status(500).json({ success: false, error: "Server error. Please try again later." });
     }
   }
 }

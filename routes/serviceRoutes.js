@@ -68,6 +68,21 @@ router.delete("/:id/like", authMiddleware, checkIntegerParam("id"), serviceContr
 router.get("/:id/likes/count", authMiddleware, checkIntegerParam("id"), serviceController.getServiceLikesCount.bind(serviceController));
 router.get("/:id/likes/me", authMiddleware, checkIntegerParam("id"), serviceController.checkUserLikedService.bind(serviceController));
 
+// ── Ratings ───────────────────────────────────────────────────────────────────
+
+router.post("/:id/rating", authMiddleware, checkIntegerParam("id"), serviceController.rateService.bind(serviceController));
+router.delete("/:id/rating", authMiddleware, checkIntegerParam("id"), serviceController.deleteRating.bind(serviceController));
+
+// ── Admin badges ──────────────────────────────────────────────────────────────
+
+router.patch(
+  "/admin/:id/badges",
+  authMiddleware,
+  authorize(["admin"]),
+  checkIntegerParam("id"),
+  serviceController.updateBadges.bind(serviceController)
+);
+
 // ── Purchases ─────────────────────────────────────────────────────────────────
 
 router.post("/purchase", authMiddleware, purchaseController.purchase.bind(purchaseController));

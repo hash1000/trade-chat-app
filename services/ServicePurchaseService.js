@@ -1,7 +1,7 @@
 // services/ServicePurchaseService.js
 const { v4: uuidv4 } = require("uuid");
 const sequelize = require("../config/database");
-const { Wallet, WalletTransaction } = require("../models");
+const { Wallet, WalletTransaction, Service } = require("../models");
 const ServiceRepository = require("../repositories/ServiceRepository");
 const ServicePurchaseRepository = require("../repositories/ServicePurchaseRepository");
 
@@ -233,6 +233,15 @@ class ServicePurchaseService {
         },
         { transaction: t },
       );
+
+      // Increment denormalized purchase counter on the service
+      await Service.increment("purchaseCount", {
+        by: 1,
+        where: { id: service.id },
+        transaction: t,
+      });
+
+      // TODO: if a refund flow is added, decrement purchaseCount there too
 
       return purchase;
     });
