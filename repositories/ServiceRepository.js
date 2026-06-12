@@ -462,6 +462,21 @@ class ServiceRepository {
     return ServiceView.count({ where: { serviceId } });
   }
 
+  async updateRating(userId, serviceId, rating, comment, t) {
+    const existing = await ServiceRating.findOne({
+      where: { userId, serviceId },
+      transaction: t,
+    });
+
+    if (!existing) return false;
+    await existing.update(
+      { rating, ...(comment !== undefined && { comment }) },
+      { transaction: t }
+    );
+    await this._recomputeRating(serviceId, t);
+    return true;
+  }
+
   async upsertRating(userId, serviceId, rating, comment, t) {
     const existing = await ServiceRating.findOne({
       where: { userId, serviceId },

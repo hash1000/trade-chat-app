@@ -906,6 +906,30 @@ class ServiceController {
     }
   }
 
+  async updateRating(req, res) {
+    try {
+      const { id: userId } = req.user;
+      const serviceId = Number(req.params.id);
+      const { rating, comment } = req.body;
+
+      if (!rating || !Number.isInteger(Number(rating)) || Number(rating) < 1 || Number(rating) > 5) {
+        return res.status(400).json({ success: false, error: "rating must be an integer between 1 and 5." });
+      }
+
+      const updated = await serviceService.updateRating(userId, serviceId, Number(rating), comment);
+      console.log("updateRating result:", updated);
+      if (!updated) {
+        return res.status(404).json({ success: false, error: "You have not rated this service yet." });
+      }
+
+      const service = await serviceService.getById(serviceId, { userId });
+      return res.status(200).json({ success: true, data: { ratingAvg: service.ratingAvg, ratingCount: service.ratingCount, myRating: service.myRating } });
+    } catch (error) {
+      console.error("ServiceController.updateRating error:", error);
+      return res.status(500).json({ success: false, error: "Server error. Please try again later." });
+    }
+  }
+
   async deleteRating(req, res) {
     try {
       const { id: userId } = req.user;

@@ -106,6 +106,12 @@ class ServiceService {
     return this.serviceRepository.getViewsCount(serviceId);
   }
 
+  async updateRating(userId, serviceId, rating, comment) {
+    return sequelize.transaction(async (t) => {
+      return this.serviceRepository.updateRating(userId, serviceId, rating, comment, t);
+    });
+  }
+
   async rateService(userId, serviceId, rating, comment) {
     const purchase = await ServicePurchase.findOne({ where: { userId, serviceId } });
     if (!purchase) {
