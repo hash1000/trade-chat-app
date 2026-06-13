@@ -1,6 +1,7 @@
 // controllers/ServiceController.js
 const ServiceService = require("../services/ServiceService");
 const ServiceFileService = require("../services/ServiceFileService");
+const { ServiceView, ServiceLike } = require("../models");
 const serviceService = new ServiceService();
 const serviceFileService = new ServiceFileService();
 
@@ -324,6 +325,8 @@ class ServiceController {
         replyTime,
         isTopChoice,
         isQRMVerified,
+        desiredViewCount,
+        desiredLikeCount,
       } = req.body;
 
       // =========================================
@@ -492,6 +495,32 @@ class ServiceController {
 
         updateData.isQRMVerified =
           isQRMVerified === true || isQRMVerified === "true";
+      }
+
+      // =========================================
+      // Base counts (admin-controlled boost)
+      // =========================================
+
+      if (desiredViewCount !== undefined) {
+        if (!Number.isInteger(desiredViewCount) || desiredViewCount < 0) {
+          return res.status(400).json({
+            success: false,
+            error: "desiredViewCount must be a non-negative integer.",
+          });
+        }
+        const realViews = await ServiceView.count({ where: { serviceId: id } });
+        updateData.baseViewCount = Math.max(0, desiredViewCount - realViews);
+      }
+
+      if (desiredLikeCount !== undefined) {
+        if (!Number.isInteger(desiredLikeCount) || desiredLikeCount < 0) {
+          return res.status(400).json({
+            success: false,
+            error: "desiredLikeCount must be a non-negative integer.",
+          });
+        }
+        const realLikes = await ServiceLike.count({ where: { serviceId: id } });
+        updateData.baseLikeCount = Math.max(0, desiredLikeCount - realLikes);
       }
 
       // =========================================

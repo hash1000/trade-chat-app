@@ -129,6 +129,18 @@ const Service = sequelize.define(
       defaultValue: 0,
     },
 
+    baseViewCount: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
+    },
+
+    baseLikeCount: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
+    },
+
     deletedBy: {
       type: DataTypes.INTEGER,
       allowNull: true,

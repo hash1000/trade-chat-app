@@ -134,6 +134,7 @@ class ServiceService {
   async updateBadges(serviceId, data) {
     return this.serviceRepository.updateBadges(serviceId, data);
   }
+
 }
 
 module.exports = ServiceService;

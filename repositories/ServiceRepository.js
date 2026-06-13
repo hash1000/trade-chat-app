@@ -146,14 +146,14 @@ class ServiceRepository {
     attributes.include.push([
       Sequelize.literal(`(
         SELECT COUNT(*) FROM service_likes sl WHERE sl.serviceId = Service.id
-      )`),
+      ) + Service.baseLikeCount`),
       "likesCount",
     ]);
 
     attributes.include.push([
       Sequelize.literal(`(
-    SELECT COUNT(*) FROM service_views sv WHERE sv.serviceId = Service.id
-  )`),
+        SELECT COUNT(*) FROM service_views sv WHERE sv.serviceId = Service.id
+      ) + Service.baseViewCount`),
       "viewCount",
     ]);
 
@@ -234,14 +234,14 @@ class ServiceRepository {
     attributes.include.push([
       Sequelize.literal(`(
         SELECT COUNT(*) FROM service_likes sl WHERE sl.serviceId = Service.id
-      )`),
+      ) + Service.baseLikeCount`),
       "likesCount",
     ]);
 
     attributes.include.push([
       Sequelize.literal(`(
-    SELECT COUNT(*) FROM service_views sv WHERE sv.serviceId = Service.id
-  )`),
+        SELECT COUNT(*) FROM service_views sv WHERE sv.serviceId = Service.id
+      ) + Service.baseViewCount`),
       "viewCount",
     ]);
 
@@ -530,6 +530,7 @@ class ServiceRepository {
     await service.update(data);
     return service;
   }
+
 }
 
 module.exports = ServiceRepository;

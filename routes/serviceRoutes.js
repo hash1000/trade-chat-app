@@ -84,6 +84,7 @@ router.patch(
   serviceController.updateBadges.bind(serviceController)
 );
 
+
 // ── Purchases ─────────────────────────────────────────────────────────────────
 
 router.post("/purchase", authMiddleware, purchaseController.purchase.bind(purchaseController));
