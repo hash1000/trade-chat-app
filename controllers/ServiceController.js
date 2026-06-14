@@ -114,9 +114,30 @@ class ServiceController {
         support247,
         replyTime,
         tags,
+        ratingAvg,
+        ratingCount,
       } = req.body;
 
       // ─── Validation ─────────────────────────────
+
+      if (ratingAvg !== undefined) {
+        const v = Number(ratingAvg);
+        if (Number.isNaN(v) || v < 0 || v > 5) {
+          return res.status(400).json({
+            success: false,
+            error: "ratingAvg must be a number between 0 and 5.",
+          });
+        }
+      }
+
+      if (ratingCount !== undefined) {
+        if (!Number.isInteger(Number(ratingCount)) || Number(ratingCount) < 0) {
+          return res.status(400).json({
+            success: false,
+            error: "ratingCount must be a non-negative integer.",
+          });
+        }
+      }
 
       if (!name || typeof name !== "string" || !name.trim()) {
         return res.status(400).json({
@@ -234,6 +255,8 @@ class ServiceController {
         support247: support247 === true || support247 === "true",
         tags: parsedTags,
         replyTime: replyTime ? replyTime.trim() : undefined,
+        ...(ratingAvg !== undefined && { ratingAvg: parseFloat(Number(ratingAvg).toFixed(2)) }),
+        ...(ratingCount !== undefined && { ratingCount: Number(ratingCount) }),
       });
 
       // ─── Teams ──────────────────────────────────
@@ -327,6 +350,8 @@ class ServiceController {
         isQRMVerified,
         desiredViewCount,
         desiredLikeCount,
+        ratingAvg,
+        ratingCount,
       } = req.body;
 
       // =========================================
@@ -521,6 +546,27 @@ class ServiceController {
         }
         const realLikes = await ServiceLike.count({ where: { serviceId: id } });
         updateData.baseLikeCount = Math.max(0, desiredLikeCount - realLikes);
+      }
+
+      if (ratingAvg !== undefined) {
+        const v = Number(ratingAvg);
+        if (Number.isNaN(v) || v < 0 || v > 5) {
+          return res.status(400).json({
+            success: false,
+            error: "ratingAvg must be a number between 0 and 5.",
+          });
+        }
+        updateData.ratingAvg = parseFloat(v.toFixed(2));
+      }
+
+      if (ratingCount !== undefined) {
+        if (!Number.isInteger(Number(ratingCount)) || Number(ratingCount) < 0) {
+          return res.status(400).json({
+            success: false,
+            error: "ratingCount must be a non-negative integer.",
+          });
+        }
+        updateData.ratingCount = Number(ratingCount);
       }
 
       // =========================================
