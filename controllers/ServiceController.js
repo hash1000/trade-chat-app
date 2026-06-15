@@ -36,6 +36,8 @@ class ServiceController {
       const includeCategories = req.query.includeCategories === "true";
       const includeDeleted = req.query.includeDeleted === "true";
       const isLiked = req.query.isLiked === "true";
+      const me = req.query.me === "true";
+
       const services = await serviceService.getAll({
         userId,
         includeTeams,
@@ -43,6 +45,7 @@ class ServiceController {
         includeCategories,
         includeDeleted,
         isLiked,
+        me
       });
 
       return res.status(200).json({

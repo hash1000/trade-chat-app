@@ -194,7 +194,12 @@ class ServiceRepository {
   }
 
   async findAll(options = {}) {
-    const { userId, includeDeleted = false, isLiked = false } = options;
+    const {
+      userId,
+      includeDeleted = false,
+      isLiked = false,
+      me = false,
+    } = options;
 
     const queryOptions = { ...options };
 
@@ -204,6 +209,9 @@ class ServiceRepository {
     delete queryOptions.userId;
     delete queryOptions.includeDeleted;
     delete queryOptions.isLiked;
+    delete queryOptions.me;
+
+    console.log("ServiceRepository.findAll options:", options);
 
     const attributes = { include: [] };
 
@@ -255,6 +263,10 @@ class ServiceRepository {
           SELECT serviceId FROM service_likes WHERE userId = ${userId}
         )`),
       };
+    }
+
+    if (me && userId) {
+      where.userId = userId;
     }
 
     const services = await Service.findAll({
@@ -471,10 +483,13 @@ class ServiceRepository {
     if (existing) {
       await existing.update(
         { rating, ...(comment !== undefined && { comment }) },
-        { transaction: t }
+        { transaction: t },
       );
     } else {
-      await ServiceRating.create({ userId, serviceId, rating, comment: comment ?? null }, { transaction: t });
+      await ServiceRating.create(
+        { userId, serviceId, rating, comment: comment ?? null },
+        { transaction: t },
+      );
     }
 
     await this._recomputeRating(serviceId, t);
@@ -488,9 +503,15 @@ class ServiceRepository {
     });
 
     if (existing) {
-      await existing.update({ rating, comment: comment ?? existing.comment }, { transaction: t });
+      await existing.update(
+        { rating, comment: comment ?? existing.comment },
+        { transaction: t },
+      );
     } else {
-      await ServiceRating.create({ userId, serviceId, rating, comment }, { transaction: t });
+      await ServiceRating.create(
+        { userId, serviceId, rating, comment },
+        { transaction: t },
+      );
     }
 
     await this._recomputeRating(serviceId, t);
@@ -512,7 +533,11 @@ class ServiceRepository {
   async _recomputeRating(serviceId, t) {
     const [result] = await sequelize.query(
       `SELECT COUNT(*) AS cnt, AVG(rating) AS avg FROM service_ratings WHERE serviceId = :serviceId`,
-      { replacements: { serviceId }, type: sequelize.QueryTypes.SELECT, transaction: t }
+      {
+        replacements: { serviceId },
+        type: sequelize.QueryTypes.SELECT,
+        transaction: t,
+      },
     );
 
     const count = parseInt(result.cnt, 10) || 0;
@@ -520,7 +545,7 @@ class ServiceRepository {
 
     await Service.update(
       { ratingCount: count, ratingAvg: avg },
-      { where: { id: serviceId }, transaction: t }
+      { where: { id: serviceId }, transaction: t },
     );
   }
 
@@ -530,7 +555,6 @@ class ServiceRepository {
     await service.update(data);
     return service;
   }
-
 }
 
 module.exports = ServiceRepository;

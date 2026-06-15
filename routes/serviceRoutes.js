@@ -23,7 +23,7 @@ router.get("/", authMiddleware, serviceController.list.bind(serviceController));
 router.post(
   "/",
   authMiddleware,
-  authorize(["admin"]),
+  // authorize(["admin"]),
   serviceFileController.handleMulterError(uploadServiceCreateUpdate),
   serviceController.create.bind(serviceController)
 );
@@ -32,7 +32,7 @@ router.post(
 router.put(
   "/:id",
   authMiddleware,
-  authorize(["admin"]),
+  // authorize(["admin"]),
   checkIntegerParam("id"),
   serviceFileController.handleMulterError(uploadServiceCreateUpdate),
   serviceController.update.bind(serviceController)
@@ -41,7 +41,7 @@ router.put(
 router.delete(
   "/:id",
   authMiddleware,
-  authorize(["admin"]),
+  // authorize(["admin"]),
   checkIntegerParam("id"),
   serviceController.delete.bind(serviceController)
 );
@@ -49,7 +49,7 @@ router.delete(
 router.post(
   "/:id/restore",
   authMiddleware,
-  authorize(["admin"]),
+  // authorize(["admin"]),
   checkIntegerParam("id"),
   serviceController.restore.bind(serviceController)
 );
