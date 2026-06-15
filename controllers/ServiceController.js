@@ -122,10 +122,10 @@ class ServiceController {
 
       if (ratingAvg !== undefined) {
         const v = Number(ratingAvg);
-        if (Number.isNaN(v) || v < 0 || v > 5) {
+        if (Number.isNaN(v) || v < 0 || v > 10) {
           return res.status(400).json({
             success: false,
-            error: "ratingAvg must be a number between 0 and 5.",
+            error: "ratingAvg must be a number between 0 and 10.",
           });
         }
       }
@@ -550,10 +550,10 @@ class ServiceController {
 
       if (ratingAvg !== undefined) {
         const v = Number(ratingAvg);
-        if (Number.isNaN(v) || v < 0 || v > 5) {
+        if (Number.isNaN(v) || v < 0 || v > 10) {
           return res.status(400).json({
             success: false,
-            error: "ratingAvg must be a number between 0 and 5.",
+            error: "ratingAvg must be a number between 0 and 10.",
           });
         }
         updateData.ratingAvg = parseFloat(v.toFixed(2));

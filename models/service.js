@@ -112,7 +112,7 @@ const Service = sequelize.define(
     },
 
     ratingAvg: {
-      type: DataTypes.DECIMAL(3, 2),
+      type: DataTypes.DECIMAL(4, 2),
       allowNull: false,
       defaultValue: 0,
     },
