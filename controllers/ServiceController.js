@@ -45,7 +45,7 @@ class ServiceController {
         includeCategories,
         includeDeleted,
         isLiked,
-        me
+        me,
       });
 
       return res.status(200).json({
@@ -69,17 +69,21 @@ class ServiceController {
       const includeMembers = req.query.includeMembers === "true";
       const includeCategories = req.query.includeCategories !== "false";
       const isLiked = req.query.isLiked === "true";
+      const me = req.query.me === "true";
+
       const service = await serviceService.getById(id, {
         userId,
         includeTeams,
         includeMembers,
         includeCategories,
         isLiked,
+        me,
       });
       if (!service) {
-        return res
-          .status(404)
-          .json({ success: false, error: "Service not found." });
+        return res.status(404).json({
+          success: false,
+          error: "Service not found.",
+        });
       }
       // fire-and-forget — never throws, never delays response
       serviceService.recordView(userId, id).catch(() => {});
@@ -258,7 +262,9 @@ class ServiceController {
         support247: support247 === true || support247 === "true",
         tags: parsedTags,
         replyTime: replyTime ? replyTime.trim() : undefined,
-        ...(ratingAvg !== undefined && { ratingAvg: parseFloat(Number(ratingAvg).toFixed(2)) }),
+        ...(ratingAvg !== undefined && {
+          ratingAvg: parseFloat(Number(ratingAvg).toFixed(2)),
+        }),
         ...(ratingCount !== undefined && { ratingCount: Number(ratingCount) }),
       });
 
@@ -923,16 +929,60 @@ class ServiceController {
       return res.status(200).json({ success: true, data: { viewCount } });
     } catch (error) {
       console.error("ServiceController.recordView error:", error);
-      return res
-        .status(500)
-        .json({
-          success: false,
-          error: "Server error. Please try again later.",
-        });
+      return res.status(500).json({
+        success: false,
+        error: "Server error. Please try again later.",
+      });
     }
   }
 
   async rateService(req, res) {
+    try {
+      const { id: userId } = req.user;
+      const serviceId = Number(req.params.id);
+      const { rating, comment } = req.body;
+
+      if (
+        !rating ||
+        !Number.isInteger(Number(rating)) ||
+        Number(rating) < 1 ||
+        Number(rating) > 5
+      ) {
+        return res.status(400).json({
+          success: false,
+          error: "rating must be an integer between 1 and 5.",
+        });
+      }
+
+      await serviceService.rateService(
+        userId,
+        serviceId,
+        Number(rating),
+        comment ?? null,
+      );
+
+      const service = await serviceService.getById(serviceId, { userId });
+      return res.status(200).json({
+        success: true,
+        data: {
+          ratingAvg: service.ratingAvg,
+          ratingCount: service.ratingCount,
+          myRating: service.myRating,
+        },
+      });
+    } catch (error) {
+      console.error("ServiceController.rateService error:", error);
+      if (error.name === "NotPurchasedError") {
+        return res.status(403).json({ success: false, error: error.message });
+      }
+      return res.status(500).json({
+        success: false,
+        error: "Server error. Please try again later.",
+      });
+    }
+  }
+
+  async updateRating(req, res) {
     try {
       const { id: userId } = req.user;
       const serviceId = Number(req.params.id);
@@ -952,11 +1002,11 @@ class ServiceController {
           });
       }
 
-      await serviceService.rateService(
+      await serviceService.updateRating(
         userId,
         serviceId,
         Number(rating),
-        comment ?? null,
+        comment,
       );
 
       const service = await serviceService.getById(serviceId, { userId });
@@ -971,36 +1021,13 @@ class ServiceController {
           },
         });
     } catch (error) {
-      console.error("ServiceController.rateService error:", error);
-      if (error.name === "NotPurchasedError") {
-        return res.status(403).json({ success: false, error: error.message });
-      }
+      console.error("ServiceController.updateRating error:", error);
       return res
         .status(500)
         .json({
           success: false,
           error: "Server error. Please try again later.",
         });
-    }
-  }
-
-  async updateRating(req, res) {
-    try {
-      const { id: userId } = req.user;
-      const serviceId = Number(req.params.id);
-      const { rating, comment } = req.body;
-
-      if (!rating || !Number.isInteger(Number(rating)) || Number(rating) < 1 || Number(rating) > 5) {
-        return res.status(400).json({ success: false, error: "rating must be an integer between 1 and 5." });
-      }
-
-      await serviceService.updateRating(userId, serviceId, Number(rating), comment);
-
-      const service = await serviceService.getById(serviceId, { userId });
-      return res.status(200).json({ success: true, data: { ratingAvg: service.ratingAvg, ratingCount: service.ratingCount, myRating: service.myRating } });
-    } catch (error) {
-      console.error("ServiceController.updateRating error:", error);
-      return res.status(500).json({ success: false, error: "Server error. Please try again later." });
     }
   }
 
@@ -1017,24 +1044,20 @@ class ServiceController {
       }
 
       const service = await serviceService.getById(serviceId, { userId });
-      return res
-        .status(200)
-        .json({
-          success: true,
-          data: {
-            ratingAvg: service.ratingAvg,
-            ratingCount: service.ratingCount,
-            myRating: null,
-          },
-        });
+      return res.status(200).json({
+        success: true,
+        data: {
+          ratingAvg: service.ratingAvg,
+          ratingCount: service.ratingCount,
+          myRating: null,
+        },
+      });
     } catch (error) {
       console.error("ServiceController.deleteRating error:", error);
-      return res
-        .status(500)
-        .json({
-          success: false,
-          error: "Server error. Please try again later.",
-        });
+      return res.status(500).json({
+        success: false,
+        error: "Server error. Please try again later.",
+      });
     }
   }
 
@@ -1059,12 +1082,10 @@ class ServiceController {
         badgeData.isQRMVerified = parseBool(isQRMVerified);
 
       if (Object.keys(badgeData).length === 0) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            error: "Provide at least one of: isTopChoice, isQRMVerified.",
-          });
+        return res.status(400).json({
+          success: false,
+          error: "Provide at least one of: isTopChoice, isQRMVerified.",
+        });
       }
       console.log("Updating badges for service", id, badgeData);
 
@@ -1074,12 +1095,10 @@ class ServiceController {
       return res.status(200).json({ success: true, data: updated });
     } catch (error) {
       console.error("ServiceController.updateBadges error:", error);
-      return res
-        .status(500)
-        .json({
-          success: false,
-          error: "Server error. Please try again later.",
-        });
+      return res.status(500).json({
+        success: false,
+        error: "Server error. Please try again later.",
+      });
     }
   }
 }

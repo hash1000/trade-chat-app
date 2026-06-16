@@ -110,7 +110,7 @@ class ServiceRepository {
   }
 
   async findByPk(id, options = {}) {
-    const { userId } = options;
+    const { userId, me = false } = options;
     const queryOptions = { ...options };
 
     delete queryOptions.includeTeams;
@@ -118,6 +118,7 @@ class ServiceRepository {
     delete queryOptions.includeCategories;
     delete queryOptions.isLiked;
     delete queryOptions.userId;
+    delete queryOptions.me;
 
     const attributes = { include: [] };
 
@@ -157,13 +158,19 @@ class ServiceRepository {
       "viewCount",
     ]);
 
+    const where = {
+      id,
+      deletedAt: null,
+    };
+
+    if (me && userId) {
+      where.userId = userId;
+    }
+    
     const service = await Service.findOne({
       attributes,
       include: this.buildIncludes(options),
-      where: {
-        id,
-        deletedAt: null,
-      },
+      where,
       ...queryOptions,
     });
 
