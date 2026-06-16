@@ -15,6 +15,7 @@ const {
   ServiceView,
   ServiceRating,
   ServicePurchase,
+  Role,
 } = require("../models");
 
 class ServiceRepository {
@@ -31,6 +32,16 @@ class ServiceRepository {
         "username",
         "email",
         "profilePic",
+      ],
+      include: [
+        {
+          model: Role,
+          as: "roles",
+          attributes: ["name"],
+          through: {
+            attributes: [],
+          },
+        },
       ],
     });
 
@@ -166,7 +177,7 @@ class ServiceRepository {
     if (me && userId) {
       where.userId = userId;
     }
-    
+
     const service = await Service.findOne({
       attributes,
       include: this.buildIncludes(options),
