@@ -8,7 +8,6 @@ const CurrencyService = require("./CurrencyService");
 const { PaymentTypes } = require("../constants");
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
-
 const currencyService = new CurrencyService();
 const WalletService = require("./WalletService");
 const walletService = new WalletService();
@@ -42,7 +41,7 @@ class PaymentService {
   async updatePayment(paymentId, updatedPaymentData) {
     // Add any additional business logic or validation before updating the payment
     return this.paymentRepository.update(paymentId, updatedPaymentData);
-  } 
+  }
 
   /**
    * Convert from one currency wallet to another (e.g. EUR → CNY).
@@ -52,7 +51,15 @@ class PaymentService {
    * @param {string} fromCurrency - e.g. "EUR"
    * @param {string} toCurrency - e.g. "CNY"
    */
-  async transferAmount(userId, amount, type, currentRate, fromCurrency = "USD", toCurrency = "CNY", description = null) {
+  async transferAmount(
+    userId,
+    amount,
+    type,
+    currentRate,
+    fromCurrency = "USD",
+    toCurrency = "CNY",
+    description = null,
+  ) {
     return walletService.fxConvert({
       userId,
       fromCurrency,
@@ -125,7 +132,13 @@ class PaymentService {
     return this.paymentRepository.unfavouritePayment(paymentId, userId);
   }
 
-  async processTopupPayment(userId, amount, walletType, description, paymentCurrency) {
+  async processTopupPayment(
+    userId,
+    amount,
+    walletType,
+    description,
+    paymentCurrency,
+  ) {
     if (!amount || isNaN(amount) || amount <= 0) {
       const err = new Error("Amount must be a positive number");
       err.statusCode = 400;
@@ -145,7 +158,10 @@ class PaymentService {
     // Step 2: Get FX rate (wallet currency → USD)
     let rate;
     try {
-      const rateData = await currencyService.getAdjustedRate(paymentCurrency, "USD");
+      const rateData = await currencyService.getAdjustedRate(
+        paymentCurrency,
+        "USD",
+      );
       if (!rateData?.finalRate) throw new Error("No rate returned");
       rate = parseFloat(rateData.finalRate);
     } catch (e) {
@@ -197,7 +213,9 @@ class PaymentService {
               currency: "usd",
               product_data: {
                 name: `Wallet Top-up (${paymentCurrency})`,
-                description: description || `Top up ${amount} ${paymentCurrency} to ${walletType} wallet`,
+                description:
+                  description ||
+                  `Top up ${amount} ${paymentCurrency} to ${walletType} wallet`,
               },
               unit_amount: stripeAmount,
             },
@@ -225,7 +243,15 @@ class PaymentService {
 
     // Update transaction with stripe session id
     await Transaction.update(
-      { metadata: { walletType, paymentCurrency, originalAmount: amount, fxRate: rate, stripeSessionId: session.id } },
+      {
+        metadata: {
+          walletType,
+          paymentCurrency,
+          originalAmount: amount,
+          fxRate: rate,
+          stripeSessionId: session.id,
+        },
+      },
       { where: { orderId } },
     );
 
@@ -270,10 +296,27 @@ class PaymentService {
     }
 
     // Step 1: Extract metadata
-    const { userId: rawUserId, walletType, walletCurrency, fxRate, originalAmount, orderId } = metadata;
+    const {
+      userId: rawUserId,
+      walletType,
+      walletCurrency,
+      fxRate,
+      originalAmount,
+      orderId,
+    } = metadata;
 
-    if (!rawUserId || isNaN(rawUserId) || !walletType || !walletCurrency || !fxRate || !originalAmount || !orderId) {
-      const err = new Error("Missing required metadata fields in webhook session.");
+    if (
+      !rawUserId ||
+      isNaN(rawUserId) ||
+      !walletType ||
+      !walletCurrency ||
+      !fxRate ||
+      !originalAmount ||
+      !orderId
+    ) {
+      const err = new Error(
+        "Missing required metadata fields in webhook session.",
+      );
       err.isUserError = true;
       throw err;
     }
@@ -285,7 +328,9 @@ class PaymentService {
     // Step 2: Idempotency check
     const existing = await Transaction.findOne({ where: { orderId } });
     if (!existing) {
-      console.warn(`⚠️ Transaction not found for orderId: ${orderId}; may have been created outside normal flow`);
+      console.warn(
+        `⚠️ Transaction not found for orderId: ${orderId}; may have been created outside normal flow`,
+      );
     } else if (existing.status === "completed") {
       console.log(`ℹ️ Duplicate webhook ignored for orderId: ${orderId}`);
       return;
@@ -304,28 +349,35 @@ class PaymentService {
       //   throw err;
       // }
 
-      await walletService.creditWallet({
+      await walletService.deposit({
         userId,
         currency: walletCurrency,
         walletType,
         amount: creditedAmount,
+        description: `Stripe Wallet Top-up via session ${sessionId}`,
+        meta: {
+          stripeSessionId: sessionId,
+          stripeOrderId: orderId,
+          paidAmount: usdAmount,
+          paidCurrency: "USD",
+          rate,
+          originalAmount: origAmount,
+        },
       });
 
       // Step 5: Mark transaction completed
       if (existing) {
-        await Transaction.update(
-          {
-            status: "completed",
-            paidAmount: usdAmount,
-            paidCurrency: "USD",
-            metadata: {
-              ...existing.metadata,
-              stripeSessionId: sessionId,
-              stripeEvent: "checkout.session.completed",
-            },
+        await existing.update({
+          status: "completed",
+          paidAmount: usdAmount,
+          paidCurrency: "USD",
+          metadata: {
+            ...existing.metadata,
+            stripeSessionId: sessionId,
+            stripeEvent: "checkout.session.completed",
+            creditedAmount,
           },
-          { where: { orderId } },
-        );
+        });
       }
 
       // Step 6: Log
@@ -346,7 +398,9 @@ class PaymentService {
     const existing = await Transaction.findOne({ where: { orderId } });
     if (existing && existing.status !== "completed") {
       await existing.update({ status: "completed" });
-      console.log(`💳 Transaction ${orderId} marked completed via payment_intent.succeeded`);
+      console.log(
+        `💳 Transaction ${orderId} marked completed via payment_intent.succeeded`,
+      );
     }
   }
 
@@ -367,7 +421,9 @@ class PaymentService {
 
     if (Object.keys(updates).length > 0) {
       await existing.update(updates);
-      console.log(`🔄 Transaction ${orderId} updated to status: ${updates.status}`);
+      console.log(
+        `🔄 Transaction ${orderId} updated to status: ${updates.status}`,
+      );
     }
   }
 
@@ -701,7 +757,7 @@ class PaymentService {
       if (!ledger) throw new Error("Invalid ledgerId: not found");
     }
     await this.paymentRepository.updateIncome(id, data);
-    const updatedIncome =  await this.paymentRepository.getIncomeById(id);
+    const updatedIncome = await this.paymentRepository.getIncomeById(id);
     return updatedIncome;
   }
 
