@@ -63,9 +63,20 @@ class CurrencyService {
   async getAdjustedRate(targetCurrency = "CNY", baseCurrency = "USD") {
     try {
       const adjustment = await CurrencyRateAdjustment.findOne({
-        where: { baseCurrency,targetCurrency },
-        order: [["updatedAt", "DESC"]],
-      });
+      where: {
+        [Op.or]: [
+          {
+            baseCurrency,
+            targetCurrency,
+          },
+          {
+            baseCurrency: targetCurrency,
+            targetCurrency: baseCurrency,
+          },
+        ],
+      },
+      order: [["updatedAt", "DESC"]],
+    });
 
       console.log(`Fetched adjustment for ${targetCurrency}:`, adjustment);
       if (adjustment) {
