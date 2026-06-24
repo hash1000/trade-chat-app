@@ -159,8 +159,8 @@ class PaymentService {
     let rate;
     try {
       const rateData = await currencyService.getAdjustedRate(
-        paymentCurrency,
         "USD",
+        paymentCurrency
       );
       if (!rateData?.finalRate) throw new Error("No rate returned");
       rate = parseFloat(rateData.finalRate);
