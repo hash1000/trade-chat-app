@@ -158,12 +158,16 @@ class PaymentService {
     // Step 2: Get FX rate (wallet currency → USD)
     let rate;
     try {
-      const rateData = await currencyService.getAdjustedRate(
-        paymentCurrency,
-        "USD",
-      );
-      if (!rateData?.finalRate) throw new Error("No rate returned");
-      rate = parseFloat(rateData.finalRate);
+      if (paymentCurrency === "USD") {
+        rate = 1;
+      } else {
+        const rateData = await currencyService.getAdjustedRate(
+          paymentCurrency,
+          "USD",
+        );
+        if (!rateData?.finalRate) throw new Error("No rate returned");
+        rate = parseFloat(rateData.finalRate);
+      }
     } catch (e) {
       const err = new Error(`FX rate unavailable for ${paymentCurrency} → USD`);
       err.statusCode = 500;

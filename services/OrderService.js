@@ -61,7 +61,7 @@ class OrderService {
       return updatedOrder;
     } catch (error) {
       console.error("Error in updateOrder:", error);
-      throw error; // Re-throw the error for centralized handling
+      throw error;
     }
   }
 
