@@ -1,6 +1,7 @@
 // services/CurrencyService.js
 // Fetches rates via EXCHANGE_RATE_API_KEY (exchangerate.host). Supports CNY, EUR, etc.
 const CurrencyRateAdjustment = require("../models/currencyRateAdjustment");
+const { Op } = require("sequelize");
 const fetch = require("node-fetch");
 
 class CurrencyService {
@@ -78,7 +79,6 @@ class CurrencyService {
       order: [["updatedAt", "DESC"]],
     });
 
-      console.log(`Fetched adjustment for ${targetCurrency}:`, adjustment);
       if (adjustment) {
         return {
           baseRate: adjustment.fetchedRate,
@@ -105,13 +105,10 @@ class CurrencyService {
     try {
       const currentRate = await this.getCurrentRate(currency, targetCurrency);
 
-      console.log(`Setting rate adjustment for ${targetCurrency}: currentRate=${currentRate}, adjustment=${adjustment}`);
       const finalRate = currentRate - adjustment;
-
       if (finalRate <= 0) {
         throw new Error("Final rate must be positive");
       }
-
       const [record, created] = await CurrencyRateAdjustment.upsert(
         {
           baseCurrency: currency,

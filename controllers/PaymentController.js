@@ -455,9 +455,6 @@ class PaymentController {
     try {
       const { currency = "CNY", baseCurrency = "USD" } = req.query;
 
-      console.log(
-        `Getting adjusted rate for ${currency} with base ${baseCurrency}...`,
-      );
       const rateInfo = await currencyService.getAdjustedRate(
         currency,
         baseCurrency,
