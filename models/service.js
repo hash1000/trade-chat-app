@@ -141,6 +141,12 @@ const Service = sequelize.define(
       defaultValue: 0,
     },
 
+    // Optional single assignee editor (not the owner, a designated editor)
+    assigneeEditorId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+
     deletedBy: {
       type: DataTypes.INTEGER,
       allowNull: true,

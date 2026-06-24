@@ -125,41 +125,115 @@ class PaymentService {
     return this.paymentRepository.unfavouritePayment(paymentId, userId);
   }
 
-  async processTopupPayment(userId, amount, walletType, description) {
-    const user = await walletService.getUserWalletById(userId);
-    const roundedAmount = Math.round(amount * 100); // cents
+  async processTopupPayment(userId, amount, walletType, description, paymentCurrency) {
+    if (!amount || isNaN(amount) || amount <= 0) {
+      const err = new Error("Amount must be a positive number");
+      err.statusCode = 400;
+      err.isUserError = true;
+      throw err;
+    }
 
-    const baseUrl = process.env.baseUrl;
-    console.log("Processing top-up payment:", baseUrl)
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ["card"],
-      mode: "payment",
-      line_items: [
-        {
-          price_data: {
-            currency: "usd",
-            product_data: {
-              name: "Wallet Top-up",
-              description: description,
-            },
-            unit_amount: roundedAmount,
-          },
-          quantity: 1,
-        },
-      ],
+    // Step 1: Validate wallet exists
+    // const wallet = await walletService.getWallet(userId, paymentCurrency, walletType);
+    // if (!wallet) {
+    //   const err = new Error(`Wallet not found for ${paymentCurrency} ${walletType}`);
+    //   err.statusCode = 400;
+    //   err.isUserError = true;
+    //   throw err;
+    // }
+
+    // Step 2: Get FX rate (wallet currency → USD)
+    let rate;
+    try {
+      const rateData = await currencyService.getAdjustedRate(paymentCurrency, "USD");
+      if (!rateData?.finalRate) throw new Error("No rate returned");
+      rate = parseFloat(rateData.finalRate);
+    } catch (e) {
+      const err = new Error(`FX rate unavailable for ${paymentCurrency} → USD`);
+      err.statusCode = 500;
+      throw err;
+    }
+
+    // Step 3: Convert wallet amount to USD cents
+    const usdAmount = amount / rate;
+    const stripeAmount = Math.round(usdAmount * 100);
+
+    // Step 4: Create pending Transaction
+    const orderId = `topup_${Date.now()}_${userId}`;
+    const paidAmount = parseFloat((stripeAmount / 100).toFixed(8));
+
+    await Transaction.create({
+      orderId,
+      userId,
+      amount: parseFloat(String(amount)),
+      paidAmount,
+      paidCurrency: "USD",
+      currency: paymentCurrency,
+      rate,
+      type: "wallet_topup",
+      status: "pending",
+      paymentMethod: "card",
       metadata: {
-        userId: String(user.id),
-        purpose: "wallet_topup",
         walletType,
+        paymentCurrency,
+        originalAmount: amount,
+        fxRate: rate,
       },
-      success_url: `${baseUrl}/wallet/topup-success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${baseUrl}/wallet/topup-cancelled`,
     });
+
+    // Step 5: Create Stripe Checkout Session
+    const user = await walletService.getUserWalletById(userId);
+    const baseUrl = process.env.baseUrl;
+    console.log("Processing top-up payment:", baseUrl);
+
+    let session;
+    try {
+      session = await stripe.checkout.sessions.create({
+        payment_method_types: ["card"],
+        mode: "payment",
+        line_items: [
+          {
+            price_data: {
+              currency: "usd",
+              product_data: {
+                name: `Wallet Top-up (${paymentCurrency})`,
+                description: description || `Top up ${amount} ${paymentCurrency} to ${walletType} wallet`,
+              },
+              unit_amount: stripeAmount,
+            },
+            quantity: 1,
+          },
+        ],
+        metadata: {
+          userId: String(user.id),
+          orderId,
+          purpose: "wallet_topup",
+          walletType,
+          walletCurrency: paymentCurrency,
+          originalAmount: String(amount),
+          fxRate: String(rate),
+        },
+        success_url: `${baseUrl}/wallet/topup-success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${baseUrl}/wallet/topup-cancelled`,
+      });
+    } catch (e) {
+      console.error("❌ Stripe session creation failed:", e);
+      const err = new Error("Payment provider error: " + e.message);
+      err.statusCode = 500;
+      throw err;
+    }
+
+    // Update transaction with stripe session id
+    await Transaction.update(
+      { metadata: { walletType, paymentCurrency, originalAmount: amount, fxRate: rate, stripeSessionId: session.id } },
+      { where: { orderId } },
+    );
 
     return {
       checkoutUrl: session.url,
       checkoutSessionId: session.id,
       amount,
+      paymentCurrency,
     };
   }
 
@@ -186,94 +260,114 @@ class PaymentService {
   }
 
   async handlePaymentCheckoutSucceeded(session) {
-    console.log("✅ Checkout session completed:", session);
+    console.log("✅ Checkout session completed:", session.id);
 
-    const {
-      metadata,
-      amount_total,
-      id: sessionId,
-      payment_method_types,
-      customer_details,
-    } = session;
+    const { metadata, amount_total, id: sessionId } = session;
 
     if (!metadata || metadata.purpose !== "wallet_topup") {
-      console.warn("Skipping non-wallet top-up session.");
+      console.warn("Skipping non-wallet top-up session:", sessionId);
       return;
     }
 
-    const rawUserId = metadata.userId;
-    const rawAmount = amount_total;
-    const walletType = metadata.walletType || "PERSONAL";
+    // Step 1: Extract metadata
+    const { userId: rawUserId, walletType, walletCurrency, fxRate, originalAmount, orderId } = metadata;
 
-    if (!rawUserId || isNaN(rawUserId)) {
-      throw new Error("Invalid or missing userId in metadata.");
-    }
-
-    if (!rawAmount || isNaN(rawAmount)) {
-      throw new Error("Invalid or missing amount_total in session.");
+    if (!rawUserId || isNaN(rawUserId) || !walletType || !walletCurrency || !fxRate || !originalAmount || !orderId) {
+      const err = new Error("Missing required metadata fields in webhook session.");
+      err.isUserError = true;
+      throw err;
     }
 
     const userId = parseInt(rawUserId);
-    const amountInUsd = parseFloat((rawAmount / 100).toFixed(2));
+    const rate = Number(fxRate);
+    const origAmount = Number(originalAmount);
 
-    // USD wallet type receives USD directly; PERSONAL (CNY) gets converted
-    const isUsdWallet = walletType === "COMPANY";
+    // Step 2: Idempotency check
+    const existing = await Transaction.findOne({ where: { orderId } });
+    if (!existing) {
+      console.warn(`⚠️ Transaction not found for orderId: ${orderId}; may have been created outside normal flow`);
+    } else if (existing.status === "completed") {
+      console.log(`ℹ️ Duplicate webhook ignored for orderId: ${orderId}`);
+      return;
+    }
 
     try {
-      let depositCurrency, depositAmount, rate;
+      // Step 3: Reconstruct amounts
+      const usdAmount = amount_total / 100;
+      const creditedAmount = usdAmount * rate;
 
-      if (isUsdWallet) {
-        depositCurrency = "USD";
-        depositAmount = amountInUsd;
-        rate = 1;
-      } else {
-        const rateData = await currencyService.getAdjustedRate("CNY");
-        if (!rateData?.finalRate) throw new Error("Currency rate fetch failed");
-        rate = parseFloat(rateData.finalRate.toFixed(5));
-        depositCurrency = "CNY";
-        depositAmount = Math.floor(amountInUsd * rate);
+      // Step 4: Credit wallet
+      // const wallet = await walletService.getWallet(userId, walletCurrency, walletType);
+      // if (!wallet) {
+      //   const err = new Error(`Wallet not found: ${walletCurrency} ${walletType} for userId ${userId}`);
+      //   err.isUserError = true;
+      //   throw err;
+      // }
+
+      await walletService.creditWallet({
+        userId,
+        currency: walletCurrency,
+        walletType,
+        amount: creditedAmount,
+      });
+
+      // Step 5: Mark transaction completed
+      if (existing) {
+        await Transaction.update(
+          {
+            status: "completed",
+            paidAmount: usdAmount,
+            paidCurrency: "USD",
+            metadata: {
+              ...existing.metadata,
+              stripeSessionId: sessionId,
+              stripeEvent: "checkout.session.completed",
+            },
+          },
+          { where: { orderId } },
+        );
       }
 
-      await walletService.deposit({
-        userId,
-        currency: depositCurrency,
-        walletType,
-        amount: amountInUsd,
-        description: `Stripe top-up via session ${sessionId}`,
-        meta: {
-          stripeSessionId: sessionId,
-          usdAmount: amountInUsd,
-          rate,
-          email: customer_details?.email || null,
-          name: customer_details?.name || null,
-        },
-      });
-
-      await Transaction.create({
-        userId,
-        amount: depositAmount,
-        usdAmount: amountInUsd,
-        rate,
-        currency: depositCurrency,
-        type: "wallet_topup",
-        status: "completed",
-        orderId: `topup_${sessionId.slice(-8)}`,
-        paymentMethod: payment_method_types?.[0] || "card",
-        metadata: {
-          stripeEvent: "checkout.session.completed",
-          stripeSessionId: sessionId,
-          walletType,
-          email: customer_details?.email || null,
-          name: customer_details?.name || null,
-        },
-      });
-
+      // Step 6: Log
       console.log(
-        `💰 Wallet top-up: $${amountInUsd} USD → ${walletType} wallet (userId: ${userId})`,
+        `💰 Wallet top-up: ${origAmount} ${walletCurrency} (${usdAmount} USD) → ${walletType} wallet (userId: ${userId})`,
       );
     } catch (err) {
       console.error("❌ Payment processing failed:", err);
       throw err;
+    }
+  }
+
+  async handlePaymentIntentSucceeded(paymentIntent) {
+    console.log("✅ PaymentIntent succeeded:", paymentIntent.id);
+    // checkout.session.completed is the authoritative event for wallet top-ups;
+    // this handler records the succeeded state on any matching pending transaction.
+    const orderId = `topup_${paymentIntent.id.slice(-8)}`;
+    const existing = await Transaction.findOne({ where: { orderId } });
+    if (existing && existing.status !== "completed") {
+      await existing.update({ status: "completed" });
+      console.log(`💳 Transaction ${orderId} marked completed via payment_intent.succeeded`);
+    }
+  }
+
+  async handleChargeUpdated(charge) {
+    console.log("🔄 Charge updated:", charge.id, "status:", charge.status);
+    // Reflect charge status changes (e.g. refunded, disputed) on the transaction record.
+    const paymentIntentId = charge.payment_intent;
+    if (!paymentIntentId) return;
+
+    const orderId = `topup_${paymentIntentId.slice(-8)}`;
+    const existing = await Transaction.findOne({ where: { orderId } });
+    if (!existing) return;
+
+    const updates = {};
+    if (charge.refunded) updates.status = "refunded";
+    else if (charge.disputed) updates.status = "disputed";
+    else if (charge.status === "failed") updates.status = "failed";
+
+    if (Object.keys(updates).length > 0) {
+      await existing.update(updates);
+      console.log(`🔄 Transaction ${orderId} updated to status: ${updates.status}`);
     }
   }
 

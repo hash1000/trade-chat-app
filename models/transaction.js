@@ -11,21 +11,26 @@ const Transaction = sequelize.define("Transaction", {
   orderId: {
     type: DataTypes.STRING,
     allowNull: false,
+    unique: true,
   },
   userId: {
     type: DataTypes.INTEGER,
     allowNull: false,
   },
   amount: {
-    type: DataTypes.FLOAT,
+    type: DataTypes.DECIMAL(20, 8),
     allowNull: false,
   },
-  usdAmount: {
-    type: DataTypes.FLOAT,
+  paidAmount: {
+    type: DataTypes.DECIMAL(20, 8),
+    allowNull: false,
+  },
+  paidCurrency: {
+    type: DataTypes.STRING(10),
     allowNull: false,
   },
   rate: {
-    type: DataTypes.FLOAT,
+    type: DataTypes.DECIMAL(20, 8),
     allowNull: false,
   },
   currency: {

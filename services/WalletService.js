@@ -987,9 +987,7 @@ class WalletService {
       performedBy: userId,
     });
   }
-
   // services/WalletService.js — replace your existing listWalletTransactions method
-
   async listWalletTransactions({
     page = 1,
     limit = 10,

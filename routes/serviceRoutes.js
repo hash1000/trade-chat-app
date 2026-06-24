@@ -2,6 +2,11 @@ const express = require("express");
 const router = express.Router();
 const ServiceController = require("../controllers/ServiceController");
 const ServiceFileController = require("../controllers/ServiceFileController");
+const ServiceMemberController = require("../controllers/ServiceMemberController");
+const ServiceAddOnController = require("../controllers/ServiceAddOnController");
+const ServiceAddOnFileController = require("../controllers/ServiceAddOnFileController");
+const ServiceDiscountController = require("../controllers/ServiceDiscountController");
+const paymentTermRoutes = require("./paymentTermRoutes");
 const authMiddleware = require("../middlewares/authenticate");
 const checkIntegerParam = require("../middlewares/paramIntegerValidation");
 const authorize = require("../middlewares/authorization");
@@ -10,10 +15,15 @@ const {
   uploadServiceMedia,
   uploadServiceCreateUpdate,
 } = require("../utilities/serviceFileMulter");
+const { uploadAddOnFile } = require("../utilities/serviceAddOnFileMulter");
 
 const purchaseController = new ServicePurchaseController();
 const serviceController = new ServiceController();
 const serviceFileController = new ServiceFileController();
+const serviceMemberController = new ServiceMemberController();
+const serviceAddOnController = new ServiceAddOnController();
+const serviceAddOnFileController = new ServiceAddOnFileController();
+const serviceDiscountController = new ServiceDiscountController();
 
 // ── Core CRUD ─────────────────────────────────────────────────────────────────
 
@@ -101,6 +111,40 @@ router.delete(
   serviceFileController.deleteFile.bind(serviceFileController)
 );
 
+// ── Add-On Files ──────────────────────────────────────────────────────────────
+// Registered before /:id to prevent Express matching "add-ons" as the :id param
+
+router.get(
+  "/add-ons/:addOnId/files",
+  authMiddleware,
+  checkIntegerParam("addOnId"),
+  serviceAddOnFileController.listFiles.bind(serviceAddOnFileController)
+);
+
+router.post(
+  "/add-ons/:addOnId/files",
+  authMiddleware,
+  checkIntegerParam("addOnId"),
+  serviceAddOnFileController.handleMulterError(uploadAddOnFile),
+  serviceAddOnFileController.uploadFile.bind(serviceAddOnFileController)
+);
+
+router.delete(
+  "/add-ons/:addOnId/files/:fileId",
+  authMiddleware,
+  checkIntegerParam("addOnId"),
+  checkIntegerParam("fileId"),
+  serviceAddOnFileController.deleteFile.bind(serviceAddOnFileController)
+);
+
+router.put(
+  "/add-ons/:addOnId/files/:fileId/reorder",
+  authMiddleware,
+  checkIntegerParam("addOnId"),
+  checkIntegerParam("fileId"),
+  serviceAddOnFileController.reorderFile.bind(serviceAddOnFileController)
+);
+
 // GET /services/:id — returns service + images[] + media[]
 router.get(
   "/:id",
@@ -116,6 +160,106 @@ router.post(
   checkIntegerParam("serviceId"),
   serviceFileController.handleMulterError(uploadServiceMedia),
   serviceFileController.uploadMedia.bind(serviceFileController)
+);
+
+// ── Members ───────────────────────────────────────────────────────────────────
+
+router.get(
+  "/:serviceId/members",
+  authMiddleware,
+  checkIntegerParam("serviceId"),
+  serviceMemberController.listMembers.bind(serviceMemberController)
+);
+
+router.post(
+  "/:serviceId/members",
+  authMiddleware,
+  checkIntegerParam("serviceId"),
+  serviceMemberController.addMember.bind(serviceMemberController)
+);
+
+router.delete(
+  "/:serviceId/members/:userId",
+  authMiddleware,
+  checkIntegerParam("serviceId"),
+  checkIntegerParam("userId"),
+  serviceMemberController.removeMember.bind(serviceMemberController)
+);
+
+// ── Assignee ──────────────────────────────────────────────────────────────────
+
+router.patch(
+  "/:serviceId/assignee",
+  authMiddleware,
+  checkIntegerParam("serviceId"),
+  serviceMemberController.setAssignee.bind(serviceMemberController)
+);
+
+router.delete(
+  "/:serviceId/assignee",
+  authMiddleware,
+  checkIntegerParam("serviceId"),
+  serviceMemberController.clearAssignee.bind(serviceMemberController)
+);
+
+// ── Add-Ons ───────────────────────────────────────────────────────────────────
+
+router.get(
+  "/:serviceId/add-ons",
+  authMiddleware,
+  checkIntegerParam("serviceId"),
+  serviceAddOnController.listAddOns.bind(serviceAddOnController)
+);
+
+router.post(
+  "/:serviceId/add-ons",
+  authMiddleware,
+  checkIntegerParam("serviceId"),
+  serviceAddOnController.createAddOn.bind(serviceAddOnController)
+);
+
+router.get(
+  "/:serviceId/add-ons/:addOnId",
+  authMiddleware,
+  checkIntegerParam("serviceId"),
+  checkIntegerParam("addOnId"),
+  serviceAddOnController.getAddOn.bind(serviceAddOnController)
+);
+
+router.put(
+  "/:serviceId/add-ons/:addOnId",
+  authMiddleware,
+  checkIntegerParam("serviceId"),
+  checkIntegerParam("addOnId"),
+  serviceAddOnController.updateAddOn.bind(serviceAddOnController)
+);
+
+router.delete(
+  "/:serviceId/add-ons/:addOnId",
+  authMiddleware,
+  checkIntegerParam("serviceId"),
+  checkIntegerParam("addOnId"),
+  serviceAddOnController.deleteAddOn.bind(serviceAddOnController)
+);
+
+// ── Payment Terms ─────────────────────────────────────────────────────────────
+
+router.use("/:serviceId/payment-terms", checkIntegerParam("serviceId"), paymentTermRoutes);
+
+// ── Discounts ─────────────────────────────────────────────────────────────────
+
+router.post(
+  "/:serviceId/discounts",
+  authMiddleware,
+  checkIntegerParam("serviceId"),
+  serviceDiscountController.createDiscount.bind(serviceDiscountController)
+);
+
+router.get(
+  "/:serviceId/discounts",
+  authMiddleware,
+  checkIntegerParam("serviceId"),
+  serviceDiscountController.listDiscounts.bind(serviceDiscountController)
 );
 
 module.exports = router;

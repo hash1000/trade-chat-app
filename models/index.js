@@ -38,6 +38,11 @@ const ServiceFile = require("./serviceFile");
 const ServiceLike = require("./serviceLike");
 const ServiceView = require("./serviceView");
 const ServiceRating = require("./serviceRating");
+const ServiceMember = require("./serviceMember");
+const ServiceAddOn = require("./serviceAddOn");
+const ServiceAddOnFile = require("./serviceAddOnFile");
+const ServiceDiscount = require("./serviceDiscount");
+const PaymentTerm = require("./paymentTerm");
 
 // Define all associations
 function defineAssociations() {
@@ -342,6 +347,53 @@ function defineAssociations() {
 
   User.hasMany(ServiceRating, { foreignKey: "userId", as: "serviceRatings" });
   ServiceRating.belongsTo(User, { foreignKey: "userId", as: "user" });
+
+  // Service <-> assigneeEditor (single optional editor, not the owner)
+  Service.belongsTo(User, { foreignKey: "assigneeEditorId", as: "assigneeEditor" });
+  User.hasMany(Service, { foreignKey: "assigneeEditorId", as: "assignedServices" });
+
+  // Service <-> ServiceMember (team members join table)
+  Service.belongsToMany(User, {
+    through: ServiceMember,
+    foreignKey: "serviceId",
+    otherKey: "userId",
+    as: "members",
+  });
+  User.belongsToMany(Service, {
+    through: ServiceMember,
+    foreignKey: "userId",
+    otherKey: "serviceId",
+    as: "memberServices",
+  });
+  Service.hasMany(ServiceMember, { foreignKey: "serviceId", as: "serviceMembers" });
+  ServiceMember.belongsTo(Service, { foreignKey: "serviceId", as: "service" });
+  ServiceMember.belongsTo(User, { foreignKey: "userId", as: "user" });
+
+  // Service <-> ServiceAddOn
+  Service.hasMany(ServiceAddOn, { foreignKey: "serviceId", as: "addOns" });
+  ServiceAddOn.belongsTo(Service, { foreignKey: "serviceId", as: "service" });
+
+  // ServiceAddOn <-> ServiceAddOnFile
+  ServiceAddOn.hasMany(ServiceAddOnFile, { foreignKey: "addOnId", as: "files" });
+  ServiceAddOnFile.belongsTo(ServiceAddOn, { foreignKey: "addOnId", as: "addOn" });
+
+  // Service <-> ServiceDiscount
+  Service.hasMany(ServiceDiscount, { foreignKey: "serviceId", as: "discounts" });
+  ServiceDiscount.belongsTo(Service, { foreignKey: "serviceId", as: "service" });
+
+  // ServiceDiscount creator/redeemer
+  User.hasMany(ServiceDiscount, { foreignKey: "createdBy", as: "createdDiscounts" });
+  ServiceDiscount.belongsTo(User, { foreignKey: "createdBy", as: "creator" });
+
+  User.hasMany(ServiceDiscount, { foreignKey: "usedBy", as: "redeemedDiscounts" });
+  ServiceDiscount.belongsTo(User, { foreignKey: "usedBy", as: "redeemer" });
+
+  // Service <-> PaymentTerm
+  Service.hasMany(PaymentTerm, { foreignKey: "serviceId", as: "paymentTerms" });
+  PaymentTerm.belongsTo(Service, { foreignKey: "serviceId", as: "service" });
+
+  User.hasMany(PaymentTerm, { foreignKey: "createdBy", as: "createdPaymentTerms" });
+  PaymentTerm.belongsTo(User, { foreignKey: "createdBy", as: "creator" });
 }
 
 // Initialize associations
@@ -377,4 +429,9 @@ module.exports = {
   ServiceLike,
   ServiceView,
   ServiceRating,
+  ServiceMember,
+  ServiceAddOn,
+  ServiceAddOnFile,
+  ServiceDiscount,
+  PaymentTerm,
 };

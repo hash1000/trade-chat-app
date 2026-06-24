@@ -231,11 +231,27 @@ class PaymentController {
 
   async initiateTopup(req, res) {
     try {
-      const { amount, walletType, description } = req.body;
+      const { amount, walletType, description, paymentCurrency } = req.body;
       const { id: userId } = req.user;
 
       if (!amount || isNaN(amount) || amount <= 0) {
         return res.status(400).json({ message: "Invalid amount" });
+      }
+
+      const validCurrencies = ["USD", "EUR", "CNY"];
+      if (!paymentCurrency || !validCurrencies.includes(paymentCurrency)) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid paymentCurrency. Must be one of: ${validCurrencies.join(", ")}`,
+        });
+      }
+
+      const validWalletTypes = ["PERSONAL", "COMPANY"];
+      if (!walletType || !validWalletTypes.includes(walletType)) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid walletType. Must be one of: ${validWalletTypes.join(", ")}`,
+        });
       }
 
       const result = await paymentService.processTopupPayment(
@@ -243,6 +259,7 @@ class PaymentController {
         amount,
         walletType,
         description,
+        paymentCurrency,
       );
 
       return res.json({
@@ -251,11 +268,12 @@ class PaymentController {
         data: {
           checkoutUrl: result.checkoutUrl,
           amount: result.amount,
+          paymentCurrency: result.paymentCurrency,
         },
       });
     } catch (error) {
       console.error("Topup error:", error);
-      res.status(error.statusCode || 500).json({
+      res.status(error.statusCode || (error.isUserError ? 400 : 500)).json({
         success: false,
         message: error.message,
         code: error.code || "payment_error",
@@ -494,8 +512,16 @@ class PaymentController {
           await paymentService.handleCheckoutSessionCanceled(event.data.object);
           break;
 
+        case "payment_intent.succeeded":
+          await paymentService.handlePaymentIntentSucceeded(event.data.object);
+          break;
+
         case "payment_intent.canceled":
           await paymentService.handlePaymentIntentCanceled(event.data.object);
+          break;
+
+        case "charge.updated":
+          await paymentService.handleChargeUpdated(event.data.object);
           break;
 
         default:
