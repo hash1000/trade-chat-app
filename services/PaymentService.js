@@ -165,6 +165,7 @@ class PaymentService {
           paymentCurrency,
           "USD",
         );
+        console.log("FX rate data:", paymentCurrency, rateData);
         if (!rateData?.finalRate) throw new Error("No rate returned");
         rate = parseFloat(rateData.finalRate);
       }
