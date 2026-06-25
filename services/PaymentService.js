@@ -174,10 +174,12 @@ class PaymentService {
       err.statusCode = 500;
       throw err;
     }
-
+    console.log(`FX rate for ${paymentCurrency} → USD:`, rate);
     // Step 3: Convert wallet amount to USD cents
     const usdAmount = amount / rate;
+    console.log(`Converted amount: ${amount} ${paymentCurrency} → ${usdAmount} USD`);
     const stripeAmount = Math.round(usdAmount * 100);
+    console.log(`Stripe amount: ${stripeAmount} cents`);
 
     // Step 4: Create pending Transaction
     const orderId = `topup_${Date.now()}_${userId}`;
