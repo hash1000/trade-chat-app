@@ -304,12 +304,12 @@ class PaymentController {
   // Set rate adjustment for a currency. Body: { adjustment, currency }. Supported: CNY, EUR
   async priceAdjust(req, res) {
     try {
-      const { adjustment, currency = "CNY", targetCurrency = "USD" } = req.body;
+      const { adjustment, baseCurrency = "USD", targetCurrency = "CNY" } = req.body;
       const userId = req.user.id;
 
       const result = await currencyService.setRateAdjustment(
         userId,
-        currency,
+        baseCurrency,
         targetCurrency,
         parseFloat(adjustment),
       );

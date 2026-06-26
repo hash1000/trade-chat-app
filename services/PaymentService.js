@@ -176,18 +176,7 @@ class PaymentService {
     }
     console.log(`FX rate for ${paymentCurrency} → USD:`, rate);
 
-    // Step 3: Convert wallet amount to USD cents
-    
-let usdAmount;
-if (rate > 1) {
-  // CNY: 1 USD = 7 CNY → divide
-  usdAmount = amount / rate 
-  
-} else if (rate < 1) {
-  // Dinnar: 1 USD = 0.333 Dinnar, stored as 1 Dinnar = 3 USD → multiply
-  usdAmount = amount * rate
-}
-
+    const usdAmount = amount / rate;
  
     console.log(`Converted amount: ${amount} ${paymentCurrency} → ${usdAmount} USD`);
     const stripeAmount = Math.round(usdAmount * 100);

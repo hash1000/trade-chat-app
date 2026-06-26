@@ -64,20 +64,9 @@ class CurrencyService {
   async getAdjustedRate(targetCurrency = "CNY", baseCurrency = "USD") {
     try {
       const adjustment = await CurrencyRateAdjustment.findOne({
-      where: {
-        [Op.or]: [
-          {
-            baseCurrency,
-            targetCurrency,
-          },
-          {
-            baseCurrency: targetCurrency,
-            targetCurrency: baseCurrency,
-          },
-        ],
-      },
-      order: [["updatedAt", "DESC"]],
-    });
+        where: { baseCurrency,targetCurrency },
+        order: [["updatedAt", "DESC"]],
+      });
 
       if (adjustment) {
         return {
@@ -101,17 +90,13 @@ class CurrencyService {
     }
   }
 
-  async setRateAdjustment(userId, currency, targetCurrency, adjustment) {
+  async setRateAdjustment(userId, baseCurrency, targetCurrency, adjustment) {
     try {
-      const currentRate = await this.getCurrentRate(currency, targetCurrency);
-
-      const finalRate = currentRate - adjustment;
-      if (finalRate <= 0) {
-        throw new Error("Final rate must be positive");
-      }
+      const currentRate = await this.getCurrentRate(baseCurrency, targetCurrency);
+      const finalRate = currentRate + adjustment;
       const [record, created] = await CurrencyRateAdjustment.upsert(
         {
-          baseCurrency: currency,
+          baseCurrency,
           targetCurrency,
           fetchedRate: currentRate,
           adjustment,

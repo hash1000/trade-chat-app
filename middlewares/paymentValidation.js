@@ -49,16 +49,21 @@ exports.updatePaymentValidator = [
 
 // Currency Adjustment
 exports.currencyAdjustmentValidator = [
-  body("adjustment")
-    .exists().withMessage("Adjustment value is required")
-    .isFloat().withMessage("Adjustment must be a number")
-    .custom((value) => {
-      if (Math.abs(value) > 10) {
-        throw new Error("Adjustment cannot be more than ±10");
-      }
-      return true;
-    }),
-  body("currency")
+  // body("adjustment")
+  //   .exists().withMessage("Adjustment value is required")
+  //   .isFloat().withMessage("Adjustment must be a number")
+  //   .custom((value) => {
+  //     if (Math.abs(value) > 10) {
+  //       throw new Error("Adjustment cannot be more than ±10");
+  //     }
+  //     return true;
+  //   }),
+  body("baseCurrency")
+    .optional()
+    .isString().withMessage("Base currency must be a string")
+    .isLength({ min: 3, max: 3 }).withMessage("Base currency must be 3 characters")
+    .isUppercase().withMessage("Base currency must be uppercase"),
+  body("targetCurrency")
     .optional()
     .isString().withMessage("Currency must be a string")
     .isLength({ min: 3, max: 3 }).withMessage("Currency must be 3 characters")
