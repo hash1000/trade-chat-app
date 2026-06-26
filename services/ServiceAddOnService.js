@@ -1,12 +1,20 @@
-const { Op } = require("sequelize");
+const path = require("path");
+const fs = require("fs").promises;
 const { Service, ServiceAddOn, ServiceAddOnFile } = require("../models");
+const { uploadDiskFileToS3, deleteFileFromS3 } = require("../utilities/s3Utils");
+
+const EXT_TO_FILE_TYPE = {
+  ".jpg": "image", ".jpeg": "image", ".png": "image", ".webp": "image",
+  ".gif": "image", ".bmp": "image", ".tiff": "image",
+  ".mp4": "video", ".mpeg": "video", ".mov": "video",
+  ".avi": "video", ".mkv": "video", ".webm": "video",
+  ".pdf": "pdf", ".doc": "doc", ".docx": "docx",
+  ".ppt": "ppt", ".pptx": "pptx", ".xls": "xls", ".xlsx": "xlsx", ".txt": "txt",
+};
+
+const S3_FILE_TYPE = { image: "image", video: "video" };
 
 class ServiceAddOnService {
-  /**
-   * Assert service exists and return it.
-   * @param {number} serviceId
-   * @returns {Promise<Service>}
-   */
   async assertServiceExists(serviceId) {
     const service = await Service.findByPk(serviceId);
     if (!service) {
@@ -17,11 +25,6 @@ class ServiceAddOnService {
     return service;
   }
 
-  /**
-   * Assert current user is the service owner.
-   * @param {Service} service
-   * @param {number} userId
-   */
   assertOwner(service, userId) {
     if (service.userId !== userId) {
       const err = new Error("Forbidden. Only the service owner can perform this action.");
@@ -30,16 +33,11 @@ class ServiceAddOnService {
     }
   }
 
-  /**
-   * Fetch a single add-on belonging to a service, with files.
-   * @param {number} serviceId
-   * @param {number} addOnId
-   * @returns {Promise<ServiceAddOn>}
-   */
   async getAddOnOrFail(serviceId, addOnId) {
     const addOn = await ServiceAddOn.findOne({
       where: { id: addOnId, serviceId, deletedAt: null },
-      include: [{ model: ServiceAddOnFile, as: "files", order: [["sort_order", "ASC"]] }],
+      include: [{ model: ServiceAddOnFile, as: "files" }],
+      order: [[{ model: ServiceAddOnFile, as: "files" }, "sort_order", "ASC"]],
     });
     if (!addOn) {
       const err = new Error("Add-on not found.");
@@ -50,29 +48,47 @@ class ServiceAddOnService {
   }
 
   /**
-   * List add-ons for a service with pagination.
-   * @param {number} serviceId
-   * @param {{ page?: number, limit?: number, includeInactive?: boolean }} options
-   * @returns {Promise<{ data: ServiceAddOn[], pagination: object }>}
+   * Upload files to S3 and bulk-insert records for an add-on.
+   * @param {number} addOnId
+   * @param {Express.Multer.File[]} files
    */
-  async listAddOns(serviceId, { page = 1, limit = 20, includeInactive = false } = {}) {
+  async uploadFiles(addOnId, files) {
+    if (!files || !files.length) return [];
+console.log("ServiceAddOnService.uploadFiles files:", files);
+    const records = await Promise.all(
+      files.map(async (file, idx) => {
+        const ext = path.extname(file.originalname).toLowerCase();
+        const file_type = EXT_TO_FILE_TYPE[ext] || "other";
+        const s3FileType = S3_FILE_TYPE[file_type] ?? null;
+
+        let file_url, s3_key;
+        try {
+          const result = await uploadDiskFileToS3(file.path, file.originalname, file.mimetype, s3FileType);
+          file_url = result.url;
+          s3_key = result.key;
+        } finally {
+          await fs.unlink(file.path).catch(() => {});
+        }
+
+        return { addOnId, file_url, s3_key, file_name: file.originalname, file_type, sort_order: idx };
+      })
+    );
+
+    return ServiceAddOnFile.bulkCreate(records);
+  }
+
+  async listAddOns(serviceId, { page = 1, limit = 20 } = {}) {
     await this.assertServiceExists(serviceId);
 
     const offset = (page - 1) * limit;
-    const where = { serviceId, deletedAt: null };
 
     const { count, rows } = await ServiceAddOn.findAndCountAll({
-      where,
-      include: [
-        {
-          model: ServiceAddOnFile,
-          as: "files",
-          attributes: ["id"],
-          required: false,
-          where: {},
-        },
+      where: { serviceId, deletedAt: null },
+      include: [{ model: ServiceAddOnFile, as: "files", required: false }],
+      order: [
+        ["createdAt", "DESC"],
+        [{ model: ServiceAddOnFile, as: "files" }, "sort_order", "ASC"],
       ],
-      order: [["createdAt", "DESC"]],
       limit,
       offset,
       distinct: true,
@@ -89,24 +105,11 @@ class ServiceAddOnService {
     };
   }
 
-  /**
-   * Get a single add-on by ID with its files.
-   * @param {number} serviceId
-   * @param {number} addOnId
-   * @returns {Promise<ServiceAddOn>}
-   */
   async getAddOn(serviceId, addOnId) {
     await this.assertServiceExists(serviceId);
     return this.getAddOnOrFail(serviceId, addOnId);
   }
 
-  /**
-   * Create a new add-on for a service.
-   * @param {number} serviceId
-   * @param {number} actorId
-   * @param {{ title: string, description?: string, amount: number }} data
-   * @returns {Promise<ServiceAddOn>}
-   */
   async createAddOn(serviceId, actorId, data) {
     const service = await this.assertServiceExists(serviceId);
     this.assertOwner(service, actorId);
@@ -135,14 +138,6 @@ class ServiceAddOnService {
     return this.getAddOnOrFail(serviceId, addOn.id);
   }
 
-  /**
-   * Update an existing add-on.
-   * @param {number} serviceId
-   * @param {number} addOnId
-   * @param {number} actorId
-   * @param {object} data
-   * @returns {Promise<ServiceAddOn>}
-   */
   async updateAddOn(serviceId, addOnId, actorId, data) {
     const service = await this.assertServiceExists(serviceId);
     this.assertOwner(service, actorId);
@@ -178,17 +173,15 @@ class ServiceAddOnService {
       updates.amount = Number(data.amount);
     }
 
-    await addOn.update(updates);
+    if (Object.keys(updates).length) {
+      await addOn.update(updates);
+    }
 
     return this.getAddOnOrFail(serviceId, addOnId);
   }
 
   /**
    * Soft-delete an add-on.
-   * @param {number} serviceId
-   * @param {number} addOnId
-   * @param {number} actorId
-   * @returns {Promise<void>}
    */
   async deleteAddOn(serviceId, addOnId, actorId) {
     const service = await this.assertServiceExists(serviceId);
@@ -202,6 +195,45 @@ class ServiceAddOnService {
     }
 
     await addOn.update({ deletedAt: new Date(), deletedBy: actorId });
+    return { id: addOn.id, deletedAt: addOn.deletedAt };
+  }
+
+  async uploadMedia(serviceId, addOnId, actorId, files) {
+    const service = await this.assertServiceExists(serviceId);
+    this.assertOwner(service, actorId);
+    const addOn = await ServiceAddOn.findOne({ where: { id: addOnId, serviceId, deletedAt: null } });
+    if (!addOn) {
+      const err = new Error("Add-on not found.");
+      err.statusCode = 404;
+      throw err;
+    }
+console.log("ServiceAddOnService.uploadMedia files:", files);
+    return this.uploadFiles(addOn.id, files);
+  }
+
+  async deleteFile(serviceId, addOnId, fileId, actorId) {
+    const service = await this.assertServiceExists(serviceId);
+    this.assertOwner(service, actorId);
+
+    const addOn = await ServiceAddOn.findOne({ where: { id: addOnId, serviceId, deletedAt: null } });
+    if (!addOn) {
+      const err = new Error("Add-on not found.");
+      err.statusCode = 404;
+      throw err;
+    }
+
+    const file = await ServiceAddOnFile.findOne({ where: { id: fileId, addOnId: addOn.id } });
+    if (!file) {
+      const err = new Error("File not found.");
+      err.statusCode = 404;
+      throw err;
+    }
+
+    if (file.s3_key) {
+      await deleteFileFromS3(file.s3_key);
+    }
+
+    await file.destroy();
   }
 }
 

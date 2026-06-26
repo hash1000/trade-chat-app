@@ -3,29 +3,20 @@ const ServiceAddOnService = require("../services/ServiceAddOnService");
 const serviceAddOnService = new ServiceAddOnService();
 
 class ServiceAddOnController {
-  /**
-   * GET /services/:serviceId/add-ons
-   * List add-ons with pagination. Excludes soft-deleted by default.
-   */
   async listAddOns(req, res) {
     try {
       const serviceId = Number(req.params.serviceId);
       const page = Math.max(1, parseInt(req.query.page) || 1);
       const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
-      const includeInactive = req.query.includeInactive === "true";
 
-      const result = await serviceAddOnService.listAddOns(serviceId, { page, limit, includeInactive });
+      const result = await serviceAddOnService.listAddOns(serviceId, { page, limit });
 
       return res.status(200).json({ success: true, ...result });
     } catch (error) {
-      return handleError(res, error, "ServiceAddOnController.listAddOns");
+      return handleError(res, error);
     }
   }
 
-  /**
-   * GET /services/:serviceId/add-ons/:addOnId
-   * Get a single add-on with its files.
-   */
   async getAddOn(req, res) {
     try {
       const serviceId = Number(req.params.serviceId);
@@ -35,36 +26,24 @@ class ServiceAddOnController {
 
       return res.status(200).json({ success: true, data: addOn });
     } catch (error) {
-      return handleError(res, error, "ServiceAddOnController.getAddOn");
+      return handleError(res, error);
     }
   }
 
-  /**
-   * POST /services/:serviceId/add-ons
-   * Create a new add-on. Only service owner.
-   */
   async createAddOn(req, res) {
     try {
       const serviceId = Number(req.params.serviceId);
       const actorId = req.user.id;
       const { title, description, amount } = req.body;
 
-      const addOn = await serviceAddOnService.createAddOn(serviceId, actorId, {
-        title,
-        description,
-        amount,
-      });
+      const addOn = await serviceAddOnService.createAddOn(serviceId, actorId, { title, description, amount });
 
       return res.status(201).json({ success: true, data: addOn });
     } catch (error) {
-      return handleError(res, error, "ServiceAddOnController.createAddOn");
+      return handleError(res, error);
     }
   }
 
-  /**
-   * PUT /services/:serviceId/add-ons/:addOnId
-   * Update an add-on. Only service owner.
-   */
   async updateAddOn(req, res) {
     try {
       const serviceId = Number(req.params.serviceId);
@@ -72,46 +51,67 @@ class ServiceAddOnController {
       const actorId = req.user.id;
       const { title, description, amount } = req.body;
 
-      const addOn = await serviceAddOnService.updateAddOn(serviceId, addOnId, actorId, {
-        title,
-        description,
-        amount,
-      });
+      const addOn = await serviceAddOnService.updateAddOn(serviceId, addOnId, actorId, { title, description, amount });
 
       return res.status(200).json({ success: true, data: addOn });
     } catch (error) {
-      return handleError(res, error, "ServiceAddOnController.updateAddOn");
+      return handleError(res, error);
     }
   }
 
-  /**
-   * DELETE /services/:serviceId/add-ons/:addOnId
-   * Soft-delete an add-on. Only service owner.
-   */
   async deleteAddOn(req, res) {
     try {
       const serviceId = Number(req.params.serviceId);
       const addOnId = Number(req.params.addOnId);
       const actorId = req.user.id;
 
-      await serviceAddOnService.deleteAddOn(serviceId, addOnId, actorId);
+      const result = await serviceAddOnService.deleteAddOn(serviceId, addOnId, actorId);
 
-      return res.status(204).send();
+      return res.status(200).json({ success: true, message: "Add-on deleted successfully.", data: result });
     } catch (error) {
-      return handleError(res, error, "ServiceAddOnController.deleteAddOn");
+      return handleError(res, error);
+    }
+  }
+
+  // POST /services/:serviceId/add-ons/:addOnId/media
+  async uploadMedia(req, res) {
+    try {
+      const serviceId = Number(req.params.serviceId);
+      const addOnId = Number(req.params.addOnId);
+      const actorId = req.user.id;
+      console.log("ServiceAddOnController.uploadMedia req.files:", req.files);
+      if (!req.files || req.files.length === 0) {
+        return res.status(400).json({ success: false, error: "No files uploaded." });
+      }
+
+      const files = await serviceAddOnService.uploadMedia(serviceId, addOnId, actorId, req.files);
+
+      return res.status(201).json({ success: true, data: files });
+    } catch (error) {
+      return handleError(res, error);
+    }
+  }
+
+  // DELETE /services/:serviceId/add-ons/:addOnId/media/:fileId
+  async deleteFile(req, res) {
+    try {
+      const serviceId = Number(req.params.serviceId);
+      const addOnId = Number(req.params.addOnId);
+      const fileId = Number(req.params.fileId);
+      const actorId = req.user.id;
+
+      await serviceAddOnService.deleteFile(serviceId, addOnId, fileId, actorId);
+
+      return res.status(200).json({ success: true, message: "File deleted successfully." });
+    } catch (error) {
+      return handleError(res, error);
     }
   }
 }
 
-/**
- * @param {import('express').Response} res
- * @param {Error & { statusCode?: number }} error
- * @param {string} context
- */
-function handleError(res, error, context) {
+function handleError(res, error) {
   const statusCode = error.statusCode || 500;
-  const message =
-    statusCode === 500 ? "Server error. Please try again later." : error.message;
+  const message = statusCode === 500 ? "Server error. Please try again later." : error.message;
   return res.status(statusCode).json({ success: false, error: message });
 }
 

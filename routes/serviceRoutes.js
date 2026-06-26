@@ -4,7 +4,6 @@ const ServiceController = require("../controllers/ServiceController");
 const ServiceFileController = require("../controllers/ServiceFileController");
 const ServiceMemberController = require("../controllers/ServiceMemberController");
 const ServiceAddOnController = require("../controllers/ServiceAddOnController");
-const ServiceAddOnFileController = require("../controllers/ServiceAddOnFileController");
 const ServiceDiscountController = require("../controllers/ServiceDiscountController");
 const paymentTermRoutes = require("./paymentTermRoutes");
 const authMiddleware = require("../middlewares/authenticate");
@@ -15,14 +14,11 @@ const {
   uploadServiceMedia,
   uploadServiceCreateUpdate,
 } = require("../utilities/serviceFileMulter");
-const { uploadAddOnFile } = require("../utilities/serviceAddOnFileMulter");
-
 const purchaseController = new ServicePurchaseController();
 const serviceController = new ServiceController();
 const serviceFileController = new ServiceFileController();
 const serviceMemberController = new ServiceMemberController();
 const serviceAddOnController = new ServiceAddOnController();
-const serviceAddOnFileController = new ServiceAddOnFileController();
 const serviceDiscountController = new ServiceDiscountController();
 
 // ── Core CRUD ─────────────────────────────────────────────────────────────────
@@ -111,39 +107,6 @@ router.delete(
   serviceFileController.deleteFile.bind(serviceFileController)
 );
 
-// ── Add-On Files ──────────────────────────────────────────────────────────────
-// Registered before /:id to prevent Express matching "add-ons" as the :id param
-
-router.get(
-  "/add-ons/:addOnId/files",
-  authMiddleware,
-  checkIntegerParam("addOnId"),
-  serviceAddOnFileController.listFiles.bind(serviceAddOnFileController)
-);
-
-router.post(
-  "/add-ons/:addOnId/files",
-  authMiddleware,
-  checkIntegerParam("addOnId"),
-  serviceAddOnFileController.handleMulterError(uploadAddOnFile),
-  serviceAddOnFileController.uploadFile.bind(serviceAddOnFileController)
-);
-
-router.delete(
-  "/add-ons/:addOnId/files/:fileId",
-  authMiddleware,
-  checkIntegerParam("addOnId"),
-  checkIntegerParam("fileId"),
-  serviceAddOnFileController.deleteFile.bind(serviceAddOnFileController)
-);
-
-router.put(
-  "/add-ons/:addOnId/files/:fileId/reorder",
-  authMiddleware,
-  checkIntegerParam("addOnId"),
-  checkIntegerParam("fileId"),
-  serviceAddOnFileController.reorderFile.bind(serviceAddOnFileController)
-);
 
 // GET /services/:id — returns service + images[] + media[]
 router.get(
@@ -239,6 +202,24 @@ router.delete(
   checkIntegerParam("serviceId"),
   checkIntegerParam("addOnId"),
   serviceAddOnController.deleteAddOn.bind(serviceAddOnController)
+);
+
+router.post(
+  "/:serviceId/add-ons/:addOnId/media",
+  authMiddleware,
+  checkIntegerParam("serviceId"),
+  checkIntegerParam("addOnId"),
+  serviceFileController.handleMulterError(uploadServiceMedia),
+  serviceAddOnController.uploadMedia.bind(serviceAddOnController)
+);
+
+router.delete(
+  "/:serviceId/add-ons/:addOnId/media/:fileId",
+  authMiddleware,
+  checkIntegerParam("serviceId"),
+  checkIntegerParam("addOnId"),
+  checkIntegerParam("fileId"),
+  serviceAddOnController.deleteFile.bind(serviceAddOnController)
 );
 
 // ── Payment Terms ─────────────────────────────────────────────────────────────
