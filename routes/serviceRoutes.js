@@ -179,10 +179,9 @@ router.post(
 );
 
 router.delete(
-  "/:serviceId/members/:userId",
+  "/:serviceId/members",
   authMiddleware,
   checkIntegerParam("serviceId"),
-  checkIntegerParam("userId"),
   serviceMemberController.removeMember.bind(serviceMemberController)
 );
 

@@ -46,7 +46,7 @@ class ServiceMemberService {
         {
           model: User,
           as: "user",
-          attributes: ["id", "name", "email", "profile_image"],
+          attributes: ["id", "username", "email", "profilePic"],
         },
       ],
       order: [["addedAt", "ASC"]],
@@ -72,35 +72,33 @@ class ServiceMemberService {
    * @param {number} userId - ID of the user to add
    * @returns {Promise<ServiceMember>}
    */
-  async addMember(serviceId, actorId, userId) {
+  async addMembers(serviceId, actorId, userIds) {
     const service = await this.assertServiceExists(serviceId);
     this.assertOwner(service, actorId);
 
-    const targetUser = await User.findByPk(userId, { attributes: ["id"] });
-    if (!targetUser) {
-      const err = new Error("User not found.");
+    const users = await User.findAll({ where: { id: userIds }, attributes: ["id"] });
+    const foundIds = users.map((u) => u.id);
+    const notFound = userIds.filter((id) => !foundIds.includes(id));
+    if (notFound.length > 0) {
+      const err = new Error(`Users not found: ${notFound.join(", ")}`);
       err.statusCode = 404;
       throw err;
     }
 
-    const existing = await ServiceMember.findOne({ where: { serviceId, userId } });
-    if (existing) {
-      const err = new Error("User is already a member of this service.");
-      err.statusCode = 409;
-      throw err;
+    const existing = await ServiceMember.findAll({ where: { serviceId, userId: userIds } });
+    const alreadyMemberIds = existing.map((m) => m.userId);
+    const toAdd = userIds.filter((id) => !alreadyMemberIds.includes(id));
+
+    if (toAdd.length > 0) {
+      await ServiceMember.bulkCreate(toAdd.map((userId) => ({ serviceId, userId })));
     }
 
-    const member = await ServiceMember.create({ serviceId, userId });
-
-    return ServiceMember.findByPk(member.id, {
-      include: [
-        {
-          model: User,
-          as: "user",
-          attributes: ["id", "name", "email", "profile_image"],
-        },
-      ],
+    const members = await ServiceMember.findAll({
+      where: { serviceId, userId: userIds },
+      include: [{ model: User, as: "user", attributes: ["id", "username", "email", "profilePic"] }],
     });
+
+    return { added: members, alreadyMembers: alreadyMemberIds };
   }
 
   /**
@@ -110,19 +108,22 @@ class ServiceMemberService {
    * @param {number} userId - member to remove
    * @returns {Promise<boolean>}
    */
-  async removeMember(serviceId, actorId, userId) {
+  async removeMembers(serviceId, actorId, userIds) {
     const service = await this.assertServiceExists(serviceId);
     this.assertOwner(service, actorId);
 
-    const member = await ServiceMember.findOne({ where: { serviceId, userId } });
-    if (!member) {
-      const err = new Error("User is not a member of this service.");
+    const members = await ServiceMember.findAll({ where: { serviceId, userId: userIds } });
+    const foundUserIds = members.map((m) => m.userId);
+    const notFound = userIds.filter((id) => !foundUserIds.includes(id));
+
+    if (notFound.length > 0) {
+      const err = new Error(`Users are not members of this service: ${notFound.join(", ")}`);
       err.statusCode = 404;
       throw err;
     }
 
-    await member.destroy();
-    return true;
+    await ServiceMember.destroy({ where: { serviceId, userId: userIds } });
+    return { removedUserIds: foundUserIds };
   }
 
   /**
@@ -136,13 +137,6 @@ class ServiceMemberService {
     const service = await this.assertServiceExists(serviceId);
     this.assertOwner(service, actorId);
 
-    const isMember = await ServiceMember.findOne({ where: { serviceId, userId: assigneeEditorId } });
-    if (!isMember) {
-      const err = new Error("assigneeEditorId must be an existing member of this service.");
-      err.statusCode = 400;
-      throw err;
-    }
-
     await service.update({ assigneeEditorId });
 
     return Service.findByPk(serviceId, {
@@ -150,7 +144,7 @@ class ServiceMemberService {
         {
           model: User,
           as: "assigneeEditor",
-          attributes: ["id", "name", "email", "profile_image"],
+          attributes: ["id", "username", "email", "profilePic"],
         },
       ],
     });
