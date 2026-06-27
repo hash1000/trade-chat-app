@@ -54,7 +54,6 @@ class ServiceAddOnService {
    */
   async uploadFiles(addOnId, files) {
     if (!files || !files.length) return [];
-console.log("ServiceAddOnService.uploadFiles files:", files);
     const records = await Promise.all(
       files.map(async (file, idx) => {
         const ext = path.extname(file.originalname).toLowerCase();

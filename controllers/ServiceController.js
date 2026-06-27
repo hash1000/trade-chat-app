@@ -36,6 +36,7 @@ class ServiceController {
       const includeCategories = req.query.includeCategories === "true";
       const includeDeleted = req.query.includeDeleted === "true";
       const isLiked = req.query.isLiked === "true";
+      const includeAddOns = req.query.includeAddOns === "true";
       const me = req.query.me === "true";
 
       const services = await serviceService.getAll({
@@ -44,6 +45,7 @@ class ServiceController {
         includeMembers,
         includeCategories,
         includeDeleted,
+        includeAddOns,
         isLiked,
         me,
       });
@@ -68,6 +70,7 @@ class ServiceController {
       const includeTeams = req.query.includeTeams !== "false";
       const includeMembers = req.query.includeMembers === "true";
       const includeCategories = req.query.includeCategories !== "false";
+      const includeAddOns = req.query.includeAddOns === "true";
       const isLiked = req.query.isLiked === "true";
       const me = req.query.me === "true";
 
@@ -76,6 +79,7 @@ class ServiceController {
         includeTeams,
         includeMembers,
         includeCategories,
+        includeAddOns,
         isLiked,
         me,
       });

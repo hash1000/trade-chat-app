@@ -16,6 +16,9 @@ const {
   ServiceRating,
   ServicePurchase,
   Role,
+  ServiceMember,
+  ServiceAddOn,
+  ServiceAddOnFile,
 } = require("../models");
 
 class ServiceRepository {
@@ -113,6 +116,39 @@ class ServiceRepository {
         attributes: ["id", "userId", "createdAt"],
       });
     }
+
+    include.push({
+      model: User,
+      as: "assigneeEditor",
+      attributes: ["id", "firstName", "lastName", "username", "email", "profilePic"],
+      required: false,
+    });
+
+    include.push({
+      model: User,
+      as: "members",
+      attributes: ["id", "firstName", "lastName", "username", "email", "profilePic"],
+      through: { attributes: [] },
+      required: false,
+    });
+
+    if (options.includeAddOns) {
+      include.push({
+        model: ServiceAddOn,
+        as: "addOns",
+        where: { deletedAt: null },
+        required: false,
+        include: [
+          {
+            model: ServiceAddOnFile,
+            as: "files",
+            required: false,
+          },
+        ],
+        order: [["createdAt", "DESC"], [{ model: ServiceAddOnFile, as: "files" }, "sort_order", "ASC"]],
+      });
+    }
+
     return include;
   }
 
@@ -121,7 +157,7 @@ class ServiceRepository {
   }
 
   async findByPk(id, options = {}) {
-    const { userId, me = false } = options;
+    const { userId, me = false, includeAddOns = false } = options;
     const queryOptions = { ...options };
 
     delete queryOptions.includeTeams;
@@ -130,6 +166,7 @@ class ServiceRepository {
     delete queryOptions.isLiked;
     delete queryOptions.userId;
     delete queryOptions.me;
+    delete queryOptions.includeAddOns;
 
     const attributes = { include: [] };
 
@@ -192,6 +229,14 @@ class ServiceRepository {
     plain.media = plain.files || [];
     delete plain.files;
 
+    if (plain.addOns) {
+      plain.addOns = plain.addOns.map((addOn) => {
+        addOn.media = addOn.files || [];
+        delete addOn.files;
+        return addOn;
+      });
+    }
+
     if (userId) {
       const myRatingRow = await ServiceRating.findOne({
         where: { serviceId: id, userId },
@@ -216,11 +261,11 @@ class ServiceRepository {
       userId,
       includeDeleted = false,
       isLiked = false,
+      includeAddOns = false,
       me = false,
     } = options;
 
     const queryOptions = { ...options };
-
     delete queryOptions.includeTeams;
     delete queryOptions.includeMembers;
     delete queryOptions.includeCategories;
@@ -228,8 +273,7 @@ class ServiceRepository {
     delete queryOptions.includeDeleted;
     delete queryOptions.isLiked;
     delete queryOptions.me;
-
-    console.log("ServiceRepository.findAll options:", options);
+    delete queryOptions.includeAddOns;
 
     const attributes = { include: [] };
 
@@ -300,6 +344,14 @@ class ServiceRepository {
 
       plain.media = plain.files || [];
       delete plain.files;
+
+      if (plain.addOns) {
+        plain.addOns = plain.addOns.map((addOn) => {
+          addOn.media = addOn.files || [];
+          delete addOn.files;
+          return addOn;
+        });
+      }
 
       return plain;
     });
