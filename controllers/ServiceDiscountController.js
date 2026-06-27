@@ -88,6 +88,22 @@ class ServiceDiscountController {
   }
 
   /**
+   * GET /discounts/:discountId
+   */
+  async getDiscount(req, res) {
+    try {
+      const discountId = Number(req.params.discountId);
+      const actorId = req.user.id;
+      const isAdmin = Boolean(req.user.isAdmin);
+
+      const discount = await discountService.getDiscount(discountId, actorId, isAdmin);
+      return res.status(200).json({ success: true, data: discount });
+    } catch (error) {
+      return handleError(res, error, "ServiceDiscountController.getDiscount");
+    }
+  }
+
+  /**
    * PATCH /discounts/:discountId
    */
   async updateDiscount(req, res) {
@@ -95,12 +111,38 @@ class ServiceDiscountController {
       const discountId = Number(req.params.discountId);
       const actorId = req.user.id;
       const isAdmin = Boolean(req.user.isAdmin);
-      const { isActive } = req.body;
+      const { isActive, expiryDate } = req.body;
 
-      const discount = await discountService.updateDiscount(discountId, actorId, isAdmin, { isActive });
+      const parsedIsActive =
+        isActive === true || isActive === "true"
+          ? true
+          : isActive === false || isActive === "false"
+            ? false
+            : undefined;
+
+      const discount = await discountService.updateDiscount(discountId, actorId, isAdmin, {
+        isActive: parsedIsActive,
+        expiryDate,
+      });
       return res.status(200).json({ success: true, data: discount });
     } catch (error) {
       return handleError(res, error, "ServiceDiscountController.updateDiscount");
+    }
+  }
+
+  /**
+   * DELETE /discounts/:discountId
+   */
+  async deleteDiscount(req, res) {
+    try {
+      const discountId = Number(req.params.discountId);
+      const actorId = req.user.id;
+      const isAdmin = Boolean(req.user.isAdmin);
+
+      await discountService.deleteDiscount(discountId, actorId, isAdmin);
+      return res.status(200).json({ success: true, message: "Discount deleted successfully." });
+    } catch (error) {
+      return handleError(res, error, "ServiceDiscountController.deleteDiscount");
     }
   }
 }
@@ -112,6 +154,9 @@ class ServiceDiscountController {
  */
 function handleError(res, error, context) {
   const statusCode = error.statusCode || 500;
+  if (statusCode === 500) {
+    console.error(`${context} error:`, error);
+  }
   const message = statusCode === 500 ? "Server error. Please try again later." : error.message;
   return res.status(statusCode).json({ success: false, error: message });
 }

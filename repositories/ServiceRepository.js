@@ -94,6 +94,16 @@ class ServiceRepository {
               "email",
               "profilePic",
             ],
+            include: [
+              {
+                model: Role,
+                as: "roles",
+                attributes: ["name"],
+                through: {
+                  attributes: [],
+                },
+              },
+            ],
           },
         ];
       }
@@ -120,14 +130,48 @@ class ServiceRepository {
     include.push({
       model: User,
       as: "assigneeEditor",
-      attributes: ["id", "firstName", "lastName", "username", "email", "profilePic"],
+      attributes: [
+        "id",
+        "firstName",
+        "lastName",
+        "username",
+        "email",
+        "profilePic",
+      ],
+      include: [
+        {
+          model: Role,
+          as: "roles",
+          attributes: ["name"],
+          through: {
+            attributes: [],
+          },
+        },
+      ],
       required: false,
     });
 
     include.push({
       model: User,
       as: "members",
-      attributes: ["id", "firstName", "lastName", "username", "email", "profilePic"],
+      attributes: [
+        "id",
+        "firstName",
+        "lastName",
+        "username",
+        "email",
+        "profilePic",
+      ],
+      include: [
+        {
+          model: Role,
+          as: "roles",
+          attributes: ["name"],
+          through: {
+            attributes: [],
+          },
+        },
+      ],
       through: { attributes: [] },
       required: false,
     });
@@ -145,7 +189,10 @@ class ServiceRepository {
             required: false,
           },
         ],
-        order: [["createdAt", "DESC"], [{ model: ServiceAddOnFile, as: "files" }, "sort_order", "ASC"]],
+        order: [
+          ["createdAt", "DESC"],
+          [{ model: ServiceAddOnFile, as: "files" }, "sort_order", "ASC"],
+        ],
       });
     }
 

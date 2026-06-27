@@ -228,6 +228,37 @@ router.use("/:serviceId/payment-terms", checkIntegerParam("serviceId"), paymentT
 
 // ── Discounts ─────────────────────────────────────────────────────────────────
 
+// Must be BEFORE /:id to avoid "discounts" being swallowed as a param value
+
+// Public — no auth required
+router.get("/discounts/validate", serviceDiscountController.validateCode.bind(serviceDiscountController));
+
+// Redeem — any authenticated user
+router.post("/discounts/:code/redeem", authMiddleware, serviceDiscountController.redeemCode.bind(serviceDiscountController));
+
+// Single discount CRUD — owner or admin
+router.get(
+  "/discounts/:discountId",
+  authMiddleware,
+  checkIntegerParam("discountId"),
+  serviceDiscountController.getDiscount.bind(serviceDiscountController)
+);
+
+router.patch(
+  "/discounts/:discountId",
+  authMiddleware,
+  checkIntegerParam("discountId"),
+  serviceDiscountController.updateDiscount.bind(serviceDiscountController)
+);
+
+router.delete(
+  "/discounts/:discountId",
+  authMiddleware,
+  checkIntegerParam("discountId"),
+  serviceDiscountController.deleteDiscount.bind(serviceDiscountController)
+);
+
+// Service-scoped discount routes
 router.post(
   "/:serviceId/discounts",
   authMiddleware,
