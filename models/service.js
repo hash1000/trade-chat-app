@@ -105,6 +105,12 @@ const Service = sequelize.define(
       defaultValue: false,
     },
 
+    isChat: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
+
     tags: {
       type: DataTypes.JSON,
       allowNull: false,

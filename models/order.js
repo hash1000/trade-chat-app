@@ -19,6 +19,10 @@ const Order = db.define(
         key: "id",
       },
     },
+    cartId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
     addressId: {
       type: DataTypes.INTEGER,
       allowNull: true,
@@ -43,8 +47,12 @@ const Order = db.define(
       type: DataTypes.STRING,
       allowNull: false,
     },
+    deliveryOption: {
+      type: DataTypes.ENUM("standard", "express", "overnight"),
+      allowNull: true,
+    },
     status: {
-      type: DataTypes.ENUM("WAITING", "PAYED", "SHIPPED"),
+      type: DataTypes.ENUM("WAITING", "PAYED", "SHIPPED", "draft", "confirmed", "cancelled", "DRAFT", "PENDING_PAYMENT", "CONFIRMED", "CANCELLED"),
       allowNull: false,
       defaultValue: "WAITING",
     },

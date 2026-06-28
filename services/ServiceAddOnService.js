@@ -16,6 +16,7 @@ const S3_FILE_TYPE = { image: "image", video: "video" };
 
 class ServiceAddOnService {
   async assertServiceExists(serviceId) {
+    console.log("ServiceAddOnService.assertServiceExists serviceId:", serviceId);
     const service = await Service.findByPk(serviceId);
     if (!service) {
       const err = new Error("Service not found.");
@@ -126,7 +127,7 @@ class ServiceAddOnService {
       err.statusCode = 400;
       throw err;
     }
-
+    console.log("service",service);
     const addOn = await ServiceAddOn.create({
       serviceId,
       title: String(title).trim(),

@@ -43,6 +43,10 @@ const ServiceAddOn = require("./serviceAddOn");
 const ServiceAddOnFile = require("./serviceAddOnFile");
 const ServiceDiscount = require("./serviceDiscount");
 const PaymentTerm = require("./paymentTerm");
+const ServiceOrder = require("./ServiceOrder");
+const ServiceOrderAddOn = require("./ServiceOrderAddOn");
+const Cart = require("./Cart");
+const CartItem = require("./CartItem");
 
 // Define all associations
 function defineAssociations() {
@@ -394,6 +398,36 @@ function defineAssociations() {
 
   User.hasMany(PaymentTerm, { foreignKey: "createdBy", as: "createdPaymentTerms" });
   PaymentTerm.belongsTo(User, { foreignKey: "createdBy", as: "creator" });
+
+  // Order <-> ServiceOrder
+  Order.hasMany(ServiceOrder, { foreignKey: "orderId", as: "serviceOrders" });
+  ServiceOrder.belongsTo(Order, { foreignKey: "orderId", as: "order" });
+
+  // Service <-> ServiceOrder
+  Service.hasMany(ServiceOrder, { foreignKey: "serviceId", as: "serviceOrders" });
+  ServiceOrder.belongsTo(Service, { foreignKey: "serviceId", as: "service" });
+
+  // ServiceOrder <-> ServiceOrderAddOn
+  ServiceOrder.hasMany(ServiceOrderAddOn, { foreignKey: "serviceOrderId", as: "addOns" });
+  ServiceOrderAddOn.belongsTo(ServiceOrder, { foreignKey: "serviceOrderId", as: "serviceOrder" });
+
+  // ServiceAddOn <-> ServiceOrderAddOn
+  ServiceAddOn.hasMany(ServiceOrderAddOn, { foreignKey: "addOnId", as: "orderAddOns" });
+  ServiceOrderAddOn.belongsTo(ServiceAddOn, { foreignKey: "addOnId", as: "addOn" });
+
+  // Cart
+  User.hasMany(Cart, { foreignKey: "userId", as: "carts" });
+  Cart.belongsTo(User, { foreignKey: "userId", as: "user" });
+
+  Cart.hasMany(CartItem, { foreignKey: "cartId", as: "items" });
+  CartItem.belongsTo(Cart, { foreignKey: "cartId", as: "cart" });
+
+  CartItem.belongsTo(Service, { foreignKey: "serviceId", as: "service" });
+  Service.hasMany(CartItem, { foreignKey: "serviceId", as: "cartItems" });
+
+  // Cart -> Order (a cart may produce one order)
+  Cart.hasOne(Order, { foreignKey: "cartId", as: "order" });
+  Order.belongsTo(Cart, { foreignKey: "cartId", as: "cart" });
 }
 
 // Initialize associations
@@ -434,4 +468,8 @@ module.exports = {
   ServiceAddOnFile,
   ServiceDiscount,
   PaymentTerm,
+  ServiceOrder,
+  ServiceOrderAddOn,
+  Cart,
+  CartItem,
 };

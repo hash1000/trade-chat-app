@@ -35,7 +35,7 @@ class ServiceAddOnController {
       const serviceId = Number(req.params.serviceId);
       const actorId = req.user.id;
       const { title, description, amount } = req.body;
-
+    //  console.log("ServiceAddOnController.createAddOn serviceId:", serviceId, "actorId:", actorId, "title:", title, "description:", description, "amount:", amount); 
       const addOn = await serviceAddOnService.createAddOn(serviceId, actorId, { title, description, amount });
 
       return res.status(201).json({ success: true, data: addOn });

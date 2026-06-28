@@ -3,6 +3,7 @@ const router = express.Router();
 const multer = require("multer");
 
 const OrderController = require("../controllers/OrderController");
+const OrderCartController = require("../controllers/OrderCartController");
 const authMiddleware = require("../middlewares/authenticate");
 const {
   createOrderValidator,
@@ -17,8 +18,22 @@ const {
 } = require("../utilities/multer-config");
 const multerHandler = require("../middlewares/multerHandler");
 const orderController = new OrderController();
+const cartController = new OrderCartController();
 
-// Define the route handlers
+// ── New cart-order flow ────────────────────────────────────────────────────────
+// List user's service orders (new flow)
+router.get("/service-orders", authMiddleware, cartController.listOrders.bind(cartController));
+
+// Get single service order detail
+router.get("/service-orders/:orderId", authMiddleware, cartController.getOrder.bind(cartController));
+
+// Lock address + delivery option on a DRAFT order → PENDING_PAYMENT
+router.patch("/:orderId/address-delivery", authMiddleware, cartController.setAddressAndDelivery.bind(cartController));
+
+// Confirm order → atomic multi-owner payment distribution → CONFIRMED
+router.post("/:orderId/confirm", authMiddleware, cartController.confirmOrder.bind(cartController));
+
+// ── Legacy order endpoints ─────────────────────────────────────────────────────
 router.post(
   "/:userId",
   authMiddleware,

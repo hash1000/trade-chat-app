@@ -11,17 +11,18 @@ const authorize = (allowedRoles = []) => {
       // Fetch user along with their roles through the user_roles junction table
       const userService = new UserService()
       const user = await userService.getUserById(userId)
-    
+    console.log("Authorization middleware user:", user, "allowedRoles:", allowedRoles);
       if (!user || !user.roles.length) {
         return res.status(403).json({ message: "Forbidden: No roles assigned" });
       }
 
       // Extract role names
       const userRoles = user.roles.map((role) => role.name);
+      console.log("User roles:", userRoles, "Allowed roles:", allowedRoles);
       // Check if the user has an allowed role
       const hasPermission = allowedRoles.some((role) => userRoles.includes(role));
 
-      console.log("hasPermission",hasPermission);
+      // console.log("hasPermission",hasPermission);
       if (!hasPermission) {
         return res.status(403).json({ message: "Forbidden: Access denied" });
       }
