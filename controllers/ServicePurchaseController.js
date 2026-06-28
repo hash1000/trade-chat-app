@@ -7,7 +7,7 @@ const CLIENT_ERRORS = new Set([
   "NotFoundError",
   "ServiceNotPurchasableError",
   "UnsupportedCurrencyError",
-  "SelfPurchaseError",
+  // "SelfPurchaseError",
   "AlreadyPurchasedError",
   "WalletNotFoundError",
   "OwnerWalletNotFoundError",

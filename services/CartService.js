@@ -50,7 +50,7 @@ class CartService {
 
     const service = await repo.fetchService(serviceId);
     if (!service) throw clientError("Service not found.", 404, "NOT_FOUND");
-    if (service.userId === userId) throw clientError("Cannot purchase your own service.", 403, "OWNERSHIP_ERROR");
+    // if (service.userId === userId) throw clientError("Cannot purchase your own service.", 403, "OWNERSHIP_ERROR");
 
     const activeCarts = await repo.listActiveCarts(userId);
 

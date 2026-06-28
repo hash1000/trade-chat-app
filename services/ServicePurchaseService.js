@@ -25,11 +25,11 @@ class ServicePurchaseService {
     }
 
     // Prevent self purchase
-    if (service.userId === buyerUserId) {
-      throw Object.assign(new Error("You cannot purchase your own service."), {
-        name: "SelfPurchaseError",
-      });
-    }
+    // if (service.userId === buyerUserId) {
+    //   throw Object.assign(new Error("You cannot purchase your own service."), {
+    //     name: "SelfPurchaseError",
+    //   });
+    // }
 
     // ─────────────────────────────────────────
     // 2. LOAD BUYER WALLET
