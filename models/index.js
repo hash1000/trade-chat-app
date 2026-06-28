@@ -46,7 +46,7 @@ const PaymentTerm = require("./paymentTerm");
 const ServiceOrder = require("./ServiceOrder");
 const ServiceOrderAddOn = require("./ServiceOrderAddOn");
 const Cart = require("./cart");
-const CartItem = require("./cartItem");
+const CartItem = require("./CartItem");
 
 // Define all associations
 function defineAssociations() {
