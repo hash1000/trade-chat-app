@@ -1,3 +1,4 @@
+const sequelize = require("../config/database");
 const CartRepository = require("../repositories/CartRepository");
 
 const repo = new CartRepository();
@@ -197,6 +198,64 @@ class CartService {
     const cartTotal = await computeCartTotal(cartId);
 
     return { quantity, subtotal: t.subtotal, cartTotal };
+  }
+
+  /**
+   * Batch-update quantities for multiple items in a single cart.
+   * All-or-nothing: every item is validated (existence + quantity bounds)
+   * before any write happens; one bad item rejects the whole request and
+   * nothing is changed.
+   *
+   * @param {number} userId
+   * @param {number} cartId
+   * @param {Array<{ cartItemId: number, quantity: number }>} items
+   */
+  async updateItemsQuantity(userId, cartId, items) {
+    if (!Array.isArray(items) || items.length === 0) {
+      throw clientError("items must be a non-empty array.", 400, "VALIDATION_ERROR");
+    }
+
+    const cart = await repo.findUserCart(userId, cartId);
+    if (!cart) throw clientError("Cart not found.", 404, "NOT_FOUND");
+
+    // ── Phase 1: validate everything first (no writes) ──────────────────────────
+    const seen = new Set();
+    const resolved = [];
+    for (const entry of items) {
+      const cartItemId = Number(entry.cartItemId);
+      const quantity = Number(entry.quantity);
+
+      if (!Number.isInteger(cartItemId) || cartItemId < 1) {
+        throw clientError("Each item requires a valid cartItemId.", 400, "VALIDATION_ERROR");
+      }
+      if (seen.has(cartItemId)) {
+        throw clientError(`Duplicate cartItemId ${cartItemId} in request.`, 400, "VALIDATION_ERROR");
+      }
+      seen.add(cartItemId);
+
+      assertValidQuantity(quantity);
+
+      const item = await repo.findCartItemByIdAndCart(cartItemId, cartId);
+      if (!item) throw clientError(`Cart item ${cartItemId} not found.`, 404, "NOT_FOUND");
+
+      resolved.push({ item, cartItemId, quantity });
+    }
+
+    // ── Phase 2: apply all updates atomically ───────────────────────────────────
+    await sequelize.transaction(async (t) => {
+      for (const { item, quantity } of resolved) {
+        await repo.updateCartItem(item, { quantity }, t);
+      }
+    });
+
+    const updated = resolved.map(({ item, cartItemId, quantity }) => ({
+      cartItemId,
+      quantity,
+      subtotal: computeItemTotals({ ...item.toJSON(), quantity }).subtotal,
+    }));
+    const cartTotal = await computeCartTotal(cartId);
+
+    return { items: updated, cartTotal };
   }
 
   async removeItem(userId, cartId, cartItemId) {

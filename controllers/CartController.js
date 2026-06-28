@@ -83,6 +83,24 @@ class CartController {
     }
   }
 
+  /**
+   * PATCH /cart/:cartId/items/quantity
+   * Body: { items: [{ cartItemId, quantity }, ...] }
+   * Batch-update quantities for multiple items in one cart (all-or-nothing).
+   */
+  async updateItemsQuantity(req, res) {
+    try {
+      const userId = req.user.id;
+      const cartId = Number(req.params.cartId);
+      const { items } = req.body;
+
+      const data = await cartService.updateItemsQuantity(userId, cartId, items);
+      return res.status(200).json({ success: true, data });
+    } catch (error) {
+      return handleError(res, error);
+    }
+  }
+
   async removeItem(req, res) {
     try {
       const userId = req.user.id;

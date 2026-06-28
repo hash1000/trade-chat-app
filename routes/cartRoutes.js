@@ -22,6 +22,9 @@ router.get("/:cartId", authMiddleware, cartController.getCart.bind(cartControlle
 router.delete("/:cartId", authMiddleware, cartController.deleteCart.bind(cartController));
 
 // ── Cart item management ───────────────────────────────────────────────────────
+// Batch update — must be declared before the :cartItemId route so "quantity" is
+// not captured as a cartItemId param.
+router.patch("/:cartId/items/quantity", authMiddleware, cartController.updateItemsQuantity.bind(cartController));
 router.patch("/:cartId/items/:cartItemId", authMiddleware, cartController.updateItemQuantity.bind(cartController));
 router.delete("/:cartId/items/:cartItemId", authMiddleware, cartController.removeItem.bind(cartController));
 

@@ -70,8 +70,8 @@ class CartRepository {
     });
   }
 
-  async updateCartItem(cartItem, fields) {
-    return cartItem.update(fields);
+  async updateCartItem(cartItem, fields, transaction) {
+    return cartItem.update(fields, transaction ? { transaction } : undefined);
   }
 
   async deleteCartItem(cartItemId) {
