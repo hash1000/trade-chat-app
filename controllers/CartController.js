@@ -114,6 +114,24 @@ class CartController {
     }
   }
 
+  /**
+   * DELETE /cart/:cartId/items
+   * Body: { cartItemIds: [id, id, ...] }
+   * Batch-remove multiple items from one cart (all-or-nothing).
+   */
+  async removeItems(req, res) {
+    try {
+      const userId = req.user.id;
+      const cartId = Number(req.params.cartId);
+      const { cartItemIds } = req.body;
+
+      const result = await cartService.removeItems(userId, cartId, cartItemIds);
+      return res.status(200).json({ success: true, message: "Items removed.", ...result });
+    } catch (error) {
+      return handleError(res, error);
+    }
+  }
+
   async addAddOn(req, res) {
     try {
       const userId = req.user.id;

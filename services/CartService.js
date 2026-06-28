@@ -272,6 +272,49 @@ class CartService {
     return { cartTotal, itemCount: items.length };
   }
 
+  /**
+   * Batch-remove multiple items from a single cart.
+   * All-or-nothing: every id is validated to exist in the cart before any
+   * delete happens; one unknown id rejects the whole request.
+   *
+   * @param {number} userId
+   * @param {number} cartId
+   * @param {Array<number>} cartItemIds
+   */
+  async removeItems(userId, cartId, cartItemIds) {
+    if (!Array.isArray(cartItemIds) || cartItemIds.length === 0) {
+      throw clientError("cartItemIds must be a non-empty array.", 400, "VALIDATION_ERROR");
+    }
+
+    const cart = await repo.findUserCart(userId, cartId);
+    if (!cart) throw clientError("Cart not found.", 404, "NOT_FOUND");
+
+    // ── Phase 1: validate every id (no deletes) ─────────────────────────────────
+    const seen = new Set();
+    const ids = [];
+    for (const raw of cartItemIds) {
+      const cartItemId = Number(raw);
+      if (!Number.isInteger(cartItemId) || cartItemId < 1) {
+        throw clientError("Each cartItemId must be a valid integer.", 400, "VALIDATION_ERROR");
+      }
+      if (seen.has(cartItemId)) continue; // de-dupe silently
+      seen.add(cartItemId);
+
+      const item = await repo.findCartItemByIdAndCart(cartItemId, cartId);
+      if (!item) throw clientError(`Cart item ${cartItemId} not found.`, 404, "NOT_FOUND");
+
+      ids.push(cartItemId);
+    }
+
+    // ── Phase 2: delete all atomically ──────────────────────────────────────────
+    const deletedCount = await sequelize.transaction(async (t) => repo.deleteCartItems(ids, t));
+
+    const items = await repo.getCartItems(cartId);
+    const cartTotal = items.reduce((sum, i) => sum + computeItemTotals(i).itemTotal, 0);
+
+    return { deletedCount, removedItemIds: ids, cartTotal, itemCount: items.length };
+  }
+
   async addAddOn(userId, cartId, cartItemId, addOnId, quantity) {
     assertValidQuantity(quantity);
 

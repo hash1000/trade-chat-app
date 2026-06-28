@@ -78,6 +78,10 @@ class CartRepository {
     return CartItem.destroy({ where: { id: cartItemId } });
   }
 
+  async deleteCartItems(cartItemIds, transaction) {
+    return CartItem.destroy({ where: { id: cartItemIds }, ...(transaction ? { transaction } : {}) });
+  }
+
   async fetchService(serviceId) {
     return Service.findOne({
       where: { id: serviceId, deletedAt: null },

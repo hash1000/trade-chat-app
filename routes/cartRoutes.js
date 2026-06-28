@@ -26,6 +26,8 @@ router.delete("/:cartId", authMiddleware, cartController.deleteCart.bind(cartCon
 // not captured as a cartItemId param.
 router.patch("/:cartId/items/quantity", authMiddleware, cartController.updateItemsQuantity.bind(cartController));
 router.patch("/:cartId/items/:cartItemId", authMiddleware, cartController.updateItemQuantity.bind(cartController));
+// Batch delete — declared before the :cartItemId route to avoid param capture.
+router.delete("/:cartId/items", authMiddleware, cartController.removeItems.bind(cartController));
 router.delete("/:cartId/items/:cartItemId", authMiddleware, cartController.removeItem.bind(cartController));
 
 // ── Add-ons on a cart item ─────────────────────────────────────────────────────
