@@ -1,5 +1,6 @@
 const sequelize = require("../config/database");
 const { Order, ServiceOrder, ServiceOrderAddOn, Cart, CartItem, Service, Wallet, WalletTransaction, Address } = require("../models");
+const Transaction = require("../models/transaction");
 
 function clientError(message, statusCode, code) {
   const err = new Error(message);
@@ -71,7 +72,7 @@ class OrderCartService {
           creatorId: userId,
           creatorRole: "user",
           name: `Cart Order — ${cart.name}`,
-          status: "DRAFT",
+          status: "PENDING",
           price: orderTotal,
           orderNo: `CO-${Date.now()}-${userId}`,
           image: "",
@@ -145,7 +146,7 @@ class OrderCartService {
         orderId: order.id,
         userId,
         cartId,
-        status: "DRAFT",
+        status: "PENDING",
         addressId: null,
         deliveryOption: null,
         totalAmount: orderTotal,
@@ -169,7 +170,7 @@ class OrderCartService {
     const order = await Order.findByPk(orderId);
     if (!order) throw clientError("Order not found.", 404, "NOT_FOUND");
     if (order.userId !== userId) throw clientError("Unauthorized.", 403, "UNAUTHORIZED");
-    if (order.status !== "DRAFT") throw clientError("Order not in DRAFT status.", 409, "INVALID_STATE");
+    if (order.status !== "PENDING") throw clientError("Order not in PENDING status.", 409, "INVALID_STATE");
 
     const address = await Address.findByPk(addressId);
     if (!address || address.userId !== userId) throw clientError("Address not found.", 404, "NOT_FOUND");
@@ -306,6 +307,215 @@ class OrderCartService {
     }
   }
 
+  // POST: checkout cart in one shot — generate order + set address/delivery + confirm payment
+  async checkoutCart(userId, cartId, addressId, deliveryOption) {
+    const validOptions = ["standard", "express", "overnight"];
+    if (deliveryOption && !validOptions.includes(deliveryOption)) {
+      throw clientError("Invalid delivery option. Must be: standard, express, overnight.", 400, "VALIDATION_ERROR");
+    }
+
+    const cart = await Cart.findOne({ where: { id: cartId, userId } });
+    if (!cart) throw clientError("Cart not found.", 404, "NOT_FOUND");
+    if (cart.status === "converted") throw clientError("Cart already converted to order.", 400, "CART_CONVERTED");
+    if (cart.status !== "active") throw clientError("Cart is not active.", 400, "CART_CONVERTED");
+
+    const items = await CartItem.findAll({ where: { cartId } });
+    if (items.length === 0) throw clientError("Cart is empty.", 400, "EMPTY_CART");
+
+    if (addressId) {
+      const address = await Address.findByPk(addressId);
+      if (!address || address.userId !== userId) throw clientError("Address not found.", 404, "NOT_FOUND");
+    }
+
+    const serviceIds = [...new Set(items.map((i) => i.serviceId))];
+    const services = await Service.findAll({
+      where: { id: serviceIds, deletedAt: null },
+      attributes: ["id", "userId", "name", "price", "payoutWalletId"],
+    });
+    const serviceMap = Object.fromEntries(services.map((s) => [s.id, s]));
+
+    for (const item of items) {
+      if (!serviceMap[item.serviceId]) {
+        throw clientError(`Service ${item.serviceId} no longer exists.`, 400, "SERVICE_NOT_FOUND");
+      }
+    }
+
+    let orderTotal = 0;
+    const orderItemsData = [];
+
+    for (const item of items) {
+      const svc = serviceMap[item.serviceId];
+      const lockedPrice = parseFloat(svc.price || 0);
+      const subtotal = lockedPrice * item.quantity;
+      const discountAmount = parseFloat(item.discountAmount) || 0;
+      const finalAmount = subtotal - discountAmount;
+      const addOns = Array.isArray(item.addOns) ? item.addOns : [];
+      const addOnSubtotal = addOns.reduce((sum, a) => sum + parseFloat(a.price) * a.quantity, 0);
+      const itemTotal = finalAmount + addOnSubtotal;
+      orderTotal += itemTotal;
+      orderItemsData.push({ item, svc, lockedPrice, subtotal, discountAmount, finalAmount, addOns, addOnSubtotal, itemTotal });
+    }
+
+    const buyerWallet = await Wallet.findOne({ where: { userId, walletType: "PERSONAL" } });
+    if (!buyerWallet) throw clientError("Buyer wallet not found.", 402, "NO_WALLET");
+    const buyerBalance = parseFloat(buyerWallet.availableBalance);
+    if (buyerBalance < orderTotal) {
+      const err = clientError("Insufficient wallet balance.", 402, "INSUFFICIENT_BALANCE");
+      err.data = { required: orderTotal, available: buyerBalance };
+      throw err;
+    }
+
+    const ownerWalletMap = {};
+    for (const od of orderItemsData) {
+      if (!ownerWalletMap[od.svc.userId]) {
+        const ownerWallet = await Wallet.findOne({
+          where: { userId: od.svc.userId },
+          order: [["walletType", "ASC"]],
+        });
+        if (!ownerWallet) throw clientError(`Payout wallet not found for service owner ${od.svc.userId}.`, 500, "PAYMENT_ERROR");
+        ownerWalletMap[od.svc.userId] = ownerWallet;
+      }
+    }
+
+    const tx = await sequelize.transaction();
+    try {
+      const order = await Order.create(
+        {
+          userId,
+          cartId,
+          addressId,
+          deliveryOption,
+          creatorId: userId,
+          creatorRole: "user",
+          name: `Cart Order — ${cart.name}`,
+          status: "CONFIRMED",
+          price: orderTotal,
+          orderNo: `CO-${Date.now()}-${userId}`,
+          image: "",
+        },
+        { transaction: tx }
+      );
+
+      const distributions = [];
+
+      for (const od of orderItemsData) {
+        const so = await ServiceOrder.create(
+          {
+            orderId: order.id,
+            serviceId: od.item.serviceId,
+            serviceOwnerId: od.svc.userId,
+            quantity: od.item.quantity,
+            servicePriceAtOrder: od.lockedPrice,
+            subtotal: od.subtotal,
+            discountCode: od.item.discountCode || null,
+            discountPercent: parseFloat(od.item.discountPercent) || 0,
+            discountAmount: od.discountAmount,
+            finalAmount: od.finalAmount,
+            status: "PURCHASED",
+          },
+          { transaction: tx }
+        );
+
+        const addOnSubtotalFinal = od.addOns.reduce((sum, a) => sum + parseFloat(a.price) * a.quantity, 0);
+
+        for (const addOn of od.addOns) {
+          await ServiceOrderAddOn.create(
+            {
+              serviceOrderId: so.id,
+              addOnId: addOn.addOnId,
+              quantity: addOn.quantity,
+              priceAtOrder: parseFloat(addOn.price),
+              subtotal: parseFloat(addOn.price) * addOn.quantity,
+            },
+            { transaction: tx }
+          );
+        }
+
+        const amount = od.finalAmount + addOnSubtotalFinal;
+        const ownerWallet = ownerWalletMap[od.svc.userId];
+
+        await Wallet.update(
+          { availableBalance: sequelize.literal(`availableBalance + ${amount}`) },
+          { where: { id: ownerWallet.id }, transaction: tx }
+        );
+
+        const txnRecord = await WalletTransaction.create(
+          {
+            walletId: buyerWallet.id,
+            userId,
+            receiverId: od.svc.userId,
+            type: "TRANSFER",
+            amount,
+            currency: buyerWallet.currency,
+            description: `Payment for service order #${so.id}`,
+            referenceType: "SERVICE_ORDER",
+            referenceId: so.id,
+            performedBy: userId,
+          },
+          { transaction: tx }
+        );
+
+        distributions.push({
+          serviceId: od.item.serviceId,
+          serviceOwnerId: od.svc.userId,
+          amount,
+          walletId: ownerWallet.id,
+          transactionId: txnRecord.id,
+        });
+      }
+
+      await Wallet.update(
+        { availableBalance: sequelize.literal(`availableBalance - ${orderTotal}`) },
+        { where: { id: buyerWallet.id }, transaction: tx }
+      );
+
+      await Cart.update({ status: "converted" }, { where: { id: cartId }, transaction: tx });
+
+      const txnOrderId = `cart-order-${order.id}-${Date.now()}`;
+      await Transaction.create(
+        {
+          orderId: txnOrderId,
+          userId,
+          amount: orderTotal,
+          paidAmount: orderTotal,
+          paidCurrency: buyerWallet.currency,
+          rate: 1,
+          currency: buyerWallet.currency,
+          type: "cart_checkout",
+          status: "completed",
+          paymentMethod: "wallet",
+          metadata: { cartId, serviceOrderIds: distributions.map((d) => d.serviceOrderId) },
+        },
+        { transaction: tx }
+      );
+
+      await tx.commit();
+
+      return {
+        orderId: order.id,
+        userId,
+        cartId,
+        status: "CONFIRMED",
+        addressId,
+        deliveryOption,
+        totalAmount: orderTotal,
+        paymentDetails: {
+          buyerWallet: { id: buyerWallet.id, deducted: orderTotal },
+          distributions,
+        },
+        confirmedAt: new Date().toISOString(),
+      };
+    } catch (error) {
+      await tx.rollback();
+      if (!error.statusCode) {
+        const wrapped = clientError("Checkout failed. No funds deducted. Please retry.", 500, "PAYMENT_ERROR");
+        wrapped.original = error.message;
+        throw wrapped;
+      }
+      throw error;
+    }
+  }
+
   // List orders for a user
   async listOrders(userId, statuses) {
     const where = { userId };
@@ -366,6 +576,50 @@ class OrderCartService {
       items,
       createdAt: order.createdAt,
     };
+  }
+  // GET: service owner — list all orders containing their service(s)
+  async getOrdersForServiceOwner(ownerId, serviceId) {
+    const where = { serviceOwnerId: ownerId };
+    if (serviceId) where.serviceId = serviceId;
+
+    const serviceOrders = await ServiceOrder.findAll({
+      where,
+      order: [["createdAt", "DESC"]],
+    });
+
+    const results = [];
+    for (const so of serviceOrders) {
+      const order = await Order.findByPk(so.orderId);
+      const addOns = await ServiceOrderAddOn.findAll({ where: { serviceOrderId: so.id } });
+      const addOnSubtotal = addOns.reduce((s, a) => s + parseFloat(a.subtotal), 0);
+
+      results.push({
+        serviceOrderId: so.id,
+        orderId: so.orderId,
+        orderNo: order?.orderNo,
+        buyerId: order?.userId,
+        serviceId: so.serviceId,
+        quantity: so.quantity,
+        servicePriceAtOrder: parseFloat(so.servicePriceAtOrder),
+        subtotal: parseFloat(so.subtotal),
+        discountCode: so.discountCode,
+        discountAmount: parseFloat(so.discountAmount),
+        finalAmount: parseFloat(so.finalAmount),
+        addOns: addOns.map((a) => ({
+          addOnId: a.addOnId,
+          quantity: a.quantity,
+          priceAtOrder: parseFloat(a.priceAtOrder),
+          subtotal: parseFloat(a.subtotal),
+        })),
+        itemTotal: parseFloat(so.finalAmount) + addOnSubtotal,
+        status: so.status,
+        addressId: order?.addressId,
+        deliveryOption: order?.deliveryOption,
+        createdAt: so.createdAt,
+      });
+    }
+
+    return results;
   }
 }
 

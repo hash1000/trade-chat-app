@@ -38,7 +38,10 @@ router.delete("/:cartId/items/:cartItemId/add-ons/:addOnId", authMiddleware, car
 router.post("/:cartId/items/:cartItemId/discount", authMiddleware, cartController.applyDiscount.bind(cartController));
 router.delete("/:cartId/items/:cartItemId/discount", authMiddleware, cartController.removeDiscount.bind(cartController));
 
-// ── Convert cart → DRAFT order ─────────────────────────────────────────────────
+// ── Convert cart → PENDING order ─────────────────────────────────────────────────
 router.post("/:cartId/orders", authMiddleware, orderCartController.generateOrderFromCart.bind(orderCartController));
+
+// ── One-shot checkout: generate order + confirm payment atomically ────────────
+router.post("/:cartId/checkout", authMiddleware, orderCartController.checkoutCart.bind(orderCartController));
 
 module.exports = router;

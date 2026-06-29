@@ -54,6 +54,31 @@ class OrderCartController {
     }
   }
 
+  // POST /carts/:cartId/checkout — generate order + confirm payment in one shot
+  async checkoutCart(req, res) {
+    try {
+      const userId = req.user.id;
+      const cartId = Number(req.params.cartId);
+      const { addressId, deliveryOption } = req.body;
+      const data = await cartService.checkoutCart(userId, cartId, addressId, deliveryOption);
+      return res.status(201).json({ success: true, data });
+    } catch (error) {
+      return handleError(res, error);
+    }
+  }
+
+  // GET /orders/service-owner-orders — service owner gets orders for their services
+  async getOrdersForServiceOwner(req, res) {
+    try {
+      const ownerId = req.user.id;
+      const serviceId = req.query.serviceId ? Number(req.query.serviceId) : null;
+      const data = await cartService.getOrdersForServiceOwner(ownerId, serviceId);
+      return res.status(200).json({ success: true, data, count: data.length });
+    } catch (error) {
+      return handleError(res, error);
+    }
+  }
+
   // GET /orders — list user orders with optional status filter
   async listOrders(req, res) {
     try {

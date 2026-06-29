@@ -27,6 +27,9 @@ router.get("/service-orders", authMiddleware, cartController.listOrders.bind(car
 // Get single service order detail
 router.get("/service-orders/:orderId", authMiddleware, cartController.getOrder.bind(cartController));
 
+// Service owner — get all orders placed against their services (optionally filter by ?serviceId=)
+router.get("/service-owner-orders", authMiddleware, cartController.getOrdersForServiceOwner.bind(cartController));
+
 // Lock address + delivery option on a DRAFT order → PENDING_PAYMENT
 router.patch("/:orderId/address-delivery", authMiddleware, cartController.setAddressAndDelivery.bind(cartController));
 
