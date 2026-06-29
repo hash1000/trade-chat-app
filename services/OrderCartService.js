@@ -210,7 +210,7 @@ class OrderCartService {
   }
 
   // POST: confirm order — atomically distribute payment to each service owner
-  async confirmOrder(userId, orderId) {
+  async confirmOrder(userId, orderId, walletType) {
     const order = await Order.findByPk(orderId);
     if (!order) throw clientError("Order not found.", 404, "NOT_FOUND");
     if (order.userId !== userId) throw clientError("Unauthorized.", 403, "UNAUTHORIZED");
@@ -220,14 +220,21 @@ class OrderCartService {
     //   throw clientError("Order missing address or delivery option.", 400, "INCOMPLETE_ORDER");
     // }
 
+    // Buyer chooses which wallet to pay from (defaults to PERSONAL)
+    const VALID_WALLET_TYPES = ["PERSONAL", "COMPANY"];
+    const buyerWalletType = walletType || "PERSONAL";
+    if (!VALID_WALLET_TYPES.includes(buyerWalletType)) {
+      throw clientError("Invalid walletType. Must be PERSONAL or COMPANY.", 400, "VALIDATION_ERROR");
+    }
+
     const serviceOrders = await ServiceOrder.findAll({ where: { orderId } });
     if (serviceOrders.length === 0) throw clientError("Order has no items.", 400, "EMPTY_ORDER");
 
     const totalAmount = parseFloat(order.price);
 
-    // Find buyer's wallet (PERSONAL, any currency — use first available)
-    const buyerWallet = await Wallet.findOne({ where: { userId, walletType: "PERSONAL" } });
-    if (!buyerWallet) throw clientError("Buyer wallet not found.", 402, "NO_WALLET");
+    // Find buyer's wallet of the chosen type
+    const buyerWallet = await Wallet.findOne({ where: { userId, walletType: buyerWalletType } });
+    if (!buyerWallet) throw clientError(`Buyer ${buyerWalletType} wallet not found.`, 402, "NO_WALLET");
 
     const buyerBalance = parseFloat(buyerWallet.availableBalance);
     if (buyerBalance < totalAmount) {
@@ -236,17 +243,28 @@ class OrderCartService {
       throw err;
     }
 
-    // Pre-fetch all service owners and their payout wallets
-    const ownerWalletMap = {};
+    // Resolve each service's payout wallet (keyed by serviceId, since the chosen
+    // wallet is configured per service):
+    //   - service.payoutWalletId if the provider has chosen one
+    //   - else fallback to the owner's wallet, COMPANY-first
+    const serviceWalletMap = {};
     for (const so of serviceOrders) {
-      if (!ownerWalletMap[so.serviceOwnerId]) {
-        const ownerWallet = await Wallet.findOne({
+      if (serviceWalletMap[so.serviceId]) continue;
+
+      const svc = await Service.findByPk(so.serviceId, { attributes: ["id", "userId", "payoutWalletId"] });
+
+      let ownerWallet = null;
+      if (svc && svc.payoutWalletId) {
+        ownerWallet = await Wallet.findByPk(svc.payoutWalletId);
+      }
+      if (!ownerWallet) {
+        ownerWallet = await Wallet.findOne({
           where: { userId: so.serviceOwnerId },
           order: [["walletType", "ASC"]], // COMPANY first if exists
         });
-        if (!ownerWallet) throw clientError(`Payout wallet not found for service owner ${so.serviceOwnerId}.`, 500, "PAYMENT_ERROR");
-        ownerWalletMap[so.serviceOwnerId] = ownerWallet;
       }
+      if (!ownerWallet) throw clientError(`Payout wallet not found for service owner ${so.serviceOwnerId}.`, 500, "PAYMENT_ERROR");
+      serviceWalletMap[so.serviceId] = ownerWallet;
     }
 
     const tx = await sequelize.transaction();
@@ -264,7 +282,7 @@ class OrderCartService {
         const addOnSubtotal = addOns.reduce((sum, a) => sum + parseFloat(a.subtotal), 0);
         const amount = parseFloat(so.finalAmount) + addOnSubtotal;
 
-        const ownerWallet = ownerWalletMap[so.serviceOwnerId];
+        const ownerWallet = serviceWalletMap[so.serviceId];
 
         // Credit owner wallet
         await Wallet.update(
@@ -314,7 +332,7 @@ class OrderCartService {
         status: "CONFIRMED",
         totalAmount,
         paymentDetails: {
-          buyerWallet: { id: buyerWallet.id, deducted: totalAmount },
+          buyerWallet: { id: buyerWallet.id, walletType: buyerWalletType, deducted: totalAmount },
           distributions,
         },
         confirmedAt: new Date().toISOString(),

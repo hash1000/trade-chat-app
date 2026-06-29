@@ -47,7 +47,8 @@ class OrderCartController {
     try {
       const userId = req.user.id;
       const orderId = Number(req.params.orderId);
-      const data = await cartService.confirmOrder(userId, orderId);
+      const { walletType } = req.body;
+      const data = await cartService.confirmOrder(userId, orderId, walletType);
       return res.status(200).json({ success: true, data });
     } catch (error) {
       return handleError(res, error);
