@@ -1,6 +1,7 @@
 const Payment = require("../models/payment");
 const { Op } = require("sequelize");
 const Card = require("../models/card");
+const Address = require("../models/address");
 const FavouritePayment = require("../models/favourite_payments");
 const PaymentRequest = require("../models/payment_request");
 const Transaction = require("../models/transaction");
@@ -72,13 +73,53 @@ class PaymentRepository {
   }
 
   async getCardsByUser(userId) {
+
+    console.log("PaymentRepository.getCardsByUser userId:", userId);
     return Card.findAll({
       where: { userId },
+      include: [
+        {
+          model: Address,
+          as: "address",
+          attributes: [
+            "id", "companyName", "firstName", "lastName", "country",
+            "city", "postalCode", "street", "streetNumber", "vatNumber",
+            "customerNumber", "type",
+          ],
+        },
+      ],
+    });
+  }
+
+  async getCardById(cardId) {
+    return Card.findByPk(cardId, {
+      include: [
+        {
+          model: Address,
+          as: "address",
+          attributes: [
+            "id", "companyName", "firstName", "lastName", "country",
+            "city", "postalCode", "street", "streetNumber", "vatNumber",
+            "customerNumber", "type",
+          ],
+        },
+      ],
+    });
+  }
+
+  async getCompanyAddressByUser(userId) {
+    return Address.findAll({
+      where: { userId, type: "company" },
     });
   }
 
   async addCard(cardData) {
     return Card.create(cardData);
+  }
+
+  async updateCard(cardId, cardData) {
+    await Card.update(cardData, { where: { id: cardId } });
+    return this.getCardById(cardId);
   }
 
   async deleteCard(cardId) {

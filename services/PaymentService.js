@@ -113,12 +113,37 @@ class PaymentService {
     return this.paymentRepository.getCardsByUser(userId);
   }
 
+  async getCardCompanyAddresses(userId) {
+    return this.paymentRepository.getCompanyAddressByUser(userId);
+  }
+
   async addCard(cardData) {
+    if (cardData.addressId) {
+      const addresses = await this.paymentRepository.getCompanyAddressByUser(cardData.userId);
+      const valid = addresses.some((a) => a.id === cardData.addressId);
+      if (!valid) {
+        throw new Error("Address not found or is not a company type address");
+      }
+    }
     return this.paymentRepository.addCard(cardData);
   }
 
+  async updateCard(cardId, userId, cardData) {
+    const card = await this.paymentRepository.getCardById(cardId);
+    if (!card) throw new Error("Card not found");
+    if (card.userId !== userId) throw new Error("Unauthorized");
+
+    if (cardData.addressId) {
+      const addresses = await this.paymentRepository.getCompanyAddressByUser(userId);
+      const valid = addresses.some((a) => a.id === cardData.addressId);
+      if (!valid) {
+        throw new Error("Address not found or is not a company type address");
+      }
+    }
+    return this.paymentRepository.updateCard(cardId, cardData);
+  }
+
   async deleteCard(cardId) {
-    // Add any additional business logic or validation before deleting the card
     return this.paymentRepository.deleteCard(cardId);
   }
 

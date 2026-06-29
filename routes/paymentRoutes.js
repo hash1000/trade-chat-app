@@ -54,10 +54,20 @@ router.get(
   authMiddleware,
   paymentController.getUserCards.bind(paymentController),
 );
+router.get(
+  "/cards/company-addresses",
+  authMiddleware,
+  paymentController.getCardCompanyAddresses.bind(paymentController),
+);
 router.post(
   "/cards",
   authMiddleware,
   paymentController.addUserCard.bind(paymentController),
+);
+router.put(
+  "/cards/:id",
+  authMiddleware,
+  paymentController.updateUserCard.bind(paymentController),
 );
 router.delete(
   "/cards/:id",

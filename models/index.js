@@ -47,6 +47,7 @@ const ServiceOrder = require("./ServiceOrder");
 const ServiceOrderAddOn = require("./ServiceOrderAddOn");
 const Cart = require("./cart");
 const CartItem = require("./CartItem");
+const Card = require("./card");
 
 // Define all associations
 function defineAssociations() {
@@ -428,6 +429,14 @@ function defineAssociations() {
   // Cart -> Order (a cart may produce one order)
   Cart.hasOne(Order, { foreignKey: "cartId", as: "order" });
   Order.belongsTo(Cart, { foreignKey: "cartId", as: "cart" });
+
+  // Card associations
+  Card.belongsTo(User, { foreignKey: "userId", as: "user" });
+  User.hasMany(Card, { foreignKey: "userId", as: "cards" });
+
+  // Card <-> Address (company type address)
+  Card.belongsTo(Address, { foreignKey: "addressId", as: "address" });
+  Address.hasMany(Card, { foreignKey: "addressId", as: "cards" });
 }
 
 // Initialize associations
@@ -472,4 +481,5 @@ module.exports = {
   ServiceOrderAddOn,
   Cart,
   CartItem,
+  Card,
 };

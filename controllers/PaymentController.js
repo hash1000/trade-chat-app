@@ -147,11 +147,7 @@ class PaymentController {
   async getUserCards(req, res) {
     try {
       const { id: userId } = req.user;
-
-      // Get all user cards using the payment service
       const cards = await paymentService.getUserCards(userId);
-
-      // Return the user cards as a response
       return res.json(cards);
     } catch (error) {
       console.error("Error fetching user cards:", error);
@@ -159,22 +155,58 @@ class PaymentController {
     }
   }
 
+  async getCardCompanyAddresses(req, res) {
+    try {
+      const { id: userId } = req.user;
+      const addresses = await paymentService.getCardCompanyAddresses(userId);
+      return res.json(addresses);
+    } catch (error) {
+      console.error("Error fetching card company addresses:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+
   async addUserCard(req, res) {
     try {
       const { id: userId } = req.user;
-      const { number, expiry, cvv } = req.body;
-
-      // Create new user card using the payment service
+      const { number, expiry, cvv, addressId } = req.body;
       const card = await paymentService.addCard({
         lastFourDigits: number.slice(-4),
         expiry,
         userId,
+        addressId: addressId || null,
       });
-
-      // Return the created card as a response
       return res.json(card);
     } catch (error) {
       console.error("Error creating user card:", error);
+      if (error.message.includes("company type")) {
+        return res.status(400).json({ error: error.message });
+      }
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+
+  async updateUserCard(req, res) {
+    try {
+      const { id: userId } = req.user;
+      const cardId = parseInt(req.params.id);
+      const { expiry, addressId } = req.body;
+      const card = await paymentService.updateCard(cardId, userId, {
+        ...(expiry !== undefined && { expiry }),
+        ...(addressId !== undefined && { addressId }),
+      });
+      return res.json(card);
+    } catch (error) {
+      console.error("Error updating user card:", error);
+      if (error.message === "Card not found") {
+        return res.status(404).json({ error: error.message });
+      }
+      if (error.message === "Unauthorized") {
+        return res.status(403).json({ error: error.message });
+      }
+      if (error.message.includes("company type")) {
+        return res.status(400).json({ error: error.message });
+      }
       res.status(500).json({ error: "Internal server error" });
     }
   }
@@ -182,11 +214,7 @@ class PaymentController {
   async deleteUserCard(req, res) {
     try {
       const cardId = req.params.id;
-
-      // Delete the card using the payment service
       await paymentService.deleteCard(cardId);
-
-      // Return a success response
       return res.json({ message: "Card deleted successfully" });
     } catch (error) {
       console.error("Error deleting card:", error);
