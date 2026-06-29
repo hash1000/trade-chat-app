@@ -60,8 +60,8 @@ class OrderCartController {
     try {
       const userId = req.user.id;
       const cartId = Number(req.params.cartId);
-      const { addressId, deliveryOption } = req.body;
-      const data = await cartService.checkoutCart(userId, cartId, addressId, deliveryOption);
+      const { addressId, deliveryOption, walletType } = req.body;
+      const data = await cartService.checkoutCart(userId, cartId, addressId, deliveryOption, walletType);
       return res.status(201).json({ success: true, data });
     } catch (error) {
       return handleError(res, error);

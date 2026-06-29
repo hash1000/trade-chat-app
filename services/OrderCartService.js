@@ -349,10 +349,17 @@ class OrderCartService {
   }
 
   // POST: checkout cart in one shot — generate order + set address/delivery + confirm payment
-  async checkoutCart(userId, cartId, addressId, deliveryOption) {
+  async checkoutCart(userId, cartId, addressId, deliveryOption, walletType) {
     const validOptions = ["standard", "express", "overnight"];
     if (deliveryOption && !validOptions.includes(deliveryOption)) {
       throw clientError("Invalid delivery option. Must be: standard, express, overnight.", 400, "VALIDATION_ERROR");
+    }
+
+    // Buyer chooses which wallet to pay from (defaults to PERSONAL)
+    const VALID_WALLET_TYPES = ["PERSONAL", "COMPANY"];
+    const buyerWalletType = walletType || "PERSONAL";
+    if (!VALID_WALLET_TYPES.includes(buyerWalletType)) {
+      throw clientError("Invalid walletType. Must be PERSONAL or COMPANY.", 400, "VALIDATION_ERROR");
     }
 
     const cart = await Cart.findOne({ where: { id: cartId, userId } });
@@ -397,8 +404,8 @@ class OrderCartService {
       orderItemsData.push({ item, svc, lockedPrice, subtotal, discountAmount, finalAmount, addOns, addOnSubtotal, itemTotal });
     }
 
-    const buyerWallet = await Wallet.findOne({ where: { userId, walletType: "PERSONAL" } });
-    if (!buyerWallet) throw clientError("Buyer wallet not found.", 402, "NO_WALLET");
+    const buyerWallet = await Wallet.findOne({ where: { userId, walletType: buyerWalletType } });
+    if (!buyerWallet) throw clientError(`Buyer ${buyerWalletType} wallet not found.`, 402, "NO_WALLET");
     const buyerBalance = parseFloat(buyerWallet.availableBalance);
     if (buyerBalance < orderTotal) {
       const err = clientError("Insufficient wallet balance.", 402, "INSUFFICIENT_BALANCE");
@@ -406,16 +413,25 @@ class OrderCartService {
       throw err;
     }
 
-    const ownerWalletMap = {};
+    // Resolve each service's payout wallet (keyed by serviceId):
+    //   - service.payoutWalletId if the provider has chosen one
+    //   - else fallback to the owner's wallet, COMPANY-first
+    const serviceWalletMap = {};
     for (const od of orderItemsData) {
-      if (!ownerWalletMap[od.svc.userId]) {
-        const ownerWallet = await Wallet.findOne({
+      if (serviceWalletMap[od.svc.id]) continue;
+
+      let ownerWallet = null;
+      if (od.svc.payoutWalletId) {
+        ownerWallet = await Wallet.findByPk(od.svc.payoutWalletId);
+      }
+      if (!ownerWallet) {
+        ownerWallet = await Wallet.findOne({
           where: { userId: od.svc.userId },
           order: [["walletType", "ASC"]],
         });
-        if (!ownerWallet) throw clientError(`Payout wallet not found for service owner ${od.svc.userId}.`, 500, "PAYMENT_ERROR");
-        ownerWalletMap[od.svc.userId] = ownerWallet;
       }
+      if (!ownerWallet) throw clientError(`Payout wallet not found for service owner ${od.svc.userId}.`, 500, "PAYMENT_ERROR");
+      serviceWalletMap[od.svc.id] = ownerWallet;
     }
 
     const tx = await sequelize.transaction();
@@ -473,7 +489,7 @@ class OrderCartService {
         }
 
         const amount = od.finalAmount + addOnSubtotalFinal;
-        const ownerWallet = ownerWalletMap[od.svc.userId];
+        const ownerWallet = serviceWalletMap[od.svc.id];
 
         await Wallet.update(
           { availableBalance: sequelize.literal(`availableBalance + ${amount}`) },
@@ -541,7 +557,7 @@ class OrderCartService {
         deliveryOption,
         totalAmount: orderTotal,
         paymentDetails: {
-          buyerWallet: { id: buyerWallet.id, deducted: orderTotal },
+          buyerWallet: { id: buyerWallet.id, walletType: buyerWalletType, deducted: orderTotal },
           distributions,
         },
         confirmedAt: new Date().toISOString(),
