@@ -63,6 +63,7 @@ class BankAccountController {
         beneficiaryAddress,
         classification,
         currency,
+        addressId,
       } = req.body;
 
       const newAccount = await bankAccountService.createBankAccount(userId, {
@@ -77,6 +78,7 @@ class BankAccountController {
         beneficiaryAddress,
         classification,
         currency,
+        addressId: addressId ?? null,
       });
 
       res.status(201).json(bankAccountService.serializeBankAccount(newAccount));

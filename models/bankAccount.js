@@ -71,7 +71,15 @@ const BankAccount = sequelize.define(
       type: DataTypes.INTEGER,
       allowNull: false,
       defaultValue: 0,
-    }
+    },
+    addressId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: "address",
+        key: "id",
+      },
+    },
   },
   {
     timestamps: true,

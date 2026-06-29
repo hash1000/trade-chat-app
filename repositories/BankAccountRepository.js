@@ -2,6 +2,7 @@ const BankAccount = require("../models/bankAccount");
 const { Op, literal } = require("sequelize");
 const Wallet = require("../models/wallet");
 const BankAccountWallet = require("../models/bankAccountWallet");
+const Address = require("../models/address");
 
 class BankAccountRepository {
   // classification may be 'sender', 'receiver', 'both' or 'all' (or undefined)
@@ -23,9 +24,13 @@ class BankAccountRepository {
           model: Wallet,
           as: "wallets",
           required: false,
-          through: {
-            attributes: [],
-          },
+          through: { attributes: [] },
+        },
+        {
+          model: Address,
+          as: "address",
+          required: false,
+          where: { type: "company" },
         },
       ],
       order: [["sequence", "ASC"]],
@@ -35,6 +40,19 @@ class BankAccountRepository {
   async getBankAccountById(userId, accountId) {
     return await BankAccount.findOne({
       where: { id: accountId, userId },
+      include: [
+        {
+          model: Wallet,
+          as: "wallets",
+          required: false,
+          through: { attributes: [] },
+        },
+        {
+          model: Address,
+          as: "address",
+          required: false,
+        },
+      ],
     });
   }
 
@@ -44,6 +62,12 @@ class BankAccountRepository {
         {
           model: Wallet,
           as: "wallets",
+        },
+        {
+          model: Address,
+          as: "address",
+          required: false,
+          where: { type: "company" },
         },
       ],
     });

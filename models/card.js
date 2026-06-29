@@ -24,14 +24,6 @@ const Card = sequelize.define('Card', {
     type: DataTypes.STRING,
     allowNull: false,
   },
-  addressId: {
-    type: DataTypes.INTEGER,
-    allowNull: true,
-    references: {
-      model: 'address',
-      key: 'id'
-    }
-  }
 }, {
   tableName: 'cards',
   timestamps: true

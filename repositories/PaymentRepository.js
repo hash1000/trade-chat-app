@@ -73,38 +73,11 @@ class PaymentRepository {
   }
 
   async getCardsByUser(userId) {
-
-    console.log("PaymentRepository.getCardsByUser userId:", userId);
-    return Card.findAll({
-      where: { userId },
-      include: [
-        {
-          model: Address,
-          as: "address",
-          attributes: [
-            "id", "companyName", "firstName", "lastName", "country",
-            "city", "postalCode", "street", "streetNumber", "vatNumber",
-            "customerNumber", "type",
-          ],
-        },
-      ],
-    });
+    return Card.findAll({ where: { userId } });
   }
 
   async getCardById(cardId) {
-    return Card.findByPk(cardId, {
-      include: [
-        {
-          model: Address,
-          as: "address",
-          attributes: [
-            "id", "companyName", "firstName", "lastName", "country",
-            "city", "postalCode", "street", "streetNumber", "vatNumber",
-            "customerNumber", "type",
-          ],
-        },
-      ],
-    });
+    return Card.findByPk(cardId);
   }
 
   async getCompanyAddressByUser(userId) {

@@ -1,4 +1,5 @@
 const BankAccount = require("../models/bankAccount");
+const Address = require("../models/address");
 const BankAccountRepository = require("../repositories/BankAccountRepository");
 const WalletService = require("./WalletService");
 
@@ -266,13 +267,28 @@ class BankAccountService {
     return this.bankAccountRepository.getBankAccountById(userId, accountId);
   }
 
+  async validateAddressId(userId, addressId) {
+    if (!addressId) return;
+    const address = await Address.findOne({
+      where: { id: addressId, userId, type: "company" },
+    });
+    if (!address) {
+      const error = new Error("Address not found or is not a company type address");
+      error.statusCode = 400;
+      throw error;
+    }
+  }
+
   async createBankAccount(userId, accountData) {
+    await this.validateAddressId(userId, accountData.addressId);
     return this.bankAccountRepository.createBankAccount(userId, accountData);
   }
 
   async updateBankAccount(userId, accountId, updateData) {
     const safeUpdateData = { ...updateData };
-
+    if ("addressId" in safeUpdateData) {
+      await this.validateAddressId(userId, safeUpdateData.addressId);
+    }
     return this.bankAccountRepository.updateBankAccount(
       userId,
       accountId,

@@ -443,9 +443,9 @@ Order.belongsTo(Address, {
   Card.belongsTo(User, { foreignKey: "userId", as: "user" });
   User.hasMany(Card, { foreignKey: "userId", as: "cards" });
 
-  // Card <-> Address (company type address)
-  Card.belongsTo(Address, { foreignKey: "addressId", as: "address" });
-  Address.hasMany(Card, { foreignKey: "addressId", as: "cards" });
+  // BankAccount <-> Address (optional company address)
+  BankAccount.belongsTo(Address, { foreignKey: "addressId", as: "address" });
+  Address.hasMany(BankAccount, { foreignKey: "addressId", as: "bankAccounts" });
 }
 
 // Initialize associations
