@@ -52,7 +52,7 @@ const Order = db.define(
       allowNull: true,
     },
     status: {
-      type: DataTypes.ENUM("WAITING", "PAYED", "SHIPPED", "draft", "confirmed", "cancelled", "DRAFT", "PENDING_PAYMENT", "CONFIRMED", "CANCELLED"),
+      type: DataTypes.ENUM("WAITING", "PAYED", "SHIPPED", "DRAFT", "PENDING_PAYMENT", "CONFIRMED", "CANCELLED", "PENDING"),
       allowNull: false,
       defaultValue: "WAITING",
     },
@@ -89,7 +89,7 @@ const Order = db.define(
       defaultValue: DataTypes.NOW,
     },
   },
-  { tableName: "orders" }
+  { tableName: "orders" },
 );
 
 module.exports = Order;

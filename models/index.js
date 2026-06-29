@@ -74,8 +74,17 @@ function defineAssociations() {
   });
 
   // Address-Order association
-  Address.hasMany(Order, { foreignKey: "addressId", as: "orders" });
-  Order.belongsTo(Address, { foreignKey: "addressId", as: "address" });
+  Address.hasMany(Order, {
+  foreignKey: "addressId",
+  sourceKey: "id",
+  as: "orders",
+});
+
+Order.belongsTo(Address, {
+  foreignKey: "addressId",
+  targetKey: "id",
+  as: "address",
+});
 
   // User-Role many-to-many
   User.belongsToMany(Role, {
