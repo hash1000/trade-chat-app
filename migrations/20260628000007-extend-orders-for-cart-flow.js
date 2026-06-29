@@ -2,9 +2,9 @@
 
 module.exports = {
   async up(queryInterface, Sequelize) {
-    // Extend status enum to include  PENDING_PAYMENT
+    // Extend status enum to include  PENDING
     await queryInterface.sequelize.query(
-      `ALTER TABLE orders MODIFY COLUMN status ENUM('WAITING','PAYED','SHIPPED','PENDING_PAYMENT') NOT NULL DEFAULT 'WAITING'`
+      `ALTER TABLE orders MODIFY COLUMN status ENUM('WAITING','PAYED','SHIPPED','PENDING') NOT NULL DEFAULT 'WAITING'`
     );
 
     // Add cartId column (nullable — legacy orders have no cart)

@@ -159,7 +159,7 @@ class OrderCartService {
     }
   }
 
-  // PATCH: lock address + delivery option, advance status to PENDING_PAYMENT
+  // PATCH: lock address + delivery option, advance status to PENDING
   async setAddressAndDelivery(userId, orderId, addressId, deliveryOption) {
     const validOptions = ["standard", "express", "overnight"];
     if (!addressId) throw clientError("addressId is required.", 400, "VALIDATION_ERROR");
@@ -175,13 +175,13 @@ class OrderCartService {
     const address = await Address.findByPk(addressId);
     if (!address || address.userId !== userId) throw clientError("Address not found.", 404, "NOT_FOUND");
 
-    await order.update({ addressId, deliveryOption, status: "PENDING_PAYMENT" });
+    await order.update({ addressId, deliveryOption, status: "PENDING" });
 
     return {
       orderId: order.id,
       addressId,
       deliveryOption,
-      status: "PENDING_PAYMENT",
+      status: "PENDING",
       totalAmount: parseFloat(order.price),
     };
   }
@@ -192,10 +192,10 @@ class OrderCartService {
     if (!order) throw clientError("Order not found.", 404, "NOT_FOUND");
     if (order.userId !== userId) throw clientError("Unauthorized.", 403, "UNAUTHORIZED");
     if (order.status === "CONFIRMED") throw clientError("Order already confirmed.", 409, "INVALID_STATE");
-    if (order.status !== "PENDING_PAYMENT") throw clientError("Order is not ready for payment.", 409, "INVALID_STATE");
-    if (!order.addressId || !order.deliveryOption) {
-      throw clientError("Order missing address or delivery option.", 400, "INCOMPLETE_ORDER");
-    }
+    if (order.status !== "PENDING") throw clientError("Order is not ready for payment.", 409, "INVALID_STATE");
+    // if (!order.addressId || !order.deliveryOption) {
+    //   throw clientError("Order missing address or delivery option.", 400, "INCOMPLETE_ORDER");
+    // }
 
     const serviceOrders = await ServiceOrder.findAll({ where: { orderId } });
     if (serviceOrders.length === 0) throw clientError("Order has no items.", 400, "EMPTY_ORDER");

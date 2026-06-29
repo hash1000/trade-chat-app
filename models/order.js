@@ -52,7 +52,7 @@ const Order = db.define(
       allowNull: true,
     },
     status: {
-      type: DataTypes.ENUM("WAITING", "PAYED", "SHIPPED", "DRAFT", "PENDING_PAYMENT", "CONFIRMED", "CANCELLED", "PENDING"),
+      type: DataTypes.ENUM("WAITING", "PAYED", "SHIPPED", "DRAFT", "PENDING", "CONFIRMED", "CANCELLED", "PENDING"),
       allowNull: false,
       defaultValue: "WAITING",
     },

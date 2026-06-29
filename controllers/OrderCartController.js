@@ -29,7 +29,7 @@ class OrderCartController {
     }
   }
 
-  // PATCH /orders/:orderId/address-delivery — lock address + delivery, DRAFT → PENDING_PAYMENT
+  // PATCH /orders/:orderId/address-delivery — lock address + delivery, DRAFT → PENDING
   async setAddressAndDelivery(req, res) {
     try {
       const userId = req.user.id;
@@ -42,7 +42,7 @@ class OrderCartController {
     }
   }
 
-  // POST /orders/:orderId/confirm — atomic payment distribution, PENDING_PAYMENT → CONFIRMED
+  // POST /orders/:orderId/confirm — atomic payment distribution, PENDING → CONFIRMED
   async confirmOrder(req, res) {
     try {
       const userId = req.user.id;

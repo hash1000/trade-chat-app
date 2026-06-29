@@ -30,7 +30,7 @@ router.get("/service-orders/:orderId", authMiddleware, cartController.getOrder.b
 // Service owner — get all orders placed against their services (optionally filter by ?serviceId=)
 router.get("/service-owner-orders", authMiddleware, cartController.getOrdersForServiceOwner.bind(cartController));
 
-// Lock address + delivery option on a DRAFT order → PENDING_PAYMENT
+// Lock address + delivery option on a DRAFT order → PENDING
 router.patch("/:orderId/address-delivery", authMiddleware, cartController.setAddressAndDelivery.bind(cartController));
 
 // Confirm order → atomic multi-owner payment distribution → CONFIRMED
