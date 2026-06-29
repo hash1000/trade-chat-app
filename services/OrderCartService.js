@@ -1,6 +1,7 @@
 const sequelize = require("../config/database");
 const { Order, ServiceOrder, ServiceOrderAddOn, Cart, CartItem, Service, Wallet, WalletTransaction, Address } = require("../models");
 const Transaction = require("../models/transaction");
+const ServiceService = require("./ServiceService");
 
 function clientError(message, statusCode, code) {
   const err = new Error(message);
@@ -10,6 +11,28 @@ function clientError(message, statusCode, code) {
 }
 
 class OrderCartService {
+  constructor() {
+    this.serviceService = new ServiceService();
+  }
+
+  /**
+   * Load the complete service payload (same shape as
+   * GET /service?includeTeams=true&includeMembers=true&includeAddOns=true...).
+   * Cached per request via the passed Map so a repeated serviceId is fetched once.
+   */
+  async loadFullService(serviceId, viewerId, cache) {
+    if (cache.has(serviceId)) return cache.get(serviceId);
+    const full = await this.serviceService.getById(serviceId, {
+      userId: viewerId,
+      includeTeams: true,
+      includeMembers: true,
+      includeCategories: true,
+      includeAddOns: true,
+      isLiked: true,
+    });
+    cache.set(serviceId, full);
+    return full;
+  }
   // Generate a DRAFT order from a cart (DB-backed)
   async generateOrderFromCart(userId, cartId) {
     const cart = await Cart.findOne({ where: { id: cartId, userId } });
@@ -526,23 +549,20 @@ class OrderCartService {
       order: [["createdAt", "DESC"]],
     });
 
+    const serviceCache = new Map();
     const result = [];
     for (const o of orders) {
       const serviceOrders = await ServiceOrder.findAll({ where: { orderId: o.id } });
       const services = await Promise.all(
         serviceOrders.map(async (so) => {
-          const service = await Service.findByPk(so.serviceId, {
-            attributes: ["id", "name", "profile_image", "price"],
-          });
+          const service = await this.loadFullService(so.serviceId, userId, serviceCache);
           return {
             serviceOrderId: so.id,
             serviceId: so.serviceId,
             quantity: so.quantity,
             finalAmount: parseFloat(so.finalAmount),
             status: so.status,
-            service: service
-              ? { name: service.name, profileImage: service.profile_image, price: parseFloat(service.price) }
-              : null,
+            service,
           };
         })
       );
@@ -564,11 +584,12 @@ class OrderCartService {
     if (!order || order.userId !== userId) throw clientError("Order not found.", 404, "NOT_FOUND");
 
     const serviceOrders = await ServiceOrder.findAll({ where: { orderId } });
+    const serviceCache = new Map();
     const items = [];
     for (const so of serviceOrders) {
       const [addOns, service] = await Promise.all([
         ServiceOrderAddOn.findAll({ where: { serviceOrderId: so.id } }),
-        Service.findByPk(so.serviceId, { attributes: ["id", "name", "profile_image", "price"] }),
+        this.loadFullService(so.serviceId, userId, serviceCache),
       ]);
       const addOnSubtotal = addOns.reduce((s, a) => s + parseFloat(a.subtotal), 0);
       items.push({
@@ -589,9 +610,7 @@ class OrderCartService {
         })),
         itemTotal: parseFloat(so.finalAmount) + addOnSubtotal,
         status: so.status,
-        service: service
-          ? { name: service.name, profileImage: service.profile_image, price: parseFloat(service.price) }
-          : null,
+        service,
       });
     }
 
@@ -617,11 +636,12 @@ class OrderCartService {
       order: [["createdAt", "DESC"]],
     });
 
+    const serviceCache = new Map();
     const results = [];
     for (const so of serviceOrders) {
       const order = await Order.findByPk(so.orderId);
       const addOns = await ServiceOrderAddOn.findAll({ where: { serviceOrderId: so.id } });
-       const service = await Service.findByPk(so.serviceId, { attributes: ["id", "name", "profile_image", "price"] });
+      const service = await this.loadFullService(so.serviceId, ownerId, serviceCache);
       const addOnSubtotal = addOns.reduce((s, a) => s + parseFloat(a.subtotal), 0);
 
       results.push({
@@ -642,9 +662,7 @@ class OrderCartService {
           priceAtOrder: parseFloat(a.priceAtOrder),
           subtotal: parseFloat(a.subtotal),
         })),
-        service: service
-          ? { name: service.name, profileImage: service.profile_image, price: parseFloat(service.price) }
-          : null,
+        service,
         itemTotal: parseFloat(so.finalAmount) + addOnSubtotal,
         status: so.status,
         addressId: order?.addressId,
