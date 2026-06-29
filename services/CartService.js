@@ -16,6 +16,41 @@ function assertValidQuantity(qty) {
   }
 }
 
+/**
+ * Resolve the snapshot price for a service when adding it to the cart.
+ *   - free  → 0
+ *   - fixed → service.price
+ *   - range → buyer-supplied price (optional). If supplied, it must fall within
+ *             [min_price, max_price]; if omitted, defaults to min_price.
+ */
+function resolveServicePrice(service, providedPrice) {
+  if (service.pricing_type === "free") return 0;
+
+  if (service.pricing_type === "range") {
+    const min = service.min_price != null ? parseFloat(service.min_price) : null;
+    const max = service.max_price != null ? parseFloat(service.max_price) : null;
+
+    if (providedPrice === undefined || providedPrice === null || providedPrice === "") {
+      return min != null ? min : 0;
+    }
+
+    const p = parseFloat(providedPrice);
+    if (!Number.isFinite(p) || p < 0) {
+      throw clientError("price must be a non-negative number.", 400, "VALIDATION_ERROR");
+    }
+    if (min != null && p < min) {
+      throw clientError(`price must be at least ${min} for this service.`, 400, "VALIDATION_ERROR");
+    }
+    if (max != null && p > max) {
+      throw clientError(`price must not exceed ${max} for this service.`, 400, "VALIDATION_ERROR");
+    }
+    return p;
+  }
+
+  // fixed (default)
+  return parseFloat(service.price || 0);
+}
+
 function computeItemTotals(item) {
   const price = parseFloat(item.servicePriceSnapshot);
   const qty = item.quantity;
@@ -46,7 +81,7 @@ class CartService {
    *  - cartId supplied → add to that cart (reject duplicate service)
    *  - cartId = "new" → always create a fresh cart and add
    */
-  async addService(userId, serviceId, quantity, cartId) {
+  async addService(userId, serviceId, quantity, cartId, price) {
     assertValidQuantity(quantity);
 
     const service = await repo.fetchService(serviceId);
@@ -61,13 +96,13 @@ class CartService {
     if (cartId === "new") {
       const label = await nextCartLabel(userId);
       const cart = await repo.createCart(userId, label);
-      return this._addToCart(cart, serviceId, service, quantity);
+      return this._addToCart(cart, serviceId, service, quantity, price);
     }
 
     // Case 2: no active carts — auto-create
     if (activeCarts.length === 0) {
       const cart = await repo.createCart(userId, "Cart 1");
-      return this._addToCart(cart, serviceId, service, quantity);
+      return this._addToCart(cart, serviceId, service, quantity, price);
     }
 
     // Case 3: carts exist but caller didn't choose one — return options
@@ -84,10 +119,10 @@ class CartService {
     if (!cart) throw clientError("Cart not found.", 404, "NOT_FOUND");
     if (cart.status !== "active") throw clientError("Cart is no longer active.", 400, "CART_CONVERTED");
 
-    return this._addToCart(cart, serviceId, service, quantity);
+    return this._addToCart(cart, serviceId, service, quantity, price);
   }
 
-  async _addToCart(cart, serviceId, service, quantity) {
+  async _addToCart(cart, serviceId, service, quantity, providedPrice) {
     const existing = await repo.findCartItem(cart.id, serviceId);
     if (existing) {
       throw clientError(
@@ -97,7 +132,7 @@ class CartService {
       );
     }
 
-    const price = parseFloat(service.price || 0);
+    const price = resolveServicePrice(service, providedPrice);
     const cartItem = await repo.createCartItem(cart.id, serviceId, quantity, price);
     const t = computeItemTotals(cartItem);
     const cartTotal = await computeCartTotal(cart.id);

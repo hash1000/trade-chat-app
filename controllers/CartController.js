@@ -25,13 +25,13 @@ class CartController {
   async addService(req, res) {
     try {
       const userId = req.user.id;
-      const { serviceId, quantity = 1, cartId } = req.body;
+      const { serviceId, quantity = 1, cartId, price } = req.body;
 
       if (!serviceId) {
         return res.status(400).json({ success: false, error: "serviceId is required.", code: "VALIDATION_ERROR" });
       }
 
-      const result = await cartService.addService(userId, Number(serviceId), Number(quantity), cartId);
+      const result = await cartService.addService(userId, Number(serviceId), Number(quantity), cartId, price);
 
       // When the service needs the user to pick a cart, return 200 with action flag
       if (result.action === "SELECT_CART") {

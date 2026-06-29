@@ -85,7 +85,7 @@ class CartRepository {
   async fetchService(serviceId) {
     return Service.findOne({
       where: { id: serviceId, deletedAt: null },
-      attributes: ["id", "userId", "name", "price", "pricing_type", "payoutWalletId"],
+      attributes: ["id", "userId", "name", "price", "pricing_type", "min_price", "max_price", "payoutWalletId"],
     });
   }
 
