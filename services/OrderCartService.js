@@ -525,13 +525,37 @@ class OrderCartService {
       where,
       order: [["createdAt", "DESC"]],
     });
-    return orders.map((o) => ({
-      orderId: o.id,
-      cartId: o.cartId,
-      status: o.status,
-      totalAmount: parseFloat(o.price),
-      createdAt: o.createdAt,
-    }));
+
+    const result = [];
+    for (const o of orders) {
+      const serviceOrders = await ServiceOrder.findAll({ where: { orderId: o.id } });
+      const services = await Promise.all(
+        serviceOrders.map(async (so) => {
+          const service = await Service.findByPk(so.serviceId, {
+            attributes: ["id", "name", "profile_image", "price"],
+          });
+          return {
+            serviceOrderId: so.id,
+            serviceId: so.serviceId,
+            quantity: so.quantity,
+            finalAmount: parseFloat(so.finalAmount),
+            status: so.status,
+            service: service
+              ? { name: service.name, profileImage: service.profile_image, price: parseFloat(service.price) }
+              : null,
+          };
+        })
+      );
+      result.push({
+        orderId: o.id,
+        cartId: o.cartId,
+        status: o.status,
+        totalAmount: parseFloat(o.price),
+        createdAt: o.createdAt,
+        services,
+      });
+    }
+    return result;
   }
 
   // Get single order with items
@@ -542,7 +566,10 @@ class OrderCartService {
     const serviceOrders = await ServiceOrder.findAll({ where: { orderId } });
     const items = [];
     for (const so of serviceOrders) {
-      const addOns = await ServiceOrderAddOn.findAll({ where: { serviceOrderId: so.id } });
+      const [addOns, service] = await Promise.all([
+        ServiceOrderAddOn.findAll({ where: { serviceOrderId: so.id } }),
+        Service.findByPk(so.serviceId, { attributes: ["id", "name", "profile_image", "price"] }),
+      ]);
       const addOnSubtotal = addOns.reduce((s, a) => s + parseFloat(a.subtotal), 0);
       items.push({
         serviceOrderId: so.id,
@@ -562,6 +589,9 @@ class OrderCartService {
         })),
         itemTotal: parseFloat(so.finalAmount) + addOnSubtotal,
         status: so.status,
+        service: service
+          ? { name: service.name, profileImage: service.profile_image, price: parseFloat(service.price) }
+          : null,
       });
     }
 
@@ -591,6 +621,7 @@ class OrderCartService {
     for (const so of serviceOrders) {
       const order = await Order.findByPk(so.orderId);
       const addOns = await ServiceOrderAddOn.findAll({ where: { serviceOrderId: so.id } });
+       const service = await Service.findByPk(so.serviceId, { attributes: ["id", "name", "profile_image", "price"] });
       const addOnSubtotal = addOns.reduce((s, a) => s + parseFloat(a.subtotal), 0);
 
       results.push({
@@ -611,6 +642,9 @@ class OrderCartService {
           priceAtOrder: parseFloat(a.priceAtOrder),
           subtotal: parseFloat(a.subtotal),
         })),
+        service: service
+          ? { name: service.name, profileImage: service.profile_image, price: parseFloat(service.price) }
+          : null,
         itemTotal: parseFloat(so.finalAmount) + addOnSubtotal,
         status: so.status,
         addressId: order?.addressId,
