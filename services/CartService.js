@@ -133,6 +133,12 @@ class CartService {
     }
 
     const price = resolveServicePrice(service, providedPrice);
+
+    // Persist the negotiated/provided price back to the service record
+    if (providedPrice !== undefined && providedPrice !== null && providedPrice !== "") {
+      await service.update({ price });
+    }
+
     const cartItem = await repo.createCartItem(cart.id, serviceId, quantity, price);
     const t = computeItemTotals(cartItem);
     const cartTotal = await computeCartTotal(cart.id);
