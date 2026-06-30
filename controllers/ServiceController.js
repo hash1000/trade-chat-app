@@ -357,6 +357,7 @@ class ServiceController {
         insured,
         moneyBack,
         support247,
+        isChat,
         tags,
         replyTime,
         isTopChoice,
@@ -492,6 +493,10 @@ class ServiceController {
 
       if (support247 !== undefined) {
         updateData.support247 = support247 === true || support247 === "true";
+      }
+
+      if (isChat !== undefined) {
+        updateData.isChat = isChat === true || isChat === "true";
       }
 
       if (tags !== undefined) {
