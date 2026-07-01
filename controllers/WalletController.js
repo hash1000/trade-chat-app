@@ -3,7 +3,7 @@ const walletService = new WalletService();
 
 const ALLOWED_WALLET_TYPES  = new Set(["PERSONAL", "COMPANY"]);
 const ALLOWED_TYPES         = new Set(["DEPOSIT", "WITHDRAW", "LOCK", "UNLOCK", "TRANSFER", "CONVERT"]);
-const ALLOWED_REFERENCE_TYPES = new Set(["SERVICE_PURCHASE"]); // extend as you add more
+const ALLOWED_REFERENCE_TYPES = new Set(["SERVICE_PURCHASE", "SERVICE_ORDER"]); // extend as you add more
 
 class WalletController {
   // controllers/WalletController.js — replace both duplicate methods with these two
