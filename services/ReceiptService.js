@@ -27,7 +27,7 @@ class ReceiptService {
 
   async createReceipt(userId, data) {
     // Validate sender and receiver exist
-    const { senderId, receiverId } = data;
+    const { senderId, receiverId, walletType } = data;
     const sender = await BankAccount.findByPk(senderId);
     if (!sender) {
       const err = new Error("Sender bank account not found");
@@ -41,7 +41,17 @@ class ReceiptService {
       throw err;
     }
 
-    return this.receiptRepository.createReceipt(userId, data);
+    // Buyer picks which wallet this receipt pays into; defaults to PERSONAL.
+    // All downstream actions (approve/lock/unlock) honor this value.
+    const ALLOWED_WALLET_TYPES = ["PERSONAL", "COMPANY"];
+    const resolvedWalletType = walletType || "PERSONAL";
+    if (!ALLOWED_WALLET_TYPES.includes(resolvedWalletType)) {
+      const err = new Error("walletType must be PERSONAL or COMPANY");
+      err.name = "SequelizeValidationError";
+      throw err;
+    }
+
+    return this.receiptRepository.createReceipt(userId, { ...data, walletType: resolvedWalletType });
   }
 
   async updateReceipt(userId, receiptId, updateData, approverUser = null) {
@@ -161,6 +171,11 @@ class ReceiptService {
       const rid = Number(updateData.receiverId);
       if (Number.isNaN(rid)) throw new Error("Invalid receiverId");
       sanitized.receiverId = rid;
+    }
+    if (Object.prototype.hasOwnProperty.call(updateData, "walletType")) {
+      const wt = String(updateData.walletType).toUpperCase();
+      if (!["PERSONAL", "COMPANY"].includes(wt)) throw new Error("Invalid walletType");
+      sanitized.walletType = wt;
     }
 
     // validate bank accounts if provided
@@ -308,13 +323,14 @@ class ReceiptService {
       );
 
       const performedBy = approverUser && approverUser.id ? approverUser.id : null;
+      const walletType = receipt.walletType || "PERSONAL";
       if (receipt.isLock) {
         await walletService.creditLocked({
           userId,
           currency,
           description,
           amount: amountToCredit,
-          walletType: "PERSONAL",
+          walletType,
           receiptId: receipt.id,
           meta: { source: "receipt_approve" },
           performedBy,
@@ -325,7 +341,7 @@ class ReceiptService {
           currency,
           description,
           amount: amountToCredit,
-          walletType: "PERSONAL",
+          walletType,
           receiptId: receipt.id,
           meta: { source: "receipt_approve" },
           performedBy,
@@ -420,7 +436,7 @@ class ReceiptService {
       amountToUnlock,
       receiptCurrency: receipt.currency,
       amount: convertedAmount,
-      walletType: "PERSONAL",
+      walletType: receipt.walletType || "PERSONAL",
       receiptId: receipt.id,
       performedBy,
       meta: {
@@ -487,7 +503,7 @@ class ReceiptService {
       currency: receipt.currency,
       description: description,
       amount: amountToLock,
-      walletType: "PERSONAL",
+      walletType: receipt.walletType || "PERSONAL",
       receiptId: receipt.id,
       meta: {
         source: "receipt_lock",

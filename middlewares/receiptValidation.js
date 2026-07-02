@@ -6,6 +6,10 @@ exports.createReceiptValidation = [
   body("amount")
     .isFloat({ gt: 0 })
     .withMessage("amount must be a number greater than 0"),
+  body("walletType")
+    .optional()
+    .isIn(["PERSONAL", "COMPANY"])
+    .withMessage("walletType must be PERSONAL or COMPANY"),
   handleValidationErrors,
 ];
 
@@ -23,6 +27,10 @@ exports.updateReceiptValidation = [
     .optional()
     .isFloat({ gt: 0 })
     .withMessage("amount must be a number greater than 0"),
+  body("walletType")
+    .optional()
+    .isIn(["PERSONAL", "COMPANY"])
+    .withMessage("walletType must be PERSONAL or COMPANY"),
   handleValidationErrors,
 ];
 
@@ -48,6 +56,10 @@ exports.adminUpdateValidation = [
     .optional()
     .isInt()
     .withMessage("receiverId must be an integer"),
+  body("walletType")
+    .optional()
+    .isIn(["PERSONAL", "COMPANY"])
+    .withMessage("walletType must be PERSONAL or COMPANY"),
   handleValidationErrors,
 ];
 

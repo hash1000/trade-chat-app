@@ -32,9 +32,9 @@ class ReceiptController {
   async createReceipt(req, res) {
     try {
       const { id: userId } = req.user;
-      const { senderId, receiverId, amount , currency } = req.body;
+      const { senderId, receiverId, amount, currency, walletType } = req.body;
 
-      const newReceipt = await receiptService.createReceipt(userId, { senderId, receiverId, amount, currency });
+      const newReceipt = await receiptService.createReceipt(userId, { senderId, receiverId, amount, currency, walletType });
       return res.status(201).json({ success: true, data: newReceipt });
     } catch (error) {
       console.error("createReceipt error:", error);

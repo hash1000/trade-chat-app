@@ -34,6 +34,11 @@ const Receipt = sequelize.define(
       allowNull: false,
       defaultValue: "USD",
     },
+    walletType: {
+      type: DataTypes.ENUM("PERSONAL", "COMPANY"),
+      allowNull: false,
+      defaultValue: "PERSONAL",
+    },
     isLock: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
