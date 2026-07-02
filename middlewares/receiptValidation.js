@@ -27,10 +27,8 @@ exports.updateReceiptValidation = [
     .optional()
     .isFloat({ gt: 0 })
     .withMessage("amount must be a number greater than 0"),
-  body("walletType")
-    .optional()
-    .isIn(["PERSONAL", "COMPANY"])
-    .withMessage("walletType must be PERSONAL or COMPANY"),
+  // walletType is set once at creation and is immutable afterward.
+  body("walletType").not().exists().withMessage("walletType cannot be changed after creation"),
   handleValidationErrors,
 ];
 
@@ -56,10 +54,8 @@ exports.adminUpdateValidation = [
     .optional()
     .isInt()
     .withMessage("receiverId must be an integer"),
-  body("walletType")
-    .optional()
-    .isIn(["PERSONAL", "COMPANY"])
-    .withMessage("walletType must be PERSONAL or COMPANY"),
+  // walletType is set once at creation and is immutable afterward.
+  body("walletType").not().exists().withMessage("walletType cannot be changed after creation"),
   handleValidationErrors,
 ];
 

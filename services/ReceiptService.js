@@ -172,11 +172,8 @@ class ReceiptService {
       if (Number.isNaN(rid)) throw new Error("Invalid receiverId");
       sanitized.receiverId = rid;
     }
-    if (Object.prototype.hasOwnProperty.call(updateData, "walletType")) {
-      const wt = String(updateData.walletType).toUpperCase();
-      if (!["PERSONAL", "COMPANY"].includes(wt)) throw new Error("Invalid walletType");
-      sanitized.walletType = wt;
-    }
+    // walletType is set once at receipt creation and is immutable afterward —
+    // intentionally not accepted here.
 
     // validate bank accounts if provided
     if (sanitized.senderId) {
