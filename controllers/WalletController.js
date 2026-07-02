@@ -60,7 +60,7 @@ class WalletController {
   async convertUsdToCny(req, res) {
     try {
       const { id: userId } = req.user;
-      const { amount, rate, transaction_group_id } = req.body;
+      const { amount, rate, transaction_group_id, walletType } = req.body;
 
       const parsed = Number(amount);
       if (!amount || Number.isNaN(parsed) || parsed <= 0) {
@@ -69,13 +69,23 @@ class WalletController {
           .json({ success: false, error: "Invalid amount provided." });
       }
 
+      const normalizedWalletType = walletType
+        ? String(walletType).trim().toUpperCase()
+        : "PERSONAL";
+      if (!ALLOWED_WALLET_TYPES.has(normalizedWalletType)) {
+        return res.status(400).json({
+          success: false,
+          error: "walletType must be PERSONAL or COMPANY",
+        });
+      }
+
       const result = await walletService.fxConvert({
         userId,
         fromCurrency: "USD",
         toCurrency: "CNY",
         amountInSource: parsed,
         rate,
-        walletType: "PERSONAL",
+        walletType: normalizedWalletType,
         meta: { source: "convert_usd_to_cny" },
         performedBy: userId,
         transaction_group_id,
