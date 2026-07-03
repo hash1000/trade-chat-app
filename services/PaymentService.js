@@ -60,15 +60,23 @@ class PaymentService {
     toCurrency = "CNY",
     description = null,
   ) {
+    // The mobile "Convert" screen sends `amount` as the TARGET-currency value
+    // shown in the "To" field (source amount × rate), not the source amount
+    // the user typed. Derive the equivalent source-currency amount here so
+    // fxConvert's sufficiency check runs against the correct wallet, and its
+    // internal multiply reproduces this exact target amount on credit.
+    const rate = Number(currentRate);
+    const sourceAmount = Number(amount) / rate;
+
     return walletService.fxConvert({
       userId,
       fromCurrency,
       toCurrency,
       description,
-      amountInSource: Number(amount),
-      rate: Number(currentRate),
+      amountInSource: sourceAmount,
+      rate,
       walletType: type,
-      meta: { source: "payment_convert" },
+      meta: { source: "payment_convert", requestedTargetAmount: Number(amount) },
     });
   }
 
