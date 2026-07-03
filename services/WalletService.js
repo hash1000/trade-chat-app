@@ -686,8 +686,9 @@ class WalletService {
           walletId: wallet.id,
           userId,
           type: "LOCK",
-          // This operation does not change availableBalance (locked balance only)
-          amount: 0,
+          // Credited straight into lockedBalance (availableBalance untouched).
+          // Negative, matching lockFunds' LOCK sign convention.
+          amount: -Number(amount),
           currency,
           description,
           receiptId,
