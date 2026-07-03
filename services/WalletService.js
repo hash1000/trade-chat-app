@@ -827,14 +827,16 @@ class WalletService {
   }
 
   /**
-   * Convert from one currency wallet to another (e.g. EUR → CNY).
-   * Deducts amountInSource from fromCurrency wallet and credits (amountInSource / rate) to toCurrency wallet.
+   * Convert from one currency wallet to another (e.g. USD → CNY).
+   * Deducts amountInSource from fromCurrency wallet and credits (amountInSource * rate) to toCurrency wallet.
+   * `rate` follows the same "target units per 1 source unit" convention as
+   * GET /payment/current-rate and the receipt cross-currency unlock (amount * rate).
    * @param {Object} params
    * @param {number} params.userId
-   * @param {string} params.fromCurrency - e.g. "EUR"
+   * @param {string} params.fromCurrency - e.g. "USD"
    * @param {string} params.toCurrency - e.g. "CNY"
-   * @param {number} params.amountInSource - amount to deduct from fromCurrency (e.g. 10 EUR)
-   * @param {number} params.rate - rate: target amount = amountInSource / rate (e.g. rate 2 → 10 EUR gives 5 CNY)
+   * @param {number} params.amountInSource - amount to deduct from fromCurrency (e.g. 10 USD)
+   * @param {number} params.rate - target units per 1 source unit (e.g. rate 7.2 → 10 USD gives 72 CNY)
    * @param {string} params.walletType - default "PERSONAL"
    */
   async fxConvert({
@@ -872,7 +874,7 @@ class WalletService {
       throw new Error("Invalid rate");
     }
 
-    const amountTarget = amountFrom / r;
+    const amountTarget = amountFrom * r;
     const groupId = this._makeGroupId(transaction_group_id);
 
     return sequelize.transaction(async (t) => {
