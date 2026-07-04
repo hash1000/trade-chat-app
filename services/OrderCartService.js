@@ -1,5 +1,5 @@
 const sequelize = require("../config/database");
-const { Order, ServiceOrder, ServiceOrderAddOn, Cart, CartItem, Service, Wallet, WalletTransaction, Address } = require("../models");
+const { Order, ServiceOrder, ServiceOrderAddOn, Cart, CartItem, Service, Wallet, WalletTransaction, Address, OrderPayment } = require("../models");
 const Transaction = require("../models/transaction");
 const ServiceService = require("./ServiceService");
 
@@ -209,6 +209,33 @@ class OrderCartService {
     };
   }
 
+  // Resolve a service order's payout wallet:
+  //   - service.payoutWalletId if the provider has chosen one
+  //   - else fallback to the owner's wallet, COMPANY-first
+  async resolveOwnerWallet(so) {
+    const svc = await Service.findByPk(so.serviceId, { attributes: ["id", "userId", "payoutWalletId"] });
+
+    let ownerWallet = null;
+    if (svc && svc.payoutWalletId) {
+      ownerWallet = await Wallet.findByPk(svc.payoutWalletId);
+    }
+    if (!ownerWallet) {
+      ownerWallet = await Wallet.findOne({
+        where: { userId: so.serviceOwnerId },
+        order: [["walletType", "ASC"]], // COMPANY first if exists
+      });
+    }
+    if (!ownerWallet) throw clientError(`Payout wallet not found for service owner ${so.serviceOwnerId}.`, 500, "PAYMENT_ERROR");
+    return ownerWallet;
+  }
+
+  // Sum of a service order's finalAmount + its add-ons
+  async itemTotalForServiceOrder(so) {
+    const addOns = await ServiceOrderAddOn.findAll({ where: { serviceOrderId: so.id } });
+    const addOnSubtotal = addOns.reduce((sum, a) => sum + parseFloat(a.subtotal), 0);
+    return parseFloat(so.finalAmount) + addOnSubtotal;
+  }
+
   // POST: confirm order — atomically distribute payment to each service owner
   async confirmOrder(userId, orderId, walletType) {
     const order = await Order.findByPk(orderId);
@@ -244,27 +271,11 @@ class OrderCartService {
     }
 
     // Resolve each service's payout wallet (keyed by serviceId, since the chosen
-    // wallet is configured per service):
-    //   - service.payoutWalletId if the provider has chosen one
-    //   - else fallback to the owner's wallet, COMPANY-first
+    // wallet is configured per service)
     const serviceWalletMap = {};
     for (const so of serviceOrders) {
       if (serviceWalletMap[so.serviceId]) continue;
-
-      const svc = await Service.findByPk(so.serviceId, { attributes: ["id", "userId", "payoutWalletId"] });
-
-      let ownerWallet = null;
-      if (svc && svc.payoutWalletId) {
-        ownerWallet = await Wallet.findByPk(svc.payoutWalletId);
-      }
-      if (!ownerWallet) {
-        ownerWallet = await Wallet.findOne({
-          where: { userId: so.serviceOwnerId },
-          order: [["walletType", "ASC"]], // COMPANY first if exists
-        });
-      }
-      if (!ownerWallet) throw clientError(`Payout wallet not found for service owner ${so.serviceOwnerId}.`, 500, "PAYMENT_ERROR");
-      serviceWalletMap[so.serviceId] = ownerWallet;
+      serviceWalletMap[so.serviceId] = await this.resolveOwnerWallet(so);
     }
 
     const tx = await sequelize.transaction();
@@ -307,9 +318,9 @@ class OrderCartService {
           { transaction: tx }
         );
 
-        // Mark service order as PURCHASED
+        // Mark service order as PURCHASED and track amount paid against it
         await ServiceOrder.update(
-          { status: "PURCHASED" },
+          { status: "PURCHASED", paidAmount: sequelize.literal(`paidAmount + ${amount}`) },
           { where: { id: so.id }, transaction: tx }
         );
 
@@ -322,8 +333,11 @@ class OrderCartService {
         });
       }
 
-      // Confirm the order
-      await Order.update({ status: "CONFIRMED" }, { where: { id: orderId }, transaction: tx });
+      // Confirm the order and track amount paid against it
+      await Order.update(
+        { status: "CONFIRMED", paidAmount: sequelize.literal(`paidAmount + ${totalAmount}`) },
+        { where: { id: orderId }, transaction: tx }
+      );
 
       await tx.commit();
 
@@ -344,6 +358,207 @@ class OrderCartService {
         wrapped.original = error.message;
         throw wrapped;
       }
+      throw error;
+    }
+  }
+
+  // POST: buyer pays an additional amount against an already-confirmed order.
+  // Not capped by the order's original totalAmount — buyer can pay any amount, any
+  // number of times. Deducts from the buyer's chosen wallet and credits the
+  // service owner(s), same as confirmOrder. If serviceOrderId is given, the full
+  // amount goes to that single item's owner; otherwise it's split proportionally
+  // across every item in the order by its original share of the order total.
+  async topUpOrder(userId, orderId, amount, walletType, serviceOrderId) {
+    const parsedAmount = parseFloat(amount);
+    if (!parsedAmount || Number.isNaN(parsedAmount) || parsedAmount <= 0) {
+      throw clientError("amount must be a number greater than 0.", 400, "VALIDATION_ERROR");
+    }
+
+    const order = await Order.findByPk(orderId);
+    if (!order) throw clientError("Order not found.", 404, "NOT_FOUND");
+    if (order.userId !== userId) throw clientError("Unauthorized.", 403, "UNAUTHORIZED");
+    if (order.status !== "CONFIRMED") {
+      throw clientError("Order must be confirmed before making an additional payment.", 409, "INVALID_STATE");
+    }
+
+    const serviceOrders = await ServiceOrder.findAll({ where: { orderId } });
+    if (serviceOrders.length === 0) throw clientError("Order has no items.", 400, "EMPTY_ORDER");
+
+    // Decide which item(s) receive the payment
+    let targets;
+    if (serviceOrderId) {
+      const target = serviceOrders.find((so) => so.id === Number(serviceOrderId));
+      if (!target) throw clientError("Service order item not found in this order.", 404, "NOT_FOUND");
+      targets = [{ so: target, share: parsedAmount }];
+    } else {
+      const itemTotals = await Promise.all(serviceOrders.map((so) => this.itemTotalForServiceOrder(so)));
+      const sumItemTotals = itemTotals.reduce((s, v) => s + v, 0);
+      targets = serviceOrders.map((so, idx) => ({
+        so,
+        share: sumItemTotals > 0
+          ? parsedAmount * (itemTotals[idx] / sumItemTotals)
+          : parsedAmount / serviceOrders.length, // equal split fallback
+      }));
+    }
+
+    // Buyer chooses which wallet to pay from (defaults to PERSONAL)
+    const VALID_WALLET_TYPES = ["PERSONAL", "COMPANY"];
+    const buyerWalletType = walletType || "PERSONAL";
+    if (!VALID_WALLET_TYPES.includes(buyerWalletType)) {
+      throw clientError("Invalid walletType. Must be PERSONAL or COMPANY.", 400, "VALIDATION_ERROR");
+    }
+
+    const buyerWallet = await Wallet.findOne({ where: { userId, walletType: buyerWalletType } });
+    if (!buyerWallet) throw clientError(`Buyer ${buyerWalletType} wallet not found.`, 402, "NO_WALLET");
+
+    const buyerBalance = parseFloat(buyerWallet.availableBalance);
+    if (buyerBalance < parsedAmount) {
+      const err = clientError("Insufficient wallet balance.", 402, "INSUFFICIENT_BALANCE");
+      err.data = { required: parsedAmount, available: buyerBalance };
+      throw err;
+    }
+
+    const ownerWallets = await Promise.all(targets.map((t) => this.resolveOwnerWallet(t.so)));
+
+    const tx = await sequelize.transaction();
+    try {
+      await Wallet.update(
+        { availableBalance: sequelize.literal(`availableBalance - ${parsedAmount}`) },
+        { where: { id: buyerWallet.id }, transaction: tx }
+      );
+
+      const distributions = [];
+
+      for (let i = 0; i < targets.length; i++) {
+        const { so, share } = targets[i];
+        const ownerWallet = ownerWallets[i];
+
+        await Wallet.update(
+          { availableBalance: sequelize.literal(`availableBalance + ${share}`) },
+          { where: { id: ownerWallet.id }, transaction: tx }
+        );
+
+        const txnRecord = await WalletTransaction.create(
+          {
+            walletId: buyerWallet.id,
+            userId,
+            receiverId: so.serviceOwnerId,
+            type: "TRANSFER",
+            amount: share,
+            currency: buyerWallet.currency,
+            description: `Additional payment for service order #${so.id}`,
+            referenceType: "SERVICE_ORDER",
+            referenceId: so.id,
+            performedBy: userId,
+          },
+          { transaction: tx }
+        );
+
+        await ServiceOrder.update(
+          { paidAmount: sequelize.literal(`paidAmount + ${share}`) },
+          { where: { id: so.id }, transaction: tx }
+        );
+
+        distributions.push({
+          serviceOrderId: so.id,
+          serviceId: so.serviceId,
+          serviceOwnerId: so.serviceOwnerId,
+          amount: share,
+          walletId: ownerWallet.id,
+          transactionId: txnRecord.id,
+        });
+      }
+
+      await Order.update(
+        { paidAmount: sequelize.literal(`paidAmount + ${parsedAmount}`) },
+        { where: { id: orderId }, transaction: tx }
+      );
+
+      await tx.commit();
+
+      return {
+        orderId,
+        amountPaid: parsedAmount,
+        paymentDetails: {
+          buyerWallet: { id: buyerWallet.id, walletType: buyerWalletType, deducted: parsedAmount },
+          distributions,
+        },
+        paidAt: new Date().toISOString(),
+      };
+    } catch (error) {
+      await tx.rollback();
+      if (!error.statusCode) {
+        const wrapped = clientError("Additional payment failed. No funds deducted. Please retry.", 500, "PAYMENT_ERROR");
+        wrapped.original = error.message;
+        throw wrapped;
+      }
+      throw error;
+    }
+  }
+
+  // POST: admin records a payment against an order without moving any wallet balance
+  // (e.g. payment was received outside the platform). Pure ledger entry.
+  async adminRecordPayment(adminUserId, orderId, amount, type, note, serviceOrderId) {
+    const parsedAmount = parseFloat(amount);
+    if (!parsedAmount || Number.isNaN(parsedAmount) || parsedAmount <= 0) {
+      throw clientError("amount must be a number greater than 0.", 400, "VALIDATION_ERROR");
+    }
+
+    const VALID_TYPES = ["order_payment", "order_top_up"];
+    const recordType = type || "order_payment";
+    if (!VALID_TYPES.includes(recordType)) {
+      throw clientError("Invalid type. Must be order_payment or order_top_up.", 400, "VALIDATION_ERROR");
+    }
+
+    const order = await Order.findByPk(orderId);
+    if (!order) throw clientError("Order not found.", 404, "NOT_FOUND");
+
+    let serviceOrder = null;
+    if (serviceOrderId) {
+      serviceOrder = await ServiceOrder.findOne({ where: { id: serviceOrderId, orderId } });
+      if (!serviceOrder) throw clientError("Service order item not found in this order.", 404, "NOT_FOUND");
+    }
+
+    const tx = await sequelize.transaction();
+    try {
+      const record = await OrderPayment.create(
+        {
+          orderId,
+          serviceOrderId: serviceOrderId || null,
+          type: recordType,
+          amount: parsedAmount,
+          note: note || null,
+          createdBy: adminUserId,
+        },
+        { transaction: tx }
+      );
+
+      await Order.update(
+        { paidAmount: sequelize.literal(`paidAmount + ${parsedAmount}`) },
+        { where: { id: orderId }, transaction: tx }
+      );
+
+      if (serviceOrder) {
+        await ServiceOrder.update(
+          { paidAmount: sequelize.literal(`paidAmount + ${parsedAmount}`) },
+          { where: { id: serviceOrder.id }, transaction: tx }
+        );
+      }
+
+      await tx.commit();
+
+      return {
+        id: record.id,
+        orderId,
+        serviceOrderId: serviceOrderId || null,
+        type: recordType,
+        amount: parsedAmount,
+        note: note || null,
+        createdBy: adminUserId,
+        createdAt: record.createdAt,
+      };
+    } catch (error) {
+      await tx.rollback();
       throw error;
     }
   }
@@ -447,6 +662,7 @@ class OrderCartService {
           name: `Cart Order — ${cart.name}`,
           status: "CONFIRMED",
           price: orderTotal,
+          paidAmount: orderTotal,
           orderNo: `CO-${Date.now()}-${userId}`,
           image: "",
         },
@@ -456,6 +672,8 @@ class OrderCartService {
       const distributions = [];
 
       for (const od of orderItemsData) {
+        const addOnSubtotalFinal = od.addOns.reduce((sum, a) => sum + parseFloat(a.price) * a.quantity, 0);
+
         const so = await ServiceOrder.create(
           {
             orderId: order.id,
@@ -468,12 +686,11 @@ class OrderCartService {
             discountPercent: parseFloat(od.item.discountPercent) || 0,
             discountAmount: od.discountAmount,
             finalAmount: od.finalAmount,
+            paidAmount: od.finalAmount + addOnSubtotalFinal,
             status: "PURCHASED",
           },
           { transaction: tx }
         );
-
-        const addOnSubtotalFinal = od.addOns.reduce((sum, a) => sum + parseFloat(a.price) * a.quantity, 0);
 
         for (const addOn of od.addOns) {
           await ServiceOrderAddOn.create(
@@ -595,6 +812,7 @@ class OrderCartService {
             serviceId: so.serviceId,
             quantity: so.quantity,
             finalAmount: parseFloat(so.finalAmount),
+            paidAmount: parseFloat(so.paidAmount),
             status: so.status,
             service,
           };
@@ -605,6 +823,7 @@ class OrderCartService {
         cartId: o.cartId,
         status: o.status,
         totalAmount: parseFloat(o.price),
+        paidAmount: parseFloat(o.paidAmount),
         createdAt: o.createdAt,
         services,
       });
@@ -636,6 +855,7 @@ class OrderCartService {
         discountCode: so.discountCode,
         discountAmount: parseFloat(so.discountAmount),
         finalAmount: parseFloat(so.finalAmount),
+        paidAmount: parseFloat(so.paidAmount),
         addOns: addOns.map((a) => ({
           addOnId: a.addOnId,
           quantity: a.quantity,
@@ -656,6 +876,7 @@ class OrderCartService {
       addressId: order.addressId,
       deliveryOption: order.deliveryOption,
       totalAmount: parseFloat(order.price),
+      paidAmount: parseFloat(order.paidAmount),
       items,
       createdAt: order.createdAt,
     };

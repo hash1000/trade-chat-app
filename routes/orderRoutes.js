@@ -8,6 +8,8 @@ const authMiddleware = require("../middlewares/authenticate");
 const {
   createOrderValidator,
   updateOrderAddressValidator,
+  topUpOrderValidator,
+  adminRecordPaymentValidator,
 } = require("../middlewares/orderValidation");
 const authorize = require("../middlewares/authorization");
 const checkIntegerParam = require("../middlewares/paramIntegerValidation");
@@ -35,6 +37,23 @@ router.patch("/:orderId/address-delivery", authMiddleware, cartController.setAdd
 
 // Confirm order → atomic multi-owner payment distribution → CONFIRMED
 router.post("/:orderId/confirm", authMiddleware, cartController.confirmOrder.bind(cartController));
+
+// Buyer pays an additional amount against an already-confirmed order (no cap, repeatable)
+router.post(
+  "/:orderId/top-up",
+  authMiddleware,
+  topUpOrderValidator,
+  cartController.topUpOrder.bind(cartController)
+);
+
+// Admin records a payment against an order — no wallet balance is touched, pure ledger entry
+router.post(
+  "/:orderId/admin-payment",
+  authMiddleware,
+  authorize(["admin", "accountant"]),
+  adminRecordPaymentValidator,
+  cartController.adminRecordPayment.bind(cartController)
+);
 
 // ── Legacy order endpoints ─────────────────────────────────────────────────────
 router.post(

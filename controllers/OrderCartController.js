@@ -55,6 +55,32 @@ class OrderCartController {
     }
   }
 
+  // POST /orders/:orderId/top-up — buyer pays an additional amount against an already-confirmed order
+  async topUpOrder(req, res) {
+    try {
+      const userId = req.user.id;
+      const orderId = Number(req.params.orderId);
+      const { amount, walletType, serviceOrderId } = req.body;
+      const data = await cartService.topUpOrder(userId, orderId, amount, walletType, serviceOrderId);
+      return res.status(200).json({ success: true, data });
+    } catch (error) {
+      return handleError(res, error);
+    }
+  }
+
+  // POST /orders/:orderId/admin-payment — admin records a payment against an order, no wallet movement
+  async adminRecordPayment(req, res) {
+    try {
+      const adminUserId = req.user.id;
+      const orderId = Number(req.params.orderId);
+      const { amount, type, note, serviceOrderId } = req.body;
+      const data = await cartService.adminRecordPayment(adminUserId, orderId, amount, type, note, serviceOrderId);
+      return res.status(201).json({ success: true, data });
+    } catch (error) {
+      return handleError(res, error);
+    }
+  }
+
   // POST /carts/:cartId/checkout — generate order + confirm payment in one shot
   async checkoutCart(req, res) {
     try {

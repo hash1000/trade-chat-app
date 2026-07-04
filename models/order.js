@@ -68,6 +68,11 @@ const Order = db.define(
       type: DataTypes.DECIMAL(10, 2),
       allowNull: false,
     },
+    paidAmount: {
+      type: DataTypes.DECIMAL(20, 8),
+      allowNull: false,
+      defaultValue: 0,
+    },
     isLock: {
       type: DataTypes.BOOLEAN,
       defaultValue: false,

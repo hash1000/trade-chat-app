@@ -105,6 +105,42 @@ exports.updateOrderAddressValidator = [
 ];
 
 
+exports.topUpOrderValidator = [
+  body('amount')
+    .isFloat({ gt: 0 })
+    .withMessage('amount must be a number greater than 0'),
+  body('walletType')
+    .optional()
+    .isIn(['PERSONAL', 'COMPANY'])
+    .withMessage('walletType must be PERSONAL or COMPANY'),
+  body('serviceOrderId')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('serviceOrderId must be a positive integer'),
+  handleValidationErrors
+];
+
+exports.adminRecordPaymentValidator = [
+  body('amount')
+    .isFloat({ gt: 0 })
+    .withMessage('amount must be a number greater than 0'),
+  body('type')
+    .optional()
+    .isIn(['order_payment', 'order_top_up'])
+    .withMessage('type must be order_payment or order_top_up'),
+  body('note')
+    .optional()
+    .isString()
+    .trim()
+    .isLength({ max: 1000 })
+    .withMessage('note must be a string up to 1000 characters'),
+  body('serviceOrderId')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('serviceOrderId must be a positive integer'),
+  handleValidationErrors
+];
+
 // exports.updateOrderValidator = [
 //   body('name').notEmpty().withMessage('Name is required.'),
 //   body('image').notEmpty().withMessage('Image is required.'),
