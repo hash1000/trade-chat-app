@@ -39,6 +39,10 @@ const Receipt = sequelize.define(
       allowNull: false,
       defaultValue: "PERSONAL",
     },
+    note: {
+      type: DataTypes.STRING(1000),
+      allowNull: true,
+    },
     isLock: {
       type: DataTypes.BOOLEAN,
       allowNull: false,

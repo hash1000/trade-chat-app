@@ -10,6 +10,12 @@ exports.createReceiptValidation = [
     .optional()
     .isIn(["PERSONAL", "COMPANY"])
     .withMessage("walletType must be PERSONAL or COMPANY"),
+  body("note")
+    .optional()
+    .isString()
+    .trim()
+    .isLength({ max: 1000 })
+    .withMessage("note must be a string up to 1000 characters"),
   handleValidationErrors,
 ];
 
