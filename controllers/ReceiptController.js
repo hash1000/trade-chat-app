@@ -195,7 +195,7 @@ class ReceiptController {
 
   async getAdminReceipts(req, res) {
     try {
-      const { type, pagination, page, limit } = req.query;
+      const { type, pagination, page, limit, status } = req.query;
       const { id: userId } = req.user;
 
       if (type === "my") {
@@ -207,9 +207,10 @@ class ReceiptController {
         return res.status(400).json({ success: false, error: "Invalid type parameter. Must be 'my' or 'all'." });
       }
 
+      const statusFilter = status || "all";
       const usePagination = pagination === "true";
       if (!usePagination) {
-        const receipts = await receiptService.getAdminReceipts();
+        const receipts = await receiptService.getAdminReceipts({ status: statusFilter });
         return res.status(200).json({ success: true, data: receipts });
       }
 
@@ -217,6 +218,7 @@ class ReceiptController {
       const limitNum = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
       const result = await receiptService.getAdminReceipts({
         pagination: true,
+        status: statusFilter,
         page: pageNum,
         limit: limitNum,
       });

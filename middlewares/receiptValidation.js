@@ -76,6 +76,10 @@ exports.getValidation = [
     .optional({ checkFalsy: true })
     .isInt({ min: 1, max: 100 })
     .withMessage('The "limit" query must be an integer between 1 and 100.'),
+  query('status')
+    .optional({ checkFalsy: true })
+    .isIn(['all', 'pending', 'approved', 'rejected', 'hold', 'locked'])
+    .withMessage('The "status" query must be one of: all, pending, approved, rejected, hold, locked.'),
   handleValidationErrors, // Middleware to handle errors
 ];
 

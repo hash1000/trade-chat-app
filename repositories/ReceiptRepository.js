@@ -51,8 +51,16 @@ class ReceiptRepository {
     });
   }
 
-  async getAdminReceipts({ pagination = false, page = 1, limit = 20 } = {}) {
+  async getAdminReceipts({ pagination = false, page = 1, limit = 20, status = "all" } = {}) {
+    const where = {};
+    if (status === "locked") {
+      where.isLock = true;
+    } else if (status && status !== "all") {
+      where.status = status;
+    }
+
     const queryOptions = {
+      where,
       order: [["createdAt", "DESC"]],
       include: [
         { model: BankAccount, as: "sender" },
