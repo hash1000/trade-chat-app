@@ -122,6 +122,21 @@ class ReceiptController {
     }
   }
 
+  async adminBulkDeleteReceipts(req, res) {
+    try {
+      const { ids } = req.body;
+      const result = await receiptService.adminBulkDeleteReceipts(ids);
+      return res.status(200).json({
+        success: true,
+        message: `${result.deletedCount} of ${result.requestedCount} receipt(s) deleted successfully.`,
+        data: result,
+      });
+    } catch (error) {
+      console.error("adminBulkDeleteReceipts error:", error);
+      res.status(500).json({ success: false, error: "Server error. Please try again later." });
+    }
+  }
+
   // admin actions for approving or rejecting receipts
   async approveReceipt(req, res) {
     try {

@@ -72,6 +72,14 @@ exports.idParamValidation = [
   handleValidationErrors,
 ];
 
+exports.bulkDeleteValidation = [
+  body("ids")
+    .isArray({ min: 1 })
+    .withMessage("ids must be a non-empty array of receipt ids"),
+  body("ids.*").isInt().withMessage("Each id must be an integer"),
+  handleValidationErrors,
+];
+
 function handleValidationErrors(req, res, next) {
   const errors = validationResult(req);
   if (!errors.isEmpty())

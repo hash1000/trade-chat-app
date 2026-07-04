@@ -143,6 +143,12 @@ class ReceiptService {
     return this.receiptRepository.adminDeleteReceipt(receiptId);
   }
 
+  async adminBulkDeleteReceipts(receiptIds) {
+    const uniqueIds = [...new Set(receiptIds.map((id) => Number(id)))];
+    const deletedCount = await this.receiptRepository.adminBulkDeleteReceipts(uniqueIds);
+    return { requestedCount: uniqueIds.length, deletedCount };
+  }
+
   // Admin-specific update: allows admins to edit a receipt and adjusts credited USD accordingly
   async adminUpdateReceipt(receiptId, updateData, adminUser = null) {
     // sanitize and validate incoming fields

@@ -24,12 +24,13 @@ class ReceiptRepository {
             "email",
             "usdWalletBalance",
             "personalWalletBalance",
+            "profilePic",
           ],
         },
         {
           model: User,
           as: "approver",
-          attributes: ["id", "firstName", "lastName", "username", "email"],
+          attributes: ["id", "firstName", "lastName", "username", "email", "profilePic"],
         },
         {
           model: WalletTransaction,
@@ -42,7 +43,7 @@ class ReceiptRepository {
             {
               model: User,
               as: "performer",
-              attributes: ["id", "firstName", "lastName", "username", "email"],
+              attributes: ["id", "firstName", "lastName", "username", "email", "profilePic"],
             },
           ],
         },
@@ -67,12 +68,13 @@ class ReceiptRepository {
             "email",
             "usdWalletBalance",
             "personalWalletBalance",
+            "profilePic",
           ],
         },
         {
           model: User,
           as: "approver",
-          attributes: ["id", "firstName", "lastName", "username", "email"],
+          attributes: ["id", "firstName", "lastName", "username", "email", "profilePic"],
         },
         {
           model: WalletTransaction,
@@ -85,7 +87,7 @@ class ReceiptRepository {
             {
               model: User,
               as: "performer",
-              attributes: ["id", "firstName", "lastName", "username", "email"],
+              attributes: ["id", "firstName", "lastName", "username", "email", "profilePic"],
             },
           ],
         },
@@ -110,12 +112,13 @@ class ReceiptRepository {
             "email",
             "usdWalletBalance",
             "personalWalletBalance",
+            "profilePic",
           ],
         },
         {
           model: User,
           as: "approver",
-          attributes: ["id", "firstName", "lastName", "username", "email"],
+          attributes: ["id", "firstName", "lastName", "username", "email", "profilePic"],
         },
         {
           model: WalletTransaction,
@@ -128,7 +131,7 @@ class ReceiptRepository {
             {
               model: User,
               as: "performer",
-              attributes: ["id", "firstName", "lastName", "username", "email"],
+              attributes: ["id", "firstName", "lastName", "username", "email", "profilePic"],
             },
           ],
         },
@@ -152,12 +155,13 @@ class ReceiptRepository {
             "email",
             "usdWalletBalance",
             "personalWalletBalance",
+            "profilePic",
           ],
         },
         {
           model: User,
           as: "approver",
-          attributes: ["id", "firstName", "lastName", "username", "email"],
+          attributes: ["id", "firstName", "lastName", "username", "email", "profilePic"],
         },
         {
           model: WalletTransaction,
@@ -170,7 +174,7 @@ class ReceiptRepository {
             {
               model: User,
               as: "performer",
-              attributes: ["id", "firstName", "lastName", "username", "email"],
+              attributes: ["id", "firstName", "lastName", "username", "email", "profilePic"],
             },
           ],
         },
@@ -213,6 +217,10 @@ class ReceiptRepository {
   async adminDeleteReceipt(receiptId) {
     const deleted = await Receipt.destroy({ where: { id: receiptId } });
     return deleted > 0;
+  }
+
+  async adminBulkDeleteReceipts(receiptIds) {
+    return await Receipt.destroy({ where: { id: { [Op.in]: receiptIds } } });
   }
 
   async updateReceiptStatus(receiptId, status) {

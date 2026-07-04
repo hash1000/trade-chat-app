@@ -3,7 +3,7 @@ const router = express.Router();
 const ReceiptController = require('../controllers/ReceiptController');
 const authenticate = require('../middlewares/authenticate');
 const authMiddleware = require("../middlewares/authenticate");
-const { createReceiptValidation, updateReceiptValidation, idParamValidation, getValidation, adminUpdateValidation } = require('../middlewares/receiptValidation');
+const { createReceiptValidation, updateReceiptValidation, idParamValidation, getValidation, adminUpdateValidation, bulkDeleteValidation } = require('../middlewares/receiptValidation');
 const authorize = require('../middlewares/authorization');
 const checkIntegerParam = require('../middlewares/paramIntegerValidation');
 
@@ -19,6 +19,7 @@ router.delete('/my/:id', authenticate, idParamValidation, receiptController.dele
 router.put('/:id/approve', authMiddleware, authorize(["admin", "accountant"]), receiptController.approveReceipt);
 router.put('/:id/reject', authMiddleware, authorize(["admin", "accountant"]), checkIntegerParam("id"), receiptController.rejectReceipt);
 router.put('/:id', authMiddleware, authorize(["admin", "accountant"]), checkIntegerParam("id"), adminUpdateValidation, receiptController.adminUpdateReceipt);
+router.delete('/bulk', authMiddleware, authorize(["admin"]), bulkDeleteValidation, receiptController.adminBulkDeleteReceipts);
 router.delete('/:id', authMiddleware, authorize(["admin"]), checkIntegerParam("id"), receiptController.adminDeleteReceipt);
 router.get('/', authMiddleware, authorize(["admin", "accountant"]), getValidation, receiptController.getAdminReceipts);
 router.post(
