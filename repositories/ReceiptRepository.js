@@ -51,8 +51,8 @@ class ReceiptRepository {
     });
   }
 
-  async getAdminReceipts() {
-    return await Receipt.findAll({
+  async getAdminReceipts({ pagination = false, page = 1, limit = 20 } = {}) {
+    const queryOptions = {
       order: [["createdAt", "DESC"]],
       include: [
         { model: BankAccount, as: "sender" },
@@ -92,7 +92,25 @@ class ReceiptRepository {
           ],
         },
       ],
+    };
+
+    if (!pagination) {
+      return await Receipt.findAll(queryOptions);
+    }
+
+    const { count, rows } = await Receipt.findAndCountAll({
+      ...queryOptions,
+      limit,
+      offset: (page - 1) * limit,
+      distinct: true,
     });
+
+    return {
+      receipts: rows,
+      totalItems: count,
+      totalPages: Math.ceil(count / limit),
+      currentPage: page,
+    };
   }
 
   async getReceiptById(userId, receiptId) {

@@ -195,19 +195,42 @@ class ReceiptController {
 
   async getAdminReceipts(req, res) {
     try {
-      const { type } = req.query;
+      const { type, pagination, page, limit } = req.query;
       const { id: userId } = req.user;
-      let receipts;
 
       if (type === "my") {
-        receipts = await receiptService.getReceiptsByUserId(userId);
-      } else if (type === "all") {
-        receipts = await receiptService.getAdminReceipts();
-      } else {
+        const receipts = await receiptService.getReceiptsByUserId(userId);
+        return res.status(200).json({ success: true, data: receipts });
+      }
+
+      if (type !== "all") {
         return res.status(400).json({ success: false, error: "Invalid type parameter. Must be 'my' or 'all'." });
       }
 
-      return res.status(200).json({ success: true, data: receipts });
+      const usePagination = pagination === "true";
+      if (!usePagination) {
+        const receipts = await receiptService.getAdminReceipts();
+        return res.status(200).json({ success: true, data: receipts });
+      }
+
+      const pageNum = Math.max(parseInt(page, 10) || 1, 1);
+      const limitNum = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
+      const result = await receiptService.getAdminReceipts({
+        pagination: true,
+        page: pageNum,
+        limit: limitNum,
+      });
+
+      return res.status(200).json({
+        success: true,
+        data: result.receipts,
+        pagination: {
+          currentPage: result.currentPage,
+          totalPages: result.totalPages,
+          totalItems: result.totalItems,
+          limit: limitNum,
+        },
+      });
     } catch (error) {
       console.error("getAdminReceipts error:", error);
       res.status(500).json({ success: false, error: "Server error. Please try again later." });

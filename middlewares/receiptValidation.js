@@ -64,6 +64,18 @@ exports.getValidation = [
     .optional({ checkFalsy: true }) // Makes the 'type' query optional, but validates if provided
     .isIn(['all', 'my'])  // Ensures 'type' is either 'all' or 'my'
     .withMessage('The "type" query must be either "all" or "my".'),
+  query('pagination')
+    .optional({ checkFalsy: true })
+    .isIn(['true', 'false'])
+    .withMessage('The "pagination" query must be either "true" or "false".'),
+  query('page')
+    .optional({ checkFalsy: true })
+    .isInt({ min: 1 })
+    .withMessage('The "page" query must be a positive integer.'),
+  query('limit')
+    .optional({ checkFalsy: true })
+    .isInt({ min: 1, max: 100 })
+    .withMessage('The "limit" query must be an integer between 1 and 100.'),
   handleValidationErrors, // Middleware to handle errors
 ];
 
