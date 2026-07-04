@@ -11,6 +11,11 @@ const Version = sequelize.define('Version', {
     type: DataTypes.STRING,
     allowNull: false,
   },
+  changelog: {
+    type: DataTypes.JSON,
+    allowNull: true,
+    defaultValue: [],
+  },
   createdAt: {
     type: DataTypes.DATE,
     defaultValue: DataTypes.NOW,

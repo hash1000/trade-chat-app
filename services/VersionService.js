@@ -9,12 +9,12 @@ class VersionService {
     return await this.versionRepository.getAll();
   }
 
-  async create(version) {
-    return await this.versionRepository.create(version);
+  async create(version, changelog) {
+    return await this.versionRepository.create(version, changelog);
   }
 
-  async update(versionId, version) {
-    return await this.versionRepository.update(versionId, version);
+  async update(versionId, version, changelog) {
+    return await this.versionRepository.update(versionId, version, changelog);
   }
 
   async remove(versionId) {

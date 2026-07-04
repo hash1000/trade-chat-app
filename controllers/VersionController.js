@@ -18,8 +18,8 @@ class VersionController {
   // Add new version
   async add(req, res) {
     try {
-      const { version } = req.body;
-      const newVersion = await versionService.create(version);
+      const { version, changelog } = req.body;
+      const newVersion = await versionService.create(version, changelog);
       return res.status(201).json({ success: true, data: newVersion });
     } catch (error) {
       return res.status(500).json({ success: false, message: error.message });
@@ -30,10 +30,10 @@ class VersionController {
   async update(req, res) {
     try {
       const { versionId } = req.params;
-      const { version } = req.body; // Extract version from request body
+      const { version, changelog } = req.body; // Extract version and changelog from request body
 
       // Update version using version service
-      const updated = await versionService.update(versionId, version);
+      const updated = await versionService.update(versionId, version, changelog);
 
       // If no version was updated
       if (updated.success === false) {

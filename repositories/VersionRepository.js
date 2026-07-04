@@ -5,17 +5,22 @@ class VersionRepository {
     return await Version.findAll();
   }
 
-  async create(version) {
-    return await Version.create({ version });
+  async create(version, changelog) {
+    const payload = { version };
+    if (changelog !== undefined) payload.changelog = changelog;
+    return await Version.create(payload);
   }
 
   // Service function to update the version
   // Update version (Service)
-  async update(versionId, version) {
+  async update(versionId, version, changelog) {
     try {
+      const payload = { version };
+      if (changelog !== undefined) payload.changelog = changelog;
+
       // Update version using versionRepository
       const [updatedRows] = await Version.update(
-        { version },
+        payload,
         { where: { id: versionId } },
       );
 

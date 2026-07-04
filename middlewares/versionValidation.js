@@ -6,6 +6,15 @@ exports.versionValidator = [
     .trim()
     .notEmpty()
     .withMessage('Version is required'),
+  body('changelog')
+    .optional()
+    .isArray()
+    .withMessage('changelog must be an array of strings'),
+  body('changelog.*')
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage('Each changelog entry must be a non-empty string'),
   handleValidationErrors
 ];
 
