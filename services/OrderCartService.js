@@ -1060,6 +1060,8 @@ class OrderCartService {
         discountCode: so.discountCode,
         discountAmount: parseFloat(so.discountAmount),
         finalAmount: parseFloat(so.finalAmount),
+        paidAmount: parseFloat(so.paidAmount),
+        extraPayments: parseFloat(so.extraPayments),
         addOns: addOns.map((a) => ({
           addOnId: a.addOnId,
           quantity: a.quantity,
@@ -1071,6 +1073,9 @@ class OrderCartService {
         status: so.status,
         addressId: order?.addressId,
         deliveryOption: order?.deliveryOption,
+        orderTotalAmount: order ? parseFloat(order.price) : null,
+        orderPaidAmount: order ? parseFloat(order.paidAmount) : null,
+        orderExtraPayments: order ? parseFloat(order.extraPayments) : null,
         createdAt: so.createdAt,
       });
     }
