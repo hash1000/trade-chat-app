@@ -384,6 +384,7 @@ class OrderCartService {
             description: `Payment for service order #${so.id}`,
             referenceType: "SERVICE_ORDER",
             referenceId: so.id,
+            orderId,
             performedBy: userId,
           },
           { transaction: tx }
@@ -520,6 +521,7 @@ class OrderCartService {
             description: `Additional payment for service order #${so.id}`,
             referenceType: "SERVICE_ORDER",
             referenceId: so.id,
+            orderId,
             performedBy: userId,
           },
           { transaction: tx }
@@ -799,6 +801,7 @@ class OrderCartService {
             description: `Payment for service order #${so.id}`,
             referenceType: "SERVICE_ORDER",
             referenceId: so.id,
+            orderId: order.id,
             performedBy: userId,
           },
           { transaction: tx }

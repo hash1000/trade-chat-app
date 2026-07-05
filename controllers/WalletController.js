@@ -350,6 +350,7 @@ async listWalletTransactions(req, res) {
       transaction_group_id,
       referenceType,
       referenceId,
+      orderId,
       startDate,
       endDate,
       page  = 1,
@@ -379,6 +380,7 @@ async listWalletTransactions(req, res) {
       transaction_group_id,
       referenceType,
       referenceId,
+      orderId,
       startDate,
       endDate,
     });
@@ -412,6 +414,7 @@ async listWalletMyTransactions(req, res) {
       transaction_group_id,
       referenceType,
       referenceId,
+      orderId,
       startDate,
       endDate,
       page  = 1,
@@ -441,6 +444,7 @@ async listWalletMyTransactions(req, res) {
       transaction_group_id,
       referenceType,
       referenceId,
+      orderId,
       startDate,
       endDate,
     });

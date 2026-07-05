@@ -998,9 +998,10 @@ class WalletService {
     currency,
     walletType,
     myTransactions = false,
-    user, 
+    user,
     userId = 0,
     receiptId,
+    orderId,
     startDate,
     endDate,
     transaction_group_id,
@@ -1028,6 +1029,10 @@ class WalletService {
 
     if (receiptId != null && receiptId !== "") {
       where.receiptId = receiptId;
+    }
+
+    if (orderId != null && orderId !== "") {
+      where.orderId = orderId;
     }
 
     if (transaction_group_id) {

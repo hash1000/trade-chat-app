@@ -53,6 +53,12 @@ const WalletTransaction = sequelize.define(
       type: DataTypes.INTEGER,
       allowNull: true,
     },
+    orderId: {
+      // Parent order this transaction was paid against (confirm/top-up), so it can
+      // be traced directly without joining through service_orders.referenceId
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
     receiptId: {
       type: DataTypes.INTEGER,
       allowNull: true,
@@ -72,6 +78,7 @@ const WalletTransaction = sequelize.define(
       { fields: ["transaction_group_id"] },
       { fields: ["walletId"] },
       { fields: ["userId"] },
+      { fields: ["orderId"] },
       { fields: ["receiptId"] },
       { fields: ["referenceType", "referenceId"] },  // ← lookup both together
       { fields: ["createdAt"] },
