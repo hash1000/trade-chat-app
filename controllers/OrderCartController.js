@@ -55,6 +55,18 @@ class OrderCartController {
     }
   }
 
+  // GET /orders/:orderId/payments — combined payment history (buyer wallet payments + admin records)
+  async getOrderPayments(req, res) {
+    try {
+      const userId = req.user.id;
+      const orderId = Number(req.params.orderId);
+      const data = await cartService.getOrderPaymentHistory(userId, orderId);
+      return res.status(200).json({ success: true, data, count: data.length });
+    } catch (error) {
+      return handleError(res, error);
+    }
+  }
+
   // POST /orders/:orderId/top-up — buyer pays an additional amount against an already-confirmed order
   async topUpOrder(req, res) {
     try {

@@ -38,6 +38,9 @@ router.patch("/:orderId/address-delivery", authMiddleware, cartController.setAdd
 // Confirm order → atomic multi-owner payment distribution → CONFIRMED
 router.post("/:orderId/confirm", authMiddleware, cartController.confirmOrder.bind(cartController));
 
+// Combined payment history for an order (buyer wallet payments + admin records) — owner or admin/accountant
+router.get("/:orderId/payments", authMiddleware, cartController.getOrderPayments.bind(cartController));
+
 // Buyer pays an additional amount against an already-confirmed order (no cap, repeatable)
 router.post(
   "/:orderId/top-up",

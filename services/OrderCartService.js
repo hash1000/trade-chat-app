@@ -1,7 +1,10 @@
 const sequelize = require("../config/database");
-const { Order, ServiceOrder, ServiceOrderAddOn, Cart, CartItem, Service, Wallet, WalletTransaction, Address, OrderPayment } = require("../models");
+const { Order, ServiceOrder, ServiceOrderAddOn, Cart, CartItem, Service, Wallet, WalletTransaction, Address, OrderPayment, User } = require("../models");
 const Transaction = require("../models/transaction");
 const ServiceService = require("./ServiceService");
+const UserService = require("./UserService");
+
+const PAYMENT_HISTORY_ROLES = ["admin", "accountant"];
 
 function clientError(message, statusCode, code) {
   const err = new Error(message);
@@ -13,6 +16,7 @@ function clientError(message, statusCode, code) {
 class OrderCartService {
   constructor() {
     this.serviceService = new ServiceService();
+    this.userService = new UserService();
   }
 
   /**
@@ -236,6 +240,73 @@ class OrderCartService {
     return parseFloat(so.finalAmount) + addOnSubtotal;
   }
 
+  // Merge buyer wallet payments (confirm + top-up) and admin-recorded payments
+  // into one chronological history for an order. No auth check here — callers
+  // that expose this externally must authorize first.
+  async _fetchPaymentHistoryRows(orderId) {
+    const serviceOrders = await ServiceOrder.findAll({ where: { orderId }, attributes: ["id"] });
+    const serviceOrderIds = serviceOrders.map((so) => so.id);
+
+    const [walletTxns, adminRecords] = await Promise.all([
+      serviceOrderIds.length
+        ? WalletTransaction.findAll({
+            where: { referenceType: "SERVICE_ORDER", referenceId: serviceOrderIds },
+            include: [{ model: User, as: "performer", attributes: ["id", "username", "email"] }],
+            order: [["createdAt", "DESC"]],
+          })
+        : [],
+      OrderPayment.findAll({
+        where: { orderId },
+        include: [{ model: User, as: "recordedBy", attributes: ["id", "username", "email"] }],
+        order: [["createdAt", "DESC"]],
+      }),
+    ]);
+
+    const buyerEntries = walletTxns.map((wt) => ({
+      source: "BUYER_WALLET",
+      type: wt.type,
+      amount: parseFloat(wt.amount),
+      currency: wt.currency,
+      serviceOrderId: wt.referenceId,
+      description: wt.description,
+      performedBy: wt.performer
+        ? { id: wt.performer.id, username: wt.performer.username, email: wt.performer.email }
+        : null,
+      createdAt: wt.createdAt,
+    }));
+
+    const adminEntries = adminRecords.map((op) => ({
+      source: "ADMIN_RECORD",
+      type: op.type,
+      amount: parseFloat(op.amount),
+      currency: null,
+      serviceOrderId: op.serviceOrderId,
+      description: op.note,
+      performedBy: op.recordedBy
+        ? { id: op.recordedBy.id, username: op.recordedBy.username, email: op.recordedBy.email }
+        : null,
+      createdAt: op.createdAt,
+    }));
+
+    return [...buyerEntries, ...adminEntries].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  }
+
+  // GET /orders/:orderId/payments — combined payment history, viewable by the
+  // order's buyer or by an admin/accountant
+  async getOrderPaymentHistory(requestingUserId, orderId) {
+    const order = await Order.findByPk(orderId);
+    if (!order) throw clientError("Order not found.", 404, "NOT_FOUND");
+
+    if (order.userId !== requestingUserId) {
+      const requester = await this.userService.getUserById(requestingUserId);
+      const requesterRoles = (requester && requester.roles ? requester.roles : []).map((r) => r.name);
+      const isPrivileged = PAYMENT_HISTORY_ROLES.some((r) => requesterRoles.includes(r));
+      if (!isPrivileged) throw clientError("Unauthorized.", 403, "UNAUTHORIZED");
+    }
+
+    return this._fetchPaymentHistoryRows(orderId);
+  }
+
   // POST: confirm order — atomically distribute payment to each service owner
   async confirmOrder(userId, orderId, walletType) {
     const order = await Order.findByPk(orderId);
@@ -455,7 +526,7 @@ class OrderCartService {
         );
 
         await ServiceOrder.update(
-          { paidAmount: sequelize.literal(`paidAmount + ${share}`) },
+          { extraPayments: sequelize.literal(`extraPayments + ${share}`) },
           { where: { id: so.id }, transaction: tx }
         );
 
@@ -470,7 +541,7 @@ class OrderCartService {
       }
 
       await Order.update(
-        { paidAmount: sequelize.literal(`paidAmount + ${parsedAmount}`) },
+        { extraPayments: sequelize.literal(`extraPayments + ${parsedAmount}`) },
         { where: { id: orderId }, transaction: tx }
       );
 
@@ -533,14 +604,18 @@ class OrderCartService {
         { transaction: tx }
       );
 
+      // order_payment counts toward the original order price (paidAmount);
+      // order_top_up counts as an additional payment (extraPayments)
+      const targetField = recordType === "order_top_up" ? "extraPayments" : "paidAmount";
+
       await Order.update(
-        { paidAmount: sequelize.literal(`paidAmount + ${parsedAmount}`) },
+        { [targetField]: sequelize.literal(`${targetField} + ${parsedAmount}`) },
         { where: { id: orderId }, transaction: tx }
       );
 
       if (serviceOrder) {
         await ServiceOrder.update(
-          { paidAmount: sequelize.literal(`paidAmount + ${parsedAmount}`) },
+          { [targetField]: sequelize.literal(`${targetField} + ${parsedAmount}`) },
           { where: { id: serviceOrder.id }, transaction: tx }
         );
       }
@@ -813,6 +888,7 @@ class OrderCartService {
             quantity: so.quantity,
             finalAmount: parseFloat(so.finalAmount),
             paidAmount: parseFloat(so.paidAmount),
+            extraPayments: parseFloat(so.extraPayments),
             status: so.status,
             service,
           };
@@ -824,6 +900,7 @@ class OrderCartService {
         status: o.status,
         totalAmount: parseFloat(o.price),
         paidAmount: parseFloat(o.paidAmount),
+        extraPayments: parseFloat(o.extraPayments),
         createdAt: o.createdAt,
         services,
       });
@@ -856,6 +933,7 @@ class OrderCartService {
         discountAmount: parseFloat(so.discountAmount),
         finalAmount: parseFloat(so.finalAmount),
         paidAmount: parseFloat(so.paidAmount),
+        extraPayments: parseFloat(so.extraPayments),
         addOns: addOns.map((a) => ({
           addOnId: a.addOnId,
           quantity: a.quantity,
@@ -868,6 +946,8 @@ class OrderCartService {
       });
     }
 
+    const paymentHistory = await this._fetchPaymentHistoryRows(orderId);
+
     return {
       orderId: order.id,
       userId: order.userId,
@@ -877,7 +957,9 @@ class OrderCartService {
       deliveryOption: order.deliveryOption,
       totalAmount: parseFloat(order.price),
       paidAmount: parseFloat(order.paidAmount),
+      extraPayments: parseFloat(order.extraPayments),
       items,
+      paymentHistory,
       createdAt: order.createdAt,
     };
   }

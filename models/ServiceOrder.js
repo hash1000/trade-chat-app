@@ -57,6 +57,11 @@ const ServiceOrder = db.define(
       allowNull: false,
       defaultValue: 0,
     },
+    extraPayments: {
+      type: DataTypes.DECIMAL(20, 8),
+      allowNull: false,
+      defaultValue: 0,
+    },
     status: {
       type: DataTypes.ENUM("PENDING", "PURCHASED", "REFUNDED"),
       allowNull: false,
