@@ -20,21 +20,32 @@ class OrderCartService {
   }
 
   /**
-   * Load the complete service payload (same shape as
-   * GET /service?includeTeams=true&includeMembers=true&includeAddOns=true...).
-   * Cached per request via the passed Map so a repeated serviceId is fetched once.
+   * Load the service payload (same shape as GET /service?includeTeams=...&includeMembers=...).
+   * All the includeX flags default to false — pass only what you actually need, since each one
+   * adds a join/query and the fully-loaded payload is what made this endpoint slow.
+   * Cached per request (keyed by serviceId + the flags used) via the passed Map.
    */
-  async loadFullService(serviceId, viewerId, cache) {
-    if (cache.has(serviceId)) return cache.get(serviceId);
+  async loadFullService(serviceId, viewerId, cache, includeOptions = {}) {
+    const {
+      includeTeams = false,
+      includeMembers = false,
+      includeCategories = false,
+      includeAddOns = false,
+      isLiked = false,
+    } = includeOptions;
+
+    const cacheKey = `${serviceId}|${includeTeams}|${includeMembers}|${includeCategories}|${includeAddOns}|${isLiked}`;
+    if (cache.has(cacheKey)) return cache.get(cacheKey);
+
     const full = await this.serviceService.getById(serviceId, {
       userId: viewerId,
-      includeTeams: true,
-      includeMembers: true,
-      includeCategories: true,
-      includeAddOns: true,
-      isLiked: true,
+      includeTeams,
+      includeMembers,
+      includeCategories,
+      includeAddOns,
+      isLiked,
     });
-    cache.set(serviceId, full);
+    cache.set(cacheKey, full);
     return full;
   }
   // Generate a DRAFT order from a cart (DB-backed)
@@ -869,7 +880,17 @@ class OrderCartService {
   }
 
   // List orders for a user
-  async listOrders(userId, statuses, { pagination = false, page = 1, limit = 20 } = {}) {
+  async listOrders(userId, statuses, {
+    pagination = false,
+    page = 1,
+    limit = 20,
+    includeTeams = false,
+    includeMembers = false,
+    includeCategories = false,
+    includeAddOns = false,
+    isLiked = false,
+  } = {}) {
+    const includeOptions = { includeTeams, includeMembers, includeCategories, includeAddOns, isLiked };
     const where = { userId };
     if (statuses && statuses.length > 0) where.status = statuses;
     console.log("listOrders where:", where);
@@ -904,7 +925,7 @@ class OrderCartService {
       const serviceOrders = await ServiceOrder.findAll({ where: { orderId: o.id } });
       const services = await Promise.all(
         serviceOrders.map(async (so) => {
-          const service = await this.loadFullService(so.serviceId, userId, serviceCache);
+          const service = await this.loadFullService(so.serviceId, userId, serviceCache, includeOptions);
           return {
             serviceOrderId: so.id,
             serviceId: so.serviceId,
@@ -932,7 +953,7 @@ class OrderCartService {
   }
 
   // Get single order with items
-  async getOrder(userId, orderId) {
+  async getOrder(userId, orderId, includeOptions = {}) {
     const order = await Order.findByPk(orderId);
     if (!order || order.userId !== userId) throw clientError("Order not found.", 404, "NOT_FOUND");
 
@@ -942,7 +963,7 @@ class OrderCartService {
     for (const so of serviceOrders) {
       const [addOns, service] = await Promise.all([
         ServiceOrderAddOn.findAll({ where: { serviceOrderId: so.id } }),
-        this.loadFullService(so.serviceId, userId, serviceCache),
+        this.loadFullService(so.serviceId, userId, serviceCache, includeOptions),
       ]);
       const addOnSubtotal = addOns.reduce((s, a) => s + parseFloat(a.subtotal), 0);
       items.push({
@@ -987,21 +1008,44 @@ class OrderCartService {
     };
   }
   // GET: service owner — list all orders containing their service(s)
-  async getOrdersForServiceOwner(ownerId, serviceId) {
+  async getOrdersForServiceOwner(ownerId, serviceId, includeOptions = {}, {
+    pagination = false,
+    page = 1,
+    limit = 20,
+  } = {}) {
     const where = { serviceOwnerId: ownerId };
     if (serviceId) where.serviceId = serviceId;
 
-    const serviceOrders = await ServiceOrder.findAll({
-      where,
-      order: [["createdAt", "DESC"]],
-    });
+    let serviceOrders;
+    let paginationMeta = null;
+
+    if (pagination) {
+      const { count, rows } = await ServiceOrder.findAndCountAll({
+        where,
+        order: [["createdAt", "DESC"]],
+        limit,
+        offset: (page - 1) * limit,
+      });
+      serviceOrders = rows;
+      paginationMeta = {
+        currentPage: page,
+        totalPages: Math.ceil(count / limit),
+        totalItems: count,
+        limit,
+      };
+    } else {
+      serviceOrders = await ServiceOrder.findAll({
+        where,
+        order: [["createdAt", "DESC"]],
+      });
+    }
 
     const serviceCache = new Map();
     const results = [];
     for (const so of serviceOrders) {
       const order = await Order.findByPk(so.orderId);
       const addOns = await ServiceOrderAddOn.findAll({ where: { serviceOrderId: so.id } });
-      const service = await this.loadFullService(so.serviceId, ownerId, serviceCache);
+      const service = await this.loadFullService(so.serviceId, ownerId, serviceCache, includeOptions);
       const addOnSubtotal = addOns.reduce((s, a) => s + parseFloat(a.subtotal), 0);
 
       results.push({
@@ -1031,7 +1075,7 @@ class OrderCartService {
       });
     }
 
-    return results;
+    return { results, pagination: paginationMeta };
   }
 }
 
