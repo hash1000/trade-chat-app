@@ -952,12 +952,28 @@ class OrderCartService {
     return { orders: result, pagination: paginationMeta };
   }
 
-  // Get single order with items
+  // Get single order with items.
+  // Accessible by the buyer (full order, all items) OR by a service owner who has
+  // at least one of their services in this order (scoped to just their own item(s) —
+  // they don't see other providers' items, pricing, or payment history).
   async getOrder(userId, orderId, includeOptions = {}) {
     const order = await Order.findByPk(orderId);
-    if (!order || order.userId !== userId) throw clientError("Order not found.", 404, "NOT_FOUND");
+    if (!order) throw clientError("Order not found.", 404, "NOT_FOUND");
 
-    const serviceOrders = await ServiceOrder.findAll({ where: { orderId } });
+    const isBuyer = order.userId === userId;
+    let ownedServiceOrderIds = null; // null = buyer view, no scoping
+
+    if (!isBuyer) {
+      const ownedItems = await ServiceOrder.findAll({
+        where: { orderId, serviceOwnerId: userId },
+        attributes: ["id"],
+      });
+      if (ownedItems.length === 0) throw clientError("Order not found.", 404, "NOT_FOUND");
+      ownedServiceOrderIds = ownedItems.map((so) => so.id);
+    }
+
+    const serviceOrderWhere = ownedServiceOrderIds ? { orderId, id: ownedServiceOrderIds } : { orderId };
+    const serviceOrders = await ServiceOrder.findAll({ where: serviceOrderWhere });
     const serviceCache = new Map();
     const items = [];
     for (const so of serviceOrders) {
@@ -990,7 +1006,23 @@ class OrderCartService {
       });
     }
 
-    const paymentHistory = await this._fetchPaymentHistoryRows(orderId);
+    let paymentHistory = await this._fetchPaymentHistoryRows(orderId);
+
+    // Order-level totals: full order for the buyer, but scoped down to just this
+    // owner's own items when viewed by a service owner (never leak other providers'
+    // amounts, even in aggregate).
+    let totalAmount = parseFloat(order.price);
+    let paidAmount = parseFloat(order.paidAmount);
+    let extraPayments = parseFloat(order.extraPayments);
+
+    if (ownedServiceOrderIds) {
+      totalAmount = items.reduce((sum, it) => sum + it.itemTotal, 0);
+      paidAmount = items.reduce((sum, it) => sum + it.paidAmount, 0);
+      extraPayments = items.reduce((sum, it) => sum + it.extraPayments, 0);
+      paymentHistory = paymentHistory.filter(
+        (p) => p.serviceOrderId != null && ownedServiceOrderIds.includes(p.serviceOrderId)
+      );
+    }
 
     return {
       orderId: order.id,
@@ -999,9 +1031,10 @@ class OrderCartService {
       status: order.status,
       addressId: order.addressId,
       deliveryOption: order.deliveryOption,
-      totalAmount: parseFloat(order.price),
-      paidAmount: parseFloat(order.paidAmount),
-      extraPayments: parseFloat(order.extraPayments),
+      viewerRole: isBuyer ? "buyer" : "service_owner",
+      totalAmount,
+      paidAmount,
+      extraPayments,
       items,
       paymentHistory,
       createdAt: order.createdAt,
