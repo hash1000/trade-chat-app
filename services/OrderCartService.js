@@ -1007,26 +1007,32 @@ class OrderCartService {
       createdAt: order.createdAt,
     };
   }
-  // GET: service owner — list all orders containing their service(s)
+  // GET: service owner — list all orders containing their service(s), grouped by
+  // order (one entry per order, with a nested `services` array — not one flat row
+  // per service item, since a single order can hold multiple of the owner's services).
   async getOrdersForServiceOwner(ownerId, serviceId, includeOptions = {}, {
     pagination = false,
     page = 1,
     limit = 20,
   } = {}) {
-    const where = { serviceOwnerId: ownerId };
-    if (serviceId) where.serviceId = serviceId;
+    const ownerWhere = { serviceOwnerId: ownerId };
+    if (serviceId) ownerWhere.serviceId = serviceId;
 
-    let serviceOrders;
+    // Distinct set of orders that contain at least one of this owner's services
+    const ownedServiceOrders = await ServiceOrder.findAll({ where: ownerWhere, attributes: ["orderId"] });
+    const orderIds = [...new Set(ownedServiceOrders.map((so) => so.orderId))];
+
+    let orders;
     let paginationMeta = null;
 
     if (pagination) {
-      const { count, rows } = await ServiceOrder.findAndCountAll({
-        where,
+      const { count, rows } = await Order.findAndCountAll({
+        where: { id: orderIds },
         order: [["createdAt", "DESC"]],
         limit,
         offset: (page - 1) * limit,
       });
-      serviceOrders = rows;
+      orders = rows;
       paginationMeta = {
         currentPage: page,
         totalPages: Math.ceil(count / limit),
@@ -1034,49 +1040,59 @@ class OrderCartService {
         limit,
       };
     } else {
-      serviceOrders = await ServiceOrder.findAll({
-        where,
+      orders = await Order.findAll({
+        where: { id: orderIds },
         order: [["createdAt", "DESC"]],
       });
     }
 
     const serviceCache = new Map();
     const results = [];
-    for (const so of serviceOrders) {
-      const order = await Order.findByPk(so.orderId);
-      const addOns = await ServiceOrderAddOn.findAll({ where: { serviceOrderId: so.id } });
-      const service = await this.loadFullService(so.serviceId, ownerId, serviceCache, includeOptions);
-      const addOnSubtotal = addOns.reduce((s, a) => s + parseFloat(a.subtotal), 0);
+    for (const order of orders) {
+      const serviceOrders = await ServiceOrder.findAll({ where: { ...ownerWhere, orderId: order.id } });
+
+      const services = await Promise.all(
+        serviceOrders.map(async (so) => {
+          const addOns = await ServiceOrderAddOn.findAll({ where: { serviceOrderId: so.id } });
+          const service = await this.loadFullService(so.serviceId, ownerId, serviceCache, includeOptions);
+          const addOnSubtotal = addOns.reduce((s, a) => s + parseFloat(a.subtotal), 0);
+
+          return {
+            serviceOrderId: so.id,
+            serviceId: so.serviceId,
+            quantity: so.quantity,
+            servicePriceAtOrder: parseFloat(so.servicePriceAtOrder),
+            subtotal: parseFloat(so.subtotal),
+            discountCode: so.discountCode,
+            discountAmount: parseFloat(so.discountAmount),
+            finalAmount: parseFloat(so.finalAmount),
+            paidAmount: parseFloat(so.paidAmount),
+            extraPayments: parseFloat(so.extraPayments),
+            addOns: addOns.map((a) => ({
+              addOnId: a.addOnId,
+              quantity: a.quantity,
+              priceAtOrder: parseFloat(a.priceAtOrder),
+              subtotal: parseFloat(a.subtotal),
+            })),
+            itemTotal: parseFloat(so.finalAmount) + addOnSubtotal,
+            status: so.status,
+            service,
+          };
+        })
+      );
 
       results.push({
-        serviceOrderId: so.id,
-        orderId: so.orderId,
-        orderNo: order?.orderNo,
-        buyerId: order?.userId,
-        serviceId: so.serviceId,
-        quantity: so.quantity,
-        servicePriceAtOrder: parseFloat(so.servicePriceAtOrder),
-        subtotal: parseFloat(so.subtotal),
-        discountCode: so.discountCode,
-        discountAmount: parseFloat(so.discountAmount),
-        finalAmount: parseFloat(so.finalAmount),
-        paidAmount: parseFloat(so.paidAmount),
-        extraPayments: parseFloat(so.extraPayments),
-        addOns: addOns.map((a) => ({
-          addOnId: a.addOnId,
-          quantity: a.quantity,
-          priceAtOrder: parseFloat(a.priceAtOrder),
-          subtotal: parseFloat(a.subtotal),
-        })),
-        service,
-        itemTotal: parseFloat(so.finalAmount) + addOnSubtotal,
-        status: so.status,
-        addressId: order?.addressId,
-        deliveryOption: order?.deliveryOption,
-        orderTotalAmount: order ? parseFloat(order.price) : null,
-        orderPaidAmount: order ? parseFloat(order.paidAmount) : null,
-        orderExtraPayments: order ? parseFloat(order.extraPayments) : null,
-        createdAt: so.createdAt,
+        orderId: order.id,
+        orderNo: order.orderNo,
+        buyerId: order.userId,
+        status: order.status,
+        addressId: order.addressId,
+        deliveryOption: order.deliveryOption,
+        totalAmount: parseFloat(order.price),
+        paidAmount: parseFloat(order.paidAmount),
+        extraPayments: parseFloat(order.extraPayments),
+        createdAt: order.createdAt,
+        services,
       });
     }
 
