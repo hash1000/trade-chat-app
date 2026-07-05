@@ -123,8 +123,23 @@ class OrderCartController {
     try {
       const userId = req.user.id;
       const statuses = req.query.status ? (Array.isArray(req.query.status) ? req.query.status : [req.query.status]) : null;
-      const data = await cartService.listOrders(userId, statuses);
-      return res.status(200).json({ success: true, data, count: data.length });
+
+      const usePagination = req.query.pagination === "true";
+      const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+      const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 100);
+
+      const { orders, pagination } = await cartService.listOrders(userId, statuses, {
+        pagination: usePagination,
+        page,
+        limit,
+      });
+
+      return res.status(200).json({
+        success: true,
+        data: orders,
+        count: orders.length,
+        ...(pagination && { pagination }),
+      });
     } catch (error) {
       return handleError(res, error);
     }

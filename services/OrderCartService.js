@@ -869,14 +869,34 @@ class OrderCartService {
   }
 
   // List orders for a user
-  async listOrders(userId, statuses) {
+  async listOrders(userId, statuses, { pagination = false, page = 1, limit = 20 } = {}) {
     const where = { userId };
     if (statuses && statuses.length > 0) where.status = statuses;
     console.log("listOrders where:", where);
-    const orders = await Order.findAll({
-      where,
-      order: [["createdAt", "DESC"]],
-    });
+
+    let orders;
+    let paginationMeta = null;
+
+    if (pagination) {
+      const { count, rows } = await Order.findAndCountAll({
+        where,
+        order: [["createdAt", "DESC"]],
+        limit,
+        offset: (page - 1) * limit,
+      });
+      orders = rows;
+      paginationMeta = {
+        currentPage: page,
+        totalPages: Math.ceil(count / limit),
+        totalItems: count,
+        limit,
+      };
+    } else {
+      orders = await Order.findAll({
+        where,
+        order: [["createdAt", "DESC"]],
+      });
+    }
 
     const serviceCache = new Map();
     const result = [];
@@ -908,7 +928,7 @@ class OrderCartService {
         services,
       });
     }
-    return result;
+    return { orders: result, pagination: paginationMeta };
   }
 
   // Get single order with items
