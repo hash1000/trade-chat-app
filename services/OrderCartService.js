@@ -1,5 +1,5 @@
 const sequelize = require("../config/database");
-const { Order, ServiceOrder, ServiceOrderAddOn, Cart, CartItem, Service, Wallet, WalletTransaction, Address, OrderPayment, User } = require("../models");
+const { Order, ServiceOrder, ServiceOrderAddOn, Cart, CartItem, Service, Wallet, WalletTransaction, Address, OrderPayment, User, Role } = require("../models");
 const Transaction = require("../models/transaction");
 const ServiceService = require("./ServiceService");
 const UserService = require("./UserService");
@@ -960,6 +960,11 @@ class OrderCartService {
     const order = await Order.findByPk(orderId);
     if (!order) throw clientError("Order not found.", 404, "NOT_FOUND");
 
+    const buyer = await User.findByPk(order.userId, {
+      attributes: ["id", "firstName", "lastName", "username", "email", "profilePic"],
+      include: [{ model: Role, as: "roles", attributes: ["name"], through: { attributes: [] } }],
+    });
+
     const isBuyer = order.userId === userId;
     let ownedServiceOrderIds = null; // null = buyer view, no scoping
 
@@ -1027,6 +1032,17 @@ class OrderCartService {
     return {
       orderId: order.id,
       userId: order.userId,
+      buyer: buyer
+        ? {
+            id: buyer.id,
+            firstName: buyer.firstName,
+            lastName: buyer.lastName,
+            username: buyer.username,
+            email: buyer.email,
+            profilePic: buyer.profilePic,
+            roles: (buyer.roles || []).map((r) => r.name),
+          }
+        : null,
       cartId: order.cartId,
       status: order.status,
       addressId: order.addressId,
@@ -1079,6 +1095,16 @@ class OrderCartService {
       });
     }
 
+    const buyerIds = [...new Set(orders.map((o) => o.userId))];
+    const buyers = buyerIds.length
+      ? await User.findAll({
+          where: { id: buyerIds },
+          attributes: ["id", "firstName", "lastName", "username", "email", "profilePic"],
+          include: [{ model: Role, as: "roles", attributes: ["name"], through: { attributes: [] } }],
+        })
+      : [];
+    const buyerMap = Object.fromEntries(buyers.map((b) => [b.id, b]));
+
     const serviceCache = new Map();
     const results = [];
     for (const order of orders) {
@@ -1114,10 +1140,23 @@ class OrderCartService {
         })
       );
 
+      const buyer = buyerMap[order.userId];
+
       results.push({
         orderId: order.id,
         orderNo: order.orderNo,
         buyerId: order.userId,
+        buyer: buyer
+          ? {
+              id: buyer.id,
+              firstName: buyer.firstName,
+              lastName: buyer.lastName,
+              username: buyer.username,
+              email: buyer.email,
+              profilePic: buyer.profilePic,
+              roles: (buyer.roles || []).map((r) => r.name),
+            }
+          : null,
         status: order.status,
         addressId: order.addressId,
         deliveryOption: order.deliveryOption,
