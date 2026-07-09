@@ -230,7 +230,7 @@ class ReceiptController {
 
   async getAdminReceipts(req, res) {
     try {
-      const { type, pagination, page, limit, status, days, startDate, endDate, currency, minAmount, maxAmount } = req.query;
+      const { type, pagination, page, limit, status, days, startDate, endDate, currency, minAmount, maxAmount, excludeAdmin } = req.query;
       const { id: userId } = req.user;
 
       if (type !== "my" && type !== "all") {
@@ -245,6 +245,7 @@ class ReceiptController {
         currency: currency || null,
         minAmount: minAmount !== undefined && minAmount !== "" ? parseFloat(minAmount) : null,
         maxAmount: maxAmount !== undefined && maxAmount !== "" ? parseFloat(maxAmount) : null,
+        excludeAdmin: excludeAdmin === "true",
       };
 
       const usePagination = pagination === "true";

@@ -1,9 +1,12 @@
 const Receipt = require("../models/receipt");
 const BankAccount = require("../models/bankAccount");
 const User = require("../models/user");
+const Role = require("../models/role");
 const { Op } = require("sequelize");
 const WalletTransaction = require("../models/walletTransaction");
 const Wallet = require("../models/wallet");
+
+const ADMIN_ROLE_NAMES = ["admin", "accountant"];
 
 class ReceiptRepository {
   async getReceiptsByUserId(userId, {
@@ -126,12 +129,33 @@ class ReceiptRepository {
     currency = null,
     minAmount = null,
     maxAmount = null,
+    excludeAdmin = false,
   } = {}) {
     const where = {};
     if (status === "locked") {
       where.isLock = true;
     } else if (status && status !== "all") {
       where.status = status;
+    }
+
+    // Let admins filter out receipts created by admin/accountant staff, leaving only regular users' receipts
+    if (excludeAdmin) {
+      const adminUsers = await User.findAll({
+        attributes: ["id"],
+        include: [
+          {
+            model: Role,
+            as: "roles",
+            where: { name: { [Op.in]: ADMIN_ROLE_NAMES } },
+            attributes: [],
+            through: { attributes: [] },
+          },
+        ],
+      });
+      const adminUserIds = adminUsers.map((u) => u.id);
+      if (adminUserIds.length) {
+        where.userId = { [Op.notIn]: adminUserIds };
+      }
     }
 
     // Date filtering: custom range (startDate/endDate) wins over fixed period (days)

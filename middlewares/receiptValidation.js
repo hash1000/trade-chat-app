@@ -122,6 +122,10 @@ exports.getValidation = [
       }
       return true;
     }),
+  query('excludeAdmin')
+    .optional({ checkFalsy: true })
+    .isIn(['true', 'false'])
+    .withMessage('The "excludeAdmin" query must be either "true" or "false".'),
   handleValidationErrors, // Middleware to handle errors
 ];
 
