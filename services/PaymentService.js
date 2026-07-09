@@ -542,8 +542,14 @@ class PaymentService {
         { status: "failed" },
         { where: { orderId } },
       );
+      // StripeInvalidRequestError (e.g. bad/expired token) and StripeCardError
+      // (e.g. declined) are routine rejections, not server outages — surface
+      // them as 400 so monitoring/alerting doesn't flag them as 5xx errors.
+      const isClientRejection =
+        e.type === "StripeInvalidRequestError" || e.type === "StripeCardError";
       const err = new Error("Payment provider error: " + e.message);
-      err.statusCode = 500;
+      err.statusCode = isClientRejection ? 400 : 500;
+      err.isUserError = isClientRejection;
       throw err;
     }
 
