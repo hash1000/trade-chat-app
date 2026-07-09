@@ -24,6 +24,29 @@ exports.createTopupValidator = [
   handleValidationErrors,
 ];
 
+// Create Topup via Google Pay
+exports.createGooglePayTopupValidator = [
+  body("amount")
+    .isFloat({ min: 1 })
+    .withMessage("Amount must be a number greater than 0")
+    .notEmpty()
+    .withMessage("Amount is required"),
+  body("walletType")
+    .notEmpty()
+    .withMessage("walletType is required")
+    .isIn(["PERSONAL", "COMPANY"])
+    .withMessage("walletType must be PERSONAL or COMPANY"),
+  body("paymentCurrency")
+    .notEmpty()
+    .withMessage("paymentCurrency is required")
+    .isIn(["USD", "EUR", "CNY"])
+    .withMessage("paymentCurrency must be USD, EUR or CNY"),
+  body("paymentToken")
+    .notEmpty()
+    .withMessage("paymentToken is required"),
+  handleValidationErrors,
+];
+
 // Payment Creation
 exports.createPaymentValidator = [
   body("amount").isFloat().notEmpty(),

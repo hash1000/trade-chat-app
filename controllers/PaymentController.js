@@ -309,6 +309,66 @@ class PaymentController {
     }
   }
 
+  async googlePayTopup(req, res) {
+    try {
+      const { amount, walletType, description, paymentCurrency, paymentToken } =
+        req.body;
+      const { id: userId } = req.user;
+
+      if (!amount || isNaN(amount) || amount <= 0) {
+        return res
+          .status(400)
+          .json({ success: false, message: "Invalid amount" });
+      }
+
+      const validCurrencies = ["USD", "EUR", "CNY"];
+      if (!paymentCurrency || !validCurrencies.includes(paymentCurrency)) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid paymentCurrency. Must be one of: ${validCurrencies.join(", ")}`,
+        });
+      }
+
+      const validWalletTypes = ["PERSONAL", "COMPANY"];
+      if (!walletType || !validWalletTypes.includes(walletType)) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid walletType. Must be one of: ${validWalletTypes.join(", ")}`,
+        });
+      }
+
+      if (!paymentToken) {
+        return res
+          .status(400)
+          .json({ success: false, message: "paymentToken is required" });
+      }
+
+      const result = await paymentService.processGooglePayTopup(
+        userId,
+        amount,
+        walletType,
+        description,
+        paymentCurrency,
+        paymentToken,
+      );
+
+      return res.json({
+        success: true,
+        data: {
+          amount: result.amount,
+          paymentIntentId: result.paymentIntentId,
+        },
+      });
+    } catch (error) {
+      console.error("Google Pay topup error:", error);
+      res.status(error.statusCode || (error.isUserError ? 400 : 500)).json({
+        success: false,
+        message: error.message,
+        code: error.code || "payment_error",
+      });
+    }
+  }
+
   async getUserTopupTransactions(req, res) {
     try {
       const { id: userId } = req.user;
