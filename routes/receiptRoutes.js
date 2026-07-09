@@ -9,7 +9,7 @@ const checkIntegerParam = require('../middlewares/paramIntegerValidation');
 
 const receiptController = new ReceiptController();
 
-router.get('/my', authenticate, receiptController.getReceipts);
+router.get('/my', authenticate, getValidation, receiptController.getReceipts);
 router.get('/my/:id', authenticate, idParamValidation, receiptController.getReceiptById);
 router.post('/my', authenticate, createReceiptValidation, receiptController.createReceipt);
 router.put('/my/:id', authenticate, updateReceiptValidation, receiptController.updateReceipt);

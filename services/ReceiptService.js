@@ -13,8 +13,8 @@ class ReceiptService {
     this.receiptRepository = new ReceiptRepository();
   }
 
-  async getReceiptsByUserId(userId) {
-    return this.receiptRepository.getReceiptsByUserId(userId);
+  async getReceiptsByUserId(userId, options) {
+    return this.receiptRepository.getReceiptsByUserId(userId, options);
   }
 
   async getAdminReceipts(options) {
