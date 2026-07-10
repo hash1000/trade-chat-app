@@ -5,6 +5,8 @@ const WalletService = require("./WalletService");
 
 const TEST_CARD_CURRENCIES = ["EUR", "USD"];
 const MAX_TEST_CARD_COUNT = TEST_CARD_CURRENCIES.length;
+const VALID_WALLET_TYPES = ["PERSONAL", "COMPANY"];
+const MAX_WALLET_LINKS_PER_ACCOUNT = 3;
 
 class BankAccountService {
   constructor() {
@@ -383,12 +385,53 @@ class BankAccountService {
     );
   }
 
-  async linkBankAccountToWallet(userId, bankAccountId, type, currency) {
-    const totalLinks =
-      await this.bankAccountRepository.countLinkedWallets(bankAccountId);
+  normalizeWalletType(walletType) {
+    const normalized = String(walletType || "").trim().toUpperCase();
 
-    if (totalLinks >= 2) {
-      const error = new Error("Maximum 2 wallets allowed");
+    if (!VALID_WALLET_TYPES.includes(normalized)) {
+      const error = new Error(
+        `walletType must be one of ${VALID_WALLET_TYPES.join(", ")}`,
+      );
+      error.statusCode = 422;
+      throw error;
+    }
+
+    return normalized;
+  }
+
+  // a bank account may only ever hold links to wallets of a single walletType
+  async assertWalletTypeIsCompatible(bankAccountId, walletType, existingLinks) {
+    const conflicting = existingLinks.find(
+      (link) => link.wallet && link.wallet.walletType !== walletType,
+    );
+
+    if (conflicting) {
+      const error = new Error(
+        `Bank account is already linked to ${conflicting.wallet.walletType} wallets; unlink them before linking ${walletType} wallets`,
+      );
+      error.statusCode = 400;
+      throw error;
+    }
+  }
+
+  async linkBankAccountToWallet(userId, bankAccountId, type, currency) {
+    const normalizedType = this.normalizeWalletType(type);
+
+    const existingLinks =
+      await this.bankAccountRepository.findBankAccountWalletsWithWallet(
+        bankAccountId,
+      );
+
+    await this.assertWalletTypeIsCompatible(
+      bankAccountId,
+      normalizedType,
+      existingLinks,
+    );
+
+    if (existingLinks.length >= MAX_WALLET_LINKS_PER_ACCOUNT) {
+      const error = new Error(
+        `Maximum ${MAX_WALLET_LINKS_PER_ACCOUNT} wallets allowed`,
+      );
       error.statusCode = 400;
       throw error;
     }
@@ -396,13 +439,13 @@ class BankAccountService {
     // find wallet
     const wallet = await this.bankAccountRepository.findWalletByTypeAndCurrency(
       userId,
-      type,
+      normalizedType,
       currency,
     );
 
     if (!wallet) {
       const error = new Error(
-        `No wallet found for type '${type}' and currency '${currency}'`,
+        `No wallet found for type '${normalizedType}' and currency '${currency}'`,
       );
       error.statusCode = 404;
       throw error;
@@ -431,6 +474,76 @@ class BankAccountService {
     return link;
   }
 
+  // links every currency wallet of the given walletType (e.g. PERSONAL -> USD, EUR, CNY) to the bank account in one call
+  async linkBankAccountToWalletType(userId, bankAccountId, walletType) {
+    const normalizedType = this.normalizeWalletType(walletType);
+
+    const wallets = await this.bankAccountRepository.findWalletsByType(
+      userId,
+      normalizedType,
+    );
+
+    if (!wallets.length) {
+      const error = new Error(`No ${normalizedType} wallets found for this user`);
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const existingLinks =
+      await this.bankAccountRepository.findBankAccountWalletsWithWallet(
+        bankAccountId,
+      );
+
+    await this.assertWalletTypeIsCompatible(
+      bankAccountId,
+      normalizedType,
+      existingLinks,
+    );
+
+    const alreadyLinkedWalletIds = new Set(
+      existingLinks.map((link) => link.walletId),
+    );
+    const walletsToLink = wallets.filter(
+      (wallet) => !alreadyLinkedWalletIds.has(wallet.id),
+    );
+
+    if (existingLinks.length + walletsToLink.length > MAX_WALLET_LINKS_PER_ACCOUNT) {
+      const error = new Error(
+        `Maximum ${MAX_WALLET_LINKS_PER_ACCOUNT} wallets allowed`,
+      );
+      error.statusCode = 400;
+      throw error;
+    }
+
+    if (walletsToLink.length) {
+      const walletIdsToLink = walletsToLink.map((wallet) => wallet.id);
+      const conflicts =
+        await this.bankAccountRepository.findBankAccountWalletsByWalletIds(
+          walletIdsToLink,
+        );
+
+      if (conflicts.length) {
+        const error = new Error(
+          "One or more wallets are already linked to another bank account",
+        );
+        error.statusCode = 400;
+        throw error;
+      }
+
+      await this.bankAccountRepository.createBankAccountWallets(
+        bankAccountId,
+        walletIdsToLink,
+      );
+    }
+
+    const links =
+      await this.bankAccountRepository.findBankAccountWalletsWithWallet(
+        bankAccountId,
+      );
+
+    return links.map((link) => link.wallet);
+  }
+
   async unlinkBankAccountFromWallet(bankAccountId) {
     const totalLinks =
       await this.bankAccountRepository.countLinkedWallets(bankAccountId);
@@ -442,6 +555,32 @@ class BankAccountService {
     }
 
     await this.bankAccountRepository.deleteBankAccountWallet(bankAccountId);
+
+    return true;
+  }
+
+  // unlinks only the wallets of the given walletType, leaving any other links untouched
+  async unlinkBankAccountFromWalletType(bankAccountId, walletType) {
+    const normalizedType = this.normalizeWalletType(walletType);
+
+    const existingLinks =
+      await this.bankAccountRepository.findBankAccountWalletsWithWallet(
+        bankAccountId,
+      );
+
+    const linksToRemove = existingLinks.filter(
+      (link) => link.wallet && link.wallet.walletType === normalizedType,
+    );
+
+    if (!linksToRemove.length) {
+      const error = new Error(`No ${normalizedType} wallets linked to this bank account`);
+      error.statusCode = 404;
+      throw error;
+    }
+
+    await this.bankAccountRepository.deleteBankAccountWalletsByWalletIds(
+      linksToRemove.map((link) => link.walletId),
+    );
 
     return true;
   }

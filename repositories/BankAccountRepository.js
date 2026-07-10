@@ -274,7 +274,13 @@ class BankAccountRepository {
     });
   }
 
-  //  BankAccountWallet is the join table that tracks wallet links, allowing us to enforce the 2-wallet limit per bank account
+  async findWalletsByType(userId, walletType) {
+    return await Wallet.findAll({
+      where: { userId, walletType },
+    });
+  }
+
+  //  BankAccountWallet is the join table that tracks wallet links, allowing us to enforce the wallet limit per bank account
   async countLinkedWallets(bankAccountId) {
     return BankAccountWallet.count({
       where: { bankAccountId },
@@ -287,6 +293,28 @@ class BankAccountRepository {
     });
   }
 
+  async findBankAccountWalletsByWalletIds(walletIds) {
+    return await BankAccountWallet.findAll({
+      where: { walletId: { [Op.in]: walletIds } },
+    });
+  }
+
+  // manual join since BankAccountWallet has no declared association to Wallet
+  async findBankAccountWalletsWithWallet(bankAccountId) {
+    const links = await BankAccountWallet.findAll({ where: { bankAccountId } });
+    if (!links.length) return [];
+
+    const wallets = await Wallet.findAll({
+      where: { id: links.map((link) => link.walletId) },
+    });
+    const walletsById = new Map(wallets.map((wallet) => [wallet.id, wallet]));
+
+    return links.map((link) => ({
+      ...link.get({ plain: true }),
+      wallet: walletsById.get(link.walletId) || null,
+    }));
+  }
+
   async createBankAccountWallet(bankAccountId, walletId) {
     return await BankAccountWallet.create({
       bankAccountId,
@@ -294,9 +322,21 @@ class BankAccountRepository {
     });
   }
 
+  async createBankAccountWallets(bankAccountId, walletIds) {
+    return await BankAccountWallet.bulkCreate(
+      walletIds.map((walletId) => ({ bankAccountId, walletId })),
+    );
+  }
+
   async deleteBankAccountWallet(bankAccountId) {
     return await BankAccountWallet.destroy({
       where: { bankAccountId },
+    });
+  }
+
+  async deleteBankAccountWalletsByWalletIds(walletIds) {
+    return await BankAccountWallet.destroy({
+      where: { walletId: { [Op.in]: walletIds } },
     });
   }
 
