@@ -1,0 +1,354 @@
+{
+  "info": {
+    "name": "Withdraw APIs",
+    "description": "Complete local test kit for the withdraw feature.\n\nORDER: 1) Run both logins (tokens auto-save). 2) In '1. Setup & Funding' get your bank card id, create a funding receipt and approve it as admin — this puts money in the wallet. 3) Run the User and Admin withdraw requests. 4) Use 'Wallet checks' to verify balances after each step.\n\nEdit the collection Variables tab: emails/passwords, and bankCardId after the 'List my bank cards' call.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5001/api" },
+    { "key": "userToken", "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsImlhdCI6MTc4Mzc1NDE0NX0.pMgBVHlZ-HHJdUPn2UFjz5izmWw_3rtrissFiVDEghU" }
+  ],
+  "item": [
+    {
+      "name": "0. Auth",
+      "item": [
+        {
+          "name": "Login (user)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.token) { pm.collectionVariables.set('userToken', json.token); console.log('userToken saved'); }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{userEmail}}\",\n  \"password\": \"{{userPassword}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login (admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.token) { pm.collectionVariables.set('adminToken', json.token); console.log('adminToken saved'); }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. Setup & Funding",
+      "item": [
+        {
+          "name": "List my bank cards",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "const first = Array.isArray(json.data) ? json.data[0] : (Array.isArray(json) ? json[0] : null);",
+                  "if (first && first.id) { pm.collectionVariables.set('bankCardId', first.id); console.log('bankCardId =', first.id); }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
+            "url": "{{baseUrl}}/card",
+            "description": "Auto-saves the first card id into {{bankCardId}}. If you have no cards, create one first via your bank account API/app."
+          }
+        },
+        {
+          "name": "Create funding receipt (500 USD)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.data && json.data.id) { pm.collectionVariables.set('receiptId', json.data.id); console.log('receiptId =', json.data.id); }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{userToken}}" }
+            ],
+            "url": "{{baseUrl}}/receipt/my",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"senderId\": {{bankCardId}},\n  \"receiverId\": {{bankCardId}},\n  \"amount\": 500,\n  \"currency\": \"USD\",\n  \"walletType\": \"PERSONAL\",\n  \"note\": \"test funding\"\n}"
+            },
+            "description": "Match currency and walletType to what you'll withdraw from."
+          }
+        },
+        {
+          "name": "Approve funding receipt (admin)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": "{{baseUrl}}/receipt/{{receiptId}}/approve?isLock=false",
+            "body": { "mode": "raw", "raw": "{}" },
+            "description": "Deposits the receipt amount into the user's wallet. Wallet is now funded for withdraw tests."
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. User — Withdraw",
+      "item": [
+        {
+          "name": "Create withdraw request",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.data && json.data.id) { pm.collectionVariables.set('withdrawId', json.data.id); console.log('withdrawId =', json.data.id); }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{userToken}}" }
+            ],
+            "url": "{{baseUrl}}/withdraw/my",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bankCardId\": {{bankCardId}},\n  \"walletType\": \"PERSONAL\",\n  \"currency\": \"USD\",\n  \"amount\": 100,\n  \"note\": \"Withdraw to my bank card\"\n}"
+            },
+            "description": "Deducts amount from wallet immediately. userStatus=success, adminStatus=pending. 400 if insufficient balance."
+          }
+        },
+        {
+          "name": "Create withdraw — insufficient balance (expect 400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{userToken}}" }
+            ],
+            "url": "{{baseUrl}}/withdraw/my",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bankCardId\": {{bankCardId}},\n  \"walletType\": \"PERSONAL\",\n  \"currency\": \"USD\",\n  \"amount\": 9999999\n}"
+            }
+          }
+        },
+        {
+          "name": "Get my withdraws",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/withdraw/my?pagination=true&page=1&limit=20&status=all",
+              "host": ["{{baseUrl}}"],
+              "path": ["withdraw", "my"],
+              "query": [
+                { "key": "pagination", "value": "true" },
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" },
+                { "key": "status", "value": "all", "description": "all | pending | paid | refunded" },
+                { "key": "currency", "value": "USD", "disabled": true },
+                { "key": "days", "value": "30", "disabled": true },
+                { "key": "startDate", "value": "2026-07-01", "disabled": true },
+                { "key": "endDate", "value": "2026-07-11", "disabled": true },
+                { "key": "minAmount", "value": "10", "disabled": true },
+                { "key": "maxAmount", "value": "1000", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get my withdraw by id",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
+            "url": "{{baseUrl}}/withdraw/my/{{withdrawId}}"
+          }
+        },
+        {
+          "name": "Admin route with user token (expect 403)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
+            "url": "{{baseUrl}}/withdraw?type=all"
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Admin — Withdraw",
+      "item": [
+        {
+          "name": "Get all withdraws (admin)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/withdraw?type=all&pagination=true&page=1&limit=20&status=all",
+              "host": ["{{baseUrl}}"],
+              "path": ["withdraw"],
+              "query": [
+                { "key": "type", "value": "all", "description": "all | my" },
+                { "key": "pagination", "value": "true" },
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" },
+                { "key": "status", "value": "all", "description": "all | pending | paid | refunded" },
+                { "key": "excludeAdmin", "value": "true", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Mark as Paid",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": "{{baseUrl}}/withdraw/{{withdrawId}}/paid",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"newAmount\": 90,\n  \"description\": \"Paid via bank transfer\"\n}"
+            },
+            "description": "Both body fields optional. newAmount is record-only (wallet untouched). Only pending withdraws — paid/refunded return 400."
+          }
+        },
+        {
+          "name": "Refund",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": "{{baseUrl}}/withdraw/{{withdrawId}}/refund",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Refunded — request cancelled\"\n}"
+            },
+            "description": "Credits full amount back to the same wallet currency/type. description optional. Only pending withdraws."
+          }
+        },
+        {
+          "name": "Delete withdraw (soft)",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": "{{baseUrl}}/withdraw/{{withdrawId}}",
+            "description": "Soft delete. If still pending, the amount is auto-refunded to the wallet first."
+          }
+        },
+        {
+          "name": "Bulk delete withdraws (soft)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": "{{baseUrl}}/withdraw/bulk",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ids\": [1, 2, 3]\n}"
+            },
+            "description": "Soft deletes all ids. Pending ones are auto-refunded first; response reports deletedCount and refundedCount."
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Wallet checks",
+      "item": [
+        {
+          "name": "My wallet transactions (all)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/wallet/my-transactions?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["wallet", "my-transactions"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" },
+                { "key": "type", "value": "WITHDRAW", "disabled": true, "description": "DEPOSIT | WITHDRAW | LOCK | UNLOCK | TRANSFER | CONVERT" },
+                { "key": "currency", "value": "USD", "disabled": true }
+              ]
+            },
+            "description": "Withdraw rows carry withdrawId + meta.source (withdraw_request / withdraw_refund / withdraw_delete_refund) with balanceBefore/After."
+          }
+        },
+        {
+          "name": "Wallet transactions of a user (admin)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/wallet/transactions?userId=4&page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["wallet", "transactions"],
+              "query": [
+                { "key": "userId", "value": "4" },
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "My profile (see wallets & balances)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
+            "url": "{{baseUrl}}/user/4/profile",
+            "description": "Change the user id in the path to yours."
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -63,6 +63,10 @@ const WalletTransaction = sequelize.define(
       type: DataTypes.INTEGER,
       allowNull: true,
     },
+    withdrawId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
     performedBy: {
       type: DataTypes.INTEGER,
       allowNull: true,
@@ -80,6 +84,7 @@ const WalletTransaction = sequelize.define(
       { fields: ["userId"] },
       { fields: ["orderId"] },
       { fields: ["receiptId"] },
+      { fields: ["withdrawId"] },
       { fields: ["referenceType", "referenceId"] },  // ← lookup both together
       { fields: ["createdAt"] },
       { fields: ["walletId", "createdAt"] },
