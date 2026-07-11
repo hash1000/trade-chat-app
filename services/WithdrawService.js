@@ -2,7 +2,11 @@ const WithdrawRepository = require("../repositories/WithdrawRepository");
 const BankAccount = require("../models/bankAccount");
 const sequelize = require("../config/database");
 const WalletService = require("./WalletService");
+const NotificationService = require("./NotificationService");
 const walletService = new WalletService();
+const notificationService = new NotificationService();
+
+const fmtAmount = (v) => Number(v).toString();
 
 const ALLOWED_WALLET_TYPES = ["PERSONAL", "COMPANY"];
 
@@ -109,7 +113,29 @@ class WithdrawService {
       return withdraw;
     });
 
-    return this.withdrawRepository.getWithdrawByPk(created.id);
+    const full = await this.withdrawRepository.getWithdrawByPk(created.id);
+
+    // notify all staff about the new withdraw request (after commit)
+    const requesterName =
+      (full.user && (full.user.username || full.user.email)) || `User #${userId}`;
+    await notificationService.notifyStaff({
+      actorId: userId,
+      type: "WITHDRAW_CREATED",
+      title: "New Withdraw Request",
+      message: `${requesterName} requested a withdraw of ${fmtAmount(full.amount)} ${full.currency} from their ${full.walletType} wallet (Withdraw #${full.id}).`,
+      entityType: "WITHDRAW",
+      entityId: full.id,
+      data: {
+        amount: fmtAmount(full.amount),
+        currency: full.currency,
+        walletType: full.walletType,
+        requesterName,
+        note: full.note || null,
+        adminStatus: full.adminStatus,
+      },
+    });
+
+    return full;
   }
 
   /**
@@ -143,6 +169,25 @@ class WithdrawService {
     }
 
     await withdraw.update(updateData);
+
+    const paidAmount = updateData.newAmount || withdraw.amount;
+    await notificationService.notifyUser({
+      userId: withdraw.userId,
+      actorId: updateData.processedBy,
+      type: "WITHDRAW_PAID",
+      title: "Withdraw Paid",
+      message: `Your withdraw request #${withdraw.id} of ${fmtAmount(withdraw.amount)} ${withdraw.currency} has been paid${updateData.newAmount ? ` (paid amount: ${fmtAmount(updateData.newAmount)} ${withdraw.currency})` : ""}.${description ? ` Note: ${description}` : ""}`,
+      entityType: "WITHDRAW",
+      entityId: withdraw.id,
+      data: {
+        amount: fmtAmount(withdraw.amount),
+        paidAmount: fmtAmount(paidAmount),
+        currency: withdraw.currency,
+        walletType: withdraw.walletType,
+        adminStatus: "paid",
+        adminNote: description || null,
+      },
+    });
 
     return this.withdrawRepository.getWithdrawByPk(withdrawId);
   }
@@ -182,6 +227,23 @@ class WithdrawService {
       );
     });
 
+    await notificationService.notifyUser({
+      userId: withdraw.userId,
+      actorId: performedBy,
+      type: "WITHDRAW_REFUNDED",
+      title: "Withdraw Refunded",
+      message: `Your withdraw request #${withdraw.id} has been refunded — ${fmtAmount(withdraw.amount)} ${withdraw.currency} was returned to your ${withdraw.walletType} wallet.${description ? ` Note: ${description}` : ""}`,
+      entityType: "WITHDRAW",
+      entityId: withdraw.id,
+      data: {
+        amount: fmtAmount(withdraw.amount),
+        currency: withdraw.currency,
+        walletType: withdraw.walletType,
+        adminStatus: "refunded",
+        adminNote: description || null,
+      },
+    });
+
     return this.withdrawRepository.getWithdrawByPk(withdrawId);
   }
 
@@ -194,6 +256,7 @@ class WithdrawService {
     if (!withdraw) return null;
 
     const performedBy = adminUser && adminUser.id ? adminUser.id : null;
+    const wasPending = withdraw.adminStatus === "pending";
 
     await sequelize.transaction(async (t) => {
       if (withdraw.adminStatus === "pending") {
@@ -215,6 +278,22 @@ class WithdrawService {
       }
 
       await this.withdrawRepository.adminDeleteWithdraw(withdrawId, t);
+    });
+
+    await notificationService.notifyUser({
+      userId: withdraw.userId,
+      actorId: performedBy,
+      type: "WITHDRAW_DELETED",
+      title: "Withdraw Deleted",
+      message: `Your withdraw request #${withdraw.id} of ${fmtAmount(withdraw.amount)} ${withdraw.currency} was deleted by admin${wasPending ? ` — the amount was refunded to your ${withdraw.walletType} wallet` : ""}.`,
+      entityType: "WITHDRAW",
+      entityId: withdraw.id,
+      data: {
+        amount: fmtAmount(withdraw.amount),
+        currency: withdraw.currency,
+        walletType: withdraw.walletType,
+        refunded: wasPending,
+      },
     });
 
     return true;

@@ -24,6 +24,7 @@ const List = require("./list");
 const ProductImage = require("./productImage");
 const Receipt = require("./receipt");
 const Withdraw = require("./withdraw");
+const Notification = require("./notification");
 const BankAccount = require("./bankAccount");
 const Wallet = require("./wallet");
 const WalletTransaction = require("./walletTransaction");
@@ -216,6 +217,10 @@ Order.belongsTo(Address, {
     foreignKey: "withdrawId",
     as: "walletTransactions",
   });
+
+  Notification.belongsTo(User, { foreignKey: "userId", as: "recipient" });
+  Notification.belongsTo(User, { foreignKey: "actorId", as: "actor" });
+  User.hasMany(Notification, { foreignKey: "userId", as: "notifications" });
 
   Wallet.belongsTo(User, { foreignKey: "userId", as: "user" });
   User.hasMany(Wallet, { foreignKey: "userId", as: "wallets" });
@@ -502,6 +507,7 @@ module.exports = {
   Wallet,
   WalletTransaction,
   Withdraw,
+  Notification,
   ServicePurchase,
   ServiceFile,
   ServiceLike,

@@ -160,7 +160,7 @@ class ReceiptController {
   async adminBulkDeleteReceipts(req, res) {
     try {
       const { ids } = req.body;
-      const result = await receiptService.adminBulkDeleteReceipts(ids);
+      const result = await receiptService.adminBulkDeleteReceipts(ids, req.user);
       return res.status(200).json({
         success: true,
         message: `${result.deletedCount} of ${result.requestedCount} receipt(s) deleted successfully.`,

@@ -3,6 +3,48 @@ const { Order, ServiceOrder, ServiceOrderAddOn, Cart, CartItem, Service, Wallet,
 const Transaction = require("../models/transaction");
 const ServiceService = require("./ServiceService");
 const UserService = require("./UserService");
+const NotificationService = require("./NotificationService");
+const notificationService = new NotificationService();
+
+const fmtAmount = (v) => Number(v).toString();
+
+// One notification per service owner about their items in an order.
+// items: [{ serviceOwnerId, amount, serviceName? }]. Never throws.
+async function notifyServiceOwners(items, { buyerId, orderId, type, title, messageFor }) {
+  try {
+    const byOwner = new Map();
+    for (const item of items) {
+      if (!item.serviceOwnerId || item.serviceOwnerId === buyerId) continue;
+      if (!byOwner.has(item.serviceOwnerId)) byOwner.set(item.serviceOwnerId, { amount: 0, names: [] });
+      const entry = byOwner.get(item.serviceOwnerId);
+      entry.amount += Number(item.amount) || 0;
+      if (item.serviceName) entry.names.push(item.serviceName);
+    }
+    if (!byOwner.size) return;
+
+    const buyer = await User.findByPk(buyerId, { attributes: ["id", "username", "email"] });
+    const buyerName = (buyer && (buyer.username || buyer.email)) || `User #${buyerId}`;
+
+    for (const [ownerId, entry] of byOwner.entries()) {
+      await notificationService.notifyUser({
+        userId: ownerId,
+        actorId: buyerId,
+        type,
+        title,
+        message: messageFor(buyerName, entry),
+        entityType: "ORDER",
+        entityId: orderId,
+        data: {
+          amount: fmtAmount(entry.amount),
+          buyerName,
+          services: entry.names,
+        },
+      });
+    }
+  } catch (error) {
+    console.error("notifyServiceOwners error:", error.message);
+  }
+}
 
 const PAYMENT_HISTORY_ROLES = ["admin", "accountant"];
 
@@ -179,6 +221,22 @@ class OrderCartService {
       await Cart.update({ status: "converted" }, { where: { id: cartId }, transaction: tx });
 
       await tx.commit();
+
+      await notifyServiceOwners(
+        createdServiceOrders.map((so) => ({
+          serviceOwnerId: so.serviceOwnerId,
+          amount: so.itemTotal,
+          serviceName: so.serviceName,
+        })),
+        {
+          buyerId: userId,
+          orderId: order.id,
+          type: "SERVICE_ORDER_CREATED",
+          title: "New Order Received",
+          messageFor: (buyerName, entry) =>
+            `${buyerName} placed an order for your service${entry.names.length > 1 ? "s" : ""} ${entry.names.join(", ")} — total ${fmtAmount(entry.amount)} (Order #${order.id}).`,
+        },
+      );
 
       return {
         orderId: order.id,
@@ -424,6 +482,15 @@ class OrderCartService {
 
       await tx.commit();
 
+      await notifyServiceOwners(distributions, {
+        buyerId: userId,
+        orderId,
+        type: "SERVICE_ORDER_PURCHASED",
+        title: "Payment Received",
+        messageFor: (buyerName, entry) =>
+          `${buyerName} paid ${fmtAmount(entry.amount)} for your service order(s) in Order #${orderId}. The amount has been credited to your wallet.`,
+      });
+
       return {
         orderId,
         status: "CONFIRMED",
@@ -560,6 +627,15 @@ class OrderCartService {
 
       await tx.commit();
 
+      await notifyServiceOwners(distributions, {
+        buyerId: userId,
+        orderId,
+        type: "SERVICE_ORDER_TOPUP",
+        title: "Additional Payment Received",
+        messageFor: (buyerName, entry) =>
+          `${buyerName} made an additional payment of ${fmtAmount(entry.amount)} for your service order(s) in Order #${orderId}. The amount has been credited to your wallet.`,
+      });
+
       return {
         orderId,
         amountPaid: parsedAmount,
@@ -634,6 +710,22 @@ class OrderCartService {
       }
 
       await tx.commit();
+
+      await notificationService.notifyUser({
+        userId: order.userId,
+        actorId: adminUserId,
+        type: "ORDER_PAYMENT_RECORDED",
+        title: "Payment Recorded",
+        message: `Admin recorded a ${recordType === "order_top_up" ? "top-up" : "payment"} of ${fmtAmount(parsedAmount)} on your order #${orderId}.${note ? ` Note: ${note}` : ""}`,
+        entityType: "ORDER",
+        entityId: orderId,
+        data: {
+          amount: fmtAmount(parsedAmount),
+          recordType,
+          serviceOrderId: serviceOrderId || null,
+          note: note || null,
+        },
+      });
 
       return {
         id: record.id,
@@ -853,6 +945,15 @@ class OrderCartService {
       );
 
       await tx.commit();
+
+      await notifyServiceOwners(distributions, {
+        buyerId: userId,
+        orderId: order.id,
+        type: "SERVICE_ORDER_PURCHASED",
+        title: "New Order Purchased",
+        messageFor: (buyerName, entry) =>
+          `${buyerName} purchased your service order(s) for ${fmtAmount(entry.amount)} (Order #${order.id}). The amount has been credited to your wallet.`,
+      });
 
       return {
         orderId: order.id,

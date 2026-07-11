@@ -5,8 +5,14 @@
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    { "key": "baseUrl", "value": "http://localhost:5001/api" },
-    { "key": "userToken", "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsImlhdCI6MTc4Mzc1NDE0NX0.pMgBVHlZ-HHJdUPn2UFjz5izmWw_3rtrissFiVDEghU" }
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5001/api"
+    },
+    {
+      "key": "userToken",
+      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsImlhdCI6MTc4Mzc1NDE0NX0.pMgBVHlZ-HHJdUPn2UFjz5izmWw_3rtrissFiVDEghU"
+    }
   ],
   "item": [
     {
@@ -28,7 +34,12 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "url": "{{baseUrl}}/auth/login",
             "body": {
               "mode": "raw",
@@ -52,7 +63,12 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "url": "{{baseUrl}}/auth/login",
             "body": {
               "mode": "raw",
@@ -82,7 +98,12 @@
           ],
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
             "url": "{{baseUrl}}/card",
             "description": "Auto-saves the first card id into {{bankCardId}}. If you have no cards, create one first via your bank account API/app."
           }
@@ -104,8 +125,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{userToken}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
             ],
             "url": "{{baseUrl}}/receipt/my",
             "body": {
@@ -120,11 +147,20 @@
           "request": {
             "method": "PUT",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
             ],
             "url": "{{baseUrl}}/receipt/{{receiptId}}/approve?isLock=false",
-            "body": { "mode": "raw", "raw": "{}" },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
             "description": "Deposits the receipt amount into the user's wallet. Wallet is now funded for withdraw tests."
           }
         }
@@ -150,8 +186,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{userToken}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
             ],
             "url": "{{baseUrl}}/withdraw/my",
             "body": {
@@ -166,8 +208,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{userToken}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
             ],
             "url": "{{baseUrl}}/withdraw/my",
             "body": {
@@ -180,22 +228,69 @@
           "name": "Get my withdraws",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/withdraw/my?pagination=true&page=1&limit=20&status=all",
-              "host": ["{{baseUrl}}"],
-              "path": ["withdraw", "my"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "withdraw",
+                "my"
+              ],
               "query": [
-                { "key": "pagination", "value": "true" },
-                { "key": "page", "value": "1" },
-                { "key": "limit", "value": "20" },
-                { "key": "status", "value": "all", "description": "all | pending | paid | refunded" },
-                { "key": "currency", "value": "USD", "disabled": true },
-                { "key": "days", "value": "30", "disabled": true },
-                { "key": "startDate", "value": "2026-07-01", "disabled": true },
-                { "key": "endDate", "value": "2026-07-11", "disabled": true },
-                { "key": "minAmount", "value": "10", "disabled": true },
-                { "key": "maxAmount", "value": "1000", "disabled": true }
+                {
+                  "key": "pagination",
+                  "value": "true"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "status",
+                  "value": "all",
+                  "description": "all | pending | paid | refunded"
+                },
+                {
+                  "key": "currency",
+                  "value": "USD",
+                  "disabled": true
+                },
+                {
+                  "key": "days",
+                  "value": "30",
+                  "disabled": true
+                },
+                {
+                  "key": "startDate",
+                  "value": "2026-07-01",
+                  "disabled": true
+                },
+                {
+                  "key": "endDate",
+                  "value": "2026-07-11",
+                  "disabled": true
+                },
+                {
+                  "key": "minAmount",
+                  "value": "10",
+                  "disabled": true
+                },
+                {
+                  "key": "maxAmount",
+                  "value": "1000",
+                  "disabled": true
+                }
               ]
             }
           }
@@ -204,7 +299,12 @@
           "name": "Get my withdraw by id",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
             "url": "{{baseUrl}}/withdraw/my/{{withdrawId}}"
           }
         },
@@ -212,7 +312,12 @@
           "name": "Admin route with user token (expect 403)",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
             "url": "{{baseUrl}}/withdraw?type=all"
           }
         }
@@ -225,18 +330,48 @@
           "name": "Get all withdraws (admin)",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/withdraw?type=all&pagination=true&page=1&limit=20&status=all",
-              "host": ["{{baseUrl}}"],
-              "path": ["withdraw"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "withdraw"
+              ],
               "query": [
-                { "key": "type", "value": "all", "description": "all | my" },
-                { "key": "pagination", "value": "true" },
-                { "key": "page", "value": "1" },
-                { "key": "limit", "value": "20" },
-                { "key": "status", "value": "all", "description": "all | pending | paid | refunded" },
-                { "key": "excludeAdmin", "value": "true", "disabled": true }
+                {
+                  "key": "type",
+                  "value": "all",
+                  "description": "all | my"
+                },
+                {
+                  "key": "pagination",
+                  "value": "true"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "status",
+                  "value": "all",
+                  "description": "all | pending | paid | refunded"
+                },
+                {
+                  "key": "excludeAdmin",
+                  "value": "true",
+                  "disabled": true
+                }
               ]
             }
           }
@@ -246,8 +381,14 @@
           "request": {
             "method": "PUT",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
             ],
             "url": "{{baseUrl}}/withdraw/{{withdrawId}}/paid",
             "body": {
@@ -262,8 +403,14 @@
           "request": {
             "method": "PUT",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
             ],
             "url": "{{baseUrl}}/withdraw/{{withdrawId}}/refund",
             "body": {
@@ -277,7 +424,12 @@
           "name": "Delete withdraw (soft)",
           "request": {
             "method": "DELETE",
-            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
             "url": "{{baseUrl}}/withdraw/{{withdrawId}}",
             "description": "Soft delete. If still pending, the amount is auto-refunded to the wallet first."
           }
@@ -287,8 +439,14 @@
           "request": {
             "method": "DELETE",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
             ],
             "url": "{{baseUrl}}/withdraw/bulk",
             "body": {
@@ -307,16 +465,41 @@
           "name": "My wallet transactions (all)",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/wallet/my-transactions?page=1&limit=20",
-              "host": ["{{baseUrl}}"],
-              "path": ["wallet", "my-transactions"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "wallet",
+                "my-transactions"
+              ],
               "query": [
-                { "key": "page", "value": "1" },
-                { "key": "limit", "value": "20" },
-                { "key": "type", "value": "WITHDRAW", "disabled": true, "description": "DEPOSIT | WITHDRAW | LOCK | UNLOCK | TRANSFER | CONVERT" },
-                { "key": "currency", "value": "USD", "disabled": true }
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "type",
+                  "value": "WITHDRAW",
+                  "disabled": true,
+                  "description": "DEPOSIT | WITHDRAW | LOCK | UNLOCK | TRANSFER | CONVERT"
+                },
+                {
+                  "key": "currency",
+                  "value": "USD",
+                  "disabled": true
+                }
               ]
             },
             "description": "Withdraw rows carry withdrawId + meta.source (withdraw_request / withdraw_refund / withdraw_delete_refund) with balanceBefore/After."
@@ -326,15 +509,34 @@
           "name": "Wallet transactions of a user (admin)",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/wallet/transactions?userId=4&page=1&limit=20",
-              "host": ["{{baseUrl}}"],
-              "path": ["wallet", "transactions"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "wallet",
+                "transactions"
+              ],
               "query": [
-                { "key": "userId", "value": "4" },
-                { "key": "page", "value": "1" },
-                { "key": "limit", "value": "20" }
+                {
+                  "key": "userId",
+                  "value": "4"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
               ]
             }
           }
@@ -343,9 +545,149 @@
           "name": "My profile (see wallets & balances)",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
             "url": "{{baseUrl}}/user/4/profile",
             "description": "Change the user id in the path to yours."
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Notifications",
+      "item": [
+        {
+          "name": "Get my notifications",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/notification/my?pagination=true&page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notification",
+                "my"
+              ],
+              "query": [
+                {
+                  "key": "pagination",
+                  "value": "true"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "unread",
+                  "value": "true",
+                  "disabled": true,
+                  "description": "only unread"
+                },
+                {
+                  "key": "type",
+                  "value": "WITHDRAW_PAID",
+                  "disabled": true,
+                  "description": "filter by type"
+                }
+              ]
+            },
+            "description": "Returns data + unreadCount + pagination. Types: RECEIPT_CREATED/APPROVED/REJECTED/LOCKED/UNLOCKED/UPDATED/DELETED, WITHDRAW_CREATED/PAID/REFUNDED/DELETED, SERVICE_ORDER_CREATED/PURCHASED/TOPUP, ORDER_PAYMENT_RECORDED"
+          }
+        },
+        {
+          "name": "Get notifications (admin sees staff alerts)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/notification/my",
+            "description": "Same endpoint — admins receive RECEIPT_CREATED / WITHDRAW_CREATED alerts here."
+          }
+        },
+        {
+          "name": "Unread count",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/notification/my/unread-count"
+          }
+        },
+        {
+          "name": "Mark one as read",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/notification/my/1/read",
+            "description": "Replace 1 with a notification id from the list."
+          }
+        },
+        {
+          "name": "Mark all as read",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/notification/my/read-all"
+          }
+        },
+        {
+          "name": "Delete one notification",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/notification/my/1",
+            "description": "Replace 1 with a notification id."
+          }
+        },
+        {
+          "name": "Delete all notifications",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/notification/my/all"
           }
         }
       ]
