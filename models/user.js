@@ -188,7 +188,9 @@ User.afterCreate(async (user, options) => {
     userId: user.id,
   }));
 
-  await PaymentType.bulkCreate(records);
+  // Must run on the caller's transaction: the user row is uncommitted, and a
+  // separate connection would block on the FK check until lock timeout.
+  await PaymentType.bulkCreate(records, { transaction: options.transaction });
 });
 
 module.exports = User;

@@ -36,9 +36,9 @@ class UserRepository {
   }
 
   // Create a new user
-  async create(user) {
+  async create(user, options = {}) {
     console.log("user", user);
-    return User.create(user);
+    return User.create(user, options);
   }
 
   async getAllUsers() {
