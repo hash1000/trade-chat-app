@@ -1,8 +1,50 @@
 const sequelize = require("../config/database");
-const { Order, ServiceOrder, ServiceOrderAddOn, Cart, CartItem, Service, Wallet, WalletTransaction, Address, OrderPayment, User } = require("../models");
+const { Order, ServiceOrder, ServiceOrderAddOn, Cart, CartItem, Service, Wallet, WalletTransaction, Address, OrderPayment, User, Role } = require("../models");
 const Transaction = require("../models/transaction");
 const ServiceService = require("./ServiceService");
 const UserService = require("./UserService");
+const NotificationService = require("./NotificationService");
+const notificationService = new NotificationService();
+
+const fmtAmount = (v) => Number(v).toString();
+
+// One notification per service owner about their items in an order.
+// items: [{ serviceOwnerId, amount, serviceName? }]. Never throws.
+async function notifyServiceOwners(items, { buyerId, orderId, type, title, messageFor }) {
+  try {
+    const byOwner = new Map();
+    for (const item of items) {
+      if (!item.serviceOwnerId || item.serviceOwnerId === buyerId) continue;
+      if (!byOwner.has(item.serviceOwnerId)) byOwner.set(item.serviceOwnerId, { amount: 0, names: [] });
+      const entry = byOwner.get(item.serviceOwnerId);
+      entry.amount += Number(item.amount) || 0;
+      if (item.serviceName) entry.names.push(item.serviceName);
+    }
+    if (!byOwner.size) return;
+
+    const buyer = await User.findByPk(buyerId, { attributes: ["id", "username", "email"] });
+    const buyerName = (buyer && (buyer.username || buyer.email)) || `User #${buyerId}`;
+
+    for (const [ownerId, entry] of byOwner.entries()) {
+      await notificationService.notifyUser({
+        userId: ownerId,
+        actorId: buyerId,
+        type,
+        title,
+        message: messageFor(buyerName, entry),
+        entityType: "ORDER",
+        entityId: orderId,
+        data: {
+          amount: fmtAmount(entry.amount),
+          buyerName,
+          services: entry.names,
+        },
+      });
+    }
+  } catch (error) {
+    console.error("notifyServiceOwners error:", error.message);
+  }
+}
 
 const PAYMENT_HISTORY_ROLES = ["admin", "accountant"];
 
@@ -20,21 +62,32 @@ class OrderCartService {
   }
 
   /**
-   * Load the complete service payload (same shape as
-   * GET /service?includeTeams=true&includeMembers=true&includeAddOns=true...).
-   * Cached per request via the passed Map so a repeated serviceId is fetched once.
+   * Load the service payload (same shape as GET /service?includeTeams=...&includeMembers=...).
+   * All the includeX flags default to false — pass only what you actually need, since each one
+   * adds a join/query and the fully-loaded payload is what made this endpoint slow.
+   * Cached per request (keyed by serviceId + the flags used) via the passed Map.
    */
-  async loadFullService(serviceId, viewerId, cache) {
-    if (cache.has(serviceId)) return cache.get(serviceId);
+  async loadFullService(serviceId, viewerId, cache, includeOptions = {}) {
+    const {
+      includeTeams = false,
+      includeMembers = false,
+      includeCategories = false,
+      includeAddOns = false,
+      isLiked = false,
+    } = includeOptions;
+
+    const cacheKey = `${serviceId}|${includeTeams}|${includeMembers}|${includeCategories}|${includeAddOns}|${isLiked}`;
+    if (cache.has(cacheKey)) return cache.get(cacheKey);
+
     const full = await this.serviceService.getById(serviceId, {
       userId: viewerId,
-      includeTeams: true,
-      includeMembers: true,
-      includeCategories: true,
-      includeAddOns: true,
-      isLiked: true,
+      includeTeams,
+      includeMembers,
+      includeCategories,
+      includeAddOns,
+      isLiked,
     });
-    cache.set(serviceId, full);
+    cache.set(cacheKey, full);
     return full;
   }
   // Generate a DRAFT order from a cart (DB-backed)
@@ -168,6 +221,22 @@ class OrderCartService {
       await Cart.update({ status: "converted" }, { where: { id: cartId }, transaction: tx });
 
       await tx.commit();
+
+      await notifyServiceOwners(
+        createdServiceOrders.map((so) => ({
+          serviceOwnerId: so.serviceOwnerId,
+          amount: so.itemTotal,
+          serviceName: so.serviceName,
+        })),
+        {
+          buyerId: userId,
+          orderId: order.id,
+          type: "SERVICE_ORDER_CREATED",
+          title: "New Order Received",
+          messageFor: (buyerName, entry) =>
+            `${buyerName} placed an order for your service${entry.names.length > 1 ? "s" : ""} ${entry.names.join(", ")} — total ${fmtAmount(entry.amount)} (Order #${order.id}).`,
+        },
+      );
 
       return {
         orderId: order.id,
@@ -413,6 +482,15 @@ class OrderCartService {
 
       await tx.commit();
 
+      await notifyServiceOwners(distributions, {
+        buyerId: userId,
+        orderId,
+        type: "SERVICE_ORDER_PURCHASED",
+        title: "Payment Received",
+        messageFor: (buyerName, entry) =>
+          `${buyerName} paid ${fmtAmount(entry.amount)} for your service order(s) in Order #${orderId}. The amount has been credited to your wallet.`,
+      });
+
       return {
         orderId,
         status: "CONFIRMED",
@@ -549,6 +627,15 @@ class OrderCartService {
 
       await tx.commit();
 
+      await notifyServiceOwners(distributions, {
+        buyerId: userId,
+        orderId,
+        type: "SERVICE_ORDER_TOPUP",
+        title: "Additional Payment Received",
+        messageFor: (buyerName, entry) =>
+          `${buyerName} made an additional payment of ${fmtAmount(entry.amount)} for your service order(s) in Order #${orderId}. The amount has been credited to your wallet.`,
+      });
+
       return {
         orderId,
         amountPaid: parsedAmount,
@@ -623,6 +710,22 @@ class OrderCartService {
       }
 
       await tx.commit();
+
+      await notificationService.notifyUser({
+        userId: order.userId,
+        actorId: adminUserId,
+        type: "ORDER_PAYMENT_RECORDED",
+        title: "Payment Recorded",
+        message: `Admin recorded a ${recordType === "order_top_up" ? "top-up" : "payment"} of ${fmtAmount(parsedAmount)} on your order #${orderId}.${note ? ` Note: ${note}` : ""}`,
+        entityType: "ORDER",
+        entityId: orderId,
+        data: {
+          amount: fmtAmount(parsedAmount),
+          recordType,
+          serviceOrderId: serviceOrderId || null,
+          note: note || null,
+        },
+      });
 
       return {
         id: record.id,
@@ -843,6 +946,15 @@ class OrderCartService {
 
       await tx.commit();
 
+      await notifyServiceOwners(distributions, {
+        buyerId: userId,
+        orderId: order.id,
+        type: "SERVICE_ORDER_PURCHASED",
+        title: "New Order Purchased",
+        messageFor: (buyerName, entry) =>
+          `${buyerName} purchased your service order(s) for ${fmtAmount(entry.amount)} (Order #${order.id}). The amount has been credited to your wallet.`,
+      });
+
       return {
         orderId: order.id,
         userId,
@@ -869,14 +981,44 @@ class OrderCartService {
   }
 
   // List orders for a user
-  async listOrders(userId, statuses) {
+  async listOrders(userId, statuses, {
+    pagination = false,
+    page = 1,
+    limit = 20,
+    includeTeams = false,
+    includeMembers = false,
+    includeCategories = false,
+    includeAddOns = false,
+    isLiked = false,
+  } = {}) {
+    const includeOptions = { includeTeams, includeMembers, includeCategories, includeAddOns, isLiked };
     const where = { userId };
     if (statuses && statuses.length > 0) where.status = statuses;
     console.log("listOrders where:", where);
-    const orders = await Order.findAll({
-      where,
-      order: [["createdAt", "DESC"]],
-    });
+
+    let orders;
+    let paginationMeta = null;
+
+    if (pagination) {
+      const { count, rows } = await Order.findAndCountAll({
+        where,
+        order: [["createdAt", "DESC"]],
+        limit,
+        offset: (page - 1) * limit,
+      });
+      orders = rows;
+      paginationMeta = {
+        currentPage: page,
+        totalPages: Math.ceil(count / limit),
+        totalItems: count,
+        limit,
+      };
+    } else {
+      orders = await Order.findAll({
+        where,
+        order: [["createdAt", "DESC"]],
+      });
+    }
 
     const serviceCache = new Map();
     const result = [];
@@ -884,7 +1026,7 @@ class OrderCartService {
       const serviceOrders = await ServiceOrder.findAll({ where: { orderId: o.id } });
       const services = await Promise.all(
         serviceOrders.map(async (so) => {
-          const service = await this.loadFullService(so.serviceId, userId, serviceCache);
+          const service = await this.loadFullService(so.serviceId, userId, serviceCache, includeOptions);
           return {
             serviceOrderId: so.id,
             serviceId: so.serviceId,
@@ -908,21 +1050,42 @@ class OrderCartService {
         services,
       });
     }
-    return result;
+    return { orders: result, pagination: paginationMeta };
   }
 
-  // Get single order with items
-  async getOrder(userId, orderId) {
+  // Get single order with items.
+  // Accessible by the buyer (full order, all items) OR by a service owner who has
+  // at least one of their services in this order (scoped to just their own item(s) —
+  // they don't see other providers' items, pricing, or payment history).
+  async getOrder(userId, orderId, includeOptions = {}) {
     const order = await Order.findByPk(orderId);
-    if (!order || order.userId !== userId) throw clientError("Order not found.", 404, "NOT_FOUND");
+    if (!order) throw clientError("Order not found.", 404, "NOT_FOUND");
 
-    const serviceOrders = await ServiceOrder.findAll({ where: { orderId } });
+    const buyer = await User.findByPk(order.userId, {
+      attributes: ["id", "firstName", "lastName", "username", "email", "profilePic"],
+      include: [{ model: Role, as: "roles", attributes: ["name"], through: { attributes: [] } }],
+    });
+
+    const isBuyer = order.userId === userId;
+    let ownedServiceOrderIds = null; // null = buyer view, no scoping
+
+    if (!isBuyer) {
+      const ownedItems = await ServiceOrder.findAll({
+        where: { orderId, serviceOwnerId: userId },
+        attributes: ["id"],
+      });
+      if (ownedItems.length === 0) throw clientError("Order not found.", 404, "NOT_FOUND");
+      ownedServiceOrderIds = ownedItems.map((so) => so.id);
+    }
+
+    const serviceOrderWhere = ownedServiceOrderIds ? { orderId, id: ownedServiceOrderIds } : { orderId };
+    const serviceOrders = await ServiceOrder.findAll({ where: serviceOrderWhere });
     const serviceCache = new Map();
     const items = [];
     for (const so of serviceOrders) {
       const [addOns, service] = await Promise.all([
         ServiceOrderAddOn.findAll({ where: { serviceOrderId: so.id } }),
-        this.loadFullService(so.serviceId, userId, serviceCache),
+        this.loadFullService(so.serviceId, userId, serviceCache, includeOptions),
       ]);
       const addOnSubtotal = addOns.reduce((s, a) => s + parseFloat(a.subtotal), 0);
       items.push({
@@ -949,69 +1112,164 @@ class OrderCartService {
       });
     }
 
-    const paymentHistory = await this._fetchPaymentHistoryRows(orderId);
+    let paymentHistory = await this._fetchPaymentHistoryRows(orderId);
+
+    // Order-level totals: full order for the buyer, but scoped down to just this
+    // owner's own items when viewed by a service owner (never leak other providers'
+    // amounts, even in aggregate).
+    let totalAmount = parseFloat(order.price);
+    let paidAmount = parseFloat(order.paidAmount);
+    let extraPayments = parseFloat(order.extraPayments);
+
+    if (ownedServiceOrderIds) {
+      totalAmount = items.reduce((sum, it) => sum + it.itemTotal, 0);
+      paidAmount = items.reduce((sum, it) => sum + it.paidAmount, 0);
+      extraPayments = items.reduce((sum, it) => sum + it.extraPayments, 0);
+      paymentHistory = paymentHistory.filter(
+        (p) => p.serviceOrderId != null && ownedServiceOrderIds.includes(p.serviceOrderId)
+      );
+    }
 
     return {
       orderId: order.id,
       userId: order.userId,
+      buyer: buyer
+        ? {
+            id: buyer.id,
+            firstName: buyer.firstName,
+            lastName: buyer.lastName,
+            username: buyer.username,
+            email: buyer.email,
+            profilePic: buyer.profilePic,
+            roles: (buyer.roles || []).map((r) => r.name),
+          }
+        : null,
       cartId: order.cartId,
       status: order.status,
       addressId: order.addressId,
       deliveryOption: order.deliveryOption,
-      totalAmount: parseFloat(order.price),
-      paidAmount: parseFloat(order.paidAmount),
-      extraPayments: parseFloat(order.extraPayments),
+      viewerRole: isBuyer ? "buyer" : "service_owner",
+      totalAmount,
+      paidAmount,
+      extraPayments,
       items,
       paymentHistory,
       createdAt: order.createdAt,
     };
   }
-  // GET: service owner — list all orders containing their service(s)
-  async getOrdersForServiceOwner(ownerId, serviceId) {
-    const where = { serviceOwnerId: ownerId };
-    if (serviceId) where.serviceId = serviceId;
+  // GET: service owner — list all orders containing their service(s), grouped by
+  // order (one entry per order, with a nested `services` array — not one flat row
+  // per service item, since a single order can hold multiple of the owner's services).
+  async getOrdersForServiceOwner(ownerId, serviceId, includeOptions = {}, {
+    pagination = false,
+    page = 1,
+    limit = 20,
+  } = {}) {
+    const ownerWhere = { serviceOwnerId: ownerId };
+    if (serviceId) ownerWhere.serviceId = serviceId;
 
-    const serviceOrders = await ServiceOrder.findAll({
-      where,
-      order: [["createdAt", "DESC"]],
-    });
+    // Distinct set of orders that contain at least one of this owner's services
+    const ownedServiceOrders = await ServiceOrder.findAll({ where: ownerWhere, attributes: ["orderId"] });
+    const orderIds = [...new Set(ownedServiceOrders.map((so) => so.orderId))];
 
-    const serviceCache = new Map();
-    const results = [];
-    for (const so of serviceOrders) {
-      const order = await Order.findByPk(so.orderId);
-      const addOns = await ServiceOrderAddOn.findAll({ where: { serviceOrderId: so.id } });
-      const service = await this.loadFullService(so.serviceId, ownerId, serviceCache);
-      const addOnSubtotal = addOns.reduce((s, a) => s + parseFloat(a.subtotal), 0);
+    let orders;
+    let paginationMeta = null;
 
-      results.push({
-        serviceOrderId: so.id,
-        orderId: so.orderId,
-        orderNo: order?.orderNo,
-        buyerId: order?.userId,
-        serviceId: so.serviceId,
-        quantity: so.quantity,
-        servicePriceAtOrder: parseFloat(so.servicePriceAtOrder),
-        subtotal: parseFloat(so.subtotal),
-        discountCode: so.discountCode,
-        discountAmount: parseFloat(so.discountAmount),
-        finalAmount: parseFloat(so.finalAmount),
-        addOns: addOns.map((a) => ({
-          addOnId: a.addOnId,
-          quantity: a.quantity,
-          priceAtOrder: parseFloat(a.priceAtOrder),
-          subtotal: parseFloat(a.subtotal),
-        })),
-        service,
-        itemTotal: parseFloat(so.finalAmount) + addOnSubtotal,
-        status: so.status,
-        addressId: order?.addressId,
-        deliveryOption: order?.deliveryOption,
-        createdAt: so.createdAt,
+    if (pagination) {
+      const { count, rows } = await Order.findAndCountAll({
+        where: { id: orderIds },
+        order: [["createdAt", "DESC"]],
+        limit,
+        offset: (page - 1) * limit,
+      });
+      orders = rows;
+      paginationMeta = {
+        currentPage: page,
+        totalPages: Math.ceil(count / limit),
+        totalItems: count,
+        limit,
+      };
+    } else {
+      orders = await Order.findAll({
+        where: { id: orderIds },
+        order: [["createdAt", "DESC"]],
       });
     }
 
-    return results;
+    const buyerIds = [...new Set(orders.map((o) => o.userId))];
+    const buyers = buyerIds.length
+      ? await User.findAll({
+          where: { id: buyerIds },
+          attributes: ["id", "firstName", "lastName", "username", "email", "profilePic"],
+          include: [{ model: Role, as: "roles", attributes: ["name"], through: { attributes: [] } }],
+        })
+      : [];
+    const buyerMap = Object.fromEntries(buyers.map((b) => [b.id, b]));
+
+    const serviceCache = new Map();
+    const results = [];
+    for (const order of orders) {
+      const serviceOrders = await ServiceOrder.findAll({ where: { ...ownerWhere, orderId: order.id } });
+
+      const services = await Promise.all(
+        serviceOrders.map(async (so) => {
+          const addOns = await ServiceOrderAddOn.findAll({ where: { serviceOrderId: so.id } });
+          const service = await this.loadFullService(so.serviceId, ownerId, serviceCache, includeOptions);
+          const addOnSubtotal = addOns.reduce((s, a) => s + parseFloat(a.subtotal), 0);
+
+          return {
+            serviceOrderId: so.id,
+            serviceId: so.serviceId,
+            quantity: so.quantity,
+            servicePriceAtOrder: parseFloat(so.servicePriceAtOrder),
+            subtotal: parseFloat(so.subtotal),
+            discountCode: so.discountCode,
+            discountAmount: parseFloat(so.discountAmount),
+            finalAmount: parseFloat(so.finalAmount),
+            paidAmount: parseFloat(so.paidAmount),
+            extraPayments: parseFloat(so.extraPayments),
+            addOns: addOns.map((a) => ({
+              addOnId: a.addOnId,
+              quantity: a.quantity,
+              priceAtOrder: parseFloat(a.priceAtOrder),
+              subtotal: parseFloat(a.subtotal),
+            })),
+            itemTotal: parseFloat(so.finalAmount) + addOnSubtotal,
+            status: so.status,
+            service,
+          };
+        })
+      );
+
+      const buyer = buyerMap[order.userId];
+
+      results.push({
+        orderId: order.id,
+        orderNo: order.orderNo,
+        buyerId: order.userId,
+        buyer: buyer
+          ? {
+              id: buyer.id,
+              firstName: buyer.firstName,
+              lastName: buyer.lastName,
+              username: buyer.username,
+              email: buyer.email,
+              profilePic: buyer.profilePic,
+              roles: (buyer.roles || []).map((r) => r.name),
+            }
+          : null,
+        status: order.status,
+        addressId: order.addressId,
+        deliveryOption: order.deliveryOption,
+        totalAmount: parseFloat(order.price),
+        paidAmount: parseFloat(order.paidAmount),
+        extraPayments: parseFloat(order.extraPayments),
+        createdAt: order.createdAt,
+        services,
+      });
+    }
+
+    return { results, pagination: paginationMeta };
   }
 }
 

@@ -8,6 +8,7 @@ const {
   createPaymentValidator,
   updatePaymentValidator,
   createTopupValidator,
+  createGooglePayTopupValidator,
   currencyAdjustmentValidator,
   validatePaymentType,
   createBalanceSheetValidator,
@@ -125,6 +126,13 @@ router.get(
   "/topup/transactions",
   authMiddleware,
   paymentController.getUserTopupTransactions.bind(paymentController),
+);
+
+router.post(
+  "/topup/google-pay",
+  authMiddleware,
+  createGooglePayTopupValidator,
+  paymentController.googlePayTopup.bind(paymentController),
 );
 
 router.post(

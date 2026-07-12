@@ -23,6 +23,8 @@ const ShortList = require("./shortList");
 const List = require("./list");
 const ProductImage = require("./productImage");
 const Receipt = require("./receipt");
+const Withdraw = require("./withdraw");
+const Notification = require("./notification");
 const BankAccount = require("./bankAccount");
 const Wallet = require("./wallet");
 const WalletTransaction = require("./walletTransaction");
@@ -207,6 +209,19 @@ Order.belongsTo(Address, {
     as: "walletTransactions",
   });
 
+  Withdraw.belongsTo(BankAccount, { foreignKey: "bankCardId", as: "bankCard" });
+  Withdraw.belongsTo(User, { foreignKey: "userId", as: "user" });
+  Withdraw.belongsTo(User, { foreignKey: "processedBy", as: "processor" });
+
+  Withdraw.hasMany(WalletTransaction, {
+    foreignKey: "withdrawId",
+    as: "walletTransactions",
+  });
+
+  Notification.belongsTo(User, { foreignKey: "userId", as: "recipient" });
+  Notification.belongsTo(User, { foreignKey: "actorId", as: "actor" });
+  User.hasMany(Notification, { foreignKey: "userId", as: "notifications" });
+
   Wallet.belongsTo(User, { foreignKey: "userId", as: "user" });
   User.hasMany(Wallet, { foreignKey: "userId", as: "wallets" });
 
@@ -279,6 +294,10 @@ Order.belongsTo(Address, {
   WalletTransaction.belongsTo(Receipt, {
     foreignKey: "receiptId",
     as: "receipt",
+  });
+  WalletTransaction.belongsTo(Withdraw, {
+    foreignKey: "withdrawId",
+    as: "withdraw",
   });
   // FK column is `performedBy`; association alias must differ (Sequelize naming collision)
   WalletTransaction.belongsTo(User, {
@@ -487,6 +506,8 @@ module.exports = {
   PublicCategory,
   Wallet,
   WalletTransaction,
+  Withdraw,
+  Notification,
   ServicePurchase,
   ServiceFile,
   ServiceLike,

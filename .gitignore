@@ -47,3 +47,6 @@ config/config.json
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Firebase service account (never commit — contains private key)
+config/firebase-service-account.json

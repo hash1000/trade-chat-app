@@ -2,6 +2,18 @@ const OrderCartService = require("../services/OrderCartService");
 
 const cartService = new OrderCartService();
 
+// Service payload is expensive to fully load (teams, team members, categories, add-ons,
+// like status) — default everything to off so callers only pay for what they ask for.
+function parseIncludeFlags(query) {
+  return {
+    includeTeams: query.includeTeams === "true",
+    includeMembers: query.includeMembers === "true",
+    includeCategories: query.includeCategories === "true",
+    includeAddOns: query.includeAddOns === "true",
+    isLiked: query.isLiked === "true",
+  };
+}
+
 function handleError(res, error) {
   const status = error.statusCode || 500;
   if (status < 500) {
@@ -111,8 +123,24 @@ class OrderCartController {
     try {
       const ownerId = req.user.id;
       const serviceId = req.query.serviceId ? Number(req.query.serviceId) : null;
-      const data = await cartService.getOrdersForServiceOwner(ownerId, serviceId);
-      return res.status(200).json({ success: true, data, count: data.length });
+
+      const usePagination = req.query.pagination === "true";
+      const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+      const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 100);
+
+      const { results, pagination } = await cartService.getOrdersForServiceOwner(
+        ownerId,
+        serviceId,
+        parseIncludeFlags(req.query),
+        { pagination: usePagination, page, limit }
+      );
+
+      return res.status(200).json({
+        success: true,
+        data: results,
+        count: results.length,
+        ...(pagination && { pagination }),
+      });
     } catch (error) {
       return handleError(res, error);
     }
@@ -123,8 +151,24 @@ class OrderCartController {
     try {
       const userId = req.user.id;
       const statuses = req.query.status ? (Array.isArray(req.query.status) ? req.query.status : [req.query.status]) : null;
-      const data = await cartService.listOrders(userId, statuses);
-      return res.status(200).json({ success: true, data, count: data.length });
+
+      const usePagination = req.query.pagination === "true";
+      const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+      const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 100);
+
+      const { orders, pagination } = await cartService.listOrders(userId, statuses, {
+        pagination: usePagination,
+        page,
+        limit,
+        ...parseIncludeFlags(req.query),
+      });
+
+      return res.status(200).json({
+        success: true,
+        data: orders,
+        count: orders.length,
+        ...(pagination && { pagination }),
+      });
     } catch (error) {
       return handleError(res, error);
     }
@@ -135,7 +179,7 @@ class OrderCartController {
     try {
       const userId = req.user.id;
       const orderId = Number(req.params.orderId);
-      const data = await cartService.getOrder(userId, orderId);
+      const data = await cartService.getOrder(userId, orderId, parseIncludeFlags(req.query));
       return res.status(200).json({ success: true, data });
     } catch (error) {
       return handleError(res, error);

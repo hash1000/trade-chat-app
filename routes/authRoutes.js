@@ -139,6 +139,11 @@ router.post(
   userController.updateFCM.bind(userController)
 );
 router.post(
+  "/logout",
+  authenticate,
+  userController.logout.bind(userController)
+);
+router.post(
   "/verify-email-phone",
   authenticate,
   userController.verifyEmailOrPhone.bind(userController)

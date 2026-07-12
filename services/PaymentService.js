@@ -362,73 +362,228 @@ class PaymentService {
       throw err;
     }
 
-    const userId = parseInt(rawUserId);
-    const rate = Number(fxRate);
-    const origAmount = Number(originalAmount);
+    try {
+      await this.finalizeWalletTopup({
+        orderId,
+        userId: parseInt(rawUserId),
+        walletType,
+        walletCurrency,
+        rate: Number(fxRate),
+        origAmount: Number(originalAmount),
+        usdAmount: amount_total / 100,
+        sessionId,
+        stripeEvent: "checkout.session.completed",
+      });
+    } catch (err) {
+      console.error("❌ Payment processing failed:", err);
+      throw err;
+    }
+  }
 
-    // Step 2: Idempotency check
+  // Shared "complete the top-up" step used by both the Stripe Checkout
+  // webhook and the Google Pay (PaymentIntent) flow, so a top-up is only
+  // ever credited to the wallet through this one code path.
+  // Idempotent on orderId: safe to call more than once for the same order
+  // (webhook redelivery, retried Google Pay request, etc.).
+  async finalizeWalletTopup({
+    orderId,
+    userId,
+    walletType,
+    walletCurrency,
+    rate,
+    origAmount,
+    usdAmount,
+    sessionId,
+    stripeEvent,
+  }) {
     const existing = await Transaction.findOne({ where: { orderId } });
     if (!existing) {
       console.warn(
         `⚠️ Transaction not found for orderId: ${orderId}; may have been created outside normal flow`,
       );
     } else if (existing.status === "completed") {
-      console.log(`ℹ️ Duplicate webhook ignored for orderId: ${orderId}`);
-      return;
+      console.log(`ℹ️ Duplicate finalize ignored for orderId: ${orderId}`);
+      return existing;
     }
 
-    try {
-      // Step 3: Reconstruct amounts
-      const usdAmount = amount_total / 100;
-      const creditedAmount = usdAmount * rate;
+    const creditedAmount = usdAmount * rate;
 
-      // Step 4: Credit wallet
-      // const wallet = await walletService.getWallet(userId, walletCurrency, walletType);
-      // if (!wallet) {
-      //   const err = new Error(`Wallet not found: ${walletCurrency} ${walletType} for userId ${userId}`);
-      //   err.isUserError = true;
-      //   throw err;
-      // }
+    await walletService.deposit({
+      userId,
+      currency: walletCurrency,
+      walletType,
+      amount: creditedAmount,
+      description: `Stripe Wallet Top-up via session ${sessionId}`,
+      meta: {
+        stripeSessionId: sessionId,
+        stripeOrderId: orderId,
+        paidAmount: usdAmount,
+        paidCurrency: "USD",
+        rate,
+        originalAmount: origAmount,
+      },
+    });
 
-      await walletService.deposit({
-        userId,
-        currency: walletCurrency,
-        walletType,
-        amount: creditedAmount,
-        description: `Stripe Wallet Top-up via session ${sessionId}`,
-        meta: {
+    if (existing) {
+      await existing.update({
+        status: "completed",
+        paidAmount: usdAmount,
+        paidCurrency: "USD",
+        metadata: {
+          ...existing.metadata,
           stripeSessionId: sessionId,
-          stripeOrderId: orderId,
-          paidAmount: usdAmount,
-          paidCurrency: "USD",
-          rate,
-          originalAmount: origAmount,
+          stripeEvent,
+          creditedAmount,
         },
       });
+    }
 
-      // Step 5: Mark transaction completed
-      if (existing) {
-        await existing.update({
-          status: "completed",
-          paidAmount: usdAmount,
-          paidCurrency: "USD",
-          metadata: {
-            ...existing.metadata,
-            stripeSessionId: sessionId,
-            stripeEvent: "checkout.session.completed",
-            creditedAmount,
-          },
-        });
-      }
+    console.log(
+      `💰 Wallet top-up: ${origAmount} ${walletCurrency} (${usdAmount} USD) → ${walletType} wallet (userId: ${userId})`,
+    );
 
-      // Step 6: Log
-      console.log(
-        `💰 Wallet top-up: ${origAmount} ${walletCurrency} (${usdAmount} USD) → ${walletType} wallet (userId: ${userId})`,
-      );
-    } catch (err) {
-      console.error("❌ Payment processing failed:", err);
+    return existing;
+  }
+
+  async processGooglePayTopup(
+    userId,
+    amount,
+    walletType,
+    description,
+    paymentCurrency,
+    paymentToken,
+  ) {
+    if (!amount || isNaN(amount) || amount <= 0) {
+      const err = new Error("Amount must be a positive number");
+      err.statusCode = 400;
+      err.isUserError = true;
       throw err;
     }
+
+    // Step 2: Get FX rate (wallet currency → USD) — identical to processTopupPayment
+    let rate;
+    try {
+      if (paymentCurrency === "USD") {
+        rate = 1;
+      } else {
+        const rateData = await currencyService.getAdjustedRate(
+          paymentCurrency,
+          "USD",
+        );
+        if (!rateData?.finalRate) throw new Error("No rate returned");
+        rate = parseFloat(rateData.finalRate);
+      }
+    } catch (e) {
+      const err = new Error(`FX rate unavailable for ${paymentCurrency} → USD`);
+      err.statusCode = 500;
+      throw err;
+    }
+
+    const usdAmount = amount / rate;
+    const stripeAmount = Math.round(usdAmount * 100);
+
+    // Step 4: Create pending Transaction
+    const orderId = `topup_${Date.now()}_${userId}`;
+    const paidAmount = parseFloat((stripeAmount / 100).toFixed(8));
+
+    await Transaction.create({
+      orderId,
+      userId,
+      amount: parseFloat(String(amount)),
+      paidAmount,
+      paidCurrency: "USD",
+      currency: paymentCurrency,
+      rate,
+      type: "wallet_topup",
+      status: "pending",
+      paymentMethod: "google_pay",
+      metadata: {
+        walletType,
+        paymentCurrency,
+        originalAmount: amount,
+        fxRate: rate,
+      },
+    });
+
+    // Step 5: charge the Google Pay token directly via a PaymentIntent
+    let stripeTokenId;
+    try {
+      stripeTokenId = JSON.parse(paymentToken).id;
+    } catch (_) {
+      stripeTokenId = paymentToken; // already an id
+    }
+
+    let intent;
+    try {
+      intent = await stripe.paymentIntents.create(
+        {
+          amount: stripeAmount,
+          currency: "usd",
+          payment_method_data: { type: "card", card: { token: stripeTokenId } },
+          confirm: true,
+          description:
+            description ||
+            `Top up ${amount} ${paymentCurrency} to ${walletType} wallet`,
+          metadata: {
+            userId: String(userId),
+            orderId,
+            purpose: "wallet_topup",
+            walletType,
+            walletCurrency: paymentCurrency,
+            originalAmount: String(amount),
+            fxRate: String(rate),
+          },
+          automatic_payment_methods: { enabled: true, allow_redirects: "never" },
+        },
+        { idempotencyKey: `gpay_topup_${orderId}` },
+      );
+    } catch (e) {
+      await Transaction.update(
+        { status: "failed" },
+        { where: { orderId } },
+      );
+      // StripeInvalidRequestError (e.g. bad/expired token) and StripeCardError
+      // (e.g. declined) are routine rejections, not server outages — surface
+      // them as 400 so monitoring/alerting doesn't flag them as 5xx errors.
+      const isClientRejection =
+        e.type === "StripeInvalidRequestError" || e.type === "StripeCardError";
+      const err = new Error("Payment provider error: " + e.message);
+      err.statusCode = isClientRejection ? 400 : 500;
+      err.isUserError = isClientRejection;
+      throw err;
+    }
+
+    if (intent.status !== "succeeded") {
+      // No redirect capability in this mobile token flow — a requires_action
+      // (3DS challenge) result is treated as a failure for v1.
+      await Transaction.update(
+        { status: "failed", metadata: { walletType, paymentCurrency, originalAmount: amount, fxRate: rate, stripePaymentIntentId: intent.id, stripeStatus: intent.status } },
+        { where: { orderId } },
+      );
+      const err = new Error(
+        intent.status === "requires_action"
+          ? "Additional verification required — please use another payment method"
+          : `Payment ${intent.status}`,
+      );
+      err.statusCode = 402;
+      err.isUserError = true;
+      throw err;
+    }
+
+    // Step 6: finalize exactly like the Checkout webhook does
+    await this.finalizeWalletTopup({
+      orderId,
+      userId,
+      walletType,
+      walletCurrency: paymentCurrency,
+      rate,
+      origAmount: amount,
+      usdAmount,
+      sessionId: intent.id,
+      stripeEvent: "payment_intent.succeeded.google_pay",
+    });
+
+    return { amount, paymentCurrency, paymentIntentId: intent.id };
   }
 
   async handlePaymentIntentSucceeded(paymentIntent) {

@@ -218,42 +218,71 @@ class BankAccountController {
   // ── Wallet linking ──────────────────────────────────────────────────────────
 
   // POST /bank-accounts/:id/link
+  // body: { walletType, currency } -> links a single wallet (existing behavior)
+  // body: { walletType } (no currency) -> links every currency wallet of that type in one call
   async linkToWallet(req, res) {
     try {
       const { id: userId } = req.user;
       const { id: bankAccountId } = req.params;
-      const { type, currency } = req.body;
+      const { type, walletType, currency } = req.body;
+      const resolvedType = walletType || type;
 
-      if (!type || !currency) {
+      if (!resolvedType) {
         return res.status(400).json({
           success: false,
-          message: "type and currency are required",
+          message: "walletType is required",
         });
       }
 
-      const result = await bankAccountService.linkBankAccountToWallet(
+      if (currency) {
+        const result = await bankAccountService.linkBankAccountToWallet(
+          userId,
+          bankAccountId,
+          resolvedType,
+          currency,
+        );
+
+        return res.status(200).json({
+          success: true,
+          result,
+          message: "Wallet linked successfully",
+        });
+      }
+
+      const result = await bankAccountService.linkBankAccountToWalletType(
         userId,
         bankAccountId,
-        type,
-        currency,
+        resolvedType,
       );
 
       return res.status(200).json({
         success: true,
         result,
-        message: "Wallet linked successfully",
+        message: `All ${resolvedType.toUpperCase()} wallets linked successfully`,
       });
     } catch (error) {
       handleBankAccountError(res, error);
     }
   }
 
-  // DELETE /bank-accounts/:bankAccountId/link/:walletId
+  // DELETE /bank-accounts/:bankAccountId/link
+  // body/query: { walletType } -> unlinks only wallets of that type
+  // no walletType -> unlinks every wallet linked to the bank account (legacy behavior)
   async unlinkFromWallet(req, res) {
     try {
       const { id: bankAccountId } = req.params;
+      const walletType =
+        req.body?.walletType || req.body?.type ||
+        req.query?.walletType || req.query?.type;
 
-      await bankAccountService.unlinkBankAccountFromWallet(bankAccountId);
+      if (walletType) {
+        await bankAccountService.unlinkBankAccountFromWalletType(
+          bankAccountId,
+          walletType,
+        );
+      } else {
+        await bankAccountService.unlinkBankAccountFromWallet(bankAccountId);
+      }
 
       return res.status(200).json({
         success: true,

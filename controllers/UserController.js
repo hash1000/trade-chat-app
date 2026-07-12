@@ -1081,6 +1081,20 @@ class UserController {
     }
   }
 
+  // Clears the device's FCM token so a logged-out device stops receiving push
+  // notifications. The JWT itself stays valid (tokenVersion check is disabled
+  // in authenticate) — the app must also discard its stored token locally.
+  async logout(req, res) {
+    try {
+      const user = req.user;
+      await userService.updateToken(user, null);
+      res.json({ success: true, message: "Logged out successfully." });
+    } catch (error) {
+      console.error("logout error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  }
+
   async verifyEmailOrPhone(req, res) {
     try {
       const { phone, email } = req.body;

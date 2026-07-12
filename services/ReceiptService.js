@@ -4,17 +4,21 @@ const UserService = require("./UserService");
 const userService = new UserService();
 const WalletService = require("./WalletService");
 const CurrencyService = require("./CurrencyService");
+const NotificationService = require("./NotificationService");
 const Wallet = require("../models/wallet");
 const walletService = new WalletService();
 const currencyService = new CurrencyService();
+const notificationService = new NotificationService();
+
+const fmtAmount = (v) => Number(v).toString();
 
 class ReceiptService {
   constructor() {
     this.receiptRepository = new ReceiptRepository();
   }
 
-  async getReceiptsByUserId(userId) {
-    return this.receiptRepository.getReceiptsByUserId(userId);
+  async getReceiptsByUserId(userId, options) {
+    return this.receiptRepository.getReceiptsByUserId(userId, options);
   }
 
   async getAdminReceipts(options) {
@@ -51,7 +55,30 @@ class ReceiptService {
       throw err;
     }
 
-    return this.receiptRepository.createReceipt(userId, { ...data, walletType: resolvedWalletType });
+    const receipt = await this.receiptRepository.createReceipt(userId, { ...data, walletType: resolvedWalletType });
+
+    // notify all staff (admin/accountant/operator) about the new receipt
+    const User = require("../models/user");
+    const creator = await User.findByPk(userId, { attributes: ["id", "username", "email"] });
+    const creatorName = (creator && (creator.username || creator.email)) || `User #${userId}`;
+    await notificationService.notifyStaff({
+      actorId: userId,
+      type: "RECEIPT_CREATED",
+      title: "New Receipt Request",
+      message: `${creatorName} created a receipt of ${fmtAmount(receipt.amount)} ${receipt.currency} for their ${receipt.walletType} wallet (Receipt #${receipt.id}).`,
+      entityType: "RECEIPT",
+      entityId: receipt.id,
+      data: {
+        amount: fmtAmount(receipt.amount),
+        currency: receipt.currency,
+        walletType: receipt.walletType,
+        creatorName,
+        note: receipt.note || null,
+        status: receipt.status,
+      },
+    });
+
+    return receipt;
   }
 
   async updateReceipt(userId, receiptId, updateData, approverUser = null) {
@@ -126,7 +153,7 @@ class ReceiptService {
     return this.receiptRepository.deleteReceipt(userId, receiptId);
   }
 
-  async adminDeleteReceipt(receiptId) {
+  async adminDeleteReceipt(receiptId, adminUser = null) {
     const receipt = await this.receiptRepository.getReceiptByPk(receiptId);
     if (!receipt) {
       return null;
@@ -140,12 +167,60 @@ class ReceiptService {
     //   throw err;
     // }
 
-    return this.receiptRepository.adminDeleteReceipt(receiptId);
+    const deleted = await this.receiptRepository.adminDeleteReceipt(receiptId);
+
+    if (deleted) {
+      await notificationService.notifyUser({
+        userId: receipt.userId,
+        actorId: adminUser && adminUser.id ? adminUser.id : null,
+        type: "RECEIPT_DELETED",
+        title: "Receipt Deleted",
+        message: `Your receipt #${receipt.id} of ${fmtAmount(receipt.amount)} ${receipt.currency || "USD"} was deleted by admin.`,
+        entityType: "RECEIPT",
+        entityId: receipt.id,
+        data: {
+          amount: fmtAmount(receipt.amount),
+          currency: receipt.currency || "USD",
+          walletType: receipt.walletType || "PERSONAL",
+          status: receipt.status,
+        },
+      });
+    }
+
+    return deleted;
   }
 
-  async adminBulkDeleteReceipts(receiptIds) {
+  async adminBulkDeleteReceipts(receiptIds, adminUser = null) {
     const uniqueIds = [...new Set(receiptIds.map((id) => Number(id)))];
+
+    // capture owners before deletion so each can be notified
+    const Receipt = require("../models/receipt");
+    const { Op } = require("sequelize");
+    const receipts = await Receipt.findAll({
+      where: { id: { [Op.in]: uniqueIds } },
+      attributes: ["id", "userId", "amount", "currency", "walletType", "status"],
+    });
+
     const deletedCount = await this.receiptRepository.adminBulkDeleteReceipts(uniqueIds);
+
+    for (const receipt of receipts) {
+      await notificationService.notifyUser({
+        userId: receipt.userId,
+        actorId: adminUser && adminUser.id ? adminUser.id : null,
+        type: "RECEIPT_DELETED",
+        title: "Receipt Deleted",
+        message: `Your receipt #${receipt.id} of ${fmtAmount(receipt.amount)} ${receipt.currency || "USD"} was deleted by admin.`,
+        entityType: "RECEIPT",
+        entityId: receipt.id,
+        data: {
+          amount: fmtAmount(receipt.amount),
+          currency: receipt.currency || "USD",
+          walletType: receipt.walletType || "PERSONAL",
+          status: receipt.status,
+        },
+      });
+    }
+
     return { requestedCount: uniqueIds.length, deletedCount };
   }
 
@@ -262,6 +337,31 @@ class ReceiptService {
         }
       }
 
+      // notify the receipt owner about the admin change with what happened
+      {
+        const statusChanged = sanitized.status && sanitized.status !== current.status;
+        const parts = [];
+        if (statusChanged) parts.push(`status changed to "${updated.status}"`);
+        if (sanitized.newAmount !== undefined) parts.push(`amount set to ${fmtAmount(sanitized.newAmount)} ${updated.currency || "USD"}`);
+        const detail = parts.length ? parts.join(", ") : "details updated by admin";
+        await notificationService.notifyUser({
+          userId: updated.userId,
+          actorId: adminUser && adminUser.id ? adminUser.id : null,
+          type: statusChanged ? `RECEIPT_${String(updated.status).toUpperCase()}` : "RECEIPT_UPDATED",
+          title: statusChanged ? `Receipt ${updated.status.charAt(0).toUpperCase() + updated.status.slice(1)}` : "Receipt Updated",
+          message: `Your receipt #${updated.id} of ${fmtAmount(updated.amount)} ${updated.currency || "USD"}: ${detail}.`,
+          entityType: "RECEIPT",
+          entityId: updated.id,
+          data: {
+            amount: fmtAmount(updated.amount),
+            newAmount: updated.newAmount != null ? fmtAmount(updated.newAmount) : null,
+            currency: updated.currency || "USD",
+            walletType: updated.walletType || "PERSONAL",
+            status: updated.status,
+          },
+        });
+      }
+
       // await transaction.commit();
       // reload updated outside tx (with includes)
       return await this.receiptRepository.getReceiptByPk(receiptId);
@@ -352,6 +452,35 @@ class ReceiptService {
       }
     }
 
+    // notify the receipt owner that it was approved (and whether funds are locked)
+    {
+      const creditedAmount =
+        receipt.newAmount && Number(receipt.newAmount) > 0
+          ? Number(receipt.newAmount)
+          : Number(receipt.amount);
+      const lockedText = receipt.isLock
+        ? " The funds were credited to your locked balance."
+        : " The funds are available in your wallet.";
+      await notificationService.notifyUser({
+        userId: receipt.userId,
+        actorId: approverUser && approverUser.id ? approverUser.id : null,
+        type: "RECEIPT_APPROVED",
+        title: "Receipt Approved",
+        message: `Your receipt #${receipt.id} has been approved — ${fmtAmount(creditedAmount)} ${receipt.currency || "USD"} credited to your ${receipt.walletType || "PERSONAL"} wallet.${lockedText}${description ? ` Note: ${description}` : ""}`,
+        entityType: "RECEIPT",
+        entityId: receipt.id,
+        data: {
+          amount: fmtAmount(receipt.amount),
+          creditedAmount: fmtAmount(creditedAmount),
+          currency: receipt.currency || "USD",
+          walletType: receipt.walletType || "PERSONAL",
+          isLock: !!receipt.isLock,
+          status: "approved",
+          adminNote: description || null,
+        },
+      });
+    }
+
     return { message: "Receipt  approved", receipt };
   }
 
@@ -365,6 +494,23 @@ class ReceiptService {
     if (approverUser && approverUser.id) {
       await receipt.update({ approvedBy: approverUser.id });
     }
+
+    await notificationService.notifyUser({
+      userId: receipt.userId,
+      actorId: approverUser && approverUser.id ? approverUser.id : null,
+      type: "RECEIPT_REJECTED",
+      title: "Receipt Rejected",
+      message: `Your receipt #${receipt.id} of ${fmtAmount(receipt.amount)} ${receipt.currency || "USD"} has been rejected.`,
+      entityType: "RECEIPT",
+      entityId: receipt.id,
+      data: {
+        amount: fmtAmount(receipt.amount),
+        currency: receipt.currency || "USD",
+        walletType: receipt.walletType || "PERSONAL",
+        status: "rejected",
+      },
+    });
+
     return receipt;
   }
 
@@ -457,6 +603,24 @@ class ReceiptService {
       relockDisabled: !sameCurrency,
     });
 
+    await notificationService.notifyUser({
+      userId: receipt.userId,
+      actorId: adminUser && adminUser.id ? adminUser.id : null,
+      type: "RECEIPT_UNLOCKED",
+      title: "Funds Unlocked",
+      message: `Funds of receipt #${receipt.id} have been unlocked — ${fmtAmount(convertedAmount)} ${targetCurrency} is now available in your ${receipt.walletType || "PERSONAL"} wallet${sameCurrency ? "" : ` (converted from ${fmtAmount(amountToUnlock)} ${receipt.currency})`}.${description ? ` Note: ${description}` : ""}`,
+      entityType: "RECEIPT",
+      entityId: receipt.id,
+      data: {
+        unlockedAmount: fmtAmount(convertedAmount),
+        currency: targetCurrency,
+        originalAmount: fmtAmount(amountToUnlock),
+        originalCurrency: receipt.currency,
+        walletType: receipt.walletType || "PERSONAL",
+        adminNote: description || null,
+      },
+    });
+
     // Return fresh copy with includes
     return await this.receiptRepository.getReceiptByPk(receiptId);
   }
@@ -516,6 +680,22 @@ class ReceiptService {
     });
 
     await receipt.update({ isLock: true });
+
+    await notificationService.notifyUser({
+      userId: receipt.userId,
+      actorId: performedBy,
+      type: "RECEIPT_LOCKED",
+      title: "Funds Locked",
+      message: `Funds of receipt #${receipt.id} have been locked — ${fmtAmount(amountToLock)} ${receipt.currency} moved from your available balance to locked balance (${receipt.walletType || "PERSONAL"} wallet).${description ? ` Note: ${description}` : ""}`,
+      entityType: "RECEIPT",
+      entityId: receipt.id,
+      data: {
+        lockedAmount: fmtAmount(amountToLock),
+        currency: receipt.currency,
+        walletType: receipt.walletType || "PERSONAL",
+        adminNote: description || null,
+      },
+    });
 
     return await this.receiptRepository.getReceiptByPk(receiptId);
   }

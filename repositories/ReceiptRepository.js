@@ -1,14 +1,63 @@
 const Receipt = require("../models/receipt");
 const BankAccount = require("../models/bankAccount");
 const User = require("../models/user");
+const Role = require("../models/role");
 const { Op } = require("sequelize");
 const WalletTransaction = require("../models/walletTransaction");
 const Wallet = require("../models/wallet");
 
+const ADMIN_ROLE_NAMES = ["admin", "accountant"];
+
 class ReceiptRepository {
-  async getReceiptsByUserId(userId) {
-    return await Receipt.findAll({
-      where: { userId },
+  async getReceiptsByUserId(userId, {
+    pagination = false,
+    page = 1,
+    limit = 20,
+    status = "all",
+    days = null,
+    startDate = null,
+    endDate = null,
+    currency = null,
+    minAmount = null,
+    maxAmount = null,
+  } = {}) {
+    const where = { userId };
+    if (status === "locked") {
+      where.isLock = true;
+    } else if (status && status !== "all") {
+      where.status = status;
+    }
+
+    // Date filtering: custom range (startDate/endDate) wins over fixed period (days)
+    if (startDate || endDate) {
+      where.createdAt = {};
+      if (startDate) where.createdAt[Op.gte] = new Date(startDate);
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999); // inclusive end of day
+        where.createdAt[Op.lte] = end;
+      }
+    } else if (days) {
+      const from = new Date();
+      from.setDate(from.getDate() - days);
+      where.createdAt = { [Op.gte]: from };
+    }
+
+    if (currency && currency !== "all") {
+      // RMB and CNY are the same currency; match either stored code
+      const code = currency.toUpperCase();
+      where.currency =
+        code === "RMB" || code === "CNY" ? { [Op.in]: ["RMB", "CNY"] } : code;
+    }
+
+    if (minAmount !== null || maxAmount !== null) {
+      where.amount = {};
+      if (minAmount !== null) where.amount[Op.gte] = minAmount;
+      if (maxAmount !== null) where.amount[Op.lte] = maxAmount;
+    }
+
+    const queryOptions = {
+      where,
       order: [["createdAt", "DESC"]],
       include: [
         { model: BankAccount, as: "sender" },
@@ -48,15 +97,93 @@ class ReceiptRepository {
           ],
         },
       ],
+    };
+
+    if (!pagination) {
+      return await Receipt.findAll(queryOptions);
+    }
+
+    const { count, rows } = await Receipt.findAndCountAll({
+      ...queryOptions,
+      limit,
+      offset: (page - 1) * limit,
+      distinct: true,
     });
+
+    return {
+      receipts: rows,
+      totalItems: count,
+      totalPages: Math.ceil(count / limit),
+      currentPage: page,
+    };
   }
 
-  async getAdminReceipts({ pagination = false, page = 1, limit = 20, status = "all" } = {}) {
+  async getAdminReceipts({
+    pagination = false,
+    page = 1,
+    limit = 20,
+    status = "all",
+    days = null,
+    startDate = null,
+    endDate = null,
+    currency = null,
+    minAmount = null,
+    maxAmount = null,
+    excludeAdmin = false,
+  } = {}) {
     const where = {};
     if (status === "locked") {
       where.isLock = true;
     } else if (status && status !== "all") {
       where.status = status;
+    }
+
+    // Let admins filter out receipts created by admin/accountant staff, leaving only regular users' receipts
+    if (excludeAdmin) {
+      const adminUsers = await User.findAll({
+        attributes: ["id"],
+        include: [
+          {
+            model: Role,
+            as: "roles",
+            where: { name: { [Op.in]: ADMIN_ROLE_NAMES } },
+            attributes: [],
+            through: { attributes: [] },
+          },
+        ],
+      });
+      const adminUserIds = adminUsers.map((u) => u.id);
+      if (adminUserIds.length) {
+        where.userId = { [Op.notIn]: adminUserIds };
+      }
+    }
+
+    // Date filtering: custom range (startDate/endDate) wins over fixed period (days)
+    if (startDate || endDate) {
+      where.createdAt = {};
+      if (startDate) where.createdAt[Op.gte] = new Date(startDate);
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999); // inclusive end of day
+        where.createdAt[Op.lte] = end;
+      }
+    } else if (days) {
+      const from = new Date();
+      from.setDate(from.getDate() - days);
+      where.createdAt = { [Op.gte]: from };
+    }
+
+    if (currency && currency !== "all") {
+      // RMB and CNY are the same currency; match either stored code
+      const code = currency.toUpperCase();
+      where.currency =
+        code === "RMB" || code === "CNY" ? { [Op.in]: ["RMB", "CNY"] } : code;
+    }
+
+    if (minAmount !== null || maxAmount !== null) {
+      where.amount = {};
+      if (minAmount !== null) where.amount[Op.gte] = minAmount;
+      if (maxAmount !== null) where.amount[Op.lte] = maxAmount;
     }
 
     const queryOptions = {

@@ -128,6 +128,8 @@ class UserService {
       );
       await userRepository.assignRoleToUser(newUser.id, "user", transaction);
 
+      await walletService.createDefaultWalletsForUser(newUser.id, transaction);
+
       // Commit the transaction
       await transaction.commit();
       return newUser;

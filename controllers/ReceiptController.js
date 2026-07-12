@@ -5,8 +5,43 @@ class ReceiptController {
   async getReceipts(req, res) {
     try {
       const { id: userId } = req.user;
-      const receipts = await receiptService.getReceiptsByUserId(userId);
-      return res.status(200).json({ success: true, data: receipts });
+      const { pagination, page, limit, status, days, startDate, endDate, currency, minAmount, maxAmount } = req.query;
+
+      const filters = {
+        status: status || "all",
+        days: days && days !== "all" ? parseInt(days, 10) : null,
+        startDate: startDate || null,
+        endDate: endDate || null,
+        currency: currency || null,
+        minAmount: minAmount !== undefined && minAmount !== "" ? parseFloat(minAmount) : null,
+        maxAmount: maxAmount !== undefined && maxAmount !== "" ? parseFloat(maxAmount) : null,
+      };
+
+      const usePagination = pagination === "true";
+      if (!usePagination) {
+        const receipts = await receiptService.getReceiptsByUserId(userId, filters);
+        return res.status(200).json({ success: true, data: receipts });
+      }
+
+      const pageNum = Math.max(parseInt(page, 10) || 1, 1);
+      const limitNum = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
+      const result = await receiptService.getReceiptsByUserId(userId, {
+        ...filters,
+        pagination: true,
+        page: pageNum,
+        limit: limitNum,
+      });
+
+      return res.status(200).json({
+        success: true,
+        data: result.receipts,
+        pagination: {
+          currentPage: result.currentPage,
+          totalPages: result.totalPages,
+          totalItems: result.totalItems,
+          limit: limitNum,
+        },
+      });
     } catch (error) {
       console.error("getReceipts error:", error);
       res.status(500).json({ success: false, error: "Server error. Please try again later." });
@@ -125,7 +160,7 @@ class ReceiptController {
   async adminBulkDeleteReceipts(req, res) {
     try {
       const { ids } = req.body;
-      const result = await receiptService.adminBulkDeleteReceipts(ids);
+      const result = await receiptService.adminBulkDeleteReceipts(ids, req.user);
       return res.status(200).json({
         success: true,
         message: `${result.deletedCount} of ${result.requestedCount} receipt(s) deleted successfully.`,
@@ -195,33 +230,47 @@ class ReceiptController {
 
   async getAdminReceipts(req, res) {
     try {
-      const { type, pagination, page, limit, status } = req.query;
+      const { type, pagination, page, limit, status, days, startDate, endDate, currency, minAmount, maxAmount, excludeAdmin } = req.query;
       const { id: userId } = req.user;
 
-      if (type === "my") {
-        const receipts = await receiptService.getReceiptsByUserId(userId);
-        return res.status(200).json({ success: true, data: receipts });
-      }
-
-      if (type !== "all") {
+      if (type !== "my" && type !== "all") {
         return res.status(400).json({ success: false, error: "Invalid type parameter. Must be 'my' or 'all'." });
       }
 
-      const statusFilter = status || "all";
+      const filters = {
+        status: status || "all",
+        days: days && days !== "all" ? parseInt(days, 10) : null,
+        startDate: startDate || null,
+        endDate: endDate || null,
+        currency: currency || null,
+        minAmount: minAmount !== undefined && minAmount !== "" ? parseFloat(minAmount) : null,
+        maxAmount: maxAmount !== undefined && maxAmount !== "" ? parseFloat(maxAmount) : null,
+        excludeAdmin: excludeAdmin === "true",
+      };
+
       const usePagination = pagination === "true";
       if (!usePagination) {
-        const receipts = await receiptService.getAdminReceipts({ status: statusFilter });
+        const receipts = type === "my"
+          ? await receiptService.getReceiptsByUserId(userId, filters)
+          : await receiptService.getAdminReceipts(filters);
         return res.status(200).json({ success: true, data: receipts });
       }
 
       const pageNum = Math.max(parseInt(page, 10) || 1, 1);
       const limitNum = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
-      const result = await receiptService.getAdminReceipts({
-        pagination: true,
-        status: statusFilter,
-        page: pageNum,
-        limit: limitNum,
-      });
+      const result = type === "my"
+        ? await receiptService.getReceiptsByUserId(userId, {
+            ...filters,
+            pagination: true,
+            page: pageNum,
+            limit: limitNum,
+          })
+        : await receiptService.getAdminReceipts({
+            ...filters,
+            pagination: true,
+            page: pageNum,
+            limit: limitNum,
+          });
 
       return res.status(200).json({
         success: true,

@@ -216,6 +216,7 @@ class WalletService {
       description = null,
       receiverId = null,
       receiptId = null,
+      withdrawId = null,
       meta = {},
       performedBy = null,
     },
@@ -233,6 +234,7 @@ class WalletService {
         description,
         receiverId,
         receiptId,
+        withdrawId,
         meta,
         performedBy: performedBy != null ? Number(performedBy) : null,
       },
@@ -1066,18 +1068,18 @@ class WalletService {
       {
         model: User,
         as: "user",
-        attributes: ["id", "username", "email"],
+        attributes: ["id", "username", "email", "profilePic"],
       },
       {
         model: User,
         as: "receiver",
-        attributes: ["id", "username", "email"],
+        attributes: ["id", "username", "email", "profilePic"],
         required: false,
       },
       {
         model: User,
         as: "performer",
-        attributes: ["id", "username", "email"],
+        attributes: ["id", "username", "email", "profilePic"],
         required: false,
       },
       {
