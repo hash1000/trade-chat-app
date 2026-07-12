@@ -1,10 +1,49 @@
-const Shop = require("../models/shop");
 const { Op } = require("sequelize");
 const CustomError = require("../errors/CustomError");
-const ShopProduct = require("../models/shopProduct");
-const ProductImage = require("../models/productImage");
+const {
+  Shop,
+  ShopProduct,
+  ShopTeamLink,
+  ShopMember,
+  ShopImage,
+  ProductImage,
+  Team,
+  User,
+} = require("../models");
+
+const USER_ATTRIBUTES = ["id", "username", "email", "profilePic"];
 
 class ShopRepository {
+  buildIncludes({ includeTeams = false, includeMembers = false, includeProducts = false } = {}) {
+    const include = [
+      { model: ShopImage, as: "images" },
+      { model: User, as: "editor", attributes: USER_ATTRIBUTES },
+    ];
+
+    if (includeTeams) {
+      include.push({ model: Team, as: "teams", through: { attributes: [] } });
+    }
+
+    if (includeMembers) {
+      include.push({
+        model: User,
+        as: "members",
+        attributes: USER_ATTRIBUTES,
+        through: { attributes: [] },
+      });
+    }
+
+    if (includeProducts) {
+      include.push({
+        model: ShopProduct,
+        as: "shopProducts",
+        include: [{ model: ProductImage, as: "productImages" }],
+      });
+    }
+
+    return include;
+  }
+
   async createShop(data) {
     return Shop.create(data);
   }
@@ -29,39 +68,21 @@ class ShopRepository {
     return shop;
   }
 
-  async getByUserId(userId) {
+  async getShopWithRelations(shopId, options = {}) {
+    return Shop.findByPk(shopId, { include: this.buildIncludes(options) });
+  }
+
+  async getByUserId(userId, options = {}) {
     return Shop.findAll({
       where: { userId },
-      include: [
-        {
-          model: ShopProduct,
-          as: "shopProducts",
-          include: [
-            {
-              model: ProductImage,
-              as: "productImages",
-            },
-          ],
-        },
-      ],
+      include: this.buildIncludes({ ...options, includeProducts: true }),
     });
   }
 
-  async getById(userId, id) {
+  async getById(userId, id, options = {}) {
     return Shop.findAll({
       where: { id, userId },
-      include: [
-        {
-          model: ShopProduct,
-          as: "shopProducts",
-          include: [
-            {
-              model: ProductImage,
-              as: "productImages",
-            },
-          ],
-        },
-      ],
+      include: this.buildIncludes({ ...options, includeProducts: true }),
     });
   }
 
@@ -70,7 +91,7 @@ class ShopRepository {
     const where = {};
 
     if (shop_name) {
-      where.shop_name = { [Op.like]: `%${shop_name}%` };
+      where.name = { [Op.like]: `%${shop_name}%` };
     }
 
     if (country) {
@@ -82,6 +103,8 @@ class ShopRepository {
       limit: Number(limit),
       offset,
       order: [["createdAt", "DESC"]],
+      include: [{ model: ShopImage, as: "images" }],
+      distinct: true,
     });
 
     return {
@@ -89,6 +112,125 @@ class ShopRepository {
       totalPages: Math.ceil(count / limit),
       currentPage: Number(page),
       shops: rows,
+    };
+  }
+
+  // ── Images ─────────────────────────────────────────────────────────────────
+
+  async replaceImages(shopId, urls) {
+    await ShopImage.destroy({ where: { shopId } });
+    if (!Array.isArray(urls) || urls.length === 0) return [];
+    return ShopImage.bulkCreate(urls.map((url) => ({ url, shopId })));
+  }
+
+  // ── Teams ──────────────────────────────────────────────────────────────────
+
+  async addTeams(shopId, teamIds) {
+    if (!Array.isArray(teamIds) || teamIds.length === 0) return [];
+    const numericIds = [
+      ...new Set(
+        teamIds
+          .map((id) => Number(id))
+          .filter((id) => !Number.isNaN(id) && id > 0),
+      ),
+    ];
+    if (numericIds.length === 0) return [];
+
+    const existingTeams = await Team.findAll({
+      where: { id: { [Op.in]: numericIds } },
+      attributes: ["id"],
+    });
+    const existingIds = new Set(existingTeams.map((t) => t.id));
+    const missingIds = numericIds.filter((id) => !existingIds.has(id));
+    if (missingIds.length > 0) {
+      throw new CustomError(`Team(s) not found: ${missingIds.join(", ")}`, 404);
+    }
+
+    await Promise.all(
+      numericIds.map((teamId) =>
+        ShopTeamLink.findOrCreate({
+          where: { teamId, shopId },
+          defaults: { teamId, shopId },
+        }),
+      ),
+    );
+
+    return numericIds;
+  }
+
+  async removeTeam(shopId, teamId) {
+    const deleted = await ShopTeamLink.destroy({ where: { teamId, shopId } });
+    return deleted > 0;
+  }
+
+  async removeAllTeams(shopId) {
+    await ShopTeamLink.destroy({ where: { shopId } });
+  }
+
+  // ── Members ────────────────────────────────────────────────────────────────
+
+  async addMembers(shopId, userIds) {
+    if (!Array.isArray(userIds) || userIds.length === 0) return { added: [], alreadyMembers: [] };
+
+    const users = await User.findAll({ where: { id: userIds }, attributes: ["id"] });
+    const foundIds = users.map((u) => u.id);
+    const notFound = userIds.filter((id) => !foundIds.includes(id));
+    if (notFound.length > 0) {
+      throw new CustomError(`Users not found: ${notFound.join(", ")}`, 404);
+    }
+
+    const existing = await ShopMember.findAll({ where: { shopId, userId: userIds } });
+    const alreadyMemberIds = existing.map((m) => m.userId);
+    const toAdd = userIds.filter((id) => !alreadyMemberIds.includes(id));
+
+    if (toAdd.length > 0) {
+      await ShopMember.bulkCreate(toAdd.map((userId) => ({ shopId, userId })));
+    }
+
+    const members = await ShopMember.findAll({
+      where: { shopId, userId: userIds },
+      include: [{ model: User, as: "user", attributes: USER_ATTRIBUTES }],
+    });
+
+    return { added: members, alreadyMembers: alreadyMemberIds };
+  }
+
+  async removeMembers(shopId, userIds) {
+    const members = await ShopMember.findAll({ where: { shopId, userId: userIds } });
+    const foundUserIds = members.map((m) => m.userId);
+    const notFound = userIds.filter((id) => !foundUserIds.includes(id));
+
+    if (notFound.length > 0) {
+      throw new CustomError(`Users are not members of this shop: ${notFound.join(", ")}`, 404);
+    }
+
+    await ShopMember.destroy({ where: { shopId, userId: userIds } });
+    return { removedUserIds: foundUserIds };
+  }
+
+  async removeAllMembers(shopId) {
+    await ShopMember.destroy({ where: { shopId } });
+  }
+
+  async getMembers(shopId, { page = 1, limit = 10 } = {}) {
+    const offset = (page - 1) * limit;
+
+    const { count, rows } = await ShopMember.findAndCountAll({
+      where: { shopId },
+      include: [{ model: User, as: "user", attributes: USER_ATTRIBUTES }],
+      order: [["addedAt", "ASC"]],
+      limit,
+      offset,
+    });
+
+    return {
+      data: rows,
+      pagination: {
+        page,
+        limit,
+        total: count,
+        pages: Math.ceil(count / limit),
+      },
     };
   }
 }

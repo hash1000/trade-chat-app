@@ -33,6 +33,20 @@ exports.createShopValidationRules = [
     .isString()
     .withMessage('Country must be a string'),
 
+  body('rating')
+    .optional()
+    .isFloat({ min: 0, max: 10 })
+    .withMessage('Rating must be a number between 0 and 10')
+    .toFloat(),
+
+  body('likes')
+    .optional()
+    .isInt({ min: 0 })
+    .withMessage('Likes must be a non-negative integer')
+    .toInt(),
+
+  ...assignmentValidationRules(),
+
   handleValidationErrors,
 ]
 
@@ -65,6 +79,20 @@ exports.updateShopValidationRules = [
     .isString()
     .withMessage('Country must be a string'),
 
+  body('rating')
+    .optional()
+    .isFloat({ min: 0, max: 10 })
+    .withMessage('Rating must be a number between 0 and 10')
+    .toFloat(),
+
+  body('likes')
+    .optional()
+    .isInt({ min: 0 })
+    .withMessage('Likes must be a non-negative integer')
+    .toInt(),
+
+  ...assignmentValidationRules(),
+
   handleValidationErrors,
 ]
 
@@ -93,6 +121,109 @@ exports.getPaginatedShopsValidation = [
     .optional()
     .isString()
     .withMessage('Country must be a string'),
+
+  handleValidationErrors,
+]
+
+/**
+ * ✅ Teams / Members / Editor / Images (shared by create & update)
+ */
+function assignmentValidationRules() {
+  return [
+    body('teams')
+      .optional()
+      .isArray()
+      .withMessage('teams must be an array of team IDs'),
+
+    body('teams.*')
+      .isInt({ min: 1 })
+      .withMessage('Each team ID must be a positive integer')
+      .toInt(),
+
+    body('members')
+      .optional()
+      .isArray()
+      .withMessage('members must be an array of user IDs'),
+
+    body('members.*')
+      .isInt({ min: 1 })
+      .withMessage('Each member ID must be a positive integer')
+      .toInt(),
+
+    body('editor')
+      .optional({ nullable: true })
+      .isInt({ min: 1 })
+      .withMessage('editor must be a user ID')
+      .toInt(),
+
+    body('multiple_images')
+      .optional()
+      .isArray()
+      .withMessage('multiple_images must be an array of image URLs'),
+  ]
+}
+
+/**
+ * ✅ Team assignment endpoint validation
+ */
+exports.assignTeamsValidation = [
+  body('teamIds')
+    .optional()
+    .isArray({ min: 1 })
+    .withMessage('teamIds must be a non-empty array'),
+
+  body('teamIds.*')
+    .isInt({ min: 1 })
+    .withMessage('Each team ID must be a positive integer')
+    .toInt(),
+
+  body('teamId')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('teamId must be a positive integer')
+    .toInt(),
+
+  handleValidationErrors,
+]
+
+/**
+ * ✅ Member add/remove endpoint validation
+ */
+exports.shopMembersValidation = [
+  body('userIds')
+    .optional()
+    .isArray({ min: 1 })
+    .withMessage('userIds must be a non-empty array'),
+
+  body('userIds.*')
+    .isInt({ min: 1 })
+    .withMessage('Each user ID must be a positive integer')
+    .toInt(),
+
+  body('userId')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('userId must be a positive integer')
+    .toInt(),
+
+  handleValidationErrors,
+]
+
+/**
+ * ✅ Editor assignment endpoint validation
+ */
+exports.setEditorValidation = [
+  body('editorId')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('editorId must be a positive integer')
+    .toInt(),
+
+  body('editor')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('editor must be a positive integer')
+    .toInt(),
 
   handleValidationErrors,
 ]

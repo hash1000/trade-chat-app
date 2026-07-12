@@ -30,6 +30,11 @@ const Shop = sequelize.define(
       type: DataTypes.INTEGER,
       allowNull: false,
     },
+    editorId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      defaultValue: null,
+    },
     country: {
       type: DataTypes.STRING,
       allowNull: false,

@@ -18,6 +18,9 @@ const Category = require("./categories");
 const PublicCategory = require("./publicCategories");
 const Shop = require("./shop");
 const ShopProduct = require("./shopProduct");
+const ShopTeamLink = require("./shopTeam");
+const ShopMember = require("./shopMember");
+const ShopImage = require("./shopImage");
 const AddToCart = require("./AddToCart");
 const ShortList = require("./shortList");
 const List = require("./list");
@@ -162,6 +165,45 @@ Order.belongsTo(Address, {
     foreignKey: "shopId",
     as: "shop",
   });
+
+  // 👉 Shop <-> Team many-to-many
+  Team.belongsToMany(Shop, {
+    through: ShopTeamLink,
+    foreignKey: "teamId",
+    otherKey: "shopId",
+    as: "shops",
+  });
+  Shop.belongsToMany(Team, {
+    through: ShopTeamLink,
+    foreignKey: "shopId",
+    otherKey: "teamId",
+    as: "teams",
+  });
+
+  // 👉 Shop <-> ShopMember (members join table)
+  Shop.belongsToMany(User, {
+    through: ShopMember,
+    foreignKey: "shopId",
+    otherKey: "userId",
+    as: "members",
+  });
+  User.belongsToMany(Shop, {
+    through: ShopMember,
+    foreignKey: "userId",
+    otherKey: "shopId",
+    as: "memberShops",
+  });
+  Shop.hasMany(ShopMember, { foreignKey: "shopId", as: "shopMembers" });
+  ShopMember.belongsTo(Shop, { foreignKey: "shopId", as: "shop" });
+  ShopMember.belongsTo(User, { foreignKey: "userId", as: "user" });
+
+  // 👉 Shop <-> editor (single optional editor, not the owner)
+  Shop.belongsTo(User, { foreignKey: "editorId", as: "editor" });
+  User.hasMany(Shop, { foreignKey: "editorId", as: "editableShops" });
+
+  // 👉 Shop → ShopImages (multiple images)
+  Shop.hasMany(ShopImage, { foreignKey: "shopId", as: "images" });
+  ShopImage.belongsTo(Shop, { foreignKey: "shopId", as: "shop" });
 
   // User ↔ Cart
   User.hasMany(AddToCart, { foreignKey: "userId", as: "addToCarts" });
@@ -524,4 +566,10 @@ module.exports = {
   CartItem,
   Card,
   OrderPayment,
+  Shop,
+  ShopProduct,
+  ShopTeamLink,
+  ShopMember,
+  ShopImage,
+  ProductImage,
 };
