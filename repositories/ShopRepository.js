@@ -21,7 +21,19 @@ class ShopRepository {
     ];
 
     if (includeTeams) {
-      include.push({ model: Team, as: "teams", through: { attributes: [] } });
+      include.push({
+        model: Team,
+        as: "teams",
+        through: { attributes: [] },
+        include: [
+          {
+            model: User,
+            as: "members",
+            attributes: USER_ATTRIBUTES,
+            through: { attributes: [] },
+          },
+        ],
+      });
     }
 
     if (includeMembers) {
@@ -73,16 +85,31 @@ class ShopRepository {
   }
 
   async getByUserId(userId, options = {}) {
-    return Shop.findAll({
+    const page = Number(options.page) || 1;
+    const limit = Number(options.limit) || 10;
+    const offset = (page - 1) * limit;
+
+    const { count, rows } = await Shop.findAndCountAll({
       where: { userId },
-      include: this.buildIncludes({ ...options, includeProducts: true }),
+      include: this.buildIncludes(options),
+      order: [["createdAt", "DESC"]],
+      limit,
+      offset,
+      distinct: true,
     });
+
+    return {
+      total: count,
+      totalPages: Math.ceil(count / limit),
+      currentPage: page,
+      shops: rows,
+    };
   }
 
   async getById(userId, id, options = {}) {
     return Shop.findAll({
       where: { id, userId },
-      include: this.buildIncludes({ ...options, includeProducts: true }),
+      include: this.buildIncludes(options),
     });
   }
 

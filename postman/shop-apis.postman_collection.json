@@ -131,15 +131,18 @@
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
             "url": {
-              "raw": "{{baseUrl}}/shop?includeTeams=true&includeMembers=true",
+              "raw": "{{baseUrl}}/shop?page=1&limit=10&includeTeams=true&includeMembers=true&includeProducts=true",
               "host": ["{{baseUrl}}"],
               "path": ["shop"],
               "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" },
                 { "key": "includeTeams", "value": "true" },
-                { "key": "includeMembers", "value": "true" }
+                { "key": "includeMembers", "value": "true" },
+                { "key": "includeProducts", "value": "true" }
               ]
             },
-            "description": "Returns the caller's shops with products, images and editor. includeTeams / includeMembers add teams[] and members[]."
+            "description": "Paginated (page/limit, default 1/10). By default returns only shops with images + editor. includeProducts=true adds shopProducts[], includeMembers=true adds shop members[], includeTeams=true adds teams[] with each team's members nested inside."
           }
         },
         {

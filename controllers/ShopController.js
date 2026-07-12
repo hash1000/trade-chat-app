@@ -44,12 +44,21 @@ class ShopController {
       const { id: userId } = req.user
       const includeTeams = req.query.includeTeams === 'true'
       const includeMembers = req.query.includeMembers === 'true'
+      const includeProducts = req.query.includeProducts === 'true'
+      const page = Number(req.query.page) || 1
+      const limit = Number(req.query.limit) || 10
 
-      const shops = await shopService.getShopsByUserId(userId, { includeTeams, includeMembers })
+      const data = await shopService.getShopsByUserId(userId, {
+        includeTeams,
+        includeMembers,
+        includeProducts,
+        page,
+        limit,
+      })
        return res.json({
         status: true,
         message: "Successfully fetched shops",
-        data: shops
+        data
       })
     } catch (error) {
       console.error(error)
@@ -64,8 +73,9 @@ class ShopController {
       const { id } = req.params
       const includeTeams = req.query.includeTeams !== 'false'
       const includeMembers = req.query.includeMembers !== 'false'
+      const includeProducts = req.query.includeProducts !== 'false'
 
-      const shops = await shopService.getShopsById(userId, id, { includeTeams, includeMembers })
+      const shops = await shopService.getShopsById(userId, id, { includeTeams, includeMembers, includeProducts })
        return res.json({
         status: true,
         message: "Successfully fetched shops",
