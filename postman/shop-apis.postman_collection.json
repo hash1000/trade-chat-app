@@ -1,0 +1,306 @@
+{
+  "info": {
+    "name": "Shop APIs",
+    "description": "Complete test kit for the updated shop feature: CRUD with multiple_images, rating (0-10), likes, plus team/member/editor assignment.\n\nRULES:\n- Only the shop CREATOR can assign teams, members and editor (via body params or the separate endpoints).\n- The assigned EDITOR can update shop fields only (name, description, country, images, rating, likes) — not assignments, not delete.\n- On UPDATE, the arrays teams / members / multiple_images use REPLACE-ALL semantics: send the full new list, omit the key to leave unchanged. Send \"editor\": null to clear the editor.\n\nORDER: 1) Run 'Login (user)' — token auto-saves. 2) Run 'Create shop' — shopId auto-saves. 3) Run any other request. Edit the Variables tab for emails, teamId and member/editor user ids.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5001/api" },
+    { "key": "userToken", "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjQsImlhdCI6MTc4Mzc5MTY5OX0.sbxqBNSkaFsvgCTmFDsb1xKJ0CK7gVGzxlJyN36oXwU" }
+  ],
+  "item": [
+    {
+      "name": "0. Auth",
+      "item": [
+        {
+          "name": "Login (user / shop creator)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.token) { pm.collectionVariables.set('userToken', json.token); console.log('userToken saved'); }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{userEmail}}\",\n  \"password\": \"{{userPassword}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login (editor)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.token) { pm.collectionVariables.set('editorToken', json.token); console.log('editorToken saved'); }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{editorEmail}}\",\n  \"password\": \"{{editorPassword}}\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. Shop CRUD",
+      "item": [
+        {
+          "name": "Create shop (all new params)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.id) { pm.collectionVariables.set('shopId', json.id); console.log('shopId saved:', json.id); }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{userToken}}" }
+            ],
+            "url": "{{baseUrl}}/shop",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Shenzhen Electronics Hub\",\n  \"description\": \"Premium consumer electronics and components, factory-direct from Shenzhen.\",\n  \"country\": \"China\",\n  \"profile_image\": \"https://example.com/profile.jpg\",\n  \"header_image\": \"https://example.com/header.jpg\",\n  \"multiple_images\": [\n    \"https://example.com/img1.jpg\",\n    \"https://example.com/img2.jpg\"\n  ],\n  \"rating\": 7.5,\n  \"likes\": 120,\n  \"teams\": [{{teamId}}],\n  \"members\": [{{memberUserId}}],\n  \"editor\": {{editorUserId}}\n}"
+            },
+            "description": "rating: 0-10 (decimals allowed). likes: any non-negative integer. teams/members/editor/multiple_images are optional. Response includes teams[], members[], editor and images[]."
+          }
+        },
+        {
+          "name": "Update shop (owner — all params)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{userToken}}" }
+            ],
+            "url": "{{baseUrl}}/shop/{{shopId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Shenzhen Electronics Hub (updated)\",\n  \"description\": \"Updated description\",\n  \"country\": \"China\",\n  \"profile_image\": \"https://example.com/profile-new.jpg\",\n  \"header_image\": \"https://example.com/header-new.jpg\",\n  \"multiple_images\": [\n    \"https://example.com/img1.jpg\",\n    \"https://example.com/img3.jpg\"\n  ],\n  \"rating\": 9,\n  \"likes\": 5000,\n  \"teams\": [{{teamId}}],\n  \"members\": [{{memberUserId}}],\n  \"editor\": {{editorUserId}}\n}"
+            },
+            "description": "REPLACE-ALL: teams / members / multiple_images fully replace the existing lists. Omit a key to leave it unchanged. \"editor\": null clears the editor. Only the creator may send teams/members/editor."
+          }
+        },
+        {
+          "name": "Update shop (as editor — fields only)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{editorToken}}" }
+            ],
+            "url": "{{baseUrl}}/shop/{{shopId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Edited by the assigned editor\",\n  \"rating\": 8,\n  \"likes\": 130\n}"
+            },
+            "description": "The assigned editor may update shop fields only. Sending teams/members/editor here returns 403."
+          }
+        },
+        {
+          "name": "Get my shops",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/shop?includeTeams=true&includeMembers=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["shop"],
+              "query": [
+                { "key": "includeTeams", "value": "true" },
+                { "key": "includeMembers", "value": "true" }
+              ]
+            },
+            "description": "Returns the caller's shops with products, images and editor. includeTeams / includeMembers add teams[] and members[]."
+          }
+        },
+        {
+          "name": "Get paginated shops",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/shop/list?page=1&limit=10&shop_name=&country=",
+              "host": ["{{baseUrl}}"],
+              "path": ["shop", "list"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" },
+                { "key": "shop_name", "value": "" },
+                { "key": "country", "value": "" }
+              ]
+            },
+            "description": "Search all shops. shop_name and country are optional partial-match filters."
+          }
+        },
+        {
+          "name": "Get shop by id",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/shop/{{shopId}}?includeTeams=true&includeMembers=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["shop", "{{shopId}}"],
+              "query": [
+                { "key": "includeTeams", "value": "true" },
+                { "key": "includeMembers", "value": "true" }
+              ]
+            },
+            "description": "teams and members are included by default here; pass includeTeams=false / includeMembers=false to skip them."
+          }
+        },
+        {
+          "name": "Delete shop (creator only)",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
+            "url": "{{baseUrl}}/shop/{{shopId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Teams",
+      "item": [
+        {
+          "name": "Assign teams to shop",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{userToken}}" }
+            ],
+            "url": "{{baseUrl}}/shop/{{shopId}}/teams",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"teamIds\": [{{teamId}}]\n}"
+            },
+            "description": "Creator only. Adds teams without removing existing ones (also accepts a single \"teamId\"). Unknown team ids return 404."
+          }
+        },
+        {
+          "name": "Remove team from shop",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
+            "url": "{{baseUrl}}/shop/{{shopId}}/teams/{{teamId}}",
+            "description": "Creator only. 404 if the team is not assigned to this shop."
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Members",
+      "item": [
+        {
+          "name": "List shop members",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/shop/{{shopId}}/members?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["shop", "{{shopId}}", "members"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            },
+            "description": "Paginated. Any authenticated user can view."
+          }
+        },
+        {
+          "name": "Add members to shop",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{userToken}}" }
+            ],
+            "url": "{{baseUrl}}/shop/{{shopId}}/members",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userIds\": [{{memberUserId}}]\n}"
+            },
+            "description": "Creator only. Any users can be added (also accepts a single \"userId\"). Already-added users are skipped and reported in alreadyMembers. Unknown user ids return 404."
+          }
+        },
+        {
+          "name": "Remove members from shop",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{userToken}}" }
+            ],
+            "url": "{{baseUrl}}/shop/{{shopId}}/members",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userIds\": [{{memberUserId}}]\n}"
+            },
+            "description": "Creator only. 404 if any listed user is not a member."
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Editor",
+      "item": [
+        {
+          "name": "Set shop editor",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{userToken}}" }
+            ],
+            "url": "{{baseUrl}}/shop/{{shopId}}/editor",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"editorId\": {{editorUserId}}\n}"
+            },
+            "description": "Creator only. Single editor per shop — setting a new one replaces the old. The editor can then update shop fields via PUT /shop/:shopId."
+          }
+        },
+        {
+          "name": "Clear shop editor",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
+            "url": "{{baseUrl}}/shop/{{shopId}}/editor",
+            "description": "Creator only. Removes the assigned editor."
+          }
+        }
+      ]
+    }
+  ]
+}

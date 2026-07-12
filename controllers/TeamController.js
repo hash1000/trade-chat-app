@@ -1,12 +1,51 @@
+const { Op } = require("sequelize");
 const TeamService = require("../services/TeamService");
+const UserService = require("../services/UserService");
 const teamService = new TeamService();
+const userService = new UserService();
+
+async function isAdminUser(userId) {
+  try {
+    const user = await userService.getUserById(userId);
+    return !!(user && user.roles && user.roles.some((r) => r.name === "admin"));
+  } catch {
+    return false;
+  }
+}
+
+// Shop teams are private to their creator — no admin override.
+// Service teams allow admin involvement.
+// Legacy teams (createdBy null, pre-ownership) stay open.
+async function cannotManage(team, userId) {
+  if (team.createdBy === null) return false;
+  if (team.createdBy === userId) return false;
+  if (team.type !== "shop" && (await isAdminUser(userId))) return false;
+  return true;
+}
 
 class TeamController {
   async list(req, res) {
     try {
+      const { id: userId } = req.user;
       const includeMembers = req.query.includeMembers === "true";
       const includeServices = req.query.includeServices === "true";
-      const teams = await teamService.getAll({ includeMembers, includeServices });
+      const typeFilter = req.query.type;
+
+      // Own teams only; admins additionally see every service team.
+      // Other users' shop teams are never visible.
+      const admin = await isAdminUser(userId);
+      const where = admin
+        ? { [Op.or]: [{ createdBy: userId }, { type: "service" }] }
+        : { createdBy: userId };
+      if (typeFilter === "shop" || typeFilter === "service") {
+        where.type = typeFilter;
+      }
+
+      const teams = await teamService.getAll({
+        includeMembers,
+        includeServices,
+        where,
+      });
       return res.status(200).json({ success: true, data: teams });
     } catch (error) {
       console.error("TeamController.list error:", error);
@@ -39,11 +78,13 @@ class TeamController {
       if (!profile_image || typeof profile_image !== "string" || !profile_image.trim()) {
         return res.status(400).json({ success: false, error: "profile_image is required." });
       }
+      const teamType = typeof type === "string" && type.trim() === "shop" ? "shop" : "service";
       const team = await teamService.create({
         name: name.trim(),
-        type: type ? type.trim() : undefined,
+        type: teamType,
         profile_image: profile_image.trim(),
         description: description ? description.trim() : undefined,
+        createdBy: req.user.id,
       });
       if (Array.isArray(userIds) && userIds.length > 0) {
         await teamService.addMembers(team.id, userIds);
@@ -70,9 +111,12 @@ class TeamController {
       if (!team) {
         return res.status(404).json({ success: false, error: "Team not found." });
       }
+      if (await cannotManage(team, req.user.id)) {
+        return res.status(403).json({ success: false, error: "Forbidden. You cannot update this team." });
+      }
       const updateData = {};
       if (name !== undefined) updateData.name = typeof name === "string" ? name.trim() : name;
-      if (type !== undefined) updateData.type = typeof type === "string" ? type.trim() : type;
+      // type is fixed at creation — shop and service teams must stay separate
       if (profile_image !== undefined) updateData.profile_image = typeof profile_image === "string" ? profile_image.trim() : profile_image;
       if (description !== undefined) updateData.description = typeof description === "string" ? description.trim() : description;
       await teamService.update(id, updateData);
@@ -103,6 +147,9 @@ class TeamController {
       if (!team) {
         return res.status(404).json({ success: false, error: "Team not found." });
       }
+      if (await cannotManage(team, req.user.id)) {
+        return res.status(403).json({ success: false, error: "Forbidden. You cannot delete this team." });
+      }
       await teamService.delete(id);
       return res.status(200).json({ success: true, message: "Team deleted." });
     } catch (error) {
@@ -118,6 +165,9 @@ class TeamController {
       const team = await teamService.getById(teamId);
       if (!team) {
         return res.status(404).json({ success: false, error: "Team not found." });
+      }
+      if (await cannotManage(team, req.user.id)) {
+        return res.status(403).json({ success: false, error: "Forbidden. You cannot manage this team's members." });
       }
       if (Array.isArray(userIds) && userIds.length > 0) {
         await teamService.addMembers(Number(teamId), userIds);
@@ -146,6 +196,13 @@ class TeamController {
       if (!targetUserId) {
         return res.status(400).json({ success: false, error: "userId is required." });
       }
+      const team = await teamService.getById(teamId);
+      if (!team) {
+        return res.status(404).json({ success: false, error: "Team not found." });
+      }
+      if (await cannotManage(team, req.user.id)) {
+        return res.status(403).json({ success: false, error: "Forbidden. You cannot manage this team's members." });
+      }
       const removed = await teamService.removeMember(Number(teamId), Number(targetUserId));
       if (!removed) {
         return res.status(404).json({ success: false, error: "Member not found in team." });
@@ -165,6 +222,12 @@ class TeamController {
       const team = await teamService.getById(teamId);
       if (!team) {
         return res.status(404).json({ success: false, error: "Team not found." });
+      }
+      if (team.type === "shop") {
+        return res.status(400).json({ success: false, error: "Shop teams cannot be assigned to services." });
+      }
+      if (await cannotManage(team, req.user.id)) {
+        return res.status(403).json({ success: false, error: "Forbidden. You cannot manage this team's services." });
       }
       if (Array.isArray(serviceIds) && serviceIds.length > 0) {
         await teamService.addServices(Number(teamId), serviceIds);
@@ -189,6 +252,13 @@ class TeamController {
       const { id: teamId, serviceId } = req.params;
       if (!serviceId) {
         return res.status(400).json({ success: false, error: "serviceId is required." });
+      }
+      const team = await teamService.getById(teamId);
+      if (!team) {
+        return res.status(404).json({ success: false, error: "Team not found." });
+      }
+      if (await cannotManage(team, req.user.id)) {
+        return res.status(403).json({ success: false, error: "Forbidden. You cannot manage this team's services." });
       }
       const removed = await teamService.removeService(Number(teamId), Number(serviceId));
       if (!removed) {

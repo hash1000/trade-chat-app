@@ -63,7 +63,7 @@ class ShopService {
     });
 
     if (Array.isArray(teams) && teams.length > 0) {
-      await this.shopRepository.addTeams(shop.id, teams);
+      await this.shopRepository.addTeams(shop.id, teams, userId);
     }
     if (Array.isArray(members) && members.length > 0) {
       await this.shopRepository.addMembers(shop.id, members);
@@ -125,7 +125,7 @@ class ShopService {
     if (teams !== undefined) {
       await this.shopRepository.removeAllTeams(shopId);
       if (Array.isArray(teams) && teams.length > 0) {
-        await this.shopRepository.addTeams(shopId, teams);
+        await this.shopRepository.addTeams(shopId, teams, shop.userId);
       }
     }
     if (members !== undefined) {
@@ -170,7 +170,7 @@ class ShopService {
     const shop = await this.shopRepository.getShopById(shopId);
     this.assertOwner(shop, userId);
 
-    const added = await this.shopRepository.addTeams(shopId, teamIds);
+    const added = await this.shopRepository.addTeams(shopId, teamIds, shop.userId);
     return { addedTeamIds: added };
   }
 

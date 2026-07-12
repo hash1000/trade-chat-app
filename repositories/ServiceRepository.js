@@ -448,6 +448,12 @@ class ServiceRepository {
   }
 
   async addTeam(serviceId, teamId) {
+    const teamRecord = await Team.findByPk(teamId, { attributes: ["id", "type"] });
+    if (teamRecord && teamRecord.type === "shop") {
+      const err = new Error("Shop teams cannot be assigned to services.");
+      err.name = "InvalidTeamIdError";
+      throw err;
+    }
     const [team] = await TeamServiceLink.findOrCreate({
       where: { teamId, serviceId },
       defaults: { teamId, serviceId },
@@ -468,7 +474,7 @@ class ServiceRepository {
 
     const existingTeams = await Team.findAll({
       where: { id: { [Op.in]: numericIds } },
-      attributes: ["id"],
+      attributes: ["id", "type"],
     });
     const existingIds = new Set(existingTeams.map((t) => t.id));
     const missingIds = numericIds.filter((id) => !existingIds.has(id));
@@ -476,6 +482,15 @@ class ServiceRepository {
       const err = new Error(`Team(s) not found: ${missingIds.join(", ")}`);
       err.name = "InvalidTeamIdError";
       err.missingTeamIds = missingIds;
+      throw err;
+    }
+
+    // Shop teams belong to the shop world only — never to services
+    const shopTeamIds = existingTeams.filter((t) => t.type === "shop").map((t) => t.id);
+    if (shopTeamIds.length > 0) {
+      const err = new Error(`Shop teams cannot be assigned to services: ${shopTeamIds.join(", ")}`);
+      err.name = "InvalidTeamIdError";
+      err.missingTeamIds = shopTeamIds;
       throw err;
     }
 

@@ -125,7 +125,7 @@ class ShopRepository {
 
   // ── Teams ──────────────────────────────────────────────────────────────────
 
-  async addTeams(shopId, teamIds) {
+  async addTeams(shopId, teamIds, ownerId) {
     if (!Array.isArray(teamIds) || teamIds.length === 0) return [];
     const numericIds = [
       ...new Set(
@@ -138,12 +138,29 @@ class ShopRepository {
 
     const existingTeams = await Team.findAll({
       where: { id: { [Op.in]: numericIds } },
-      attributes: ["id"],
+      attributes: ["id", "type", "createdBy"],
     });
     const existingIds = new Set(existingTeams.map((t) => t.id));
     const missingIds = numericIds.filter((id) => !existingIds.has(id));
     if (missingIds.length > 0) {
       throw new CustomError(`Team(s) not found: ${missingIds.join(", ")}`, 404);
+    }
+
+    // Shops only accept shop-type teams owned by the shop creator —
+    // service teams (and their admins) stay completely separate
+    const wrongType = existingTeams.filter((t) => t.type !== "shop").map((t) => t.id);
+    if (wrongType.length > 0) {
+      throw new CustomError(
+        `Only shop teams can be assigned to shops. Not shop teams: ${wrongType.join(", ")}`,
+        422
+      );
+    }
+    const notOwned = existingTeams.filter((t) => t.createdBy !== ownerId).map((t) => t.id);
+    if (notOwned.length > 0) {
+      throw new CustomError(
+        `You can only assign teams you created. Not your teams: ${notOwned.join(", ")}`,
+        403
+      );
     }
 
     await Promise.all(

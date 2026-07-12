@@ -267,6 +267,10 @@ Order.belongsTo(Address, {
   Wallet.belongsTo(User, { foreignKey: "userId", as: "user" });
   User.hasMany(Wallet, { foreignKey: "userId", as: "wallets" });
 
+  // Team creator (owner)
+  Team.belongsTo(User, { foreignKey: "createdBy", as: "creator" });
+  User.hasMany(Team, { foreignKey: "createdBy", as: "ownedTeams" });
+
   // User <-> Team many-to-many (members)
   Team.belongsToMany(User, {
     through: TeamMember,

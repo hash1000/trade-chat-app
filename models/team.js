@@ -21,6 +21,18 @@ const Team = sequelize.define(
       type: DataTypes.TEXT,
       allowNull: true,
     },
+    createdBy: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      defaultValue: null,
+    },
+    // 'shop' teams are private to their creator (no admin override);
+    // 'service' teams allow admin involvement
+    type: {
+      type: DataTypes.STRING(20),
+      allowNull: false,
+      defaultValue: "service",
+    },
   },
   {
     tableName: "teams",
