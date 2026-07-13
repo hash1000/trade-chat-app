@@ -68,6 +68,39 @@ const sharedProductFieldRules = () => [
       if (Array.isArray(value) || typeof value === "string") return true;
       throw new Error("productImages must be an array");
     }),
+
+  // categoryIds may arrive as an array or a JSON string (multipart)
+  body("categoryIds")
+    .optional({ nullable: true })
+    .custom((value) => {
+      if (Array.isArray(value) || typeof value === "string") return true;
+      throw new Error("categoryIds must be an array of category IDs");
+    }),
+];
+
+/**
+ * ASSIGN CATEGORIES
+ */
+exports.assignCategoriesValidation = [
+  param("productId").isInt().withMessage("Product ID must be an integer"),
+
+  body("categoryIds")
+    .optional()
+    .isArray({ min: 1 })
+    .withMessage("categoryIds must be a non-empty array"),
+
+  body("categoryIds.*")
+    .isInt({ min: 1 })
+    .withMessage("Each category ID must be a positive integer")
+    .toInt(),
+
+  body("categoryId")
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage("categoryId must be a positive integer")
+    .toInt(),
+
+  handleValidationErrors,
 ];
 
 exports.createProductValidation = [

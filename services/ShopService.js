@@ -8,6 +8,7 @@ const EDITABLE_SHOP_FIELDS = [
   "name",
   "description",
   "country",
+  "leadTime",
   "profile_image",
   "header_image",
   "multiple_images",

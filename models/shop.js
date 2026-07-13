@@ -39,6 +39,12 @@ const Shop = sequelize.define(
       type: DataTypes.STRING,
       allowNull: false,
     },
+    // e.g. "15-30 days" — how long the shop takes to fulfil by-order items
+    leadTime: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      defaultValue: null,
+    },
     likes: {
       type: DataTypes.INTEGER,
       defaultValue: 0,

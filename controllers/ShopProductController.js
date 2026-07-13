@@ -260,6 +260,45 @@ class ShopProductController {
     }
   }
 
+  // ── Categories ────────────────────────────────────────────────────────────
+
+  // Public — buyers browse a product's categories
+  async listCategories(req, res) {
+    try {
+      const { productId } = req.params;
+      const categories = await productService.listCategories(Number(productId));
+      return res.json({ success: true, data: categories });
+    } catch (error) {
+      return res.status(error.statusCode || 500).json({ success: false, message: error.message });
+    }
+  }
+
+  async addCategories(req, res) {
+    try {
+      const { productId } = req.params;
+      const { id: userId } = req.user;
+      const categoryIds =
+        req.body.categoryIds ?? (req.body.categoryId !== undefined ? [req.body.categoryId] : undefined);
+
+      const result = await productService.addCategories(Number(productId), userId, categoryIds);
+      return res.status(201).json({ success: true, message: "Categories assigned to product", data: result });
+    } catch (error) {
+      return res.status(error.statusCode || 500).json({ success: false, message: error.message });
+    }
+  }
+
+  async removeCategory(req, res) {
+    try {
+      const { productId, categoryId } = req.params;
+      const { id: userId } = req.user;
+
+      await productService.removeCategory(Number(productId), userId, Number(categoryId));
+      return res.json({ success: true, message: "Category removed from product" });
+    } catch (error) {
+      return res.status(error.statusCode || 500).json({ success: false, message: error.message });
+    }
+  }
+
   // ── Admin badges ──────────────────────────────────────────────────────────
 
   async updateBadges(req, res) {

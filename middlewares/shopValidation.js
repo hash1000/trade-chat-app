@@ -33,6 +33,11 @@ exports.createShopValidationRules = [
     .isString()
     .withMessage('Country must be a string'),
 
+  body('leadTime')
+    .optional({ nullable: true })
+    .isString()
+    .withMessage('leadTime must be a string, e.g. "15-30 days"'),
+
   body('rating')
     .optional()
     .isFloat({ min: 0, max: 10 })
@@ -78,6 +83,11 @@ exports.updateShopValidationRules = [
     .optional()
     .isString()
     .withMessage('Country must be a string'),
+
+  body('leadTime')
+    .optional({ nullable: true })
+    .isString()
+    .withMessage('leadTime must be a string, e.g. "15-30 days"'),
 
   body('rating')
     .optional()

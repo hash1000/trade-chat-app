@@ -21,6 +21,7 @@ const {
   getProductValidation,
   rateProductValidation,
   updateBadgesValidation,
+  assignCategoriesValidation,
 } = require('../middlewares/shopProductValidator')
 
 const controller = new ShopProductController()
@@ -212,6 +213,30 @@ router.delete(
   checkIntegerParam('productId'),
   checkIntegerParam('variationId'),
   variationController.deleteVariation.bind(variationController)
+)
+
+// ── Categories ────────────────────────────────────────────────────────────────
+
+// list is public — buyers see the product's categories
+router.get(
+  '/:productId/categories',
+  checkIntegerParam('productId'),
+  controller.listCategories.bind(controller)
+)
+
+router.post(
+  '/:productId/categories',
+  authMiddleware,
+  assignCategoriesValidation,
+  controller.addCategories.bind(controller)
+)
+
+router.delete(
+  '/:productId/categories/:categoryId',
+  authMiddleware,
+  checkIntegerParam('productId'),
+  checkIntegerParam('categoryId'),
+  controller.removeCategory.bind(controller)
 )
 
 // ── Quantity discount rules (product-scoped) ──────────────────────────────────

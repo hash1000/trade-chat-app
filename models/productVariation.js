@@ -4,7 +4,7 @@ const sequelize = require('../config/database')
 // A product variation, e.g. MacBook → Air / Pro / Pro Max.
 // Availability has two independent modes (both can be on):
 //   - inStock:  selling from held stock (stock qty + its own min order)
-//   - byOrder:  made/sourced on demand (its own min order + lead time)
+//   - byOrder:  made/sourced on demand (its own min order; lead time lives on the shop)
 const ProductVariation = sequelize.define(
   'ProductVariation',
   {
@@ -58,10 +58,6 @@ const ProductVariation = sequelize.define(
       type: DataTypes.INTEGER,
       allowNull: false,
       defaultValue: 1,
-    },
-    leadTime: {
-      type: DataTypes.STRING,
-      allowNull: true,
     },
     sortOrder: {
       type: DataTypes.INTEGER,

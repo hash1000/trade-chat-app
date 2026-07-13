@@ -29,6 +29,7 @@ const ProductDiscountCode = require("./productDiscountCode");
 const ProductVariation = require("./productVariation");
 const ProductVariationImage = require("./productVariationImage");
 const ProductDiscount = require("./productDiscount");
+const ProductCategory = require("./productCategory");
 const AddToCart = require("./AddToCart");
 const ShortList = require("./shortList");
 const List = require("./list");
@@ -285,6 +286,22 @@ Order.belongsTo(Address, {
   // 👉 Automatic quantity discount rules
   ShopProduct.hasMany(ProductDiscount, { foreignKey: "shopProductId", as: "discountRules" });
   ProductDiscount.belongsTo(ShopProduct, { foreignKey: "shopProductId", as: "product" });
+
+  // 👉 Product <-> PublicCategory (GLOBAL, same categories services use)
+  ShopProduct.belongsToMany(PublicCategory, {
+    through: ProductCategory,
+    foreignKey: "shopProductId",
+    otherKey: "publicCategoryId",
+    as: "categories",
+  });
+  PublicCategory.belongsToMany(ShopProduct, {
+    through: ProductCategory,
+    foreignKey: "publicCategoryId",
+    otherKey: "shopProductId",
+    as: "products",
+  });
+  ProductCategory.belongsTo(PublicCategory, { foreignKey: "publicCategoryId", as: "category" });
+  ProductCategory.belongsTo(ShopProduct, { foreignKey: "shopProductId", as: "product" });
 
   Receipt.belongsTo(BankAccount, { foreignKey: "senderId", as: "sender" });
   Receipt.belongsTo(BankAccount, { foreignKey: "receiverId", as: "receiver" });
@@ -629,4 +646,5 @@ module.exports = {
   ProductVariation,
   ProductVariationImage,
   ProductDiscount,
+  ProductCategory,
 };

@@ -60,7 +60,6 @@ function normalizeVariation(raw, existing = null) {
     stockMinOrder: intField(raw.stockMinOrder, existing ? existing.stockMinOrder : 1, "stockMinOrder", 1),
     byOrder: parseBool(raw.byOrder, existing ? existing.byOrder : false),
     byOrderMinOrder: intField(raw.byOrderMinOrder, existing ? existing.byOrderMinOrder : 1, "byOrderMinOrder", 1),
-    leadTime: raw.leadTime !== undefined ? (raw.leadTime != null ? String(raw.leadTime).trim() : null) : existing?.leadTime ?? null,
     sortOrder: intField(raw.sortOrder, existing ? existing.sortOrder : 0, "sortOrder"),
   };
 }

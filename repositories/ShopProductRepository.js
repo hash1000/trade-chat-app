@@ -10,6 +10,8 @@ const ProductView = require("../models/productView");
 const ProductFile = require("../models/productFile");
 const ProductVariation = require("../models/productVariation");
 const ProductVariationImage = require("../models/productVariationImage");
+const ProductCategory = require("../models/productCategory");
+const PublicCategory = require("../models/publicCategories");
 
 class ShopProductRepository {
   _publicInclude() {
@@ -26,6 +28,11 @@ class ShopProductRepository {
         model: ProductVariation,
         as: "variations",
         include: [{ model: ProductVariationImage, as: "images" }],
+      },
+      {
+        model: PublicCategory,
+        as: "categories",
+        through: { attributes: [] },
       },
       {
         model: Shop,
@@ -79,6 +86,11 @@ class ShopProductRepository {
           model: ProductVariation,
           as: "variations",
           include: [{ model: ProductVariationImage, as: "images" }],
+        },
+        {
+          model: PublicCategory,
+          as: "categories",
+          through: { attributes: [] },
         },
       ],
     });
@@ -277,6 +289,61 @@ class ShopProductRepository {
       { ratingCount: count, ratingAvg: avg },
       { where: { id: shopProductId }, transaction: t },
     );
+  }
+
+  // ── Categories ────────────────────────────────────────────────────────────
+
+  async listCategories(shopProductId) {
+    const rows = await ProductCategory.findAll({
+      where: { shopProductId },
+      include: [{ model: PublicCategory, as: "category" }],
+    });
+    return rows;
+  }
+
+  async addCategories(shopProductId, categoryIds) {
+    if (!Array.isArray(categoryIds) || categoryIds.length === 0) return [];
+
+    const numericIds = [
+      ...new Set(
+        categoryIds
+          .map((id) => Number(id))
+          .filter((id) => !Number.isNaN(id) && id > 0),
+      ),
+    ];
+    if (numericIds.length === 0) return [];
+
+    const existing = await PublicCategory.findAll({
+      where: { id: { [Op.in]: numericIds } },
+      attributes: ["id"],
+    });
+    const existingIds = new Set(existing.map((c) => c.id));
+    const missingIds = numericIds.filter((id) => !existingIds.has(id));
+    if (missingIds.length > 0) {
+      throw new CustomError(`Category(ies) not found: ${missingIds.join(", ")}`, 404);
+    }
+
+    await Promise.all(
+      numericIds.map((publicCategoryId) =>
+        ProductCategory.findOrCreate({
+          where: { shopProductId, publicCategoryId },
+          defaults: { shopProductId, publicCategoryId },
+        }),
+      ),
+    );
+
+    return numericIds;
+  }
+
+  async removeCategory(shopProductId, publicCategoryId) {
+    const deleted = await ProductCategory.destroy({
+      where: { shopProductId, publicCategoryId },
+    });
+    return deleted > 0;
+  }
+
+  async removeAllCategories(shopProductId) {
+    await ProductCategory.destroy({ where: { shopProductId } });
   }
 
   // ── Admin badges ──────────────────────────────────────────────────────────

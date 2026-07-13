@@ -106,6 +106,23 @@ class ShopProductService {
     return arr;
   }
 
+  // categoryIds may arrive as an array (JSON body) or a JSON string (multipart)
+  parseCategoryIds(raw) {
+    if (raw === undefined || raw === null) return undefined;
+    let arr = raw;
+    if (typeof arr === "string") {
+      try {
+        arr = JSON.parse(arr);
+      } catch {
+        throw new CustomError("categoryIds must be an array of category IDs.", 422);
+      }
+    }
+    if (!Array.isArray(arr)) {
+      throw new CustomError("categoryIds must be an array of category IDs.", 422);
+    }
+    return arr;
+  }
+
   async validateShopOwnership(shopId, userId) {
     const shop = await Shop.findByPk(shopId);
 
@@ -136,6 +153,7 @@ class ShopProductService {
       support247,
       productImages,
       variations,
+      categoryIds,
     } = productData;
 
     await this.validateShopOwnership(shopId, userId);
@@ -175,7 +193,14 @@ class ShopProductService {
       createdVariations = await this.variationService.setVariations(product.id, variationPayloads);
     }
 
-    return { product, productImages: createdImages, media, variations: createdVariations };
+    const catIds = this.parseCategoryIds(categoryIds);
+    let categories = [];
+    if (catIds && catIds.length > 0) {
+      await this.productRepository.addCategories(product.id, catIds);
+      categories = await this.productRepository.listCategories(product.id);
+    }
+
+    return { product, productImages: createdImages, media, variations: createdVariations, categories };
   }
 
   async updateProduct(productId, userId, productData, mediaFiles = []) {
@@ -193,6 +218,7 @@ class ShopProductService {
       support247,
       productImages,
       variations,
+      categoryIds,
     } = productData;
 
     const product = await this.productRepository.getById(productId);
@@ -234,6 +260,15 @@ class ShopProductService {
     const variationPayloads = this.parseVariations(variations);
     if (variationPayloads !== undefined) {
       await this.variationService.setVariations(updatedProduct.id, variationPayloads);
+    }
+
+    // categories: replace-all only when provided (omit to keep existing)
+    const catIds = this.parseCategoryIds(categoryIds);
+    if (catIds !== undefined) {
+      await this.productRepository.removeAllCategories(updatedProduct.id);
+      if (catIds.length > 0) {
+        await this.productRepository.addCategories(updatedProduct.id, catIds);
+      }
     }
 
     const full = await this.productRepository.getById(updatedProduct.id);
@@ -347,6 +382,37 @@ class ShopProductService {
     return sequelize.transaction((t) =>
       this.productRepository.deleteRating(userId, productId, t)
     );
+  }
+
+  // ── Categories ────────────────────────────────────────────────────────────
+
+  async listCategories(productId) {
+    await this.productRepository.getById(productId);
+    return this.productRepository.listCategories(productId);
+  }
+
+  async addCategories(productId, userId, categoryIds) {
+    const product = await this.productRepository.getById(productId);
+    await this.validateShopOwnership(product.shopId, userId);
+
+    const ids = this.parseCategoryIds(categoryIds);
+    if (!ids || ids.length === 0) {
+      throw new CustomError("categoryIds must be a non-empty array.", 422);
+    }
+
+    const added = await this.productRepository.addCategories(productId, ids);
+    return { addedCategoryIds: added };
+  }
+
+  async removeCategory(productId, userId, categoryId) {
+    const product = await this.productRepository.getById(productId);
+    await this.validateShopOwnership(product.shopId, userId);
+
+    const removed = await this.productRepository.removeCategory(productId, categoryId);
+    if (!removed) {
+      throw new CustomError("Category is not assigned to this product", 404);
+    }
+    return true;
   }
 
   // ── Admin badges ──────────────────────────────────────────────────────────

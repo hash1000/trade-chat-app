@@ -50,3 +50,4 @@ Thumbs.db
 
 # Firebase service account (never commit — contains private key)
 config/firebase-service-account.json
+postman/postman/product-apis.postman_collection.json
