@@ -38,6 +38,12 @@ exports.createShopValidationRules = [
     .isString()
     .withMessage('leadTime must be a string, e.g. "15-30 days"'),
 
+  body('payoutWalletId')
+    .optional({ nullable: true })
+    .isInt({ min: 1 })
+    .withMessage('payoutWalletId must be a wallet ID')
+    .toInt(),
+
   body('rating')
     .optional()
     .isFloat({ min: 0, max: 10 })
@@ -88,6 +94,12 @@ exports.updateShopValidationRules = [
     .optional({ nullable: true })
     .isString()
     .withMessage('leadTime must be a string, e.g. "15-30 days"'),
+
+  body('payoutWalletId')
+    .optional({ nullable: true })
+    .isInt({ min: 1 })
+    .withMessage('payoutWalletId must be a wallet ID')
+    .toInt(),
 
   body('rating')
     .optional()

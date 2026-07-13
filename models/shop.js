@@ -35,6 +35,12 @@ const Shop = sequelize.define(
       allowNull: true,
       defaultValue: null,
     },
+    // which wallet of the shop owner gets paid
+    payoutWalletId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      defaultValue: null,
+    },
     country: {
       type: DataTypes.STRING,
       allowNull: false,

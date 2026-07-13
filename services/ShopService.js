@@ -1,6 +1,6 @@
 const CustomError = require("../errors/CustomError");
 const ShopRepository = require("../repositories/ShopRepository");
-const { User } = require("../models");
+const { User, Wallet } = require("../models");
 
 // Fields the assigned editor is allowed to change. Teams, members and the
 // editor itself can only be changed by the shop creator.
@@ -50,17 +50,32 @@ class ShopService {
     if (!user) throw new CustomError(`Editor user not found: ${editorId}`, 404);
   }
 
+  // The payout wallet must belong to the shop owner — you cannot get paid
+  // into someone else's wallet.
+  async validatePayoutWallet(payoutWalletId, ownerId) {
+    const wallet = await Wallet.findByPk(payoutWalletId, { attributes: ["id", "userId"] });
+    if (!wallet) throw new CustomError(`Wallet not found: ${payoutWalletId}`, 404);
+    if (wallet.userId !== ownerId) {
+      throw new CustomError("Forbidden. The payout wallet must be your own wallet.", 403);
+    }
+  }
+
   async createShop(userId, shopData) {
-    const { teams, members, editor, multiple_images, ...data } = shopData;
+    const { teams, members, editor, multiple_images, payoutWalletId, ...data } = shopData;
 
     if (editor !== undefined && editor !== null) {
       await this.validateEditor(editor);
+    }
+
+    if (payoutWalletId !== undefined && payoutWalletId !== null) {
+      await this.validatePayoutWallet(payoutWalletId, userId);
     }
 
     const shop = await this.shopRepository.createShop({
       ...data,
       userId,
       editorId: editor ?? null,
+      payoutWalletId: payoutWalletId ?? null,
     });
 
     if (Array.isArray(teams) && teams.length > 0) {
@@ -90,12 +105,18 @@ class ShopService {
       throw new CustomError("Unauthorized", 403);
     }
 
-    const { teams, members, editor, multiple_images, ...data } = shopData;
+    const { teams, members, editor, multiple_images, payoutWalletId, ...data } = shopData;
 
-    // Assignment fields are creator-only, even for the editor
-    if (!isOwner && (teams !== undefined || members !== undefined || editor !== undefined)) {
+    // Assignment fields and the payout wallet are creator-only, even for the editor
+    if (
+      !isOwner &&
+      (teams !== undefined ||
+        members !== undefined ||
+        editor !== undefined ||
+        payoutWalletId !== undefined)
+    ) {
       throw new CustomError(
-        "Forbidden. Only the shop creator can assign teams, members or editor.",
+        "Forbidden. Only the shop creator can assign teams, members, editor or the payout wallet.",
         403
       );
     }
@@ -112,12 +133,22 @@ class ShopService {
     // Never allow ownership to be moved through update
     delete data.userId;
     delete data.editorId;
+    delete data.payoutWalletId;
 
     if (editor !== undefined && editor !== null) {
       await this.validateEditor(editor);
       data.editorId = editor;
     } else if (editor === null) {
       data.editorId = null;
+    }
+
+    if (payoutWalletId !== undefined) {
+      if (payoutWalletId === null) {
+        data.payoutWalletId = null;
+      } else {
+        await this.validatePayoutWallet(payoutWalletId, shop.userId);
+        data.payoutWalletId = payoutWalletId;
+      }
     }
 
     await this.shopRepository.updateShop(shopId, data);

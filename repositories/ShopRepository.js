@@ -9,6 +9,7 @@ const {
   ProductImage,
   Team,
   User,
+  Wallet,
 } = require("../models");
 
 const USER_ATTRIBUTES = ["id", "username", "email", "profilePic"];
@@ -18,6 +19,7 @@ class ShopRepository {
     const include = [
       { model: ShopImage, as: "images" },
       { model: User, as: "editor", attributes: USER_ATTRIBUTES },
+      { model: Wallet, as: "payoutWallet" },
     ];
 
     if (includeTeams) {

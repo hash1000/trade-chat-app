@@ -210,6 +210,10 @@ Order.belongsTo(Address, {
   Shop.belongsTo(User, { foreignKey: "editorId", as: "editor" });
   User.hasMany(Shop, { foreignKey: "editorId", as: "editableShops" });
 
+  // 👉 Shop <-> payout wallet
+  Shop.belongsTo(Wallet, { foreignKey: "payoutWalletId", as: "payoutWallet" });
+  Wallet.hasMany(Shop, { foreignKey: "payoutWalletId", as: "shops" });
+
   // 👉 Shop → ShopImages (multiple images)
   Shop.hasMany(ShopImage, { foreignKey: "shopId", as: "images" });
   ShopImage.belongsTo(Shop, { foreignKey: "shopId", as: "shop" });
