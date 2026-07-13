@@ -21,6 +21,14 @@ const ShopProduct = require("./shopProduct");
 const ShopTeamLink = require("./shopTeam");
 const ShopMember = require("./shopMember");
 const ShopImage = require("./shopImage");
+const ProductLike = require("./productLike");
+const ProductRating = require("./productRating");
+const ProductView = require("./productView");
+const ProductFile = require("./productFile");
+const ProductDiscountCode = require("./productDiscountCode");
+const ProductVariation = require("./productVariation");
+const ProductVariationImage = require("./productVariationImage");
+const ProductDiscount = require("./productDiscount");
 const AddToCart = require("./AddToCart");
 const ShortList = require("./shortList");
 const List = require("./list");
@@ -240,6 +248,43 @@ Order.belongsTo(Address, {
     foreignKey: "shopProductId",
     as: "shopProduct",
   });
+
+  // 👉 Product likes
+  ShopProduct.hasMany(ProductLike, { foreignKey: "shopProductId", as: "productLikes" });
+  ProductLike.belongsTo(ShopProduct, { foreignKey: "shopProductId", as: "product" });
+  ProductLike.belongsTo(User, { foreignKey: "userId", as: "user" });
+  User.hasMany(ProductLike, { foreignKey: "userId", as: "productLikes" });
+
+  // 👉 Product ratings (per-user)
+  ShopProduct.hasMany(ProductRating, { foreignKey: "shopProductId", as: "productRatings" });
+  ProductRating.belongsTo(ShopProduct, { foreignKey: "shopProductId", as: "product" });
+  ProductRating.belongsTo(User, { foreignKey: "userId", as: "user" });
+  User.hasMany(ProductRating, { foreignKey: "userId", as: "productRatings" });
+
+  // 👉 Product views
+  ShopProduct.hasMany(ProductView, { foreignKey: "shopProductId", as: "productViews" });
+  ProductView.belongsTo(ShopProduct, { foreignKey: "shopProductId", as: "product" });
+  ProductView.belongsTo(User, { foreignKey: "userId", as: "user" });
+
+  // 👉 Product media files
+  ShopProduct.hasMany(ProductFile, { foreignKey: "shopProductId", as: "media" });
+  ProductFile.belongsTo(ShopProduct, { foreignKey: "shopProductId", as: "product" });
+
+  // 👉 Product discount codes
+  ShopProduct.hasMany(ProductDiscountCode, { foreignKey: "shopProductId", as: "discountCodes" });
+  ProductDiscountCode.belongsTo(ShopProduct, { foreignKey: "shopProductId", as: "product" });
+  ProductDiscountCode.belongsTo(User, { foreignKey: "createdBy", as: "creator" });
+  ProductDiscountCode.belongsTo(User, { foreignKey: "usedBy", as: "redeemer" });
+
+  // 👉 Product variations (+ per-variation images)
+  ShopProduct.hasMany(ProductVariation, { foreignKey: "shopProductId", as: "variations" });
+  ProductVariation.belongsTo(ShopProduct, { foreignKey: "shopProductId", as: "product" });
+  ProductVariation.hasMany(ProductVariationImage, { foreignKey: "productVariationId", as: "images" });
+  ProductVariationImage.belongsTo(ProductVariation, { foreignKey: "productVariationId", as: "variation" });
+
+  // 👉 Automatic quantity discount rules
+  ShopProduct.hasMany(ProductDiscount, { foreignKey: "shopProductId", as: "discountRules" });
+  ProductDiscount.belongsTo(ShopProduct, { foreignKey: "shopProductId", as: "product" });
 
   Receipt.belongsTo(BankAccount, { foreignKey: "senderId", as: "sender" });
   Receipt.belongsTo(BankAccount, { foreignKey: "receiverId", as: "receiver" });
@@ -576,4 +621,12 @@ module.exports = {
   ShopMember,
   ShopImage,
   ProductImage,
+  ProductLike,
+  ProductRating,
+  ProductView,
+  ProductFile,
+  ProductDiscountCode,
+  ProductVariation,
+  ProductVariationImage,
+  ProductDiscount,
 };

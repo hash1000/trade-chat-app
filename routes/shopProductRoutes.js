@@ -1,7 +1,16 @@
 const express = require('express')
 const router = express.Router()
 const authMiddleware = require('../middlewares/authenticate')
+const authorize = require('../middlewares/authorization')
+const checkIntegerParam = require('../middlewares/paramIntegerValidation')
 const ShopProductController = require('../controllers/ShopProductController')
+const ShopProductFileController = require('../controllers/ShopProductFileController')
+const ShopProductDiscountController = require('../controllers/ShopProductDiscountController')
+const ShopProductVariationController = require('../controllers/ShopProductVariationController')
+const {
+  uploadProductMedia,
+  uploadProductCreateUpdate,
+} = require('../utilities/productFileMulter')
 
 const {
   createProductValidation,
@@ -10,11 +19,17 @@ const {
   getProductsByShopValidation,
   getPaginatedProductsValidation,
   getProductValidation,
+  rateProductValidation,
+  updateBadgesValidation,
 } = require('../middlewares/shopProductValidator')
 
 const controller = new ShopProductController()
+const fileController = new ShopProductFileController()
+const discountController = new ShopProductDiscountController()
+const variationController = new ShopProductVariationController()
 
-// Public (no auth) product browsing
+// ── Public (no auth) product browsing ─────────────────────────────────────────
+
 router.get(
   '/public/list',
   getPaginatedProductsValidation,
@@ -33,16 +48,78 @@ router.get(
   controller.getPublicProductById.bind(controller)
 )
 
+// ── Discounts (literal routes BEFORE /:productId) ─────────────────────────────
+
+// Public — no auth required
+router.get('/discounts/validate', discountController.validateCode.bind(discountController))
+
+// Redeem — any authenticated user
+router.post('/discounts/:code/redeem', authMiddleware, discountController.redeemCode.bind(discountController))
+
+// Single discount CRUD — shop owner
+router.get(
+  '/discounts/:discountId',
+  authMiddleware,
+  checkIntegerParam('discountId'),
+  discountController.getDiscount.bind(discountController)
+)
+
+router.patch(
+  '/discounts/:discountId',
+  authMiddleware,
+  checkIntegerParam('discountId'),
+  discountController.updateDiscount.bind(discountController)
+)
+
+router.delete(
+  '/discounts/:discountId',
+  authMiddleware,
+  checkIntegerParam('discountId'),
+  discountController.deleteDiscount.bind(discountController)
+)
+
+// ── Quantity discount rules (literal routes BEFORE /:productId) ───────────────
+
+router.patch(
+  '/discount-rules/:ruleId',
+  authMiddleware,
+  checkIntegerParam('ruleId'),
+  discountController.updateRule.bind(discountController)
+)
+
+router.delete(
+  '/discount-rules/:ruleId',
+  authMiddleware,
+  checkIntegerParam('ruleId'),
+  discountController.deleteRule.bind(discountController)
+)
+
+// ── Media files (literal route BEFORE /:productId) ────────────────────────────
+
+router.delete(
+  '/files/:fileId',
+  authMiddleware,
+  checkIntegerParam('fileId'),
+  fileController.deleteFile.bind(fileController)
+)
+
+// ── Core CRUD ─────────────────────────────────────────────────────────────────
+
+// create — accepts optional media[] files alongside JSON body fields
 router.post(
   '/',
   authMiddleware,
+  fileController.handleMulterError(uploadProductCreateUpdate),
   createProductValidation,
   controller.createProduct.bind(controller)
 )
 
+// update — accepts optional media[] files to append new files
 router.put(
   '/:productId',
   authMiddleware,
+  checkIntegerParam('productId'),
+  fileController.handleMulterError(uploadProductCreateUpdate),
   updateProductValidation,
   controller.updateProduct.bind(controller)
 )
@@ -68,13 +145,121 @@ router.get(
   controller.getProductsByShop.bind(controller)
 )
 
+// ── Media upload ──────────────────────────────────────────────────────────────
+
+router.post(
+  '/:productId/media',
+  authMiddleware,
+  checkIntegerParam('productId'),
+  fileController.handleMulterError(uploadProductMedia),
+  fileController.uploadMedia.bind(fileController)
+)
+
+// ── Likes ─────────────────────────────────────────────────────────────────────
+
+router.post('/:productId/like', authMiddleware, checkIntegerParam('productId'), controller.likeProduct.bind(controller))
+router.delete('/:productId/like', authMiddleware, checkIntegerParam('productId'), controller.unlikeProduct.bind(controller))
+router.get('/:productId/likes/count', authMiddleware, checkIntegerParam('productId'), controller.getLikesCount.bind(controller))
+router.get('/:productId/likes/me', authMiddleware, checkIntegerParam('productId'), controller.checkUserLiked.bind(controller))
+
+// ── Views ─────────────────────────────────────────────────────────────────────
+
+router.get('/:productId/views/count', authMiddleware, checkIntegerParam('productId'), controller.getViewsCount.bind(controller))
+
+// ── Ratings (per-user 0-10) ───────────────────────────────────────────────────
+
+router.post('/:productId/rating', authMiddleware, rateProductValidation, controller.rateProduct.bind(controller))
+router.put('/:productId/rating', authMiddleware, rateProductValidation, controller.rateProduct.bind(controller))
+router.delete('/:productId/rating', authMiddleware, checkIntegerParam('productId'), controller.deleteRating.bind(controller))
+
+// ── Admin badges ──────────────────────────────────────────────────────────────
+
+router.patch(
+  '/admin/:productId/badges',
+  authMiddleware,
+  authorize(['admin']),
+  updateBadgesValidation,
+  controller.updateBadges.bind(controller)
+)
+
+// ── Variations ────────────────────────────────────────────────────────────────
+
+// list is public — buyers pick a variation on the product page
+router.get(
+  '/:productId/variations',
+  checkIntegerParam('productId'),
+  variationController.listVariations.bind(variationController)
+)
+
+router.post(
+  '/:productId/variations',
+  authMiddleware,
+  checkIntegerParam('productId'),
+  variationController.createVariation.bind(variationController)
+)
+
+router.put(
+  '/:productId/variations/:variationId',
+  authMiddleware,
+  checkIntegerParam('productId'),
+  checkIntegerParam('variationId'),
+  variationController.updateVariation.bind(variationController)
+)
+
+router.delete(
+  '/:productId/variations/:variationId',
+  authMiddleware,
+  checkIntegerParam('productId'),
+  checkIntegerParam('variationId'),
+  variationController.deleteVariation.bind(variationController)
+)
+
+// ── Quantity discount rules (product-scoped) ──────────────────────────────────
+
+// list is public — buyers see "Buy 3+ and save 5%" tiers
+router.get(
+  '/:productId/discount-rules',
+  checkIntegerParam('productId'),
+  discountController.listRules.bind(discountController)
+)
+
+router.post(
+  '/:productId/discount-rules',
+  authMiddleware,
+  checkIntegerParam('productId'),
+  discountController.createRule.bind(discountController)
+)
+
+// Public price preview — exactly one discount applies (code wins, else best qty rule)
+router.get(
+  '/:productId/price-preview',
+  checkIntegerParam('productId'),
+  discountController.previewPrice.bind(discountController)
+)
+
+// ── Product-scoped discounts ──────────────────────────────────────────────────
+
+router.post(
+  '/:productId/discounts',
+  authMiddleware,
+  checkIntegerParam('productId'),
+  discountController.createDiscount.bind(discountController)
+)
+
+router.get(
+  '/:productId/discounts',
+  authMiddleware,
+  checkIntegerParam('productId'),
+  discountController.listDiscounts.bind(discountController)
+)
+
+// ── Single product (keep last so literal routes above win) ────────────────────
+
 router.get(
   '/:productId',
   authMiddleware,
   getProductValidation,
   controller.getProductById.bind(controller)
 )
-
-
 
 module.exports = router

@@ -18,6 +18,58 @@ function handleValidationErrors(req, res, next) {
 /**
  * CREATE PRODUCT
  */
+const sharedProductFieldRules = () => [
+  body("description")
+    .optional({ nullable: true })
+    .isString()
+    .withMessage("Description must be a string"),
+
+  body("pricing_type")
+    .optional()
+    .isIn(["free", "fixed", "range"])
+    .withMessage("pricing_type must be one of: free, fixed, range"),
+
+  body("price")
+    .optional()
+    .isFloat({ gt: 0 })
+    .withMessage("Price must be a number greater than 0"),
+
+  body("min_price")
+    .optional({ nullable: true })
+    .isFloat({ min: 0 })
+    .withMessage("min_price must be a non-negative number"),
+
+  body("max_price")
+    .optional({ nullable: true })
+    .isFloat({ gt: 0 })
+    .withMessage("max_price must be a number greater than 0"),
+
+  body("quantity")
+    .optional()
+    .isInt({ min: 0 })
+    .withMessage("Quantity must be a positive integer"),
+
+  // tags may arrive as an array (JSON body) or a JSON string (multipart)
+  body("tags")
+    .optional({ nullable: true })
+    .custom((value) => {
+      if (Array.isArray(value) || typeof value === "string") return true;
+      throw new Error("tags must be an array of strings");
+    }),
+
+  body("insured").optional().isBoolean().withMessage("insured must be a boolean"),
+  body("moneyBack").optional().isBoolean().withMessage("moneyBack must be a boolean"),
+  body("support247").optional().isBoolean().withMessage("support247 must be a boolean"),
+
+  // productImages may arrive as an array or a JSON string (multipart)
+  body("productImages")
+    .optional({ nullable: true })
+    .custom((value) => {
+      if (Array.isArray(value) || typeof value === "string") return true;
+      throw new Error("productImages must be an array");
+    }),
+];
+
 exports.createProductValidation = [
   body("name")
     .notEmpty()
@@ -25,44 +77,13 @@ exports.createProductValidation = [
     .isString()
     .withMessage("Product name must be a string"),
 
-  body("price")
-    .notEmpty()
-    .withMessage("Price is required")
-    .isFloat({ gt: 0 })
-    .withMessage("Price must be a number greater than 0"),
-
-  body("rating")
-    .optional()
-    .isFloat({ min: 0, max: 5 })
-    .withMessage("Rating must be between 0 and 5"),
-
-  body("quantity")
-    .optional()
-    .isInt({ min: 0 })
-    .withMessage("Quantity must be a positive integer"),
-
   body("shopId")
     .notEmpty()
     .withMessage("Shop ID is required")
     .isInt()
     .withMessage("Shop ID must be an integer"),
 
-  body("productImages")
-    .optional()
-    .isArray()
-    .withMessage("Product images must be an array")
-    .bail() // Ensure that no further validation runs if the array is invalid
-    .custom((images) => {
-      if (images && images.length === 0) {
-        throw new Error("At least one image is required");
-      }
-      return true;
-    }),
-
-  body("productImages.*.url")
-    .optional()
-    .notEmpty()
-    .withMessage("URL for each image is required"),
+  ...sharedProductFieldRules(),
 
   handleValidationErrors,
 ];
@@ -77,39 +98,41 @@ exports.updateProductValidation = [
     .isString()
     .withMessage("Product name must be a string"),
 
-  body("price")
-    .optional()
-    .isFloat({ gt: 0 })
-    .withMessage("Price must be greater than 0"),
-
-  body("rating")
-    .optional()
-    .isFloat({ min: 0, max: 5 })
-    .withMessage("Rating must be between 0 and 5"),
-
-  body("quantity")
-    .optional()
-    .isInt({ min: 0 })
-    .withMessage("Quantity must be a positive integer"),
-
-  body("productImages")
-    .optional()
-    .isArray()
-    .withMessage("Product images must be an array")
-    .bail() // Ensure that no further validation runs if the array is invalid
-    .custom((images) => {
-      if (images && images.length === 0) {
-        throw new Error("At least one image is required");
-      }
-      return true;
-    }),
-
-  body("productImages.*.url")
-    .optional()
-    .notEmpty()
-    .withMessage("URL for each image is required"),
+  ...sharedProductFieldRules(),
 
   handleValidationErrors, // Make sure this is the last function to handle errors
+];
+
+/**
+ * RATE PRODUCT (per-user, 0-10)
+ */
+exports.rateProductValidation = [
+  param("productId").isInt().withMessage("Product ID must be an integer"),
+
+  body("rating")
+    .notEmpty()
+    .withMessage("rating is required")
+    .isInt({ min: 0, max: 10 })
+    .withMessage("rating must be an integer between 0 and 10"),
+
+  body("comment")
+    .optional({ nullable: true })
+    .isString()
+    .withMessage("comment must be a string"),
+
+  handleValidationErrors,
+];
+
+/**
+ * ADMIN BADGES
+ */
+exports.updateBadgesValidation = [
+  param("productId").isInt().withMessage("Product ID must be an integer"),
+
+  body("isTopChoice").optional().isBoolean().withMessage("isTopChoice must be a boolean"),
+  body("isQRMVerified").optional().isBoolean().withMessage("isQRMVerified must be a boolean"),
+
+  handleValidationErrors,
 ];
 
 /**

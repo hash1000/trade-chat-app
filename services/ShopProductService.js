@@ -1,13 +1,109 @@
 const ShopProductRepository = require("../repositories/ShopProductRepository");
 const ProductImageRepository = require("../repositories/ProductImageRepository");
+const ProductFileService = require("../services/ProductFileService");
+const ProductVariationService = require("../services/ProductVariationService");
 const Shop = require("../models/shop");
 const CustomError = require("../errors/CustomError");
 const sequelize = require("../config/database");
+
+const ALLOWED_PRICING_TYPES = ["free", "fixed", "range"];
+
+// Owner-editable boolean trust flags. isTopChoice / isQRMVerified are
+// admin-only badges and can only change through updateBadges.
+const TRUST_FLAGS = ["insured", "moneyBack", "support247"];
+
+function parseBool(value) {
+  return value === true || value === "true" || value === 1 || value === "1";
+}
+
+function parseTags(raw) {
+  let arr = typeof raw === "string" ? JSON.parse(raw) : raw;
+  if (!Array.isArray(arr) || arr.some((t) => typeof t !== "string")) {
+    throw new CustomError("tags must be an array of strings.", 422);
+  }
+  arr = [...new Set(arr.map((t) => t.trim().toLowerCase()))];
+  if (arr.length > 10) {
+    throw new CustomError("tags may not exceed 10 items.", 422);
+  }
+  if (arr.some((t) => t.length > 30)) {
+    throw new CustomError("Each tag may not exceed 30 characters.", 422);
+  }
+  return arr;
+}
+
+// Validates pricing fields and returns the normalized column values
+function resolvePricing({ pricing_type, price, min_price, max_price }, existing = null) {
+  const type = pricing_type ?? existing?.pricing_type ?? "fixed";
+
+  if (!ALLOWED_PRICING_TYPES.includes(type)) {
+    throw new CustomError("Invalid pricing_type. Allowed: free, fixed, range.", 422);
+  }
+
+  if (type === "fixed") {
+    const p = price !== undefined ? Number(price) : Number(existing?.price);
+    if (!p || Number.isNaN(p) || p <= 0) {
+      throw new CustomError("price is required for fixed pricing and must be greater than 0.", 422);
+    }
+    return { pricing_type: type, price: p, min_price: null, max_price: null };
+  }
+
+  if (type === "range") {
+    const min = min_price !== undefined ? Number(min_price) : existing?.min_price != null ? Number(existing.min_price) : null;
+    const max = max_price !== undefined ? Number(max_price) : existing?.max_price != null ? Number(existing.max_price) : null;
+    if (min == null || max == null || Number.isNaN(min) || Number.isNaN(max) || min < 0 || max <= 0) {
+      throw new CustomError("min_price and max_price are required for range pricing.", 422);
+    }
+    if (min > max) {
+      throw new CustomError("min_price cannot be greater than max_price.", 422);
+    }
+    return { pricing_type: type, price: 0, min_price: min, max_price: max };
+  }
+
+  // free
+  return { pricing_type: type, price: 0, min_price: null, max_price: null };
+}
+
+function parseProductImages(raw) {
+  if (raw === undefined || raw === null) return undefined;
+  let arr = raw;
+  if (typeof arr === "string") {
+    try {
+      arr = JSON.parse(arr);
+    } catch {
+      throw new CustomError("productImages must be an array.", 422);
+    }
+  }
+  if (!Array.isArray(arr)) {
+    throw new CustomError("productImages must be an array.", 422);
+  }
+  return arr
+    .map((item) => (typeof item === "string" ? item : item && item.url))
+    .filter((url) => typeof url === "string" && url.length > 0);
+}
 
 class ShopProductService {
   constructor() {
     this.productRepository = new ShopProductRepository();
     this.productImageRepository = new ProductImageRepository();
+    this.productFileService = new ProductFileService();
+    this.variationService = new ProductVariationService();
+  }
+
+  // variations may arrive as an array (JSON body) or a JSON string (multipart)
+  parseVariations(raw) {
+    if (raw === undefined || raw === null) return undefined;
+    let arr = raw;
+    if (typeof arr === "string") {
+      try {
+        arr = JSON.parse(arr);
+      } catch {
+        throw new CustomError("variations must be an array.", 422);
+      }
+    }
+    if (!Array.isArray(arr)) {
+      throw new CustomError("variations must be an array.", 422);
+    }
+    return arr;
   }
 
   async validateShopOwnership(shopId, userId) {
@@ -24,58 +120,124 @@ class ShopProductService {
     return shop;
   }
 
-  async createProduct(userId, productData) {
-    const { productImages, ...data } = productData;
+  async createProduct(userId, productData, mediaFiles = []) {
+    const {
+      name,
+      description,
+      shopId,
+      quantity,
+      pricing_type,
+      price,
+      min_price,
+      max_price,
+      tags,
+      insured,
+      moneyBack,
+      support247,
+      productImages,
+      variations,
+    } = productData;
 
-    const shop = await Shop.findByPk(productData.shopId);
-    if (!shop) throw new CustomError("Shop not found", 404);
+    await this.validateShopOwnership(shopId, userId);
 
-    if (shop.userId !== userId) {
-      throw new CustomError("Unauthorized", 403);
-    }
+    const pricing = resolvePricing({ pricing_type, price, min_price, max_price });
 
-    // Create product without a transaction
+    const data = {
+      name: typeof name === "string" ? name.trim() : name,
+      description: description != null ? String(description).trim() : null,
+      shopId: Number(shopId),
+      quantity: quantity !== undefined ? Number(quantity) : 0,
+      ...pricing,
+      tags: tags !== undefined && tags !== null ? parseTags(tags) : [],
+      insured: insured !== undefined ? parseBool(insured) : false,
+      moneyBack: moneyBack !== undefined ? parseBool(moneyBack) : false,
+      support247: support247 !== undefined ? parseBool(support247) : false,
+    };
+
     const product = await this.productRepository.createProduct(data);
 
-    // Prepare image data
-    const productImageData = productImages.map((u) => ({
-      url: u.url,
-      shopProductId: product.id,
-    }));
-
-    // Create product images without a transaction
-    const productImage =
-      await this.productImageRepository.createBulkProductImage(
-        productImageData
+    const imageUrls = parseProductImages(productImages);
+    let createdImages = [];
+    if (imageUrls && imageUrls.length > 0) {
+      createdImages = await this.productImageRepository.createBulkProductImage(
+        imageUrls.map((url) => ({ url, shopProductId: product.id }))
       );
+    }
 
-    // Return the product and associated images
-    return { product, productImages: productImage };
+    let media = [];
+    if (Array.isArray(mediaFiles) && mediaFiles.length > 0) {
+      media = await this.productFileService.uploadMedia(product.id, userId, mediaFiles);
+    }
+
+    const variationPayloads = this.parseVariations(variations);
+    let createdVariations = [];
+    if (variationPayloads && variationPayloads.length > 0) {
+      createdVariations = await this.variationService.setVariations(product.id, variationPayloads);
+    }
+
+    return { product, productImages: createdImages, media, variations: createdVariations };
   }
 
-  async updateProduct(productId, userId, productData) {
-    const { productImages, ...data } = productData;
-    const product = await this.productRepository.getById(productId);
+  async updateProduct(productId, userId, productData, mediaFiles = []) {
+    const {
+      name,
+      description,
+      quantity,
+      pricing_type,
+      price,
+      min_price,
+      max_price,
+      tags,
+      insured,
+      moneyBack,
+      support247,
+      productImages,
+      variations,
+    } = productData;
 
+    const product = await this.productRepository.getById(productId);
     await this.validateShopOwnership(product.shopId, userId);
 
-    const updateproduct = await this.productRepository.updateProduct(
-      productId,
-      data
-    );
+    const data = {};
+    if (name !== undefined) data.name = typeof name === "string" ? name.trim() : name;
+    if (description !== undefined) data.description = description != null ? String(description).trim() : null;
+    if (quantity !== undefined) data.quantity = Number(quantity);
+    if (tags !== undefined) data.tags = tags === null ? [] : parseTags(tags);
+    if (insured !== undefined) data.insured = parseBool(insured);
+    if (moneyBack !== undefined) data.moneyBack = parseBool(moneyBack);
+    if (support247 !== undefined) data.support247 = parseBool(support247);
 
-    await this.productImageRepository.bulkDeleteProductImagesByShopProductId(
-      updateproduct.id
-    );
+    if (pricing_type !== undefined || price !== undefined || min_price !== undefined || max_price !== undefined) {
+      Object.assign(data, resolvePricing({ pricing_type, price, min_price, max_price }, product));
+    }
 
-    const productImageData = productImages.map((u) => ({
-      url: u.url,
-      shopProductId: updateproduct.id,
-    }));
+    const updatedProduct = await this.productRepository.updateProduct(productId, data);
 
-    const newProductImage = await this.productImageRepository.createBulkProductImage(productImageData);
+    // productImages: replace-all only when provided (omit to keep existing)
+    const imageUrls = parseProductImages(productImages);
+    let images;
+    if (imageUrls !== undefined) {
+      await this.productImageRepository.bulkDeleteProductImagesByShopProductId(updatedProduct.id);
+      images = imageUrls.length > 0
+        ? await this.productImageRepository.createBulkProductImage(
+            imageUrls.map((url) => ({ url, shopProductId: updatedProduct.id }))
+          )
+        : [];
+    }
 
-    return { updateproduct, newProductImage };
+    let media;
+    if (Array.isArray(mediaFiles) && mediaFiles.length > 0) {
+      media = await this.productFileService.uploadMedia(updatedProduct.id, userId, mediaFiles);
+    }
+
+    // variations: replace-all only when provided (omit to keep existing)
+    const variationPayloads = this.parseVariations(variations);
+    if (variationPayloads !== undefined) {
+      await this.variationService.setVariations(updatedProduct.id, variationPayloads);
+    }
+
+    const full = await this.productRepository.getById(updatedProduct.id);
+    return { product: full, ...(images !== undefined && { productImages: images }), ...(media !== undefined && { media }) };
   }
 
   async deleteProduct(productId, userId) {
@@ -97,7 +259,9 @@ class ShopProductService {
 
     await this.validateShopOwnership(product.shopId, userId);
 
-    return product;
+    const json = product.toJSON();
+    json.variationsSummary = this.variationService.summarize(json.variations || []);
+    return json;
   }
 
   async getPaginatedProducts(page, limit, name, shopId) {
@@ -117,7 +281,10 @@ class ShopProductService {
   }
 
   async getPublicProductById(productId) {
-    return this.productRepository.getPublicById(productId);
+    const product = await this.productRepository.getPublicById(productId);
+    const json = product.toJSON();
+    json.variationsSummary = this.variationService.summarize(json.variations || []);
+    return json;
   }
 
   async getPublicPaginatedProducts(page, limit, name, shopId) {
@@ -127,6 +294,74 @@ class ShopProductService {
       name,
       shopId
     );
+  }
+
+  // ── Likes ────────────────────────────────────────────────────────────────
+
+  async likeProduct(userId, productId) {
+    await this.productRepository.getById(productId);
+    return this.productRepository.likeProduct(userId, productId);
+  }
+
+  async unlikeProduct(userId, productId) {
+    return this.productRepository.unlikeProduct(userId, productId);
+  }
+
+  async getLikesCount(productId) {
+    const product = await this.productRepository.getById(productId);
+    const count = await this.productRepository.getLikesCount(productId);
+    return (product.baseLikeCount || 0) + count;
+  }
+
+  async hasUserLiked(userId, productId) {
+    return this.productRepository.hasUserLiked(userId, productId);
+  }
+
+  // ── Views ────────────────────────────────────────────────────────────────
+
+  async recordView(userId, productId) {
+    return this.productRepository.recordView(userId, productId);
+  }
+
+  async getViewsCount(productId) {
+    const product = await this.productRepository.getById(productId);
+    const count = await this.productRepository.getViewsCount(productId);
+    return (product.baseViewCount || 0) + count;
+  }
+
+  // ── Ratings (per-user 0-10) ──────────────────────────────────────────────
+
+  async rateProduct(userId, productId, rating, comment) {
+    await this.productRepository.getById(productId);
+    const value = Number(rating);
+    if (!Number.isInteger(value) || value < 0 || value > 10) {
+      throw new CustomError("rating must be an integer between 0 and 10.", 422);
+    }
+    return sequelize.transaction((t) =>
+      this.productRepository.upsertRating(userId, productId, value, comment, t)
+    );
+  }
+
+  async deleteRating(userId, productId) {
+    await this.productRepository.getById(productId);
+    return sequelize.transaction((t) =>
+      this.productRepository.deleteRating(userId, productId, t)
+    );
+  }
+
+  // ── Admin badges ──────────────────────────────────────────────────────────
+
+  async updateBadges(productId, { isTopChoice, isQRMVerified }) {
+    const data = {};
+    if (isTopChoice !== undefined) data.isTopChoice = parseBool(isTopChoice);
+    if (isQRMVerified !== undefined) data.isQRMVerified = parseBool(isQRMVerified);
+    if (Object.keys(data).length === 0) {
+      throw new CustomError("Provide isTopChoice and/or isQRMVerified.", 422);
+    }
+
+    const product = await this.productRepository.updateBadges(productId, data);
+    if (!product) throw new CustomError("Product not found", 404);
+    return product;
   }
 }
 

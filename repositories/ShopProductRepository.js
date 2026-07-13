@@ -1,8 +1,15 @@
 const ShopProduct = require("../models/shopProduct");
 const { Op } = require("sequelize");
+const sequelize = require("../config/database");
 const CustomError = require("../errors/CustomError");
 const Shop = require("../models/shop");
 const ProductImage = require("../models/productImage");
+const ProductLike = require("../models/productLike");
+const ProductRating = require("../models/productRating");
+const ProductView = require("../models/productView");
+const ProductFile = require("../models/productFile");
+const ProductVariation = require("../models/productVariation");
+const ProductVariationImage = require("../models/productVariationImage");
 
 class ShopProductRepository {
   _publicInclude() {
@@ -10,6 +17,15 @@ class ShopProductRepository {
       {
         model: ProductImage,
         as: "productImages",
+      },
+      {
+        model: ProductFile,
+        as: "media",
+      },
+      {
+        model: ProductVariation,
+        as: "variations",
+        include: [{ model: ProductVariationImage, as: "images" }],
       },
       {
         model: Shop,
@@ -54,6 +70,15 @@ class ShopProductRepository {
         {
           model: ProductImage,
           as: "productImages", // Use the alias defined in the association
+        },
+        {
+          model: ProductFile,
+          as: "media",
+        },
+        {
+          model: ProductVariation,
+          as: "variations",
+          include: [{ model: ProductVariationImage, as: "images" }],
         },
       ],
     });
@@ -158,6 +183,109 @@ class ShopProductRepository {
       currentPage: Number(page),
       products: rows,
     };
+  }
+
+  // ── Likes ────────────────────────────────────────────────────────────────
+
+  async likeProduct(userId, shopProductId) {
+    const [like, created] = await ProductLike.findOrCreate({
+      where: { userId, shopProductId },
+      defaults: { userId, shopProductId },
+    });
+    return { like, created };
+  }
+
+  async unlikeProduct(userId, shopProductId) {
+    const deleted = await ProductLike.destroy({ where: { userId, shopProductId } });
+    return deleted > 0;
+  }
+
+  async getLikesCount(shopProductId) {
+    return ProductLike.count({ where: { shopProductId } });
+  }
+
+  async hasUserLiked(userId, shopProductId) {
+    const like = await ProductLike.findOne({ where: { userId, shopProductId } });
+    return like !== null;
+  }
+
+  // ── Views ────────────────────────────────────────────────────────────────
+
+  async recordView(userId, shopProductId) {
+    const [view, created] = await ProductView.findOrCreate({
+      where: { userId, shopProductId },
+      defaults: { userId, shopProductId },
+    });
+    return { view, created };
+  }
+
+  async getViewsCount(shopProductId) {
+    return ProductView.count({ where: { shopProductId } });
+  }
+
+  // ── Ratings (per-user 0-10, keeps ratingAvg/ratingCount in sync) ──────────
+
+  async upsertRating(userId, shopProductId, rating, comment, t) {
+    const existing = await ProductRating.findOne({
+      where: { userId, shopProductId },
+      transaction: t,
+    });
+
+    if (existing) {
+      await existing.update(
+        { rating, ...(comment !== undefined && { comment }) },
+        { transaction: t },
+      );
+    } else {
+      await ProductRating.create(
+        { userId, shopProductId, rating, comment: comment ?? null },
+        { transaction: t },
+      );
+    }
+
+    await this._recomputeRating(shopProductId, t);
+    return true;
+  }
+
+  async deleteRating(userId, shopProductId, t) {
+    const deleted = await ProductRating.destroy({
+      where: { userId, shopProductId },
+      transaction: t,
+    });
+
+    if (deleted > 0) {
+      await this._recomputeRating(shopProductId, t);
+    }
+
+    return deleted > 0;
+  }
+
+  async _recomputeRating(shopProductId, t) {
+    const [result] = await sequelize.query(
+      `SELECT COUNT(*) AS cnt, AVG(rating) AS avg FROM product_ratings WHERE shopProductId = :shopProductId`,
+      {
+        replacements: { shopProductId },
+        type: sequelize.QueryTypes.SELECT,
+        transaction: t,
+      },
+    );
+
+    const count = parseInt(result.cnt, 10) || 0;
+    const avg = count > 0 ? parseFloat(parseFloat(result.avg).toFixed(2)) : 0;
+
+    await ShopProduct.update(
+      { ratingCount: count, ratingAvg: avg },
+      { where: { id: shopProductId }, transaction: t },
+    );
+  }
+
+  // ── Admin badges ──────────────────────────────────────────────────────────
+
+  async updateBadges(shopProductId, data) {
+    const product = await ShopProduct.findByPk(shopProductId);
+    if (!product) return null;
+    await product.update(data);
+    return product;
   }
 }
 
