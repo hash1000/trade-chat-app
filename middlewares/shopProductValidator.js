@@ -49,6 +49,13 @@ const sharedProductFieldRules = () => [
     .isInt({ min: 0 })
     .withMessage("Quantity must be a positive integer"),
 
+  // seller-set rating; per-user ratings live in ratingAvg / ratingCount
+  body("rating")
+    .optional()
+    .isFloat({ min: 0, max: 10 })
+    .withMessage("Rating must be a number between 0 and 10")
+    .toFloat(),
+
   // tags may arrive as an array (JSON body) or a JSON string (multipart)
   body("tags")
     .optional({ nullable: true })

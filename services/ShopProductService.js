@@ -143,6 +143,7 @@ class ShopProductService {
       description,
       shopId,
       quantity,
+      rating,
       pricing_type,
       price,
       min_price,
@@ -165,6 +166,7 @@ class ShopProductService {
       description: description != null ? String(description).trim() : null,
       shopId: Number(shopId),
       quantity: quantity !== undefined ? Number(quantity) : 0,
+      rating: rating !== undefined ? Number(rating) : 0,
       ...pricing,
       tags: tags !== undefined && tags !== null ? parseTags(tags) : [],
       insured: insured !== undefined ? parseBool(insured) : false,
@@ -208,6 +210,7 @@ class ShopProductService {
       name,
       description,
       quantity,
+      rating,
       pricing_type,
       price,
       min_price,
@@ -228,6 +231,7 @@ class ShopProductService {
     if (name !== undefined) data.name = typeof name === "string" ? name.trim() : name;
     if (description !== undefined) data.description = description != null ? String(description).trim() : null;
     if (quantity !== undefined) data.quantity = Number(quantity);
+    if (rating !== undefined) data.rating = Number(rating);
     if (tags !== undefined) data.tags = tags === null ? [] : parseTags(tags);
     if (insured !== undefined) data.insured = parseBool(insured);
     if (moneyBack !== undefined) data.moneyBack = parseBool(moneyBack);
