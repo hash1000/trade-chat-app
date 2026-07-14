@@ -17,6 +17,11 @@ const ProductVariationImage = sequelize.define(
       type: DataTypes.STRING,
       allowNull: false,
     },
+    thumbnailUrl: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      defaultValue: null,
+    },
   },
   {
     timestamps: true,

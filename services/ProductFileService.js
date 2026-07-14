@@ -60,7 +60,7 @@ class ProductFileService {
         const file_type = EXT_TO_FILE_TYPE[ext] || "other";
         const s3FileType = S3_FILE_TYPE[file_type] ?? null;
 
-        let file_url, s3_key;
+        let file_url, s3_key, thumbnail_url;
         try {
           const result = await uploadDiskFileToS3(
             file.path,
@@ -70,6 +70,7 @@ class ProductFileService {
           );
           file_url = result.url;
           s3_key = result.key;
+          thumbnail_url = result.thumbnailUrl ?? null;
         } finally {
           await fs.unlink(file.path).catch(() => {});
         }
@@ -77,6 +78,7 @@ class ProductFileService {
         return {
           shopProductId: productId,
           file_url,
+          thumbnail_url,
           s3_key,
           file_name: file.originalname,
           file_type,
@@ -86,6 +88,27 @@ class ProductFileService {
     );
 
     return ProductFile.bulkCreate(records);
+  }
+
+  // Uploads picture files (product gallery, variation gallery) and generates a
+  // thumbnail for each — the same S3 pipeline the media upload above uses.
+  // Returns [{url, thumbnailUrl}] ready to persist.
+  async uploadImages(files = []) {
+    return Promise.all(
+      files.map(async (file) => {
+        try {
+          const result = await uploadDiskFileToS3(
+            file.path,
+            file.originalname,
+            file.mimetype,
+            "image"
+          );
+          return { url: result.url, thumbnailUrl: result.thumbnailUrl ?? null };
+        } finally {
+          await fs.unlink(file.path).catch(() => {});
+        }
+      })
+    );
   }
 
   async deleteFile(fileId, userId) {

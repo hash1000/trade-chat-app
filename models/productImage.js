@@ -13,6 +13,11 @@ const ProductImage = sequelize.define(
       type: DataTypes.STRING,
       allowNull: false,
     },
+    thumbnailUrl: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      defaultValue: null,
+    },
     shopProductId: {
       type: DataTypes.INTEGER,
       allowNull: false

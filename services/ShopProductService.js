@@ -67,10 +67,16 @@ function parseProductImages(raw) {
   if (raw === undefined || raw === null) return undefined;
   let arr = raw;
   if (typeof arr === "string") {
-    try {
-      arr = JSON.parse(arr);
-    } catch {
-      throw new CustomError("productImages must be an array.", 422);
+    const trimmed = arr.trim();
+    // multipart delivers a repeated field as a bare string, not JSON
+    if (trimmed.startsWith("[")) {
+      try {
+        arr = JSON.parse(trimmed);
+      } catch {
+        throw new CustomError("productImages must be an array.", 422);
+      }
+    } else {
+      arr = [trimmed];
     }
   }
   if (!Array.isArray(arr)) {
@@ -87,6 +93,20 @@ class ShopProductService {
     this.productImageRepository = new ProductImageRepository();
     this.productFileService = new ProductFileService();
     this.variationService = new ProductVariationService();
+  }
+
+  // The product gallery accepts uploaded files, URL strings, or both. Uploads are
+  // pushed to S3 with a generated thumbnail; a URL is stored as-is with a null
+  // thumbnail, so clients that pre-upload via POST /file/short keep working.
+  // Returns undefined when neither was given — on update that means "leave as is".
+  async resolveProductImages(rawImages, files = []) {
+    const urls = parseProductImages(rawImages);
+    if (urls === undefined && files.length === 0) return undefined;
+
+    const uploaded = await this.productFileService.uploadImages(files);
+    const passthrough = (urls ?? []).map((url) => ({ url, thumbnailUrl: null }));
+
+    return [...passthrough, ...uploaded];
   }
 
   // variations may arrive as an array (JSON body) or a JSON string (multipart)
@@ -137,7 +157,13 @@ class ShopProductService {
     return shop;
   }
 
-  async createProduct(userId, productData, mediaFiles = []) {
+  async createProduct(userId, productData, files = {}) {
+    const {
+      media: mediaFiles = [],
+      productImages: productImageFiles = [],
+      variationImages = {},
+    } = files;
+
     const {
       name,
       description,
@@ -198,11 +224,11 @@ class ShopProductService {
 
     const product = await this.productRepository.createProduct(data);
 
-    const imageUrls = parseProductImages(productImages);
+    const images = await this.resolveProductImages(productImages, productImageFiles);
     let createdImages = [];
-    if (imageUrls && imageUrls.length > 0) {
+    if (images && images.length > 0) {
       createdImages = await this.productImageRepository.createBulkProductImage(
-        imageUrls.map((url) => ({ url, shopProductId: product.id }))
+        images.map(({ url, thumbnailUrl }) => ({ url, thumbnailUrl, shopProductId: product.id }))
       );
     }
 
@@ -213,7 +239,11 @@ class ShopProductService {
 
     let createdVariations = [];
     if (variationPayloads && variationPayloads.length > 0) {
-      createdVariations = await this.variationService.setVariations(product.id, variationPayloads);
+      createdVariations = await this.variationService.setVariations(
+        product.id,
+        variationPayloads,
+        variationImages
+      );
       await this.variationService.syncPricing(product.id);
       await product.reload();
     }
@@ -228,7 +258,13 @@ class ShopProductService {
     return { product, productImages: createdImages, media, variations: createdVariations, categories };
   }
 
-  async updateProduct(productId, userId, productData, mediaFiles = []) {
+  async updateProduct(productId, userId, productData, files = {}) {
+    const {
+      media: mediaFiles = [],
+      productImages: productImageFiles = [],
+      variationImages = {},
+    } = files;
+
     const {
       name,
       description,
@@ -313,13 +349,17 @@ class ShopProductService {
     const updatedProduct = await this.productRepository.updateProduct(productId, data);
 
     // productImages: replace-all only when provided (omit to keep existing)
-    const imageUrls = parseProductImages(productImages);
+    const resolved = await this.resolveProductImages(productImages, productImageFiles);
     let images;
-    if (imageUrls !== undefined) {
+    if (resolved !== undefined) {
       await this.productImageRepository.bulkDeleteProductImagesByShopProductId(updatedProduct.id);
-      images = imageUrls.length > 0
+      images = resolved.length > 0
         ? await this.productImageRepository.createBulkProductImage(
-            imageUrls.map((url) => ({ url, shopProductId: updatedProduct.id }))
+            resolved.map(({ url, thumbnailUrl }) => ({
+              url,
+              thumbnailUrl,
+              shopProductId: updatedProduct.id,
+            }))
           )
         : [];
     }
@@ -331,7 +371,11 @@ class ShopProductService {
 
     // variations: replace-all only when provided (omit to keep existing)
     if (variationPayloads !== undefined) {
-      await this.variationService.setVariations(updatedProduct.id, variationPayloads);
+      await this.variationService.setVariations(
+        updatedProduct.id,
+        variationPayloads,
+        variationImages
+      );
     }
     if (useVariations) {
       await this.variationService.syncPricing(updatedProduct.id);

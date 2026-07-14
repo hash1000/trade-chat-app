@@ -1,5 +1,8 @@
 const { ShopProduct, ProductVariation, ProductVariationImage, Shop } = require("../models");
+const ProductFileService = require("./ProductFileService");
 const CustomError = require("../errors/CustomError");
+
+const productFileService = new ProductFileService();
 
 const ALLOWED_UNITS = ["per_piece", "per_unit", "per_m3", "per_m2", "per_carton", "per_ton"];
 
@@ -12,10 +15,16 @@ function parseImages(raw) {
   if (raw === undefined || raw === null) return undefined;
   let arr = raw;
   if (typeof arr === "string") {
-    try {
-      arr = JSON.parse(arr);
-    } catch {
-      throw new CustomError("variation images must be an array.", 422);
+    const trimmed = arr.trim();
+    // multipart delivers a repeated field as a bare string, not JSON
+    if (trimmed.startsWith("[")) {
+      try {
+        arr = JSON.parse(trimmed);
+      } catch {
+        throw new CustomError("variation images must be an array.", 422);
+      }
+    } else {
+      arr = [trimmed];
     }
   }
   if (!Array.isArray(arr)) {
@@ -25,6 +34,22 @@ function parseImages(raw) {
     .map((item) => (typeof item === "string" ? item : item && item.url))
     .filter((url) => typeof url === "string" && url.length > 0);
 }
+
+// Uploaded files are appended after any URLs in the payload, so the two can be
+// mixed. Uploads get a generated thumbnail; a passed-through URL gets null.
+// Returns undefined when neither was supplied — meaning "leave images alone".
+async function resolveImages(rawImages, files = []) {
+  const urls = parseImages(rawImages);
+  if (urls === undefined && files.length === 0) return undefined;
+
+  const uploaded = await productFileService.uploadImages(files);
+  const passthrough = (urls ?? []).map((url) => ({ url, thumbnailUrl: null }));
+
+  return [...passthrough, ...uploaded];
+}
+
+const imageRows = (images, productVariationId) =>
+  images.map(({ url, thumbnailUrl }) => ({ url, thumbnailUrl, productVariationId }));
 
 // Normalizes one variation payload; `existing` supplies fallbacks on update
 function normalizeVariation(raw, existing = null) {
@@ -131,7 +156,7 @@ class ProductVariationService {
     return variation;
   }
 
-  async createVariation(productId, userId, payload) {
+  async createVariation(productId, userId, payload, files = []) {
     const product = await this.assertProduct(productId);
     await this.assertOwner(product, userId);
 
@@ -145,18 +170,16 @@ class ProductVariationService {
     const data = normalizeVariation(payload);
     const variation = await ProductVariation.create({ ...data, shopProductId: productId });
 
-    const imageUrls = parseImages(payload.images);
-    if (imageUrls && imageUrls.length > 0) {
-      await ProductVariationImage.bulkCreate(
-        imageUrls.map((url) => ({ url, productVariationId: variation.id }))
-      );
+    const images = await resolveImages(payload.images, files);
+    if (images && images.length > 0) {
+      await ProductVariationImage.bulkCreate(imageRows(images, variation.id));
     }
 
     await this.syncPricing(productId);
     return this.getVariation(variation.id);
   }
 
-  async updateVariation(productId, variationId, userId, payload) {
+  async updateVariation(productId, variationId, userId, payload, files = []) {
     const product = await this.assertProduct(productId);
     await this.assertOwner(product, userId);
 
@@ -168,14 +191,12 @@ class ProductVariationService {
     const data = normalizeVariation(payload, variation);
     await variation.update(data);
 
-    // images: replace-all only when provided
-    const imageUrls = parseImages(payload.images);
-    if (imageUrls !== undefined) {
+    // images: replace-all only when provided (as URLs, uploaded files, or both)
+    const images = await resolveImages(payload.images, files);
+    if (images !== undefined) {
       await ProductVariationImage.destroy({ where: { productVariationId: variation.id } });
-      if (imageUrls.length > 0) {
-        await ProductVariationImage.bulkCreate(
-          imageUrls.map((url) => ({ url, productVariationId: variation.id }))
-        );
+      if (images.length > 0) {
+        await ProductVariationImage.bulkCreate(imageRows(images, variation.id));
       }
     }
 
@@ -202,7 +223,10 @@ class ProductVariationService {
 
   // Replace-all, used when `variations` array comes inline on product create/update.
   // Ownership must already be verified by the caller.
-  async setVariations(productId, variationPayloads) {
+  // variationFiles maps a variation's index in variationPayloads to the files
+  // uploaded for it as variation_images_<i> — that index is the only link a flat
+  // multipart body gives us back to the nested variations array.
+  async setVariations(productId, variationPayloads, variationFiles = {}) {
     await ProductVariation.destroy({ where: { shopProductId: productId } });
 
     const created = [];
@@ -213,11 +237,9 @@ class ProductVariationService {
 
       const variation = await ProductVariation.create({ ...data, shopProductId: productId });
 
-      const imageUrls = parseImages(payload.images);
-      if (imageUrls && imageUrls.length > 0) {
-        await ProductVariationImage.bulkCreate(
-          imageUrls.map((url) => ({ url, productVariationId: variation.id }))
-        );
+      const images = await resolveImages(payload.images, variationFiles[i] ?? []);
+      if (images && images.length > 0) {
+        await ProductVariationImage.bulkCreate(imageRows(images, variation.id));
       }
       created.push(variation);
     }

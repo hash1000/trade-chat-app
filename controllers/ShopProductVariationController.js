@@ -29,7 +29,12 @@ class ShopProductVariationController {
     try {
       const { productId } = req.params;
       const { id: userId } = req.user;
-      const variation = await variationService.createVariation(Number(productId), userId, req.body);
+      const variation = await variationService.createVariation(
+        Number(productId),
+        userId,
+        req.body,
+        req.files ?? []
+      );
       return res.status(201).json({ success: true, data: variation });
     } catch (error) {
       return handle(res, error, "ShopProductVariationController.createVariation error:");
@@ -44,7 +49,8 @@ class ShopProductVariationController {
         Number(productId),
         Number(variationId),
         userId,
-        req.body
+        req.body,
+        req.files ?? []
       );
       return res.json({ success: true, data: variation });
     } catch (error) {

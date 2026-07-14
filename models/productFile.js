@@ -20,6 +20,13 @@ const ProductFile = sequelize.define(
       allowNull: false,
     },
 
+    // Generated for images and videos; null for documents
+    thumbnail_url: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      defaultValue: null,
+    },
+
     file_name: {
       type: DataTypes.STRING,
       allowNull: false,

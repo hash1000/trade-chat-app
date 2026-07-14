@@ -1,12 +1,17 @@
 const ShopProductService = require("../services/ShopProductService");
+const { groupProductFiles } = require("../utilities/productFileMulter");
+
 const productService = new ShopProductService();
 
 class ShopProductController {
   async createProduct(req, res) {
     try {
       const { id: userId } = req.user;
-      const mediaFiles = (req.files && req.files.media) || [];
-      const product = await productService.createProduct(userId, req.body, mediaFiles);
+      const product = await productService.createProduct(
+        userId,
+        req.body,
+        groupProductFiles(req.files)
+      );
 
       return res.status(201).json({
         success: true,
@@ -25,13 +30,12 @@ class ShopProductController {
     try {
       const { productId } = req.params;
       const { id: userId } = req.user;
-      const mediaFiles = (req.files && req.files.media) || [];
 
       const product = await productService.updateProduct(
         productId,
         userId,
         req.body,
-        mediaFiles
+        groupProductFiles(req.files)
       );
 
       return res.json(product);

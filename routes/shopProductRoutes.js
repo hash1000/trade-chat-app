@@ -10,6 +10,7 @@ const ShopProductVariationController = require('../controllers/ShopProductVariat
 const {
   uploadProductMedia,
   uploadProductCreateUpdate,
+  uploadVariationImages,
 } = require('../utilities/productFileMulter')
 
 const {
@@ -200,10 +201,12 @@ router.get(
   variationController.listVariations.bind(variationController)
 )
 
+// images[] may be attached — each is uploaded to S3 with a generated thumbnail
 router.post(
   '/:productId/variations',
   authMiddleware,
   checkIntegerParam('productId'),
+  fileController.handleMulterError(uploadVariationImages),
   variationController.createVariation.bind(variationController)
 )
 
@@ -212,6 +215,7 @@ router.put(
   authMiddleware,
   checkIntegerParam('productId'),
   checkIntegerParam('variationId'),
+  fileController.handleMulterError(uploadVariationImages),
   variationController.updateVariation.bind(variationController)
 )
 
