@@ -164,6 +164,12 @@ Order.belongsTo(Address, {
     foreignKey: "userId",
     as: "user",
   });
+  // Same FK as "user" above — a second alias so responses can expose the creator
+  // as createdBy without disturbing anything that already reads shop.user
+  Shop.belongsTo(User, {
+    foreignKey: "userId",
+    as: "createdBy",
+  });
 
   // 👉 Shops → ShopProducts
   Shop.hasMany(ShopProduct, {

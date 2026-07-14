@@ -18,6 +18,7 @@ class ShopRepository {
   buildIncludes({ includeTeams = false, includeMembers = false, includeProducts = false } = {}) {
     const include = [
       { model: ShopImage, as: "images" },
+      { model: User, as: "createdBy", attributes: USER_ATTRIBUTES },
       { model: User, as: "editor", attributes: USER_ATTRIBUTES },
       { model: Wallet, as: "payoutWallet" },
     ];
@@ -132,7 +133,10 @@ class ShopRepository {
       limit: Number(limit),
       offset,
       order: [["createdAt", "DESC"]],
-      include: [{ model: ShopImage, as: "images" }],
+      include: [
+        { model: ShopImage, as: "images" },
+        { model: User, as: "createdBy", attributes: USER_ATTRIBUTES },
+      ],
       distinct: true,
     });
 
