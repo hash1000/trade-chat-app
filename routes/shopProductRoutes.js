@@ -139,6 +139,14 @@ router.get(
   controller.getPaginatedProducts.bind(controller)
 )
 
+// my products — only the products of shops this user owns
+router.get(
+  '/my/list',
+  authMiddleware,
+  getPaginatedProductsValidation,
+  controller.getMyProducts.bind(controller)
+)
+
 router.get(
   '/shop/:shopId',
   authMiddleware,

@@ -312,6 +312,20 @@ class ShopProductService {
     );
   }
 
+  async getMyPaginatedProducts(userId, page, limit, name, shopId) {
+    if (shopId) {
+      await this.validateShopOwnership(shopId, userId);
+    }
+
+    return this.productRepository.getMyPaginatedProducts(
+      userId,
+      page,
+      limit,
+      name,
+      shopId
+    );
+  }
+
   async getPublicProductsByShop(shopId) {
     const shop = await Shop.findByPk(shopId);
     if (!shop) throw new CustomError("Shop not found", 404);

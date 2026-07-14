@@ -168,6 +168,42 @@ class ShopProductRepository {
     };
   }
 
+  async getMyPaginatedProducts(userId, page, limit, name, shopId) {
+    const offset = (page - 1) * limit;
+    const where = {};
+
+    if (name) {
+      where.name = { [Op.like]: `%${name}%` };
+    }
+
+    if (shopId) {
+      where.shopId = shopId;
+    }
+
+    // the required shop join is what keeps other owners' products out
+    const include = this._publicInclude().map((association) =>
+      association.as === "shop"
+        ? { ...association, where: { userId }, required: true }
+        : association
+    );
+
+    const { count, rows } = await ShopProduct.findAndCountAll({
+      where,
+      include,
+      limit: Number(limit),
+      offset,
+      order: [["createdAt", "DESC"]],
+      distinct: true,
+    });
+
+    return {
+      total: count,
+      totalPages: Math.ceil(count / limit),
+      currentPage: Number(page),
+      products: rows,
+    };
+  }
+
   async getPublicPaginatedProducts(page, limit, name, shopId) {
     const offset = (page - 1) * limit;
     const where = {};

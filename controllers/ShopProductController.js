@@ -115,6 +115,32 @@ class ShopProductController {
     }
   }
 
+  async getMyProducts(req, res) {
+    try {
+      const { id: userId } = req.user;
+      const { page = 1, limit = 10, name, shopId } = req.query;
+
+      const products = await productService.getMyPaginatedProducts(
+        userId,
+        page,
+        limit,
+        name,
+        shopId
+      );
+
+      return res.json({
+        status: true,
+        message: "Successfully fetched products",
+        data: products,
+      });
+    } catch (error) {
+      console.error("ShopProductController.getMyProducts error:", error);
+      return res
+        .status(error.statusCode || 500)
+        .json({ message: error.message || "Failed to list products" });
+    }
+  }
+
   async getPublicProductsByShop(req, res) {
     try {
       const { shopId } = req.params;
