@@ -1,20 +1,38 @@
 const { body, query, validationResult } = require('express-validator')
 
 /**
+ * A multipart body delivers arrays as strings — either JSON ("[1,2]") or a
+ * single repeated value. Normalize both to an array before the isArray check.
+ */
+const toArray = (value) => {
+  if (typeof value !== 'string') return value
+  const trimmed = value.trim()
+  if (!trimmed.startsWith('[')) return [trimmed]
+  try {
+    return JSON.parse(trimmed)
+  } catch {
+    return value
+  }
+}
+
+/**
+ * header_image / profile_image are required on create, but may arrive either as
+ * an uploaded file or as a plain URL string.
+ */
+const requireImage = (field, label) =>
+  body(field).custom((value, { req }) => {
+    if (req.files?.[field]?.length > 0) return true
+    if (typeof value === 'string' && value.trim().length > 0) return true
+    throw new Error(`${label} is required — upload a file or pass an image URL`)
+  })
+
+/**
  * ✅ Create Shop Validation
  */
 exports.createShopValidationRules = [
-  body('header_image')
-    .notEmpty()
-    .withMessage('Header image is required')
-    .isString()
-    .withMessage('Header image must be a string'),
+  requireImage('header_image', 'Header image'),
 
-  body('profile_image')
-    .notEmpty()
-    .withMessage('Profile image is required')
-    .isString()
-    .withMessage('Profile image must be a string'),
+  requireImage('profile_image', 'Profile image'),
 
   body('name')
     .notEmpty()
@@ -154,6 +172,7 @@ function assignmentValidationRules() {
   return [
     body('teams')
       .optional()
+      .customSanitizer(toArray)
       .isArray()
       .withMessage('teams must be an array of team IDs'),
 
@@ -164,6 +183,7 @@ function assignmentValidationRules() {
 
     body('members')
       .optional()
+      .customSanitizer(toArray)
       .isArray()
       .withMessage('members must be an array of user IDs'),
 
@@ -178,8 +198,11 @@ function assignmentValidationRules() {
       .withMessage('editor must be a user ID')
       .toInt(),
 
+    // Only validated when passed as URLs in the body; uploaded files land in
+    // req.files and are checked by multer's image filter instead.
     body('multiple_images')
       .optional()
+      .customSanitizer(toArray)
       .isArray()
       .withMessage('multiple_images must be an array of image URLs'),
   ]

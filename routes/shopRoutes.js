@@ -4,6 +4,8 @@ const router = express.Router()
 const ShopController = require('../controllers/ShopController')
 const authMiddleware = require('../middlewares/authenticate')
 const checkIntegerParam = require('../middlewares/paramIntegerValidation')
+const multerHandler = require('../middlewares/multerHandler')
+const { uploadShopImages } = require('../utilities/shopFileMulter')
 const {
   createShopValidationRules,
   updateShopValidationRules,
@@ -17,11 +19,15 @@ const shopController = new ShopController()
 
 // ── Core CRUD ─────────────────────────────────────────────────────────────────
 
+// header_image / profile_image / multiple_images accept uploaded files, which
+// are pushed to S3 with thumbnails, or plain URL strings as before.
+const IMAGE_TOO_LARGE = 'Image exceeds the 25MB limit.'
+
 router.post(
-  '/', authMiddleware, createShopValidationRules, shopController.createShop.bind(shopController)
+  '/', authMiddleware, multerHandler(uploadShopImages, IMAGE_TOO_LARGE), createShopValidationRules, shopController.createShop.bind(shopController)
 )
 router.put(
-  '/:shopId', authMiddleware, checkIntegerParam('shopId'), updateShopValidationRules, shopController.updateShop.bind(shopController)
+  '/:shopId', authMiddleware, multerHandler(uploadShopImages, IMAGE_TOO_LARGE), checkIntegerParam('shopId'), updateShopValidationRules, shopController.updateShop.bind(shopController)
 )
 router.delete('/:shopId', authMiddleware, checkIntegerParam('shopId'), shopController.deleteShop.bind(shopController))
 router.get('/', authMiddleware, shopController.getShops.bind(shopController))

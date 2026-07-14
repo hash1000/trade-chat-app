@@ -13,9 +13,19 @@ const Shop = sequelize.define(
       type: DataTypes.STRING,
       allowNull: false,
     },
+    header_image_thumbnail: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      defaultValue: null,
+    },
     profile_image: {
       type: DataTypes.STRING,
       allowNull: false,
+    },
+    profile_image_thumbnail: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      defaultValue: null,
     },
     name: {
       type: DataTypes.STRING, 

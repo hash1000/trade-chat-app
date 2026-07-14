@@ -1,29 +1,41 @@
 const CustomError = require("../errors/CustomError");
 const ShopRepository = require("../repositories/ShopRepository");
+const ShopFileService = require("./ShopFileService");
 const { User, Wallet } = require("../models");
 
 // Fields the assigned editor is allowed to change. Teams, members and the
-// editor itself can only be changed by the shop creator.
+// editor itself can only be changed by the shop creator. The *_thumbnail
+// values are derived server-side from the uploaded file, never sent by clients.
 const EDITABLE_SHOP_FIELDS = [
   "name",
   "description",
   "country",
   "leadTime",
   "profile_image",
+  "profile_image_thumbnail",
   "header_image",
+  "header_image_thumbnail",
   "multiple_images",
   "rating",
   "likes",
 ];
 
+const SINGLE_IMAGE_FIELDS = ["header_image", "profile_image"];
+
 function normalizeImageUrls(raw) {
   if (raw === undefined) return undefined;
   let arr = raw;
   if (typeof arr === "string") {
-    try {
-      arr = JSON.parse(arr);
-    } catch {
-      throw new CustomError("multiple_images must be an array", 422);
+    const trimmed = arr.trim();
+    // A multipart body delivers a repeated field as a bare string, not JSON
+    if (trimmed.startsWith("[")) {
+      try {
+        arr = JSON.parse(trimmed);
+      } catch {
+        throw new CustomError("multiple_images must be an array", 422);
+      }
+    } else {
+      arr = [trimmed];
     }
   }
   if (!Array.isArray(arr)) {
@@ -37,6 +49,43 @@ function normalizeImageUrls(raw) {
 class ShopService {
   constructor() {
     this.shopRepository = new ShopRepository()
+    this.shopFileService = new ShopFileService()
+  }
+
+  // header_image / profile_image accept either an uploaded file or a plain URL
+  // string. An upload wins, and gets a generated thumbnail; a URL is stored
+  // as-is with no thumbnail, which keeps clients that already upload through
+  // POST /file/short working. Returns {} when the field was not supplied at
+  // all, so an update leaves the existing image untouched.
+  async resolveSingleImage(files, data, field) {
+    const uploaded = files?.[field]?.[0];
+
+    if (uploaded) {
+      const { url, thumbnailUrl } = await this.shopFileService.uploadImage(uploaded);
+      return { [field]: url, [`${field}_thumbnail`]: thumbnailUrl };
+    }
+
+    const url = data[field];
+    if (typeof url === "string" && url.trim().length > 0) {
+      return { [field]: url.trim(), [`${field}_thumbnail`]: null };
+    }
+
+    return {};
+  }
+
+  // Uploaded gallery files are appended after any URLs passed in the body, so a
+  // client can mix the two. Returns undefined when neither was supplied, which
+  // means "leave the gallery alone" on update.
+  async resolveGalleryImages(files, multipleImages) {
+    const uploads = files?.multiple_images ?? [];
+    const urls = normalizeImageUrls(multipleImages);
+
+    if (uploads.length === 0 && urls === undefined) return undefined;
+
+    const uploaded = await this.shopFileService.uploadImages(uploads);
+    const passthrough = (urls ?? []).map((url) => ({ url, thumbnailUrl: null }));
+
+    return [...passthrough, ...uploaded];
   }
 
   assertOwner(shop, userId) {
@@ -60,7 +109,7 @@ class ShopService {
     }
   }
 
-  async createShop(userId, shopData) {
+  async createShop(userId, shopData, files = {}) {
     const { teams, members, editor, multiple_images, payoutWalletId, ...data } = shopData;
 
     if (editor !== undefined && editor !== null) {
@@ -70,6 +119,12 @@ class ShopService {
     if (payoutWalletId !== undefined && payoutWalletId !== null) {
       await this.validatePayoutWallet(payoutWalletId, userId);
     }
+
+    // Validate everything that can reject before spending an S3 upload on it
+    for (const field of SINGLE_IMAGE_FIELDS) {
+      Object.assign(data, await this.resolveSingleImage(files, data, field));
+    }
+    const images = await this.resolveGalleryImages(files, multiple_images);
 
     const shop = await this.shopRepository.createShop({
       ...data,
@@ -84,9 +139,8 @@ class ShopService {
     if (Array.isArray(members) && members.length > 0) {
       await this.shopRepository.addMembers(shop.id, members);
     }
-    const urls = normalizeImageUrls(multiple_images);
-    if (urls && urls.length > 0) {
-      await this.shopRepository.replaceImages(shop.id, urls);
+    if (images && images.length > 0) {
+      await this.shopRepository.replaceImages(shop.id, images);
     }
 
     return this.shopRepository.getShopWithRelations(shop.id, {
@@ -95,7 +149,7 @@ class ShopService {
     });
   }
 
-  async updateShop(shopId, userId, shopData) {
+  async updateShop(shopId, userId, shopData, files = {}) {
     const shop = await this.shopRepository.getShopById(shopId);
 
     const isOwner = shop.userId === userId;
@@ -135,6 +189,12 @@ class ShopService {
     delete data.editorId;
     delete data.payoutWalletId;
 
+    // After the editable-field filter, so the derived *_thumbnail values it
+    // does not know about survive. Both the owner and the editor may change images.
+    for (const field of SINGLE_IMAGE_FIELDS) {
+      Object.assign(data, await this.resolveSingleImage(files, data, field));
+    }
+
     if (editor !== undefined && editor !== null) {
       await this.validateEditor(editor);
       data.editorId = editor;
@@ -166,9 +226,9 @@ class ShopService {
         await this.shopRepository.addMembers(shopId, members);
       }
     }
-    const urls = normalizeImageUrls(multiple_images);
-    if (urls !== undefined) {
-      await this.shopRepository.replaceImages(shopId, urls);
+    const images = await this.resolveGalleryImages(files, multiple_images);
+    if (images !== undefined) {
+      await this.shopRepository.replaceImages(shopId, images);
     }
 
     return this.shopRepository.getShopWithRelations(shopId, {

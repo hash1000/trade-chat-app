@@ -5,7 +5,7 @@ class ShopController {
   async createShop(req, res) {
     try {
       const { id: userId } = req.user
-      const shop = await shopService.createShop(userId, req.body)
+      const shop = await shopService.createShop(userId, req.body, req.files)
       return res.status(201).json(shop)
     } catch (error) {
       console.error(error)
@@ -18,7 +18,7 @@ class ShopController {
       const { shopId } = req.params
       const { id: userId } = req.user
 
-      const shop = await shopService.updateShop(shopId, userId, req.body)
+      const shop = await shopService.updateShop(shopId, userId, req.body, req.files)
       return res.json(shop)
     } catch (error) {
       console.error(error)

@@ -146,10 +146,18 @@ class ShopRepository {
 
   // ── Images ─────────────────────────────────────────────────────────────────
 
-  async replaceImages(shopId, urls) {
+  // Accepts either plain URL strings or {url, thumbnailUrl} objects
+  async replaceImages(shopId, images) {
     await ShopImage.destroy({ where: { shopId } });
-    if (!Array.isArray(urls) || urls.length === 0) return [];
-    return ShopImage.bulkCreate(urls.map((url) => ({ url, shopId })));
+    if (!Array.isArray(images) || images.length === 0) return [];
+
+    const rows = images.map((image) =>
+      typeof image === "string"
+        ? { url: image, thumbnailUrl: null, shopId }
+        : { url: image.url, thumbnailUrl: image.thumbnailUrl ?? null, shopId }
+    );
+
+    return ShopImage.bulkCreate(rows);
   }
 
   // ── Teams ──────────────────────────────────────────────────────────────────
