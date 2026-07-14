@@ -17,6 +17,13 @@ const ShopProduct = sequelize.define(
       type: DataTypes.TEXT,
       allowNull: true,
     },
+    // When true the product sells through its variations: it holds no price of
+    // its own, and pricing_type/price/min_price/max_price are derived from them.
+    hasVariations: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
     pricing_type: {
       type: DataTypes.ENUM("free", "fixed", "range"),
       allowNull: false,

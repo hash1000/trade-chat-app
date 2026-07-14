@@ -78,6 +78,42 @@ class ProductVariationService {
     }
   }
 
+  async countVariations(productId) {
+    return ProductVariation.count({ where: { shopProductId: productId } });
+  }
+
+  // A variation-based product holds no price of its own — it is derived from the
+  // variations: one variation reads as that fixed price, several as a range.
+  // Must run after any change to a variation's price.
+  async syncPricing(productId) {
+    const product = await this.assertProduct(productId);
+    if (!product.hasVariations) return product;
+
+    const variations = await ProductVariation.findAll({
+      where: { shopProductId: productId },
+      attributes: ["price"],
+    });
+    const prices = variations
+      .map((v) => Number(v.price))
+      .filter((p) => !Number.isNaN(p));
+
+    if (prices.length === 1) {
+      return product.update({
+        pricing_type: "fixed",
+        price: prices[0],
+        min_price: null,
+        max_price: null,
+      });
+    }
+
+    return product.update({
+      pricing_type: "range",
+      price: 0,
+      min_price: prices.length ? Math.min(...prices) : null,
+      max_price: prices.length ? Math.max(...prices) : null,
+    });
+  }
+
   async listVariations(productId) {
     await this.assertProduct(productId);
     return ProductVariation.findAll({
@@ -99,6 +135,13 @@ class ProductVariationService {
     const product = await this.assertProduct(productId);
     await this.assertOwner(product, userId);
 
+    if (!product.hasVariations) {
+      throw new CustomError(
+        "This product is not variation-based. Turn hasVariations on before adding variations.",
+        422
+      );
+    }
+
     const data = normalizeVariation(payload);
     const variation = await ProductVariation.create({ ...data, shopProductId: productId });
 
@@ -109,6 +152,7 @@ class ProductVariationService {
       );
     }
 
+    await this.syncPricing(productId);
     return this.getVariation(variation.id);
   }
 
@@ -135,6 +179,7 @@ class ProductVariationService {
       }
     }
 
+    await this.syncPricing(productId);
     return this.getVariation(variation.id);
   }
 
@@ -142,10 +187,16 @@ class ProductVariationService {
     const product = await this.assertProduct(productId);
     await this.assertOwner(product, userId);
 
-    const deleted = await ProductVariation.destroy({
+    const variation = await ProductVariation.findOne({
       where: { id: variationId, shopProductId: productId },
     });
-    if (!deleted) throw new CustomError("Variation not found", 404);
+    if (!variation) throw new CustomError("Variation not found", 404);
+
+    // Deleting the last one is allowed: it leaves the product variation-based but
+    // priceless, which is how a creator gets back to a plain single product — clear
+    // the variations, then turn hasVariations off with a price.
+    await variation.destroy();
+    await this.syncPricing(productId);
     return true;
   }
 

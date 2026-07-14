@@ -155,11 +155,32 @@ class ShopProductService {
       productImages,
       variations,
       categoryIds,
+      hasVariations,
     } = productData;
 
     await this.validateShopOwnership(shopId, userId);
 
-    const pricing = resolvePricing({ pricing_type, price, min_price, max_price });
+    const variationPayloads = this.parseVariations(variations);
+    const useVariations = hasVariations !== undefined ? parseBool(hasVariations) : false;
+
+    if (useVariations && (!variationPayloads || variationPayloads.length === 0)) {
+      throw new CustomError(
+        "A variation-based product needs at least one variation.",
+        422
+      );
+    }
+    if (!useVariations && variationPayloads && variationPayloads.length > 0) {
+      throw new CustomError(
+        "Turn hasVariations on to give this product variations.",
+        422
+      );
+    }
+
+    // a variation-based product carries no price of its own: the pricing fields are
+    // placeholders until syncPricing derives them from the variations below
+    const pricing = useVariations
+      ? { pricing_type: "range", price: 0, min_price: null, max_price: null }
+      : resolvePricing({ pricing_type, price, min_price, max_price });
 
     const data = {
       name: typeof name === "string" ? name.trim() : name,
@@ -167,6 +188,7 @@ class ShopProductService {
       shopId: Number(shopId),
       quantity: quantity !== undefined ? Number(quantity) : 0,
       rating: rating !== undefined ? Number(rating) : 0,
+      hasVariations: useVariations,
       ...pricing,
       tags: tags !== undefined && tags !== null ? parseTags(tags) : [],
       insured: insured !== undefined ? parseBool(insured) : false,
@@ -189,10 +211,11 @@ class ShopProductService {
       media = await this.productFileService.uploadMedia(product.id, userId, mediaFiles);
     }
 
-    const variationPayloads = this.parseVariations(variations);
     let createdVariations = [];
     if (variationPayloads && variationPayloads.length > 0) {
       createdVariations = await this.variationService.setVariations(product.id, variationPayloads);
+      await this.variationService.syncPricing(product.id);
+      await product.reload();
     }
 
     const catIds = this.parseCategoryIds(categoryIds);
@@ -222,10 +245,48 @@ class ShopProductService {
       productImages,
       variations,
       categoryIds,
+      hasVariations,
     } = productData;
 
     const product = await this.productRepository.getById(productId);
     await this.validateShopOwnership(product.shopId, userId);
+
+    const variationPayloads = this.parseVariations(variations);
+    const useVariations =
+      hasVariations !== undefined ? parseBool(hasVariations) : product.hasVariations;
+    const turningOff = product.hasVariations && !useVariations;
+    const pricingGiven =
+      pricing_type !== undefined || price !== undefined || min_price !== undefined || max_price !== undefined;
+
+    if (turningOff) {
+      if ((await this.variationService.countVariations(productId)) > 0) {
+        throw new CustomError(
+          "Delete this product's variations before turning hasVariations off.",
+          422
+        );
+      }
+      // the derived range dies with the variations, so a real price has to replace it
+      if (!pricingGiven) {
+        throw new CustomError(
+          "Set a price for this product when turning hasVariations off.",
+          422
+        );
+      }
+    }
+
+    // only enforced at the moment variations are switched on: a product that has been
+    // emptied out by deleting its variations must stay editable
+    if (!product.hasVariations && useVariations) {
+      const count = variationPayloads
+        ? variationPayloads.length
+        : await this.variationService.countVariations(productId);
+      if (count === 0) {
+        throw new CustomError("A variation-based product needs at least one variation.", 422);
+      }
+    }
+    if (!useVariations && variationPayloads && variationPayloads.length > 0) {
+      throw new CustomError("Turn hasVariations on to give this product variations.", 422);
+    }
 
     const data = {};
     if (name !== undefined) data.name = typeof name === "string" ? name.trim() : name;
@@ -236,9 +297,17 @@ class ShopProductService {
     if (insured !== undefined) data.insured = parseBool(insured);
     if (moneyBack !== undefined) data.moneyBack = parseBool(moneyBack);
     if (support247 !== undefined) data.support247 = parseBool(support247);
+    if (hasVariations !== undefined) data.hasVariations = useVariations;
 
-    if (pricing_type !== undefined || price !== undefined || min_price !== undefined || max_price !== undefined) {
-      Object.assign(data, resolvePricing({ pricing_type, price, min_price, max_price }, product));
+    // pricing on a variation-based product is derived, so the body's pricing fields
+    // are ignored there and syncPricing has the last word.
+    // On the way out of variation mode the derived pricing is not a base to build on
+    // — the leftover "range" would otherwise demand a min/max — so it resolves fresh.
+    if (!useVariations && pricingGiven) {
+      Object.assign(
+        data,
+        resolvePricing({ pricing_type, price, min_price, max_price }, turningOff ? null : product)
+      );
     }
 
     const updatedProduct = await this.productRepository.updateProduct(productId, data);
@@ -261,9 +330,11 @@ class ShopProductService {
     }
 
     // variations: replace-all only when provided (omit to keep existing)
-    const variationPayloads = this.parseVariations(variations);
     if (variationPayloads !== undefined) {
       await this.variationService.setVariations(updatedProduct.id, variationPayloads);
+    }
+    if (useVariations) {
+      await this.variationService.syncPricing(updatedProduct.id);
     }
 
     // categories: replace-all only when provided (omit to keep existing)

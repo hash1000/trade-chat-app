@@ -24,6 +24,13 @@ const sharedProductFieldRules = () => [
     .isString()
     .withMessage("Description must be a string"),
 
+  // when true the product sells through its variations and the pricing fields
+  // below are ignored — the price is derived from the variations instead
+  body("hasVariations")
+    .optional()
+    .isBoolean()
+    .withMessage("hasVariations must be a boolean"),
+
   body("pricing_type")
     .optional()
     .isIn(["free", "fixed", "range"])
