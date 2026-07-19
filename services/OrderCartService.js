@@ -526,16 +526,26 @@ class OrderCartService {
       throw clientError("Order must be confirmed before making an additional payment.", 409, "INVALID_STATE");
     }
 
+    const serviceOrders = await ServiceOrder.findAll({ where: { orderId } });
+    if (serviceOrders.length === 0) throw clientError("Order has no items.", 400, "EMPTY_ORDER");
+
+    // Each item's outstanding balance = (finalAmount + add-ons) − paidAmount. Computed
+    // from the items, never from the order row (which can drift and doesn't reflect
+    // post-order add-on charges). This is the same basis the GET uses for balanceDue.
+    const itemTotals = await Promise.all(serviceOrders.map((so) => this.itemTotalForServiceOrder(so)));
+    const itemDues = serviceOrders.map((so, idx) =>
+      Math.max(0, itemTotals[idx] - parseFloat(so.paidAmount))
+    );
+    const orderBalanceDue = itemDues.reduce((s, v) => s + v, 0);
+
     // When payFullBalance is set, charge exactly the order's outstanding balance
-    // (total owed − everything already paid) instead of a caller-supplied amount.
+    // instead of a caller-supplied amount.
     let parsedAmount;
     if (payFullBalance) {
-      const balanceDue =
-        parseFloat(order.price) - parseFloat(order.paidAmount);
-      if (balanceDue <= 0) {
+      if (orderBalanceDue <= 0) {
         throw clientError("Order has no outstanding balance to pay.", 409, "NOTHING_DUE");
       }
-      parsedAmount = balanceDue;
+      parsedAmount = orderBalanceDue;
     } else {
       parsedAmount = parseFloat(amount);
       if (!parsedAmount || Number.isNaN(parsedAmount) || parsedAmount <= 0) {
@@ -543,17 +553,22 @@ class OrderCartService {
       }
     }
 
-    const serviceOrders = await ServiceOrder.findAll({ where: { orderId } });
-    if (serviceOrders.length === 0) throw clientError("Order has no items.", 400, "EMPTY_ORDER");
-
-    // Decide which item(s) receive the payment
+    // Decide which item(s) receive the payment.
     let targets;
     if (serviceOrderId) {
       const target = serviceOrders.find((so) => so.id === Number(serviceOrderId));
       if (!target) throw clientError("Service order item not found in this order.", 404, "NOT_FOUND");
       targets = [{ so: target, share: parsedAmount }];
+    } else if (orderBalanceDue > 0) {
+      // Route the payment to the items that actually owe money, in proportion to how
+      // much each still owes — so paying 200 lands on the item with a 200 balance, not
+      // spread across already-settled items.
+      targets = serviceOrders
+        .map((so, idx) => ({ so, due: itemDues[idx] }))
+        .filter((t) => t.due > 0)
+        .map((t) => ({ so: t.so, share: parsedAmount * (t.due / orderBalanceDue) }));
     } else {
-      const itemTotals = await Promise.all(serviceOrders.map((so) => this.itemTotalForServiceOrder(so)));
+      // Nothing outstanding (an explicit over-payment) — split proportionally by item total.
       const sumItemTotals = itemTotals.reduce((s, v) => s + v, 0);
       targets = serviceOrders.map((so, idx) => ({
         so,
@@ -648,11 +663,9 @@ class OrderCartService {
           `${buyerName} made an additional payment of ${fmtAmount(entry.amount)} for your service order(s) in Order #${orderId}. The amount has been credited to your wallet.`,
       });
 
-      // Balance remaining after this payment (paidAmount just rose by parsedAmount).
-      const remainingBalance = Math.max(
-        0,
-        parseFloat(order.price) - parseFloat(order.paidAmount) - parsedAmount
-      );
+      // Balance remaining after this payment (computed from items' outstanding dues,
+      // which we just paid down by parsedAmount).
+      const remainingBalance = Math.max(0, orderBalanceDue - parsedAmount);
 
       return {
         orderId,
