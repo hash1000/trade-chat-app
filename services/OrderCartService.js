@@ -531,7 +531,7 @@ class OrderCartService {
     let parsedAmount;
     if (payFullBalance) {
       const balanceDue =
-        parseFloat(order.price) - parseFloat(order.paidAmount) - parseFloat(order.extraPayments);
+        parseFloat(order.price) - parseFloat(order.paidAmount);
       if (balanceDue <= 0) {
         throw clientError("Order has no outstanding balance to pay.", 409, "NOTHING_DUE");
       }
@@ -618,7 +618,7 @@ class OrderCartService {
         );
 
         await ServiceOrder.update(
-          { extraPayments: sequelize.literal(`extraPayments + ${share}`) },
+          { paidAmount: sequelize.literal(`paidAmount + ${share}`) },
           { where: { id: so.id }, transaction: tx }
         );
 
@@ -633,7 +633,7 @@ class OrderCartService {
       }
 
       await Order.update(
-        { extraPayments: sequelize.literal(`extraPayments + ${parsedAmount}`) },
+        { paidAmount: sequelize.literal(`paidAmount + ${parsedAmount}`) },
         { where: { id: orderId }, transaction: tx }
       );
 
@@ -648,10 +648,10 @@ class OrderCartService {
           `${buyerName} made an additional payment of ${fmtAmount(entry.amount)} for your service order(s) in Order #${orderId}. The amount has been credited to your wallet.`,
       });
 
-      // Balance remaining after this payment (extraPayments just rose by parsedAmount).
+      // Balance remaining after this payment (paidAmount just rose by parsedAmount).
       const remainingBalance = Math.max(
         0,
-        parseFloat(order.price) - parseFloat(order.paidAmount) - parseFloat(order.extraPayments) - parsedAmount
+        parseFloat(order.price) - parseFloat(order.paidAmount) - parsedAmount
       );
 
       return {
@@ -713,9 +713,10 @@ class OrderCartService {
         { transaction: tx }
       );
 
-      // order_payment counts toward the original order price (paidAmount);
-      // order_top_up counts as an additional payment (extraPayments)
-      const targetField = recordType === "order_top_up" ? "extraPayments" : "paidAmount";
+      // All recorded payments (original or top-up) pay down the order balance, so
+      // both count toward paidAmount. The ledger `type` still distinguishes them for
+      // reporting. balanceDue = total − paidAmount, so top-ups must land here too.
+      const targetField = "paidAmount";
 
       await Order.update(
         { [targetField]: sequelize.literal(`${targetField} + ${parsedAmount}`) },
@@ -1178,7 +1179,7 @@ class OrderCartService {
       totalAmount,
       paidAmount,
       extraPayments,
-      balanceDue: Math.max(0, totalAmount - paidAmount - extraPayments),
+      balanceDue: Math.max(0, totalAmount - paidAmount),
       items,
       paymentHistory,
       createdAt: order.createdAt,
