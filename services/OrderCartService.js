@@ -1079,14 +1079,21 @@ class OrderCartService {
           };
         })
       );
+      // Order-level totals are summed from the items (each item's itemTotal =
+      // finalAmount + add-ons, and its own paidAmount), not read from the order row —
+      // the order columns can drift, and add-ons only live on the items.
+      const totalAmount = services.reduce((sum, s) => sum + s.itemTotal, 0);
+      const paidAmount = services.reduce((sum, s) => sum + s.paidAmount, 0);
+      const extraPayments = services.reduce((sum, s) => sum + s.extraPayments, 0);
+
       result.push({
         orderId: o.id,
         cartId: o.cartId,
         status: o.status,
-        totalAmount: parseFloat(o.price),
-        paidAmount: parseFloat(o.paidAmount),
-        extraPayments: parseFloat(o.extraPayments),
-        balanceDue: Math.max(0, parseFloat(o.price) - parseFloat(o.paidAmount)),
+        totalAmount,
+        paidAmount,
+        extraPayments,
+        balanceDue: Math.max(0, totalAmount - paidAmount),
         createdAt: o.createdAt,
         services,
       });
@@ -1161,17 +1168,15 @@ class OrderCartService {
 
     let paymentHistory = await this._fetchPaymentHistoryRows(orderId);
 
-    // Order-level totals: full order for the buyer, but scoped down to just this
-    // owner's own items when viewed by a service owner (never leak other providers'
-    // amounts, even in aggregate).
-    let totalAmount = parseFloat(order.price);
-    let paidAmount = parseFloat(order.paidAmount);
-    let extraPayments = parseFloat(order.extraPayments);
+    // Order-level totals are always summed from the items (itemTotal = finalAmount +
+    // add-ons, and each item's own paidAmount) rather than read from the order row —
+    // the order columns can drift and don't reflect post-order add-on charges. For a
+    // service owner this is already scoped to just their own items above.
+    const totalAmount = items.reduce((sum, it) => sum + it.itemTotal, 0);
+    const paidAmount = items.reduce((sum, it) => sum + it.paidAmount, 0);
+    const extraPayments = items.reduce((sum, it) => sum + it.extraPayments, 0);
 
     if (ownedServiceOrderIds) {
-      totalAmount = items.reduce((sum, it) => sum + it.itemTotal, 0);
-      paidAmount = items.reduce((sum, it) => sum + it.paidAmount, 0);
-      extraPayments = items.reduce((sum, it) => sum + it.extraPayments, 0);
       paymentHistory = paymentHistory.filter(
         (p) => p.serviceOrderId != null && ownedServiceOrderIds.includes(p.serviceOrderId)
       );
