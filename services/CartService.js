@@ -356,8 +356,24 @@ class CartService {
     return { deletedCount, removedItemIds: ids, cartTotal, itemCount: items.length };
   }
 
-  async addAddOn(userId, cartId, cartItemId, addOnId, quantity) {
-    assertValidQuantity(quantity);
+  // Add one or more add-ons to a cart item. `requested` is an array of
+  // { addOnId, quantity } — a single add-on is just a one-element array. Each add-on
+  // is validated (exists + belongs to this service) before anything is written; the
+  // whole batch is applied in one update. Re-adding an existing addOnId updates it.
+  async addAddOns(userId, cartId, cartItemId, requested) {
+    if (!Array.isArray(requested) || requested.length === 0) {
+      throw clientError("addOns must be a non-empty array.", 400, "VALIDATION_ERROR");
+    }
+
+    const normalized = requested.map((r) => {
+      const addOnId = Number(r.addOnId);
+      const quantity = Number(r.quantity ?? 1);
+      if (!addOnId || Number.isNaN(addOnId)) {
+        throw clientError("Each add-on must have a valid addOnId.", 400, "VALIDATION_ERROR");
+      }
+      assertValidQuantity(quantity);
+      return { addOnId, quantity };
+    });
 
     const cart = await repo.findUserCart(userId, cartId);
     if (!cart) throw clientError("Cart not found.", 404, "NOT_FOUND");
@@ -365,20 +381,26 @@ class CartService {
     const item = await repo.findCartItemByIdAndCart(cartItemId, cartId);
     if (!item) throw clientError("Cart item not found.", 404, "NOT_FOUND");
 
-    const addOn = await repo.fetchAddOn(addOnId);
-    if (!addOn) throw clientError("Add-on not found.", 404, "NOT_FOUND");
-    if (addOn.serviceId !== item.serviceId) {
-      throw clientError("Add-on does not belong to this service.", 400, "VALIDATION_ERROR");
+    // Validate every requested add-on against the catalog + this service first, so a
+    // bad id rejects the whole batch before any write.
+    const resolved = [];
+    for (const { addOnId, quantity } of normalized) {
+      const addOn = await repo.fetchAddOn(addOnId);
+      if (!addOn) throw clientError(`Add-on ${addOnId} not found.`, 404, "NOT_FOUND");
+      if (addOn.serviceId !== item.serviceId) {
+        throw clientError(`Add-on ${addOnId} does not belong to this service.`, 400, "VALIDATION_ERROR");
+      }
+      resolved.push({ addOnId, quantity, title: addOn.title, price: parseFloat(addOn.amount) });
     }
 
     const addOns = Array.isArray(item.addOns) ? [...item.addOns] : [];
-    const existingIdx = addOns.findIndex((a) => a.addOnId === addOnId);
-    const entry = { addOnId, title: addOn.title, quantity, price: parseFloat(addOn.amount) };
-
-    if (existingIdx >= 0) {
-      addOns[existingIdx] = entry;
-    } else {
-      addOns.push(entry);
+    const applied = [];
+    for (const r of resolved) {
+      const entry = { addOnId: r.addOnId, title: r.title, quantity: r.quantity, price: r.price };
+      const existingIdx = addOns.findIndex((a) => a.addOnId === r.addOnId);
+      if (existingIdx >= 0) addOns[existingIdx] = entry;
+      else addOns.push(entry);
+      applied.push(entry);
     }
 
     await repo.updateCartItem(item, { addOns });
@@ -387,28 +409,34 @@ class CartService {
     const t = computeItemTotals(updatedItem);
 
     return {
-      addOnId,
-      title: addOn.title,
-      quantity,
-      price: parseFloat(addOn.amount),
+      addOns: applied,
       addOnSubtotal: t.addOnSubtotal,
       itemTotal: t.itemTotal,
     };
   }
 
-  async removeAddOn(userId, cartId, cartItemId, addOnId) {
+  // Remove one or more add-ons from a cart item. `addOnIds` is an array of ids.
+  async removeAddOns(userId, cartId, cartItemId, addOnIds) {
+    if (!Array.isArray(addOnIds) || addOnIds.length === 0) {
+      throw clientError("addOnIds must be a non-empty array.", 400, "VALIDATION_ERROR");
+    }
+    const idSet = new Set(addOnIds.map((id) => Number(id)));
+
     const cart = await repo.findUserCart(userId, cartId);
     if (!cart) throw clientError("Cart not found.", 404, "NOT_FOUND");
 
     const item = await repo.findCartItemByIdAndCart(cartItemId, cartId);
     if (!item) throw clientError("Cart item not found.", 404, "NOT_FOUND");
 
-    const addOns = (Array.isArray(item.addOns) ? item.addOns : []).filter((a) => a.addOnId !== addOnId);
+    const before = Array.isArray(item.addOns) ? item.addOns : [];
+    const addOns = before.filter((a) => !idSet.has(a.addOnId));
+    const removedCount = before.length - addOns.length;
+
     await repo.updateCartItem(item, { addOns });
 
     const updatedItem = await repo.findCartItemByIdAndCart(cartItemId, cartId);
     const t = computeItemTotals(updatedItem);
-    return { addOnSubtotal: t.addOnSubtotal, itemTotal: t.itemTotal };
+    return { removedCount, addOnSubtotal: t.addOnSubtotal, itemTotal: t.itemTotal };
   }
 
   async applyDiscount(userId, cartId, cartItemId, code) {

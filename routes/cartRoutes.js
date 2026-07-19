@@ -31,7 +31,10 @@ router.delete("/:cartId/items", authMiddleware, cartController.removeItems.bind(
 router.delete("/:cartId/items/:cartItemId", authMiddleware, cartController.removeItem.bind(cartController));
 
 // ── Add-ons on a cart item ─────────────────────────────────────────────────────
+// POST accepts a batch { addOns:[{addOnId,quantity}] } | { addOnIds:[..] } or a single { addOnId, quantity }.
 router.post("/:cartId/items/:cartItemId/add-ons", authMiddleware, cartController.addAddOn.bind(cartController));
+// Batch delete { addOnIds:[..] } — declared before the :addOnId route to avoid param capture.
+router.delete("/:cartId/items/:cartItemId/add-ons", authMiddleware, cartController.removeAddOn.bind(cartController));
 router.delete("/:cartId/items/:cartItemId/add-ons/:addOnId", authMiddleware, cartController.removeAddOn.bind(cartController));
 
 // ── Discount on a cart item (service price only) ───────────────────────────────

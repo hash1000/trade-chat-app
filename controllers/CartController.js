@@ -132,32 +132,52 @@ class CartController {
     }
   }
 
+  // Add add-ons to a cart item. Accepts either a batch —
+  //   { addOns: [{ addOnId, quantity }] }  or  { addOnIds: [1, 2] }
+  // — or the legacy single form { addOnId, quantity }. All normalized to an array.
   async addAddOn(req, res) {
     try {
       const userId = req.user.id;
       const cartId = Number(req.params.cartId);
       const cartItemId = Number(req.params.cartItemId);
-      const { addOnId, quantity = 1 } = req.body;
+      const { addOns, addOnIds, addOnId, quantity = 1 } = req.body;
 
-      if (!addOnId) {
-        return res.status(400).json({ success: false, error: "addOnId is required.", code: "VALIDATION_ERROR" });
+      let requested;
+      if (Array.isArray(addOns)) {
+        requested = addOns;
+      } else if (Array.isArray(addOnIds)) {
+        requested = addOnIds.map((id) => ({ addOnId: id, quantity: 1 }));
+      } else if (addOnId != null) {
+        requested = [{ addOnId, quantity }];
+      } else {
+        return res.status(400).json({ success: false, error: "Provide addOns[], addOnIds[], or addOnId.", code: "VALIDATION_ERROR" });
       }
 
-      const data = await cartService.addAddOn(userId, cartId, cartItemId, Number(addOnId), Number(quantity));
+      const data = await cartService.addAddOns(userId, cartId, cartItemId, requested);
       return res.status(201).json({ success: true, data });
     } catch (error) {
       return handleError(res, error);
     }
   }
 
+  // Remove add-ons from a cart item. Batch via body { addOnIds: [1, 2] }, or a single
+  // add-on via the :addOnId path param.
   async removeAddOn(req, res) {
     try {
       const userId = req.user.id;
       const cartId = Number(req.params.cartId);
       const cartItemId = Number(req.params.cartItemId);
-      const addOnId = Number(req.params.addOnId);
 
-      const data = await cartService.removeAddOn(userId, cartId, cartItemId, addOnId);
+      let addOnIds;
+      if (Array.isArray(req.body?.addOnIds)) {
+        addOnIds = req.body.addOnIds;
+      } else if (req.params.addOnId != null) {
+        addOnIds = [Number(req.params.addOnId)];
+      } else {
+        return res.status(400).json({ success: false, error: "Provide addOnIds[] in the body or :addOnId in the path.", code: "VALIDATION_ERROR" });
+      }
+
+      const data = await cartService.removeAddOns(userId, cartId, cartItemId, addOnIds);
       return res.status(200).json({ success: true, ...data });
     } catch (error) {
       return handleError(res, error);
