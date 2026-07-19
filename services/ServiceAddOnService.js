@@ -1,6 +1,6 @@
 const path = require("path");
 const fs = require("fs").promises;
-const { Service, ServiceAddOn, ServiceAddOnFile } = require("../models");
+const { Service, ServiceAddOn, ServiceAddOnFile, User, Role } = require("../models");
 const { uploadDiskFileToS3, deleteFileFromS3 } = require("../utilities/s3Utils");
 
 const EXT_TO_FILE_TYPE = {
@@ -26,9 +26,16 @@ class ServiceAddOnService {
     return service;
   }
 
-  assertOwner(service, userId) {
-    if (service.userId !== userId) {
-      const err = new Error("Forbidden. Only the service owner can perform this action.");
+  async assertOwnerOrAdmin(service, userId) {
+    if (service.userId === userId) return;
+
+    const user = await User.findByPk(userId, {
+      include: [{ model: Role, as: "roles" }],
+    });
+    const isAdmin = user?.roles?.some((role) => role.name === "admin");
+
+    if (!isAdmin) {
+      const err = new Error("Forbidden. Only the service owner or an admin can perform this action.");
       err.statusCode = 403;
       throw err;
     }
@@ -112,7 +119,7 @@ class ServiceAddOnService {
 
   async createAddOn(serviceId, actorId, data) {
     const service = await this.assertServiceExists(serviceId);
-    this.assertOwner(service, actorId);
+    await this.assertOwnerOrAdmin(service, actorId);
 
     const { title, description, amount } = data;
 
@@ -140,7 +147,7 @@ class ServiceAddOnService {
 
   async updateAddOn(serviceId, addOnId, actorId, data) {
     const service = await this.assertServiceExists(serviceId);
-    this.assertOwner(service, actorId);
+    await this.assertOwnerOrAdmin(service, actorId);
 
     const addOn = await ServiceAddOn.findOne({ where: { id: addOnId, serviceId, deletedAt: null } });
     if (!addOn) {
@@ -185,7 +192,7 @@ class ServiceAddOnService {
    */
   async deleteAddOn(serviceId, addOnId, actorId) {
     const service = await this.assertServiceExists(serviceId);
-    this.assertOwner(service, actorId);
+    await this.assertOwnerOrAdmin(service, actorId);
 
     const addOn = await ServiceAddOn.findOne({ where: { id: addOnId, serviceId, deletedAt: null } });
     if (!addOn) {
@@ -200,7 +207,7 @@ class ServiceAddOnService {
 
   async uploadMedia(serviceId, addOnId, actorId, files) {
     const service = await this.assertServiceExists(serviceId);
-    this.assertOwner(service, actorId);
+    await this.assertOwnerOrAdmin(service, actorId);
     const addOn = await ServiceAddOn.findOne({ where: { id: addOnId, serviceId, deletedAt: null } });
     if (!addOn) {
       const err = new Error("Add-on not found.");
@@ -213,7 +220,7 @@ console.log("ServiceAddOnService.uploadMedia files:", files);
 
   async deleteFile(serviceId, addOnId, fileId, actorId) {
     const service = await this.assertServiceExists(serviceId);
-    this.assertOwner(service, actorId);
+    await this.assertOwnerOrAdmin(service, actorId);
 
     const addOn = await ServiceAddOn.findOne({ where: { id: addOnId, serviceId, deletedAt: null } });
     if (!addOn) {
