@@ -1,5 +1,5 @@
 const sequelize = require("../config/database");
-const { Order, ServiceOrder, ServiceOrderAddOn, Cart, CartItem, Service, Wallet, WalletTransaction, Address, OrderPayment, User, Role } = require("../models");
+const { Order, ServiceOrder, ServiceOrderAddOn, ServiceAddOn, Cart, CartItem, Service, Wallet, WalletTransaction, Address, OrderPayment, User, Role } = require("../models");
 const Transaction = require("../models/transaction");
 const ServiceService = require("./ServiceService");
 const UserService = require("./UserService");
@@ -1084,7 +1084,10 @@ class OrderCartService {
     const items = [];
     for (const so of serviceOrders) {
       const [addOns, service] = await Promise.all([
-        ServiceOrderAddOn.findAll({ where: { serviceOrderId: so.id } }),
+        ServiceOrderAddOn.findAll({
+          where: { serviceOrderId: so.id },
+          include: [{ model: ServiceAddOn, as: "addOn", attributes: ["id", "title", "description"] }],
+        }),
         this.loadFullService(so.serviceId, userId, serviceCache, includeOptions),
       ]);
       const addOnSubtotal = addOns.reduce((s, a) => s + parseFloat(a.subtotal), 0);
@@ -1101,7 +1104,10 @@ class OrderCartService {
         paidAmount: parseFloat(so.paidAmount),
         extraPayments: parseFloat(so.extraPayments),
         addOns: addOns.map((a) => ({
+          id: a.id,
           addOnId: a.addOnId,
+          title: a.addOn ? a.addOn.title : null,
+          description: a.addOn ? a.addOn.description : null,
           quantity: a.quantity,
           priceAtOrder: parseFloat(a.priceAtOrder),
           subtotal: parseFloat(a.subtotal),
@@ -1157,6 +1163,155 @@ class OrderCartService {
       createdAt: order.createdAt,
     };
   }
+
+  // POST: admin/accountant adds one or more additional charges (catalog add-ons) to
+  // a placed order in a single call. The caller passes the order id and an array of
+  // add-on ids; each add-on is routed to the order's service item that belongs to the
+  // same service. Inserts service_order_add_ons rows and raises the parent order's
+  // price by the total, leaving paidAmount untouched so a balance becomes due that the
+  // buyer settles via top-up. All-or-nothing: any invalid add-on fails the whole call.
+  //
+  // addOns: array of ids [12, 15] or objects [{ addOnId, quantity }]. Duplicate ids
+  // are allowed and stack (each becomes its own row / quantity).
+  async addOrderAddOns(actorUserId, orderId, addOns) {
+    if (!Array.isArray(addOns) || addOns.length === 0) {
+      throw clientError("addOns must be a non-empty array.", 400, "VALIDATION_ERROR");
+    }
+
+    // Normalize [id] | [{addOnId, quantity}] → [{ addOnId, quantity }]
+    const requested = addOns.map((entry) => {
+      const addOnId = Number(typeof entry === "object" && entry !== null ? entry.addOnId : entry);
+      const quantity = Number(typeof entry === "object" && entry !== null ? (entry.quantity ?? 1) : 1);
+      if (!addOnId || Number.isNaN(addOnId)) {
+        throw clientError("Each add-on must have a valid addOnId.", 400, "VALIDATION_ERROR");
+      }
+      if (!Number.isInteger(quantity) || quantity < 1) {
+        throw clientError("quantity must be a positive integer.", 400, "VALIDATION_ERROR");
+      }
+      return { addOnId, quantity };
+    });
+
+    const order = await Order.findByPk(orderId);
+    if (!order) throw clientError("Order not found.", 404, "NOT_FOUND");
+
+    // Authorize: admin/accountant only (an order can span multiple service owners).
+    const actor = await User.findByPk(actorUserId, {
+      include: [{ model: Role, as: "roles", attributes: ["name"], through: { attributes: [] } }],
+    });
+    const roles = (actor?.roles || []).map((r) => r.name);
+    if (!roles.includes("admin") && !roles.includes("accountant")) {
+      throw clientError("Forbidden. Only an admin or accountant can add charges.", 403, "UNAUTHORIZED");
+    }
+
+    const serviceOrders = await ServiceOrder.findAll({ where: { orderId } });
+    if (serviceOrders.length === 0) throw clientError("Order has no items.", 400, "EMPTY_ORDER");
+
+    // Map serviceId → the order's service item(s). Route each add-on to the item that
+    // shares its service. Ambiguous (same service twice in one order) → first match.
+    const soByService = new Map();
+    for (const so of serviceOrders) {
+      if (!soByService.has(so.serviceId)) soByService.set(so.serviceId, so);
+    }
+
+    // Resolve every requested add-on against the catalog + this order's items first,
+    // so we can reject the whole batch before writing anything.
+    const uniqueAddOnIds = [...new Set(requested.map((r) => r.addOnId))];
+    const catalog = await ServiceAddOn.findAll({
+      where: { id: uniqueAddOnIds, deletedAt: null },
+    });
+    const catalogById = new Map(catalog.map((a) => [a.id, a]));
+
+    const resolved = requested.map(({ addOnId, quantity }) => {
+      const addOn = catalogById.get(addOnId);
+      if (!addOn) throw clientError(`Add-on ${addOnId} not found.`, 404, "NOT_FOUND");
+      const so = soByService.get(addOn.serviceId);
+      if (!so) {
+        throw clientError(
+          `Add-on ${addOnId} belongs to a service that is not part of this order.`,
+          400,
+          "VALIDATION_ERROR"
+        );
+      }
+      const priceAtOrder = parseFloat(addOn.amount);
+      const subtotal = priceAtOrder * quantity;
+      return { addOn, serviceOrder: so, quantity, priceAtOrder, subtotal };
+    });
+
+    const grandTotal = resolved.reduce((s, r) => s + r.subtotal, 0);
+
+    const tx = await sequelize.transaction();
+    try {
+      const created = [];
+      for (const r of resolved) {
+        const orderAddOn = await ServiceOrderAddOn.create(
+          {
+            serviceOrderId: r.serviceOrder.id,
+            addOnId: r.addOn.id,
+            quantity: r.quantity,
+            priceAtOrder: r.priceAtOrder,
+            subtotal: r.subtotal,
+          },
+          { transaction: tx }
+        );
+        created.push({ r, orderAddOn });
+      }
+
+      // Raise the parent order's price by the batch total. Item totals are derived as
+      // finalAmount + sum(add-on subtotals) on read, so finalAmount is left untouched
+      // to avoid double-counting the add-ons we just inserted.
+      await Order.update(
+        { price: sequelize.literal(`price + ${grandTotal}`) },
+        { where: { id: orderId }, transaction: tx }
+      );
+
+      await tx.commit();
+
+      const updatedOrder = await Order.findByPk(orderId);
+
+      // One notification to the buyer summarizing the added charges.
+      await notifyServiceOwners(
+        [{ serviceOwnerId: updatedOrder.userId, amount: grandTotal, serviceName: null }],
+        {
+          buyerId: actorUserId,
+          orderId,
+          type: "SERVICE_ORDER_ADDON_CHARGE",
+          title: "Additional Charges Added",
+          messageFor: (actorName, entry) =>
+            `Additional charges of ${fmtAmount(entry.amount)} were added to your Order #${orderId}. Please pay the outstanding balance.`,
+        }
+      );
+
+      return {
+        orderId,
+        addedCount: created.length,
+        totalCharged: grandTotal,
+        addOns: created.map(({ r, orderAddOn }) => ({
+          id: orderAddOn.id,
+          addOnId: r.addOn.id,
+          title: r.addOn.title,
+          serviceId: r.addOn.serviceId,
+          serviceOrderId: r.serviceOrder.id,
+          quantity: r.quantity,
+          priceAtOrder: r.priceAtOrder,
+          subtotal: r.subtotal,
+        })),
+        orderTotals: {
+          totalAmount: parseFloat(updatedOrder.price),
+          paidAmount: parseFloat(updatedOrder.paidAmount),
+          balanceDue: parseFloat(updatedOrder.price) - parseFloat(updatedOrder.paidAmount),
+        },
+      };
+    } catch (error) {
+      await tx.rollback();
+      if (!error.statusCode) {
+        const wrapped = clientError("Failed to add charges. Please retry.", 500, "ADDON_ERROR");
+        wrapped.original = error.message;
+        throw wrapped;
+      }
+      throw error;
+    }
+  }
+
   // GET: service owner — list all orders containing their service(s), grouped by
   // order (one entry per order, with a nested `services` array — not one flat row
   // per service item, since a single order can hold multiple of the owner's services).

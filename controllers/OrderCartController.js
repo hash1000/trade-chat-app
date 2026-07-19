@@ -185,6 +185,20 @@ class OrderCartController {
       return handleError(res, error);
     }
   }
+
+  // POST /order/service-order/:orderId/add-ons — admin/accountant adds one or more
+  // additional charges (catalog add-ons) to a placed order in a single call.
+  async addOrderAddOns(req, res) {
+    try {
+      const actorUserId = req.user.id;
+      const orderId = Number(req.params.orderId);
+      const { addOns, addOnIds } = req.body;
+      const data = await cartService.addOrderAddOns(actorUserId, orderId, addOns || addOnIds);
+      return res.status(201).json({ success: true, data });
+    } catch (error) {
+      return handleError(res, error);
+    }
+  }
 }
 
 module.exports = OrderCartController;
