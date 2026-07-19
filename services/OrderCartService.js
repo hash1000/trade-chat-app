@@ -1067,6 +1067,7 @@ class OrderCartService {
         totalAmount: parseFloat(o.price),
         paidAmount: parseFloat(o.paidAmount),
         extraPayments: parseFloat(o.extraPayments),
+        balanceDue: Math.max(0, parseFloat(o.price) - parseFloat(o.paidAmount)),
         createdAt: o.createdAt,
         services,
       });
@@ -1420,6 +1421,13 @@ class OrderCartService {
 
       const buyer = buyerMap[order.userId];
 
+      // Totals are scoped to just this owner's items (never leak other providers'
+      // amounts), summed from the services above — same approach as the scoped view
+      // in getOrder. balanceDue = owed − paid for these items only.
+      const totalAmount = services.reduce((sum, s) => sum + s.itemTotal, 0);
+      const paidAmount = services.reduce((sum, s) => sum + s.paidAmount, 0);
+      const extraPayments = services.reduce((sum, s) => sum + s.extraPayments, 0);
+
       results.push({
         orderId: order.id,
         orderNo: order.orderNo,
@@ -1438,9 +1446,10 @@ class OrderCartService {
         status: order.status,
         addressId: order.addressId,
         deliveryOption: order.deliveryOption,
-        totalAmount: parseFloat(order.price),
-        paidAmount: parseFloat(order.paidAmount),
-        extraPayments: parseFloat(order.extraPayments),
+        totalAmount,
+        paidAmount,
+        extraPayments,
+        balanceDue: Math.max(0, totalAmount - paidAmount),
         createdAt: order.createdAt,
         services,
       });
