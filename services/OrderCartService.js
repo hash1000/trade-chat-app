@@ -518,17 +518,29 @@ class OrderCartService {
   // service owner(s), same as confirmOrder. If serviceOrderId is given, the full
   // amount goes to that single item's owner; otherwise it's split proportionally
   // across every item in the order by its original share of the order total.
-  async topUpOrder(userId, orderId, amount, walletType, serviceOrderId) {
-    const parsedAmount = parseFloat(amount);
-    if (!parsedAmount || Number.isNaN(parsedAmount) || parsedAmount <= 0) {
-      throw clientError("amount must be a number greater than 0.", 400, "VALIDATION_ERROR");
-    }
-
+  async topUpOrder(userId, orderId, amount, walletType, serviceOrderId, payFullBalance = false) {
     const order = await Order.findByPk(orderId);
     if (!order) throw clientError("Order not found.", 404, "NOT_FOUND");
     if (order.userId !== userId) throw clientError("Unauthorized.", 403, "UNAUTHORIZED");
     if (order.status !== "CONFIRMED") {
       throw clientError("Order must be confirmed before making an additional payment.", 409, "INVALID_STATE");
+    }
+
+    // When payFullBalance is set, charge exactly the order's outstanding balance
+    // (total owed − everything already paid) instead of a caller-supplied amount.
+    let parsedAmount;
+    if (payFullBalance) {
+      const balanceDue =
+        parseFloat(order.price) - parseFloat(order.paidAmount) - parseFloat(order.extraPayments);
+      if (balanceDue <= 0) {
+        throw clientError("Order has no outstanding balance to pay.", 409, "NOTHING_DUE");
+      }
+      parsedAmount = balanceDue;
+    } else {
+      parsedAmount = parseFloat(amount);
+      if (!parsedAmount || Number.isNaN(parsedAmount) || parsedAmount <= 0) {
+        throw clientError("amount must be a number greater than 0.", 400, "VALIDATION_ERROR");
+      }
     }
 
     const serviceOrders = await ServiceOrder.findAll({ where: { orderId } });
@@ -636,9 +648,17 @@ class OrderCartService {
           `${buyerName} made an additional payment of ${fmtAmount(entry.amount)} for your service order(s) in Order #${orderId}. The amount has been credited to your wallet.`,
       });
 
+      // Balance remaining after this payment (extraPayments just rose by parsedAmount).
+      const remainingBalance = Math.max(
+        0,
+        parseFloat(order.price) - parseFloat(order.paidAmount) - parseFloat(order.extraPayments) - parsedAmount
+      );
+
       return {
         orderId,
         amountPaid: parsedAmount,
+        remainingBalance,
+        fullyPaid: remainingBalance <= 0,
         paymentDetails: {
           buyerWallet: { id: buyerWallet.id, walletType: buyerWalletType, deducted: parsedAmount },
           distributions,
@@ -1158,6 +1178,7 @@ class OrderCartService {
       totalAmount,
       paidAmount,
       extraPayments,
+      balanceDue: Math.max(0, totalAmount - paidAmount - extraPayments),
       items,
       paymentHistory,
       createdAt: order.createdAt,

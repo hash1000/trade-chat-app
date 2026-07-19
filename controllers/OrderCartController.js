@@ -84,8 +84,8 @@ class OrderCartController {
     try {
       const userId = req.user.id;
       const orderId = Number(req.params.orderId);
-      const { amount, walletType, serviceOrderId } = req.body;
-      const data = await cartService.topUpOrder(userId, orderId, amount, walletType, serviceOrderId);
+      const { amount, walletType, serviceOrderId, payFullBalance } = req.body;
+      const data = await cartService.topUpOrder(userId, orderId, amount, walletType, serviceOrderId, payFullBalance === true);
       return res.status(200).json({ success: true, data });
     } catch (error) {
       return handleError(res, error);

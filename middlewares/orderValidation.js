@@ -106,7 +106,14 @@ exports.updateOrderAddressValidator = [
 
 
 exports.topUpOrderValidator = [
+  body('payFullBalance')
+    .optional()
+    .isBoolean()
+    .withMessage('payFullBalance must be a boolean'),
+  // amount is required unless payFullBalance is true (server computes the balance then)
   body('amount')
+    .if(body('payFullBalance').not().equals('true'))
+    .if((value, { req }) => req.body.payFullBalance !== true)
     .isFloat({ gt: 0 })
     .withMessage('amount must be a number greater than 0'),
   body('walletType')
