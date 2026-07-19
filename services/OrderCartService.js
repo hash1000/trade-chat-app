@@ -1047,7 +1047,15 @@ class OrderCartService {
       const serviceOrders = await ServiceOrder.findAll({ where: { orderId: o.id } });
       const services = await Promise.all(
         serviceOrders.map(async (so) => {
-          const service = await this.loadFullService(so.serviceId, userId, serviceCache, includeOptions);
+          const [addOns, service] = await Promise.all([
+            ServiceOrderAddOn.findAll({
+              where: { serviceOrderId: so.id },
+              include: [{ model: ServiceAddOn, as: "addOn", attributes: ["id", "title", "description"] }],
+            }),
+            this.loadFullService(so.serviceId, userId, serviceCache, includeOptions),
+          ]);
+          const addOnSubtotal = addOns.reduce((s, a) => s + parseFloat(a.subtotal), 0);
+          const itemTotal = parseFloat(so.finalAmount) + addOnSubtotal;
           return {
             serviceOrderId: so.id,
             serviceId: so.serviceId,
@@ -1055,6 +1063,17 @@ class OrderCartService {
             finalAmount: parseFloat(so.finalAmount),
             paidAmount: parseFloat(so.paidAmount),
             extraPayments: parseFloat(so.extraPayments),
+            addOns: addOns.map((a) => ({
+              id: a.id,
+              addOnId: a.addOnId,
+              title: a.addOn ? a.addOn.title : null,
+              description: a.addOn ? a.addOn.description : null,
+              quantity: a.quantity,
+              priceAtOrder: parseFloat(a.priceAtOrder),
+              subtotal: parseFloat(a.subtotal),
+            })),
+            itemTotal,
+            balanceDue: Math.max(0, itemTotal - parseFloat(so.paidAmount)),
             status: so.status,
             service,
           };
@@ -1391,9 +1410,13 @@ class OrderCartService {
 
       const services = await Promise.all(
         serviceOrders.map(async (so) => {
-          const addOns = await ServiceOrderAddOn.findAll({ where: { serviceOrderId: so.id } });
+          const addOns = await ServiceOrderAddOn.findAll({
+            where: { serviceOrderId: so.id },
+            include: [{ model: ServiceAddOn, as: "addOn", attributes: ["id", "title", "description"] }],
+          });
           const service = await this.loadFullService(so.serviceId, ownerId, serviceCache, includeOptions);
           const addOnSubtotal = addOns.reduce((s, a) => s + parseFloat(a.subtotal), 0);
+          const itemTotal = parseFloat(so.finalAmount) + addOnSubtotal;
 
           return {
             serviceOrderId: so.id,
@@ -1407,12 +1430,16 @@ class OrderCartService {
             paidAmount: parseFloat(so.paidAmount),
             extraPayments: parseFloat(so.extraPayments),
             addOns: addOns.map((a) => ({
+              id: a.id,
               addOnId: a.addOnId,
+              title: a.addOn ? a.addOn.title : null,
+              description: a.addOn ? a.addOn.description : null,
               quantity: a.quantity,
               priceAtOrder: parseFloat(a.priceAtOrder),
               subtotal: parseFloat(a.subtotal),
             })),
-            itemTotal: parseFloat(so.finalAmount) + addOnSubtotal,
+            itemTotal,
+            balanceDue: Math.max(0, itemTotal - parseFloat(so.paidAmount)),
             status: so.status,
             service,
           };
