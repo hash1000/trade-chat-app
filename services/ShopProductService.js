@@ -282,6 +282,10 @@ class ShopProductService {
       variations,
       categoryIds,
       hasVariations,
+      desiredLikeCount,
+      desiredViewCount,
+      ratingAvg,
+      ratingCount,
     } = productData;
 
     const product = await this.productRepository.getById(productId);
@@ -344,6 +348,38 @@ class ShopProductService {
         data,
         resolvePricing({ pricing_type, price, min_price, max_price }, turningOff ? null : product)
       );
+    }
+
+    // ── Base counts (admin-controlled boost) ────────────────────────────────
+    if (desiredViewCount !== undefined) {
+      if (!Number.isInteger(desiredViewCount) || desiredViewCount < 0) {
+        throw new CustomError("desiredViewCount must be a non-negative integer.", 422);
+      }
+      const realViews = await this.productRepository.getViewsCount(productId);
+      data.baseViewCount = Math.max(0, desiredViewCount - realViews);
+    }
+
+    if (desiredLikeCount !== undefined) {
+      if (!Number.isInteger(desiredLikeCount) || desiredLikeCount < 0) {
+        throw new CustomError("desiredLikeCount must be a non-negative integer.", 422);
+      }
+      const realLikes = await this.productRepository.getLikesCount(productId);
+      data.baseLikeCount = Math.max(0, desiredLikeCount - realLikes);
+    }
+
+    if (ratingAvg !== undefined) {
+      const v = Number(ratingAvg);
+      if (Number.isNaN(v) || v < 0 || v > 10) {
+        throw new CustomError("ratingAvg must be a number between 0 and 10.", 422);
+      }
+      data.ratingAvg = parseFloat(v.toFixed(2));
+    }
+
+    if (ratingCount !== undefined) {
+      if (!Number.isInteger(Number(ratingCount)) || Number(ratingCount) < 0) {
+        throw new CustomError("ratingCount must be a non-negative integer.", 422);
+      }
+      data.ratingCount = Number(ratingCount);
     }
 
     const updatedProduct = await this.productRepository.updateProduct(productId, data);

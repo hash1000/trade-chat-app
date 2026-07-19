@@ -147,6 +147,31 @@ exports.updateProductValidation = [
 
   ...sharedProductFieldRules(),
 
+  // admin-controlled boost — baseLikeCount/baseViewCount are derived as desired - real
+  body("desiredViewCount")
+    .optional()
+    .isInt({ min: 0 })
+    .withMessage("desiredViewCount must be a non-negative integer")
+    .toInt(),
+
+  body("desiredLikeCount")
+    .optional()
+    .isInt({ min: 0 })
+    .withMessage("desiredLikeCount must be a non-negative integer")
+    .toInt(),
+
+  body("ratingAvg")
+    .optional()
+    .isFloat({ min: 0, max: 10 })
+    .withMessage("ratingAvg must be a number between 0 and 10")
+    .toFloat(),
+
+  body("ratingCount")
+    .optional()
+    .isInt({ min: 0 })
+    .withMessage("ratingCount must be a non-negative integer")
+    .toInt(),
+
   handleValidationErrors, // Make sure this is the last function to handle errors
 ];
 
