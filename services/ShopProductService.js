@@ -7,6 +7,32 @@ const CustomError = require("../errors/CustomError");
 const sequelize = require("../config/database");
 
 const ALLOWED_PRICING_TYPES = ["free", "fixed", "range"];
+const ALLOWED_STATUSES = ["draft", "published", "archived"];
+
+// Stock is out only when every sellable unit is at 0 — for a variation product
+// that means every variation's stock is 0, not just one.
+function isOutOfStock(product) {
+  if (product.hasVariations) {
+    const variations = product.variations || [];
+    if (variations.length === 0) return false; // no variations yet — not a stock statement
+    return variations.every((v) => Number(v.stock) <= 0);
+  }
+  return Number(product.quantity) <= 0;
+}
+
+// status is the seller-set value (draft/published/archived) persisted on the row.
+// effectiveStatus is what buyers should see: archived always wins, otherwise
+// out_of_stock is layered on top of "published" when stock is exhausted. This is
+// computed on read, never stored, so it can't drift out of sync with real stock.
+function attachEffectiveStatus(json) {
+  json.effectiveStatus =
+    json.status === "archived"
+      ? "archived"
+      : isOutOfStock(json)
+      ? "out_of_stock"
+      : json.status;
+  return json;
+}
 
 // Owner-editable boolean trust flags. isTopChoice / isQRMVerified are
 // admin-only badges and can only change through updateBadges.
@@ -182,9 +208,14 @@ class ShopProductService {
       variations,
       categoryIds,
       hasVariations,
+      status,
     } = productData;
 
     await this.validateShopOwnership(shopId, userId);
+
+    if (status !== undefined && !ALLOWED_STATUSES.includes(status)) {
+      throw new CustomError(`Invalid status. Allowed: ${ALLOWED_STATUSES.join(", ")}.`, 422);
+    }
 
     const variationPayloads = this.parseVariations(variations);
     const useVariations = hasVariations !== undefined ? parseBool(hasVariations) : false;
@@ -215,6 +246,7 @@ class ShopProductService {
       quantity: quantity !== undefined ? Number(quantity) : 0,
       rating: rating !== undefined ? Number(rating) : 0,
       hasVariations: useVariations,
+      status: status !== undefined ? status : "draft",
       ...pricing,
       tags: tags !== undefined && tags !== null ? parseTags(tags) : [],
       insured: insured !== undefined ? parseBool(insured) : false,
@@ -286,10 +318,15 @@ class ShopProductService {
       desiredViewCount,
       ratingAvg,
       ratingCount,
+      status,
     } = productData;
 
     const product = await this.productRepository.getById(productId);
     await this.validateShopOwnership(product.shopId, userId);
+
+    if (status !== undefined && !ALLOWED_STATUSES.includes(status)) {
+      throw new CustomError(`Invalid status. Allowed: ${ALLOWED_STATUSES.join(", ")}.`, 422);
+    }
 
     const variationPayloads = this.parseVariations(variations);
     const useVariations =
@@ -338,6 +375,7 @@ class ShopProductService {
     if (moneyBack !== undefined) data.moneyBack = parseBool(moneyBack);
     if (support247 !== undefined) data.support247 = parseBool(support247);
     if (hasVariations !== undefined) data.hasVariations = useVariations;
+    if (status !== undefined) data.status = status;
 
     // pricing on a variation-based product is derived, so the body's pricing fields
     // are ignored there and syncPricing has the last word.
@@ -451,7 +489,7 @@ class ShopProductService {
 
     const json = product.toJSON();
     json.variationsSummary = this.variationService.summarize(json.variations || []);
-    return json;
+    return attachEffectiveStatus(json);
   }
 
   async getPaginatedProducts(page, limit, name, shopId) {
@@ -468,36 +506,41 @@ class ShopProductService {
       await this.validateShopOwnership(shopId, userId);
     }
 
-    return this.productRepository.getMyPaginatedProducts(
+    const result = await this.productRepository.getMyPaginatedProducts(
       userId,
       page,
       limit,
       name,
       shopId
     );
+    result.products = result.products.map((p) => attachEffectiveStatus(p.toJSON()));
+    return result;
   }
 
   async getPublicProductsByShop(shopId) {
     const shop = await Shop.findByPk(shopId);
     if (!shop) throw new CustomError("Shop not found", 404);
 
-    return this.productRepository.getPublicByShopId(shopId);
+    const products = await this.productRepository.getPublicByShopId(shopId);
+    return products.map((p) => attachEffectiveStatus(p.toJSON()));
   }
 
   async getPublicProductById(productId) {
     const product = await this.productRepository.getPublicById(productId);
     const json = product.toJSON();
     json.variationsSummary = this.variationService.summarize(json.variations || []);
-    return json;
+    return attachEffectiveStatus(json);
   }
 
   async getPublicPaginatedProducts(page, limit, name, shopId) {
-    return this.productRepository.getPublicPaginatedProducts(
+    const result = await this.productRepository.getPublicPaginatedProducts(
       page,
       limit,
       name,
       shopId
     );
+    result.products = result.products.map((p) => attachEffectiveStatus(p.toJSON()));
+    return result;
   }
 
   // ── Likes ────────────────────────────────────────────────────────────────

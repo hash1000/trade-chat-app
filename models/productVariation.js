@@ -44,6 +44,12 @@ const ProductVariation = sequelize.define(
       allowNull: false,
       defaultValue: 0,
     },
+    // How many units of this specific variation have been sold in total.
+    soldQuantity: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
+    },
     stockMinOrder: {
       type: DataTypes.INTEGER,
       allowNull: false,

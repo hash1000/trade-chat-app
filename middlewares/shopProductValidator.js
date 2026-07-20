@@ -71,6 +71,12 @@ const sharedProductFieldRules = () => [
       throw new Error("tags must be an array of strings");
     }),
 
+  // out_of_stock is not settable directly — it's derived from quantity/stock on read
+  body("status")
+    .optional()
+    .isIn(["draft", "published", "archived"])
+    .withMessage("status must be one of: draft, published, archived"),
+
   body("insured").optional().isBoolean().withMessage("insured must be a boolean"),
   body("moneyBack").optional().isBoolean().withMessage("moneyBack must be a boolean"),
   body("support247").optional().isBoolean().withMessage("support247 must be a boolean"),

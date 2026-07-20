@@ -31,6 +31,7 @@ const ProductVariationImage = require("./productVariationImage");
 const ProductDiscount = require("./productDiscount");
 const ProductCategory = require("./productCategory");
 const AddToCart = require("./AddToCart");
+const ProductCartItem = require("./ProductCartItem");
 const ShortList = require("./shortList");
 const List = require("./list");
 const ProductImage = require("./productImage");
@@ -239,6 +240,17 @@ Order.belongsTo(Address, {
     foreignKey: "shopProductId",
     as: "product",
   });
+
+  // User ↔ ProductCartItem (new product cart — separate from AddToCart/Cart)
+  User.hasMany(ProductCartItem, { foreignKey: "userId", as: "productCartItems" });
+  ProductCartItem.belongsTo(User, { foreignKey: "userId", as: "user" });
+
+  ShopProduct.hasMany(ProductCartItem, { foreignKey: "shopProductId", as: "cartItems" });
+  ProductCartItem.belongsTo(ShopProduct, { foreignKey: "shopProductId", as: "product" });
+
+  ProductVariation.hasMany(ProductCartItem, { foreignKey: "variationId", as: "cartItems" });
+  ProductCartItem.belongsTo(ProductVariation, { foreignKey: "variationId", as: "variation" });
+
   // Category to ShortList association
   Category.hasMany(ShortList, { foreignKey: "categoryId", as: "shortLists" });
   ShortList.belongsTo(Category, { foreignKey: "categoryId", as: "category" });
@@ -657,4 +669,5 @@ module.exports = {
   ProductVariationImage,
   ProductDiscount,
   ProductCategory,
+  ProductCartItem,
 };

@@ -50,6 +50,24 @@ const ShopProduct = sequelize.define(
       type: DataTypes.INTEGER,
       defaultValue: 0,
     },
+    // How many units have been sold in total. Only meaningful when
+    // hasVariations is false — variation products track this per-variation
+    // (see ProductVariation.soldQuantity) instead.
+    soldQuantity: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
+    },
+    // draft: seller still editing, hidden from buyers.
+    // published: live and visible/purchasable.
+    // archived: seller pulled it, hidden but kept for history.
+    // "out_of_stock" is NOT stored here — it's derived on read from quantity/stock
+    // hitting 0 so it can never drift out of sync (see ShopProductService.effectiveStatus).
+    status: {
+      type: DataTypes.ENUM("draft", "published", "archived"),
+      allowNull: false,
+      defaultValue: "draft",
+    },
     shopId: {
       type: DataTypes.INTEGER,
       allowNull: false,

@@ -112,8 +112,10 @@ class ShopProductRepository {
   }
 
   async getPublicById(productId) {
+    // status: "published" covers both visibly-in-stock and out_of_stock (derived on
+    // read) — draft/archived are excluded from buyer-facing views.
     const product = await ShopProduct.findOne({
-      where: { id: productId },
+      where: { id: productId, status: "published" },
       include: this._publicInclude(),
     });
 
@@ -123,7 +125,7 @@ class ShopProductRepository {
 
   async getPublicByShopId(shopId) {
     return ShopProduct.findAll({
-      where: { shopId },
+      where: { shopId, status: "published" },
       include: this._publicInclude(),
       order: [["createdAt", "DESC"]],
     });
@@ -206,7 +208,9 @@ class ShopProductRepository {
 
   async getPublicPaginatedProducts(page, limit, name, shopId) {
     const offset = (page - 1) * limit;
-    const where = {};
+    // status: "published" covers both visibly-in-stock and out_of_stock (derived on
+    // read) — draft/archived are excluded from buyer-facing listings.
+    const where = { status: "published" };
 
     if (name) {
       where.name = { [Op.like]: `%${name}%` };
