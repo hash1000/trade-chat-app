@@ -1,4 +1,4 @@
-const { ProductCartItem, ShopProduct, ProductVariation } = require("../models");
+const { ProductCartItem, ShopProduct, ProductVariation, ProductImage, ProductVariationImage } = require("../models");
 const CustomError = require("../errors/CustomError");
 
 class ProductCartRepository {
@@ -42,11 +42,25 @@ class ProductCartRepository {
             "quantity",
             "shopId",
           ],
+          include: [
+            {
+              model: ProductImage,
+              as: "productImages",
+              attributes: ["id", "url", "thumbnailUrl"],
+            },
+          ],
         },
         {
           model: ProductVariation,
           as: "variation",
           attributes: ["id", "name", "sizeSpec", "unit", "price", "inStock", "stock", "byOrder"],
+          include: [
+            {
+              model: ProductVariationImage,
+              as: "images",
+              attributes: ["id", "url", "thumbnailUrl"],
+            },
+          ],
         },
       ],
       order: [["createdAt", "DESC"]],
