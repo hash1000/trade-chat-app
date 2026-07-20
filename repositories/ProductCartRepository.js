@@ -53,7 +53,18 @@ class ProductCartRepository {
         {
           model: ProductVariation,
           as: "variation",
-          attributes: ["id", "name", "sizeSpec", "unit", "price", "inStock", "stock", "byOrder"],
+          attributes: [
+            "id",
+            "name",
+            "sizeSpec",
+            "unit",
+            "price",
+            "inStock",
+            "stock",
+            "stockMinOrder",
+            "byOrder",
+            "byOrderMinOrder",
+          ],
           include: [
             {
               model: ProductVariationImage,
