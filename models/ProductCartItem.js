@@ -22,7 +22,9 @@ const ProductCartItem = db.define(
       type: DataTypes.INTEGER,
       allowNull: true,
     },
-    quantity: {
+    // How many units of this product/variation the user put in their cart —
+    // distinct from product.quantity / variation.stock, which is inventory on hand.
+    productCartItemQuantity: {
       type: DataTypes.INTEGER,
       allowNull: false,
       defaultValue: 1,

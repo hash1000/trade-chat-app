@@ -20,10 +20,10 @@ exports.addToCartValidation = [
     .isInt()
     .withMessage("variationId must be an integer"),
 
-  body("quantity")
+  body("productCartItemQuantity")
     .optional()
     .isInt({ min: 1 })
-    .withMessage("quantity must be an integer >= 1"),
+    .withMessage("productCartItemQuantity must be an integer >= 1"),
 
   body("code")
     .optional({ nullable: true })
@@ -36,11 +36,11 @@ exports.addToCartValidation = [
 exports.updateQuantityValidation = [
   param("cartItemId").isInt().withMessage("cartItemId must be an integer"),
 
-  body("quantity")
+  body("productCartItemQuantity")
     .notEmpty()
-    .withMessage("quantity is required")
+    .withMessage("productCartItemQuantity is required")
     .isInt({ min: 0 })
-    .withMessage("quantity must be an integer >= 0"),
+    .withMessage("productCartItemQuantity must be an integer >= 0"),
 
   handleValidationErrors,
 ];

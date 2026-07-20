@@ -94,10 +94,10 @@ class ProductCartService {
 
   // ── Public API ───────────────────────────────────────────────────────────
 
-  async addToCart(userId, { shopProductId, variationId, quantity, code }) {
-    const qty = quantity === undefined ? 1 : Number(quantity);
+  async addToCart(userId, { shopProductId, variationId, productCartItemQuantity, code }) {
+    const qty = productCartItemQuantity === undefined ? 1 : Number(productCartItemQuantity);
     if (!Number.isInteger(qty) || qty < 1) {
-      throw new CustomError("quantity must be an integer >= 1", 422);
+      throw new CustomError("productCartItemQuantity must be an integer >= 1", 422);
     }
 
     const { unitPrice, availableStock } = await this._resolveSource(
@@ -106,7 +106,7 @@ class ProductCartService {
     );
 
     const existing = await this.repo.findExistingLine(userId, Number(shopProductId), variationId ?? null);
-    const newQuantity = existing ? existing.quantity + qty : qty;
+    const newQuantity = existing ? existing.productCartItemQuantity + qty : qty;
     this._assertStock(availableStock, newQuantity);
 
     const discount = await this._resolveDiscount(Number(shopProductId), newQuantity, code);
@@ -114,7 +114,7 @@ class ProductCartService {
 
     if (existing) {
       await this.repo.saveLine(existing, {
-        quantity: newQuantity,
+        productCartItemQuantity: newQuantity,
         unitPriceSnapshot: unitPrice,
         discountCode: discount.discountCode,
         discountPercent: discount.discountPercent,
@@ -127,7 +127,7 @@ class ProductCartService {
       userId,
       shopProductId: Number(shopProductId),
       variationId: variationId ? Number(variationId) : null,
-      quantity: qty,
+      productCartItemQuantity: qty,
       unitPriceSnapshot: unitPrice,
       discountCode: discount.discountCode,
       discountPercent: discount.discountPercent,
@@ -136,10 +136,10 @@ class ProductCartService {
     return { message: "Product added to cart", cartItem: created };
   }
 
-  async updateQuantity(userId, cartItemId, quantity) {
-    const qty = Number(quantity);
+  async updateQuantity(userId, cartItemId, productCartItemQuantity) {
+    const qty = Number(productCartItemQuantity);
     if (!Number.isInteger(qty) || qty < 0) {
-      throw new CustomError("quantity must be an integer >= 0", 422);
+      throw new CustomError("productCartItemQuantity must be an integer >= 0", 422);
     }
 
     const line = await this.repo.findUserLine(userId, cartItemId);
@@ -169,7 +169,7 @@ class ProductCartService {
     const discountAmount = this._computeDiscountAmount(unitPrice, qty, discount.discountPercent);
 
     await this.repo.saveLine(line, {
-      quantity: qty,
+      productCartItemQuantity: qty,
       unitPriceSnapshot: unitPrice,
       discountCode: discount.discountCode,
       discountPercent: discount.discountPercent,
@@ -186,10 +186,10 @@ class ProductCartService {
     const line = await this.repo.findUserLine(userId, cartItemId);
     if (!line) throw new CustomError("Cart item not found", 404);
 
-    const discount = await this._resolveDiscount(line.shopProductId, line.quantity, code);
+    const discount = await this._resolveDiscount(line.shopProductId, line.productCartItemQuantity, code);
     const discountAmount = this._computeDiscountAmount(
       Number(line.unitPriceSnapshot),
-      line.quantity,
+      line.productCartItemQuantity,
       discount.discountPercent
     );
 
@@ -207,10 +207,10 @@ class ProductCartService {
 
     // Falling back to code=null re-evaluates the automatic quantity-tier rules
     // rather than leaving the line with zero discount.
-    const discount = await this._resolveDiscount(line.shopProductId, line.quantity, null);
+    const discount = await this._resolveDiscount(line.shopProductId, line.productCartItemQuantity, null);
     const discountAmount = this._computeDiscountAmount(
       Number(line.unitPriceSnapshot),
-      line.quantity,
+      line.productCartItemQuantity,
       discount.discountPercent
     );
 
@@ -223,7 +223,7 @@ class ProductCartService {
   }
 
   _lineTotal(line) {
-    const subtotal = round2(Number(line.unitPriceSnapshot) * line.quantity);
+    const subtotal = round2(Number(line.unitPriceSnapshot) * line.productCartItemQuantity);
     const discountAmount = round2(Number(line.discountAmount));
     return { subtotal, discountAmount, total: round2(subtotal - discountAmount) };
   }
