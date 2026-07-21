@@ -35,10 +35,6 @@ const ProductAddOn = sequelize.define(
       type: DataTypes.DECIMAL(20, 8),
       allowNull: false,
     },
-    image: {
-      type: DataTypes.STRING,
-      allowNull: true,
-    },
     stock: {
       type: DataTypes.INTEGER,
       allowNull: false,

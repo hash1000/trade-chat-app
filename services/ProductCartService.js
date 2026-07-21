@@ -95,7 +95,7 @@ class ProductCartService {
   // Validates the requested add-on ids against whichever scope the cart line
   // actually is (the variation's own add-ons, or the product's own add-ons),
   // requires each to be active and in stock, and returns the frozen snapshot
-  // shape stored on the cart line: [{ addOnId, name, price }].
+  // shape stored on the cart line: [{ addOnId, name, price, image }].
   async _resolveAddOns(addOnIds, shopProductId, variationId) {
     if (addOnIds === undefined || addOnIds === null) return [];
     if (!Array.isArray(addOnIds) || addOnIds.length === 0) {
@@ -119,7 +119,14 @@ class ProductCartService {
       }
     }
 
-    return found.map((addOn) => ({ addOnId: addOn.id, name: addOn.name, price: Number(addOn.price) }));
+    return found.map((addOn) => ({
+      addOnId: addOn.id,
+      name: addOn.name,
+      price: Number(addOn.price),
+      // Snapshot carries only the first/primary image, not the whole gallery —
+      // a cart line thumbnail doesn't need every picture the add-on has.
+      image: addOn.images && addOn.images.length > 0 ? addOn.images[0].url : null,
+    }));
   }
 
   _addOnSubtotal(addOns) {

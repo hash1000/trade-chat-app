@@ -5,6 +5,7 @@ const {
   ProductImage,
   ProductVariationImage,
   ProductAddOn,
+  ProductAddOnImage,
 } = require("../models");
 const CustomError = require("../errors/CustomError");
 
@@ -19,11 +20,14 @@ class ProductCartRepository {
 
   // Add-ons scoped to whichever the cart line actually is: a variation's own
   // add-ons when variationId is set, otherwise the product's own add-ons.
+  // Images included so the service can snapshot the first one as the cart
+  // line's addOns[].image.
   async fetchAddOns(addOnIds, shopProductId, variationId) {
     return ProductAddOn.findAll({
       where: variationId
         ? { id: addOnIds, variationId }
         : { id: addOnIds, shopProductId },
+      include: [{ model: ProductAddOnImage, as: "images", attributes: ["id", "url", "thumbnailUrl"] }],
     });
   }
 

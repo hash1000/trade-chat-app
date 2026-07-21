@@ -25,7 +25,7 @@ class ShopProductAddOnController {
     try {
       const { productId } = req.params;
       const { id: userId } = req.user;
-      const addOn = await addOnService.createProductAddOn(Number(productId), userId, req.body);
+      const addOn = await addOnService.createProductAddOn(Number(productId), userId, req.body, req.files ?? []);
       return res.status(201).json({ success: true, data: addOn });
     } catch (error) {
       return handle(res, error, "ShopProductAddOnController.createProductAddOn error:");
@@ -52,7 +52,8 @@ class ShopProductAddOnController {
         Number(productId),
         Number(variationId),
         userId,
-        req.body
+        req.body,
+        req.files ?? []
       );
       return res.status(201).json({ success: true, data: addOn });
     } catch (error) {
@@ -66,7 +67,7 @@ class ShopProductAddOnController {
     try {
       const { addOnId } = req.params;
       const { id: userId } = req.user;
-      const addOn = await addOnService.updateAddOn(Number(addOnId), userId, req.body);
+      const addOn = await addOnService.updateAddOn(Number(addOnId), userId, req.body, req.files ?? []);
       return res.json({ success: true, data: addOn });
     } catch (error) {
       return handle(res, error, "ShopProductAddOnController.updateAddOn error:");
@@ -81,6 +82,17 @@ class ShopProductAddOnController {
       return res.json({ success: true, message: "Add-on deleted." });
     } catch (error) {
       return handle(res, error, "ShopProductAddOnController.deleteAddOn error:");
+    }
+  }
+
+  async deleteAddOnImage(req, res) {
+    try {
+      const { imageId } = req.params;
+      const { id: userId } = req.user;
+      await addOnService.deleteAddOnImage(Number(imageId), userId);
+      return res.json({ success: true, message: "Image deleted." });
+    } catch (error) {
+      return handle(res, error, "ShopProductAddOnController.deleteAddOnImage error:");
     }
   }
 }

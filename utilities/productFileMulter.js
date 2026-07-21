@@ -100,6 +100,13 @@ const uploadVariationImages = multer({
   limits: { fileSize: 500 * 1024 * 1024, files: 10 },
 }).array("images", 10);
 
+// POST/PUT .../add-ons — images[] for one add-on
+const uploadAddOnImages = multer({
+  storage: tempStorage,
+  fileFilter: mediaFilter,
+  limits: { fileSize: 500 * 1024 * 1024, files: 10 },
+}).array("images", 10);
+
 // Groups multer's .any() output ({fieldname, path, ...}[]) back into
 // { media: [...], productImages: [...], variationImages: { 0: [...], 1: [...] } }
 function groupProductFiles(files) {
@@ -125,5 +132,6 @@ module.exports = {
   uploadProductMedia,
   uploadProductCreateUpdate,
   uploadVariationImages,
+  uploadAddOnImages,
   groupProductFiles,
 };

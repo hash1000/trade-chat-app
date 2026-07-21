@@ -1,5 +1,8 @@
-const { ShopProduct, ProductVariation, ProductAddOn, Shop } = require("../models");
+const { ShopProduct, ProductVariation, ProductAddOn, ProductAddOnImage, Shop } = require("../models");
+const ProductFileService = require("./ProductFileService");
 const CustomError = require("../errors/CustomError");
+
+const productFileService = new ProductFileService();
 
 // Normalizes one add-on payload; `existing` supplies fallbacks on partial update.
 function normalizeAddOn(raw, existing = null) {
@@ -26,8 +29,6 @@ function normalizeAddOn(raw, existing = null) {
           : null
         : existing?.description ?? null,
     price,
-    image:
-      raw.image !== undefined ? (raw.image != null ? String(raw.image).trim() : null) : existing?.image ?? null,
     stock,
     isActive:
       raw.isActive !== undefined
@@ -35,6 +36,17 @@ function normalizeAddOn(raw, existing = null) {
         : existing ? existing.isActive : true,
   };
 }
+
+// Uploaded files only — add-on images are backend-uploaded (multipart), not a
+// pass-through URL field. Returns undefined when no files were supplied,
+// meaning "leave images alone" on update.
+async function resolveImages(files = []) {
+  if (!files || files.length === 0) return undefined;
+  return productFileService.uploadImages(files);
+}
+
+const imageRows = (images, productAddOnId) =>
+  images.map(({ url, thumbnailUrl }) => ({ url, thumbnailUrl, productAddOnId }));
 
 class ProductAddOnService {
   async assertProduct(productId) {
@@ -62,10 +74,14 @@ class ProductAddOnService {
 
   async listProductAddOns(productId) {
     await this.assertProduct(productId);
-    return ProductAddOn.findAll({ where: { shopProductId: productId }, order: [["id", "ASC"]] });
+    return ProductAddOn.findAll({
+      where: { shopProductId: productId },
+      include: [{ model: ProductAddOnImage, as: "images" }],
+      order: [["id", "ASC"]],
+    });
   }
 
-  async createProductAddOn(productId, userId, payload) {
+  async createProductAddOn(productId, userId, payload, files = []) {
     const product = await this.assertProduct(productId);
     await this.assertOwner(product, userId);
 
@@ -77,7 +93,14 @@ class ProductAddOnService {
     }
 
     const data = normalizeAddOn(payload);
-    return ProductAddOn.create({ ...data, shopProductId: productId, variationId: null });
+    const addOn = await ProductAddOn.create({ ...data, shopProductId: productId, variationId: null });
+
+    const images = await resolveImages(files);
+    if (images && images.length > 0) {
+      await ProductAddOnImage.bulkCreate(imageRows(images, addOn.id));
+    }
+
+    return this.getAddOnOrFail(addOn.id);
   }
 
   // ── Variation-level add-ons (hasVariations: true) ───────────────────────
@@ -85,10 +108,14 @@ class ProductAddOnService {
   async listVariationAddOns(productId, variationId) {
     await this.assertProduct(productId);
     await this.assertVariation(productId, variationId);
-    return ProductAddOn.findAll({ where: { variationId }, order: [["id", "ASC"]] });
+    return ProductAddOn.findAll({
+      where: { variationId },
+      include: [{ model: ProductAddOnImage, as: "images" }],
+      order: [["id", "ASC"]],
+    });
   }
 
-  async createVariationAddOn(productId, variationId, userId, payload) {
+  async createVariationAddOn(productId, variationId, userId, payload, files = []) {
     const product = await this.assertProduct(productId);
     await this.assertOwner(product, userId);
 
@@ -101,13 +128,22 @@ class ProductAddOnService {
     await this.assertVariation(productId, variationId);
 
     const data = normalizeAddOn(payload);
-    return ProductAddOn.create({ ...data, shopProductId: null, variationId });
+    const addOn = await ProductAddOn.create({ ...data, shopProductId: null, variationId });
+
+    const images = await resolveImages(files);
+    if (images && images.length > 0) {
+      await ProductAddOnImage.bulkCreate(imageRows(images, addOn.id));
+    }
+
+    return this.getAddOnOrFail(addOn.id);
   }
 
   // ── Shared update/delete (works for either scope) ───────────────────────
 
   async getAddOnOrFail(addOnId) {
-    const addOn = await ProductAddOn.findByPk(addOnId);
+    const addOn = await ProductAddOn.findByPk(addOnId, {
+      include: [{ model: ProductAddOnImage, as: "images" }],
+    });
     if (!addOn) throw new CustomError("Add-on not found", 404);
     return addOn;
   }
@@ -123,14 +159,26 @@ class ProductAddOnService {
     return this.assertProduct(variation.shopProductId);
   }
 
-  async updateAddOn(addOnId, userId, payload) {
+  async updateAddOn(addOnId, userId, payload, files = []) {
     const addOn = await this.getAddOnOrFail(addOnId);
     const product = await this._ownerOfAddOn(addOn);
     await this.assertOwner(product, userId);
 
     const data = normalizeAddOn(payload, addOn);
     await addOn.update(data);
-    return addOn;
+
+    // images: replace-all only when files are supplied (matches
+    // ProductVariationService.updateVariation) — no files sent means "leave
+    // the gallery alone", not "clear it".
+    const images = await resolveImages(files);
+    if (images !== undefined) {
+      await ProductAddOnImage.destroy({ where: { productAddOnId: addOn.id } });
+      if (images.length > 0) {
+        await ProductAddOnImage.bulkCreate(imageRows(images, addOn.id));
+      }
+    }
+
+    return this.getAddOnOrFail(addOnId);
   }
 
   async deleteAddOn(addOnId, userId) {
@@ -139,6 +187,18 @@ class ProductAddOnService {
     await this.assertOwner(product, userId);
 
     await addOn.destroy();
+    return true;
+  }
+
+  async deleteAddOnImage(imageId, userId) {
+    const image = await ProductAddOnImage.findByPk(imageId);
+    if (!image) throw new CustomError("Image not found", 404);
+
+    const addOn = await this.getAddOnOrFail(image.productAddOnId);
+    const product = await this._ownerOfAddOn(addOn);
+    await this.assertOwner(product, userId);
+
+    await image.destroy();
     return true;
   }
 }

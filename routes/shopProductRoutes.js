@@ -12,6 +12,7 @@ const {
   uploadProductMedia,
   uploadProductCreateUpdate,
   uploadVariationImages,
+  uploadAddOnImages,
 } = require('../utilities/productFileMulter')
 
 const {
@@ -241,10 +242,12 @@ router.get(
   addOnController.listProductAddOns.bind(addOnController)
 )
 
+// images[] may be attached — each is uploaded to S3 with a generated thumbnail
 router.post(
   '/:productId/add-ons',
   authMiddleware,
   checkIntegerParam('productId'),
+  fileController.handleMulterError(uploadAddOnImages),
   addOnController.createProductAddOn.bind(addOnController)
 )
 
@@ -260,6 +263,7 @@ router.post(
   authMiddleware,
   checkIntegerParam('productId'),
   checkIntegerParam('variationId'),
+  fileController.handleMulterError(uploadAddOnImages),
   addOnController.createVariationAddOn.bind(addOnController)
 )
 
@@ -267,6 +271,7 @@ router.put(
   '/add-ons/:addOnId',
   authMiddleware,
   checkIntegerParam('addOnId'),
+  fileController.handleMulterError(uploadAddOnImages),
   addOnController.updateAddOn.bind(addOnController)
 )
 
@@ -275,6 +280,13 @@ router.delete(
   authMiddleware,
   checkIntegerParam('addOnId'),
   addOnController.deleteAddOn.bind(addOnController)
+)
+
+router.delete(
+  '/add-ons/images/:imageId',
+  authMiddleware,
+  checkIntegerParam('imageId'),
+  addOnController.deleteAddOnImage.bind(addOnController)
 )
 
 // ── Categories ────────────────────────────────────────────────────────────────
