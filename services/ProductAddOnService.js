@@ -167,15 +167,12 @@ class ProductAddOnService {
     const data = normalizeAddOn(payload, addOn);
     await addOn.update(data);
 
-    // images: replace-all only when files are supplied (matches
-    // ProductVariationService.updateVariation) — no files sent means "leave
-    // the gallery alone", not "clear it".
+    // images: new files APPEND to the existing gallery — unlike
+    // ProductVariationService.updateVariation, which replaces the whole set.
+    // Removing a specific image is a separate call: deleteAddOnImage.
     const images = await resolveImages(files);
-    if (images !== undefined) {
-      await ProductAddOnImage.destroy({ where: { productAddOnId: addOn.id } });
-      if (images.length > 0) {
-        await ProductAddOnImage.bulkCreate(imageRows(images, addOn.id));
-      }
+    if (images && images.length > 0) {
+      await ProductAddOnImage.bulkCreate(imageRows(images, addOn.id));
     }
 
     return this.getAddOnOrFail(addOnId);
