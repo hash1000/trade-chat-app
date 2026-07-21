@@ -50,6 +50,14 @@ const ProductCartItem = db.define(
       allowNull: false,
       defaultValue: 0,
     },
+    // Snapshot of selected add-ons, frozen at the moment each was attached —
+    // [{ addOnId, name, price }]. On/off selection only, no per-add-on quantity.
+    // Never mutated by later edits to the source ProductAddOn row.
+    addOns: {
+      type: DataTypes.JSON,
+      allowNull: false,
+      defaultValue: [],
+    },
   },
   {
     tableName: "product_cart_items",

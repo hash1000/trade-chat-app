@@ -12,13 +12,14 @@ class ProductCartController {
   async addToCart(req, res) {
     try {
       const { id: userId } = req.user;
-      const { shopProductId, variationId, productCartItemQuantity, code } = req.body;
+      const { shopProductId, variationId, productCartItemQuantity, code, addOnIds } = req.body;
 
       const result = await cartService.addToCart(userId, {
         shopProductId,
         variationId,
         productCartItemQuantity,
         code,
+        addOnIds,
       });
       return res.status(201).json({ success: true, ...result });
     } catch (error) {
@@ -71,6 +72,32 @@ class ProductCartController {
       return res.json({ success: true, ...result });
     } catch (error) {
       return handle(res, error, "ProductCartController.removeDiscountCode error:");
+    }
+  }
+
+  async addAddOns(req, res) {
+    try {
+      const { id: userId } = req.user;
+      const { cartItemId } = req.params;
+      const { addOnIds } = req.body;
+
+      const result = await cartService.addAddOns(userId, Number(cartItemId), addOnIds);
+      return res.json({ success: true, ...result });
+    } catch (error) {
+      return handle(res, error, "ProductCartController.addAddOns error:");
+    }
+  }
+
+  async removeAddOns(req, res) {
+    try {
+      const { id: userId } = req.user;
+      const { cartItemId } = req.params;
+      const { addOnIds } = req.body;
+
+      const result = await cartService.removeAddOns(userId, Number(cartItemId), addOnIds);
+      return res.json({ success: true, ...result });
+    } catch (error) {
+      return handle(res, error, "ProductCartController.removeAddOns error:");
     }
   }
 

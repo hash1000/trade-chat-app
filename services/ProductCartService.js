@@ -92,9 +92,43 @@ class ProductCartService {
     return round2((unitPrice * quantity * discountPercent) / 100);
   }
 
+  // Validates the requested add-on ids against whichever scope the cart line
+  // actually is (the variation's own add-ons, or the product's own add-ons),
+  // requires each to be active and in stock, and returns the frozen snapshot
+  // shape stored on the cart line: [{ addOnId, name, price }].
+  async _resolveAddOns(addOnIds, shopProductId, variationId) {
+    if (addOnIds === undefined || addOnIds === null) return [];
+    if (!Array.isArray(addOnIds) || addOnIds.length === 0) {
+      if (Array.isArray(addOnIds)) return [];
+      throw new CustomError("addOnIds must be an array", 422);
+    }
+
+    const ids = [...new Set(addOnIds.map(Number))];
+    const found = await this.repo.fetchAddOns(ids, shopProductId, variationId);
+
+    if (found.length !== ids.length) {
+      throw new CustomError("One or more add-ons were not found for this product", 404);
+    }
+
+    for (const addOn of found) {
+      if (!addOn.isActive) {
+        throw new CustomError(`Add-on "${addOn.name}" is not currently available`, 400);
+      }
+      if (addOn.stock <= 0) {
+        throw new CustomError(`Add-on "${addOn.name}" is out of stock`, 400);
+      }
+    }
+
+    return found.map((addOn) => ({ addOnId: addOn.id, name: addOn.name, price: Number(addOn.price) }));
+  }
+
+  _addOnSubtotal(addOns) {
+    return round2((addOns || []).reduce((sum, a) => sum + Number(a.price), 0));
+  }
+
   // ── Public API ───────────────────────────────────────────────────────────
 
-  async addToCart(userId, { shopProductId, variationId, productCartItemQuantity, code }) {
+  async addToCart(userId, { shopProductId, variationId, productCartItemQuantity, code, addOnIds }) {
     const qty = productCartItemQuantity === undefined ? 1 : Number(productCartItemQuantity);
     if (!Number.isInteger(qty) || qty < 1) {
       throw new CustomError("productCartItemQuantity must be an integer >= 1", 422);
@@ -105,6 +139,8 @@ class ProductCartService {
       variationId
     );
 
+    const resolvedAddOns = await this._resolveAddOns(addOnIds, Number(shopProductId), variationId ? Number(variationId) : null);
+
     const existing = await this.repo.findExistingLine(userId, Number(shopProductId), variationId ?? null);
     const newQuantity = existing ? existing.productCartItemQuantity + qty : qty;
     this._assertStock(availableStock, newQuantity);
@@ -113,12 +149,15 @@ class ProductCartService {
     const discountAmount = this._computeDiscountAmount(unitPrice, newQuantity, discount.discountPercent);
 
     if (existing) {
+      // Re-adding replaces the add-on selection rather than merging it — merging
+      // quantity silently duplicating add-on picks would be surprising.
       await this.repo.saveLine(existing, {
         productCartItemQuantity: newQuantity,
         unitPriceSnapshot: unitPrice,
         discountCode: discount.discountCode,
         discountPercent: discount.discountPercent,
         discountAmount,
+        ...(addOnIds !== undefined ? { addOns: resolvedAddOns } : {}),
       });
       return { message: "Quantity increased", cartItem: existing };
     }
@@ -132,8 +171,43 @@ class ProductCartService {
       discountCode: discount.discountCode,
       discountPercent: discount.discountPercent,
       discountAmount,
+      addOns: resolvedAddOns,
     });
     return { message: "Product added to cart", cartItem: created };
+  }
+
+  async addAddOns(userId, cartItemId, addOnIds) {
+    if (!Array.isArray(addOnIds) || addOnIds.length === 0) {
+      throw new CustomError("addOnIds must be a non-empty array", 422);
+    }
+
+    const line = await this.repo.findUserLine(userId, cartItemId);
+    if (!line) throw new CustomError("Cart item not found", 404);
+
+    const resolved = await this._resolveAddOns(addOnIds, line.shopProductId, line.variationId);
+
+    // Upsert by addOnId: replace an already-selected add-on's snapshot, append new ones.
+    const byId = new Map((line.addOns || []).map((a) => [a.addOnId, a]));
+    for (const addOn of resolved) byId.set(addOn.addOnId, addOn);
+    const merged = [...byId.values()];
+
+    await this.repo.saveLine(line, { addOns: merged });
+    return { message: "Add-ons updated", cartItem: line };
+  }
+
+  async removeAddOns(userId, cartItemId, addOnIds) {
+    if (!Array.isArray(addOnIds) || addOnIds.length === 0) {
+      throw new CustomError("addOnIds must be a non-empty array", 422);
+    }
+
+    const line = await this.repo.findUserLine(userId, cartItemId);
+    if (!line) throw new CustomError("Cart item not found", 404);
+
+    const toRemove = new Set(addOnIds.map(Number));
+    const remaining = (line.addOns || []).filter((a) => !toRemove.has(a.addOnId));
+
+    await this.repo.saveLine(line, { addOns: remaining });
+    return { message: "Add-ons removed", cartItem: line };
   }
 
   async updateQuantity(userId, cartItemId, productCartItemQuantity) {
@@ -225,7 +299,10 @@ class ProductCartService {
   _lineTotal(line) {
     const subtotal = round2(Number(line.unitPriceSnapshot) * line.productCartItemQuantity);
     const discountAmount = round2(Number(line.discountAmount));
-    return { subtotal, discountAmount, total: round2(subtotal - discountAmount) };
+    const addOnSubtotal = this._addOnSubtotal(line.addOns);
+    // Discount applies to the product/variation price only — add-ons are never discounted.
+    const total = round2(subtotal - discountAmount + addOnSubtotal);
+    return { subtotal, discountAmount, addOnSubtotal, total };
   }
 
   async getMyCart(userId) {

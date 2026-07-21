@@ -32,6 +32,7 @@ const ProductDiscount = require("./productDiscount");
 const ProductCategory = require("./productCategory");
 const AddToCart = require("./AddToCart");
 const ProductCartItem = require("./ProductCartItem");
+const ProductAddOn = require("./productAddOn");
 const ShortList = require("./shortList");
 const List = require("./list");
 const ProductImage = require("./productImage");
@@ -250,6 +251,15 @@ Order.belongsTo(Address, {
 
   ProductVariation.hasMany(ProductCartItem, { foreignKey: "variationId", as: "cartItems" });
   ProductCartItem.belongsTo(ProductVariation, { foreignKey: "variationId", as: "variation" });
+
+  // ShopProduct / ProductVariation ↔ ProductAddOn — mutually exclusive scoping:
+  // a non-variation product's add-ons live on shopProductId, a variation
+  // product's add-ons live on variationId (never both on the same row).
+  ShopProduct.hasMany(ProductAddOn, { foreignKey: "shopProductId", as: "addOns" });
+  ProductAddOn.belongsTo(ShopProduct, { foreignKey: "shopProductId", as: "product" });
+
+  ProductVariation.hasMany(ProductAddOn, { foreignKey: "variationId", as: "addOns" });
+  ProductAddOn.belongsTo(ProductVariation, { foreignKey: "variationId", as: "variation" });
 
   // Category to ShortList association
   Category.hasMany(ShortList, { foreignKey: "categoryId", as: "shortLists" });
@@ -670,4 +680,5 @@ module.exports = {
   ProductDiscount,
   ProductCategory,
   ProductCartItem,
+  ProductAddOn,
 };

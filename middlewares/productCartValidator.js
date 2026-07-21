@@ -30,6 +30,15 @@ exports.addToCartValidation = [
     .isString()
     .withMessage("code must be a string"),
 
+  body("addOnIds")
+    .optional({ nullable: true })
+    .isArray()
+    .withMessage("addOnIds must be an array"),
+
+  body("addOnIds.*")
+    .isInt()
+    .withMessage("addOnIds must contain only integers"),
+
   handleValidationErrors,
 ];
 
@@ -65,6 +74,20 @@ exports.removeItemsValidation = [
   body("cartItemIds.*")
     .isInt()
     .withMessage("cartItemIds must contain only integers"),
+
+  handleValidationErrors,
+];
+
+exports.addOnIdsValidation = [
+  param("cartItemId").isInt().withMessage("cartItemId must be an integer"),
+
+  body("addOnIds")
+    .isArray({ min: 1 })
+    .withMessage("addOnIds must be a non-empty array"),
+
+  body("addOnIds.*")
+    .isInt()
+    .withMessage("addOnIds must contain only integers"),
 
   handleValidationErrors,
 ];

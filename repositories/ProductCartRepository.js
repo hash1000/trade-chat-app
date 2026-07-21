@@ -1,4 +1,11 @@
-const { ProductCartItem, ShopProduct, ProductVariation, ProductImage, ProductVariationImage } = require("../models");
+const {
+  ProductCartItem,
+  ShopProduct,
+  ProductVariation,
+  ProductImage,
+  ProductVariationImage,
+  ProductAddOn,
+} = require("../models");
 const CustomError = require("../errors/CustomError");
 
 class ProductCartRepository {
@@ -8,6 +15,16 @@ class ProductCartRepository {
 
   async fetchVariation(variationId, shopProductId) {
     return ProductVariation.findOne({ where: { id: variationId, shopProductId } });
+  }
+
+  // Add-ons scoped to whichever the cart line actually is: a variation's own
+  // add-ons when variationId is set, otherwise the product's own add-ons.
+  async fetchAddOns(addOnIds, shopProductId, variationId) {
+    return ProductAddOn.findAll({
+      where: variationId
+        ? { id: addOnIds, variationId }
+        : { id: addOnIds, shopProductId },
+    });
   }
 
   async findExistingLine(userId, shopProductId, variationId) {

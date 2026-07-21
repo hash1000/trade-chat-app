@@ -7,6 +7,7 @@ const ShopProductController = require('../controllers/ShopProductController')
 const ShopProductFileController = require('../controllers/ShopProductFileController')
 const ShopProductDiscountController = require('../controllers/ShopProductDiscountController')
 const ShopProductVariationController = require('../controllers/ShopProductVariationController')
+const ShopProductAddOnController = require('../controllers/ShopProductAddOnController')
 const {
   uploadProductMedia,
   uploadProductCreateUpdate,
@@ -29,6 +30,7 @@ const controller = new ShopProductController()
 const fileController = new ShopProductFileController()
 const discountController = new ShopProductDiscountController()
 const variationController = new ShopProductVariationController()
+const addOnController = new ShopProductAddOnController()
 
 // ── Public (no auth) product browsing ─────────────────────────────────────────
 
@@ -225,6 +227,54 @@ router.delete(
   checkIntegerParam('productId'),
   checkIntegerParam('variationId'),
   variationController.deleteVariation.bind(variationController)
+)
+
+// ── Add-ons ───────────────────────────────────────────────────────────────────
+// Mutually exclusive scoping: a non-variation product's add-ons live under
+// /:productId/add-ons; a variation product's add-ons live per-variation under
+// /:productId/variations/:variationId/add-ons. Lists are public — buyers see
+// add-on choices on the product page.
+
+router.get(
+  '/:productId/add-ons',
+  checkIntegerParam('productId'),
+  addOnController.listProductAddOns.bind(addOnController)
+)
+
+router.post(
+  '/:productId/add-ons',
+  authMiddleware,
+  checkIntegerParam('productId'),
+  addOnController.createProductAddOn.bind(addOnController)
+)
+
+router.get(
+  '/:productId/variations/:variationId/add-ons',
+  checkIntegerParam('productId'),
+  checkIntegerParam('variationId'),
+  addOnController.listVariationAddOns.bind(addOnController)
+)
+
+router.post(
+  '/:productId/variations/:variationId/add-ons',
+  authMiddleware,
+  checkIntegerParam('productId'),
+  checkIntegerParam('variationId'),
+  addOnController.createVariationAddOn.bind(addOnController)
+)
+
+router.put(
+  '/add-ons/:addOnId',
+  authMiddleware,
+  checkIntegerParam('addOnId'),
+  addOnController.updateAddOn.bind(addOnController)
+)
+
+router.delete(
+  '/add-ons/:addOnId',
+  authMiddleware,
+  checkIntegerParam('addOnId'),
+  addOnController.deleteAddOn.bind(addOnController)
 )
 
 // ── Categories ────────────────────────────────────────────────────────────────
