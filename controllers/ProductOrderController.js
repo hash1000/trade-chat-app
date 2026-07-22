@@ -60,6 +60,18 @@ class ProductOrderController {
     }
   }
 
+  async getOwnerShopOrders(req, res) {
+    try {
+      const { id: userId } = req.user;
+      const { page, limit, status } = req.query;
+
+      const result = await orderService.getShopOrdersForOwner(userId, { page, limit, status });
+      return res.json({ success: true, ...result });
+    } catch (error) {
+      return handle(res, error, "ProductOrderController.getOwnerShopOrders error:");
+    }
+  }
+
   async getShopOrderById(req, res) {
     try {
       const { id: userId } = req.user;

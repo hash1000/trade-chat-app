@@ -60,6 +60,13 @@ exports.shopOrdersListValidation = [
   handleValidationErrors,
 ];
 
+exports.myShopOrdersListValidation = [
+  query("page").optional().isInt({ min: 1 }).withMessage("page must be an integer >= 1"),
+  query("limit").optional().isInt({ min: 1 }).withMessage("limit must be an integer >= 1"),
+  query("status").optional().isIn(STATUS_VALUES).withMessage(`status must be one of: ${STATUS_VALUES.join(", ")}`),
+  handleValidationErrors,
+];
+
 exports.updateStatusValidation = [
   param("shopOrderId").isInt().withMessage("shopOrderId must be an integer"),
   body("status")

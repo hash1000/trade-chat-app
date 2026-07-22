@@ -8,6 +8,7 @@ const {
   checkoutValidation,
   paginationValidation,
   shopOrdersListValidation,
+  myShopOrdersListValidation,
   updateStatusValidation,
   addChargeValidation,
   payChargeValidation,
@@ -20,6 +21,16 @@ router.post("/checkout", authMiddleware, checkoutValidation, orderController.che
 
 // ── Buyer: my orders (parent orders, paginated) ─────────────────────────────
 router.get("/", authMiddleware, paginationValidation, orderController.getMyOrders.bind(orderController));
+
+// ── Shop owner: orders across every shop they own (paginated) ──────────────
+// Declared before "/shop/:shopId" purely for readability; "shops" vs "shop"
+// never collide as route segments.
+router.get(
+  "/shops/owner",
+  authMiddleware,
+  myShopOrdersListValidation,
+  orderController.getOwnerShopOrders.bind(orderController)
+);
 
 // ── Shop owner / admin: this shop's orders (shop-orders, paginated) ────────
 // Declared before "/:orderId" so "shop" is never captured as an orderId.

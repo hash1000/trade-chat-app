@@ -632,6 +632,22 @@ class ProductOrderService {
     };
   }
 
+  // Orders across every shop the caller owns — no single shopId, so no
+  // ownership check is needed beyond scoping the query to the caller's id.
+  async getShopOrdersForOwner(actorUserId, { page = 1, limit = 10, status } = {}) {
+    const { total, rows } = await this.repo.listShopOrdersForOwner(actorUserId, {
+      page: Number(page),
+      limit: Number(limit),
+      status,
+    });
+    return {
+      total,
+      totalPages: Math.ceil(total / limit),
+      currentPage: Number(page),
+      orders: rows,
+    };
+  }
+
   async getParentOrder(userId, parentOrderId) {
     const order = await this.repo.findParentOrderForUser(parentOrderId, userId);
     if (!order) throw clientError("Order not found.", 404, "NOT_FOUND");

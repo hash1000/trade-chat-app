@@ -127,6 +127,27 @@ class ProductOrderRepository {
     return { total: count, rows };
   }
 
+  // Orders across every shop the given user owns, not just one.
+  async listShopOrdersForOwner(ownerUserId, { page, limit, status }) {
+    const offset = (page - 1) * limit;
+    const where = {};
+    if (status) where.status = status;
+
+    const include = shopOrderInclude().map((entry) =>
+      entry.as === "shop" ? { ...entry, where: { userId: ownerUserId }, required: true } : entry
+    );
+
+    const { count, rows } = await ProductShopOrder.findAndCountAll({
+      where,
+      include,
+      limit,
+      offset,
+      order: [["createdAt", "DESC"]],
+      distinct: true,
+    });
+    return { total: count, rows };
+  }
+
   async updateShopOrder(shopOrderId, fields, transaction) {
     return ProductShopOrder.update(fields, { where: { id: shopOrderId }, transaction });
   }
