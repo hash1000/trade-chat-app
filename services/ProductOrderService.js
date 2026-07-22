@@ -10,6 +10,8 @@ const {
   Role,
 } = require("../models");
 const ProductOrderRepository = require("../repositories/ProductOrderRepository");
+const NotificationService = require("./NotificationService");
+const notificationService = new NotificationService();
 
 function clientError(message, statusCode, code) {
   const err = new Error(message);
@@ -37,6 +39,47 @@ const STATUS_FLOW = [
 ];
 const TERMINAL_STATUSES = ["cancelled", "refunded", "returned", "delivered"];
 const REFUNDING_STATUSES = ["cancelled", "refunded"];
+
+// One notification per shop owner about the shop-order they just received.
+// Never throws — a failed notification must not break checkout.
+async function notifyShopOwnerOfNewOrder({ shopOwnerId, buyerId, shopOrder }) {
+  if (!shopOwnerId || shopOwnerId === buyerId) return;
+  try {
+    const buyer = await User.findByPk(buyerId, { attributes: ["id", "username", "email"] });
+    const buyerName = (buyer && (buyer.username || buyer.email)) || `User #${buyerId}`;
+
+    await notificationService.notifyUser({
+      userId: shopOwnerId,
+      actorId: buyerId,
+      type: "PRODUCT_ORDER_CREATED",
+      title: "New order received",
+      message: `${buyerName} placed an order (#${shopOrder.orderNo}) for ${round2(shopOrder.totalAmount)}.`,
+      entityType: "PRODUCT_SHOP_ORDER",
+      entityId: shopOrder.id,
+      data: { orderNo: shopOrder.orderNo, amount: round2(shopOrder.totalAmount), buyerName },
+    });
+  } catch (error) {
+    console.error("notifyShopOwnerOfNewOrder error:", error.message);
+  }
+}
+
+// Notifies the buyer their shop-order's status changed. Never throws.
+async function notifyBuyerOfStatusChange({ buyerId, actorId, shopOrder, nextStatus }) {
+  try {
+    await notificationService.notifyUser({
+      userId: buyerId,
+      actorId,
+      type: "PRODUCT_ORDER_STATUS_UPDATED",
+      title: "Order status updated",
+      message: `Your order #${shopOrder.orderNo} is now "${nextStatus}".`,
+      entityType: "PRODUCT_SHOP_ORDER",
+      entityId: shopOrder.id,
+      data: { orderNo: shopOrder.orderNo, status: nextStatus },
+    });
+  } catch (error) {
+    console.error("notifyBuyerOfStatusChange error:", error.message);
+  }
+}
 
 function randomSuffix() {
   return Math.random().toString(36).slice(2, 8).toUpperCase();
@@ -300,6 +343,11 @@ class ProductOrderService {
 
       await tx.commit();
 
+      for (const shopOrder of createdShopOrders) {
+        const shopOwnerId = shopWalletMap.get(shopOrder.shopId).shop.userId;
+        await notifyShopOwnerOfNewOrder({ shopOwnerId, buyerId: userId, shopOrder });
+      }
+
       return this.repo.findParentOrderForUser(parentOrder.id, userId);
     } catch (error) {
       await tx.rollback();
@@ -359,6 +407,14 @@ class ProductOrderService {
       }
 
       await tx.commit();
+
+      await notifyBuyerOfStatusChange({
+        buyerId: shopOrder.userId,
+        actorId: actorUserId,
+        shopOrder,
+        nextStatus,
+      });
+
       return this.repo.findShopOrder(shopOrderId);
     } catch (error) {
       await tx.rollback();
