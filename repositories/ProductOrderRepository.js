@@ -10,9 +10,12 @@ const {
   Shop,
   Address,
   Wallet,
+  User,
 } = require("../models");
 const sequelize = require("../config/database");
 const CustomError = require("../errors/CustomError");
+
+const BUYER_ATTRIBUTES = ["id", "username", "email", "firstName", "lastName", "profilePic", "phoneNumber"];
 
 function itemInclude() {
   return [
@@ -35,7 +38,13 @@ function shopOrderInclude() {
   return [
     { model: ProductShopOrderItem, as: "items", include: itemInclude() },
     { model: ProductShopOrderCharge, as: "charges", order: [["id", "ASC"]] },
-    { model: Shop, as: "shop", attributes: ["id", "name", "profile_image", "country"] },
+    {
+      model: Shop,
+      as: "shop",
+      attributes: ["id", "name", "profile_image", "country"],
+      include: [{ model: User, as: "user", attributes: BUYER_ATTRIBUTES }],
+    },
+    { model: User, as: "buyer", attributes: BUYER_ATTRIBUTES },
   ];
 }
 
@@ -72,6 +81,7 @@ class ProductOrderRepository {
     return ProductOrder.findByPk(parentOrderId, {
       include: [
         { model: Address, as: "address" },
+        { model: User, as: "buyer", attributes: BUYER_ATTRIBUTES },
         { model: ProductShopOrder, as: "shopOrders", include: shopOrderInclude() },
       ],
     });
@@ -82,6 +92,7 @@ class ProductOrderRepository {
       where: { id: parentOrderId, userId },
       include: [
         { model: Address, as: "address" },
+        { model: User, as: "buyer", attributes: BUYER_ATTRIBUTES },
         { model: ProductShopOrder, as: "shopOrders", include: shopOrderInclude() },
       ],
     });
@@ -93,6 +104,7 @@ class ProductOrderRepository {
       where: { userId },
       include: [
         { model: Address, as: "address" },
+        { model: User, as: "buyer", attributes: BUYER_ATTRIBUTES },
         { model: ProductShopOrder, as: "shopOrders", include: shopOrderInclude() },
       ],
       limit,
