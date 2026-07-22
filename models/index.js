@@ -34,6 +34,10 @@ const AddToCart = require("./AddToCart");
 const ProductCartItem = require("./ProductCartItem");
 const ProductAddOn = require("./productAddOn");
 const ProductAddOnImage = require("./productAddOnImage");
+const ProductOrder = require("./ProductOrder");
+const ProductShopOrder = require("./ProductShopOrder");
+const ProductShopOrderItem = require("./ProductShopOrderItem");
+const ProductShopOrderCharge = require("./ProductShopOrderCharge");
 const ShortList = require("./shortList");
 const List = require("./list");
 const ProductImage = require("./productImage");
@@ -264,6 +268,42 @@ Order.belongsTo(Address, {
 
   ProductAddOn.hasMany(ProductAddOnImage, { foreignKey: "productAddOnId", as: "images" });
   ProductAddOnImage.belongsTo(ProductAddOn, { foreignKey: "productAddOnId", as: "addOn" });
+
+  // ── Product orders: ProductOrder (parent/checkout) → ProductShopOrder (per
+  // shop) → ProductShopOrderItem (line items) / ProductShopOrderCharge (post-
+  // order fees like shipping). See models/ProductOrder.js for the design note.
+  User.hasMany(ProductOrder, { foreignKey: "userId", as: "productOrders" });
+  ProductOrder.belongsTo(User, { foreignKey: "userId", as: "buyer" });
+  ProductOrder.belongsTo(Address, { foreignKey: "addressId", as: "address" });
+
+  ProductOrder.hasMany(ProductShopOrder, { foreignKey: "parentOrderId", as: "shopOrders" });
+  ProductShopOrder.belongsTo(ProductOrder, { foreignKey: "parentOrderId", as: "parentOrder" });
+
+  Shop.hasMany(ProductShopOrder, { foreignKey: "shopId", as: "productShopOrders" });
+  ProductShopOrder.belongsTo(Shop, { foreignKey: "shopId", as: "shop" });
+
+  User.hasMany(ProductShopOrder, { foreignKey: "userId", as: "productShopOrders" });
+  ProductShopOrder.belongsTo(User, { foreignKey: "userId", as: "buyer" });
+
+  ProductShopOrder.belongsTo(Wallet, { foreignKey: "payoutWalletId", as: "payoutWallet" });
+
+  ProductShopOrder.hasMany(ProductShopOrderItem, { foreignKey: "shopOrderId", as: "items" });
+  ProductShopOrderItem.belongsTo(ProductShopOrder, { foreignKey: "shopOrderId", as: "shopOrder" });
+
+  ShopProduct.hasMany(ProductShopOrderItem, { foreignKey: "shopProductId", as: "orderItems" });
+  ProductShopOrderItem.belongsTo(ShopProduct, { foreignKey: "shopProductId", as: "product" });
+
+  ProductVariation.hasMany(ProductShopOrderItem, { foreignKey: "variationId", as: "orderItems" });
+  ProductShopOrderItem.belongsTo(ProductVariation, { foreignKey: "variationId", as: "variation" });
+
+  ProductShopOrder.hasMany(ProductShopOrderCharge, { foreignKey: "shopOrderId", as: "charges" });
+  ProductShopOrderCharge.belongsTo(ProductShopOrder, { foreignKey: "shopOrderId", as: "shopOrder" });
+
+  User.hasMany(ProductShopOrderCharge, { foreignKey: "addedBy", as: "addedProductOrderCharges" });
+  ProductShopOrderCharge.belongsTo(User, { foreignKey: "addedBy", as: "addedByUser" });
+
+  ProductAddOn.hasMany(ProductShopOrderCharge, { foreignKey: "addOnId", as: "orderCharges" });
+  ProductShopOrderCharge.belongsTo(ProductAddOn, { foreignKey: "addOnId", as: "addOn" });
 
   // Category to ShortList association
   Category.hasMany(ShortList, { foreignKey: "categoryId", as: "shortLists" });
@@ -686,4 +726,8 @@ module.exports = {
   ProductCartItem,
   ProductAddOn,
   ProductAddOnImage,
+  ProductOrder,
+  ProductShopOrder,
+  ProductShopOrderItem,
+  ProductShopOrderCharge,
 };

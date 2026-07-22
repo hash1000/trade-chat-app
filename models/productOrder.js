@@ -1,6 +1,10 @@
 const { DataTypes } = require('sequelize')
 const sequelize = require('../config/database')
 
+// The parent "checkout event". One buyer, one wallet debit, one address/delivery
+// choice, but may fan out into several ProductShopOrder children — one per shop
+// represented in the cart at checkout time. Has no status of its own: the
+// buyer-facing state is derived from its children's statuses on read.
 const ProductOrder = sequelize.define(
   'ProductOrder',
   {
@@ -9,31 +13,42 @@ const ProductOrder = sequelize.define(
       primaryKey: true,
       autoIncrement: true,
     },
+    orderNo: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      unique: true,
+    },
     userId: {
       type: DataTypes.INTEGER,
       allowNull: false,
     },
-    shopId: {
+    addressId: {
       type: DataTypes.INTEGER,
-      allowNull: false,
+      allowNull: true,
     },
-    orderNumber: {
+    deliveryType: {
       type: DataTypes.STRING,
       allowNull: true,
     },
-    status: {
-      type: DataTypes.ENUM('draft', 'unpaid', 'active', 'in_production', 'completed', 'cancelled'),
-      allowNull: false,
-      defaultValue: 'draft',
+    note: {
+      type: DataTypes.TEXT,
+      allowNull: true,
     },
-    total: {
-      type: DataTypes.FLOAT,
+    // Which of the buyer's wallets (by type) was debited at checkout.
+    walletType: {
+      type: DataTypes.ENUM('PERSONAL', 'COMPANY'),
+      allowNull: false,
+    },
+    // Sum of every child shop-order's totalAmount at the moment of checkout.
+    totalAmount: {
+      type: DataTypes.DECIMAL(20, 8),
+      allowNull: false,
       defaultValue: 0,
     },
   },
   {
     timestamps: true,
-    tableName: 'productOrders',
+    tableName: 'product_orders',
   }
 )
 
