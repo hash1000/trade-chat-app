@@ -25,6 +25,16 @@ function isOutOfStock(product) {
 // out_of_stock is layered on top of "published" when stock is exhausted. This is
 // computed on read, never stored, so it can't drift out of sync with real stock.
 function attachEffectiveStatus(json) {
+  if (Array.isArray(json.variations)) {
+    // Per-variation status: a single sold-out variation is out_of_stock on its
+    // own, independent of its siblings — the product-level rollup (below) only
+    // flips once every variation is out.
+    json.variations = json.variations.map((v) => ({
+      ...v,
+      effectiveStatus: Number(v.stock) <= 0 ? "out_of_stock" : "in_stock",
+    }));
+  }
+
   json.effectiveStatus =
     json.status === "archived"
       ? "archived"
