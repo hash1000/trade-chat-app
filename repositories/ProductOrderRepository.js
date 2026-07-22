@@ -140,18 +140,25 @@ class ProductOrderRepository {
   }
 
   // Orders across every shop the given user owns, not just one.
+  // Resolves owned shopIds first and filters on that plain column rather than
+  // a where/required on the nested "shop" include — combined with the doubly
+  // nested shop.user include, Sequelize's findAndCountAll count-subquery drops
+  // the join alias and errors with "Unknown column 'shop.userId' in 'on clause'".
   async listShopOrdersForOwner(ownerUserId, { page, limit, status }) {
     const offset = (page - 1) * limit;
-    const where = {};
-    if (status) where.status = status;
 
-    const include = shopOrderInclude().map((entry) =>
-      entry.as === "shop" ? { ...entry, where: { userId: ownerUserId }, required: true } : entry
-    );
+    const ownedShops = await Shop.findAll({ where: { userId: ownerUserId }, attributes: ["id"] });
+    const shopIds = ownedShops.map((s) => s.id);
+    if (shopIds.length === 0) {
+      return { total: 0, rows: [] };
+    }
+
+    const where = { shopId: shopIds };
+    if (status) where.status = status;
 
     const { count, rows } = await ProductShopOrder.findAndCountAll({
       where,
-      include,
+      include: shopOrderInclude(),
       limit,
       offset,
       order: [["createdAt", "DESC"]],
