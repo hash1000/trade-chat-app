@@ -34,9 +34,9 @@ class ServiceAddOnController {
     try {
       const serviceId = Number(req.params.serviceId);
       const actorId = req.user.id;
-      const { title, description, amount } = req.body;
-    //  console.log("ServiceAddOnController.createAddOn serviceId:", serviceId, "actorId:", actorId, "title:", title, "description:", description, "amount:", amount); 
-      const addOn = await serviceAddOnService.createAddOn(serviceId, actorId, { title, description, amount });
+      const { title, description, amount, isRequired } = req.body;
+    //  console.log("ServiceAddOnController.createAddOn serviceId:", serviceId, "actorId:", actorId, "title:", title, "description:", description, "amount:", amount);
+      const addOn = await serviceAddOnService.createAddOn(serviceId, actorId, { title, description, amount, isRequired });
 
       return res.status(201).json({ success: true, data: addOn });
     } catch (error) {
@@ -49,9 +49,9 @@ class ServiceAddOnController {
       const serviceId = Number(req.params.serviceId);
       const addOnId = Number(req.params.addOnId);
       const actorId = req.user.id;
-      const { title, description, amount } = req.body;
+      const { title, description, amount, isRequired } = req.body;
 
-      const addOn = await serviceAddOnService.updateAddOn(serviceId, addOnId, actorId, { title, description, amount });
+      const addOn = await serviceAddOnService.updateAddOn(serviceId, addOnId, actorId, { title, description, amount, isRequired });
 
       return res.status(200).json({ success: true, data: addOn });
     } catch (error) {

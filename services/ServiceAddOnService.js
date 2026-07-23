@@ -121,7 +121,7 @@ class ServiceAddOnService {
     const service = await this.assertServiceExists(serviceId);
     await this.assertOwnerOrAdmin(service, actorId);
 
-    const { title, description, amount } = data;
+    const { title, description, amount, isRequired } = data;
 
     if (!title || !String(title).trim()) {
       const err = new Error("title is required.");
@@ -140,6 +140,7 @@ class ServiceAddOnService {
       title: String(title).trim(),
       description: description ? String(description).trim() : null,
       amount: Number(amount),
+      isRequired: Boolean(isRequired),
     });
 
     return this.getAddOnOrFail(serviceId, addOn.id);
@@ -178,6 +179,10 @@ class ServiceAddOnService {
         throw err;
       }
       updates.amount = Number(data.amount);
+    }
+
+    if (data.isRequired !== undefined) {
+      updates.isRequired = Boolean(data.isRequired);
     }
 
     if (Object.keys(updates).length) {

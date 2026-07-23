@@ -92,7 +92,14 @@ class CartRepository {
   async fetchAddOn(addOnId) {
     return ServiceAddOn.findOne({
       where: { id: addOnId, deletedAt: null },
-      attributes: ["id", "serviceId", "title", "amount"],
+      attributes: ["id", "serviceId", "title", "amount", "isRequired"],
+    });
+  }
+
+  async fetchAddOnsByService(serviceId) {
+    return ServiceAddOn.findAll({
+      where: { serviceId, deletedAt: null },
+      attributes: ["id", "serviceId", "title", "amount", "isRequired"],
     });
   }
 

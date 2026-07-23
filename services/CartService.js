@@ -63,6 +63,13 @@ function computeItemTotals(item) {
   return { subtotal, discountAmount, finalAmount, addOnSubtotal, itemTotal: finalAmount + addOnSubtotal };
 }
 
+// Required add-ons always mirror the parent service's quantity — the customer
+// cannot set their quantity independently. Optional add-ons are left untouched.
+function syncRequiredAddOnQuantity(addOns, quantity) {
+  if (!Array.isArray(addOns) || addOns.length === 0) return addOns;
+  return addOns.map((a) => (a.isRequired ? { ...a, quantity } : a));
+}
+
 async function computeCartTotal(cartId) {
   const items = await repo.getCartItems(cartId);
   return items.reduce((sum, item) => sum + computeItemTotals(item).itemTotal, 0);
@@ -140,7 +147,23 @@ class CartService {
     }
 
     const cartItem = await repo.createCartItem(cart.id, serviceId, quantity, price);
-    const t = computeItemTotals(cartItem);
+
+    // Auto-attach any required add-ons for this service — the customer cannot opt out.
+    const serviceAddOns = await repo.fetchAddOnsByService(serviceId);
+    const requiredAddOns = serviceAddOns.filter((a) => a.isRequired);
+    if (requiredAddOns.length > 0) {
+      const addOns = requiredAddOns.map((a) => ({
+        addOnId: a.id,
+        title: a.title,
+        quantity: 1,
+        price: parseFloat(a.amount),
+        isRequired: true,
+      }));
+      await repo.updateCartItem(cartItem, { addOns });
+    }
+
+    const updatedItem = await repo.findCartItemByIdAndCart(cartItem.id, cart.id);
+    const t = computeItemTotals(updatedItem);
     const cartTotal = await computeCartTotal(cart.id);
 
     return {
@@ -149,10 +172,11 @@ class CartService {
       cartItemId: cartItem.id,
       serviceId,
       serviceName: service.name,
-      quantity: cartItem.quantity,
+      quantity: updatedItem.quantity,
       price,
       subtotal: t.subtotal,
-      addOnSubtotal: 0,
+      addOns: updatedItem.addOns,
+      addOnSubtotal: t.addOnSubtotal,
       itemTotal: t.itemTotal,
       cartTotal,
     };
@@ -208,6 +232,7 @@ class CartService {
           title: a.title,
           quantity: a.quantity,
           price: a.price,
+          isRequired: !!a.isRequired,
           subtotal: parseFloat(a.price) * a.quantity,
         })),
         addOnSubtotal: t.addOnSubtotal,
@@ -234,11 +259,12 @@ class CartService {
     const item = await repo.findCartItemByIdAndCart(cartItemId, cartId);
     if (!item) throw clientError("Cart item not found.", 404, "NOT_FOUND");
 
-    await repo.updateCartItem(item, { quantity });
-    const t = computeItemTotals({ ...item.toJSON(), quantity });
+    const addOns = syncRequiredAddOnQuantity(item.addOns, quantity);
+    await repo.updateCartItem(item, { quantity, addOns });
+    const t = computeItemTotals({ ...item.toJSON(), quantity, addOns });
     const cartTotal = await computeCartTotal(cartId);
 
-    return { quantity, subtotal: t.subtotal, cartTotal };
+    return { quantity, subtotal: t.subtotal, addOnSubtotal: t.addOnSubtotal, itemTotal: t.itemTotal, cartTotal };
   }
 
   /**
@@ -285,15 +311,22 @@ class CartService {
     // ── Phase 2: apply all updates atomically ───────────────────────────────────
     await sequelize.transaction(async (t) => {
       for (const { item, quantity } of resolved) {
-        await repo.updateCartItem(item, { quantity }, t);
+        const addOns = syncRequiredAddOnQuantity(item.addOns, quantity);
+        await repo.updateCartItem(item, { quantity, addOns }, t);
       }
     });
 
-    const updated = resolved.map(({ item, cartItemId, quantity }) => ({
-      cartItemId,
-      quantity,
-      subtotal: computeItemTotals({ ...item.toJSON(), quantity }).subtotal,
-    }));
+    const updated = resolved.map(({ item, cartItemId, quantity }) => {
+      const addOns = syncRequiredAddOnQuantity(item.addOns, quantity);
+      const itemTotals = computeItemTotals({ ...item.toJSON(), quantity, addOns });
+      return {
+        cartItemId,
+        quantity,
+        subtotal: itemTotals.subtotal,
+        addOnSubtotal: itemTotals.addOnSubtotal,
+        itemTotal: itemTotals.itemTotal,
+      };
+    });
     const cartTotal = await computeCartTotal(cartId);
 
     return { items: updated, cartTotal };
@@ -390,13 +423,16 @@ class CartService {
       if (addOn.serviceId !== item.serviceId) {
         throw clientError(`Add-on ${addOnId} does not belong to this service.`, 400, "VALIDATION_ERROR");
       }
-      resolved.push({ addOnId, quantity, title: addOn.title, price: parseFloat(addOn.amount) });
+      resolved.push({ addOnId, quantity, title: addOn.title, price: parseFloat(addOn.amount), isRequired: !!addOn.isRequired });
     }
 
     const addOns = Array.isArray(item.addOns) ? [...item.addOns] : [];
     const applied = [];
     for (const r of resolved) {
-      const entry = { addOnId: r.addOnId, title: r.title, quantity: r.quantity, price: r.price };
+      // A required add-on's quantity always mirrors the service quantity — ignore any
+      // caller-supplied quantity for it rather than letting it drift out of sync.
+      const quantity = r.isRequired ? item.quantity : r.quantity;
+      const entry = { addOnId: r.addOnId, title: r.title, quantity, price: r.price, isRequired: r.isRequired };
       const existingIdx = addOns.findIndex((a) => a.addOnId === r.addOnId);
       if (existingIdx >= 0) addOns[existingIdx] = entry;
       else addOns.push(entry);
@@ -429,6 +465,16 @@ class CartService {
     if (!item) throw clientError("Cart item not found.", 404, "NOT_FOUND");
 
     const before = Array.isArray(item.addOns) ? item.addOns : [];
+
+    const blocked = before.filter((a) => idSet.has(a.addOnId) && a.isRequired);
+    if (blocked.length > 0) {
+      throw clientError(
+        `This add-on is required and cannot be removed: ${blocked.map((a) => a.title).join(", ")}.`,
+        400,
+        "ADDON_REQUIRED"
+      );
+    }
+
     const addOns = before.filter((a) => !idSet.has(a.addOnId));
     const removedCount = before.length - addOns.length;
 

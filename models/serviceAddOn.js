@@ -36,6 +36,12 @@ const ServiceAddOn = sequelize.define(
       allowNull: false,
     },
 
+    isRequired: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
+
     deletedBy: {
       type: DataTypes.INTEGER,
       allowNull: true,
