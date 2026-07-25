@@ -82,42 +82,21 @@ const parseTestCardCurrencyInput = (value, options = {}) => {
 
 // Validation rules for creating a bank account
 exports.createBankAccountValidation = [
-  body("accountName")
-    .trim()
-    .notEmpty()
-    .withMessage("Account name is required")
-    // .isLength({ min: 2, max: 100 })
-    .withMessage("Account name must be between 2 and 100 characters"),
+  body("accountName").trim().optional(),
 
   // IBAN is optional; when provided, validate format
   body("iban").optional({ nullable: true }),
 
-  body("swift_code")
-    .trim()
-    .notEmpty()
-    // .isLength({ min: 4, max: 11 })
-    .withMessage("SWIFT/BIC seems invalid"),
+  body("swift_code").trim().optional(),
 
   body("accountHolder")
     .trim()
     .notEmpty()
-    .withMessage("Account holder is required")
-    // .isLength({ min: 2, max: 100 })
-    .withMessage("Account holder must be between 2 and 100 characters"),
+    .withMessage("Account holder is required"),
 
-  body("accountCurrency")
-    .trim()
-    .notEmpty()
-    .withMessage("Account currency is required")
-    // .isLength({ min: 3, max: 10 })
-    .withMessage("Account currency seems invalid"),
+  body("accountCurrency").trim().optional(),
 
-  body("bic")
-    .trim()
-    .notEmpty()
-    .withMessage("BIC is required")
-    // .isLength({ min: 4, max: 11 })
-    .withMessage("BIC seems invalid"),
+  body("bic").trim().optional(),
 
   body("intermediateBank")
     .trim()
@@ -161,33 +140,13 @@ exports.createBankAccountValidation = [
 exports.updateBankAccountValidation = [
   param("id").isInt().withMessage("Invalid bank account id"),
 
-  body("accountName")
-    .trim()
-    .optional()
-    .isLength({ min: 2, max: 100 })
-    .withMessage("Account name must be between 2 and 100 characters"),
+  body("accountName").trim().optional(),
   body("iban").optional({ nullable: true }).trim(),
-  body("swift_code")
-    .trim()
-    .optional()
-    .isLength({ min: 1, max: 100 })
-    .withMessage("SWIFT/BIC seems invalid"),
-  body("accountHolder")
-    .trim()
-    .optional()
-    .isLength({ min: 2, max: 100 })
-    .withMessage("Account holder must be between 2 and 100 characters"),
-  body("accountCurrency")
-    .trim()
-    .optional()
-    .isLength({ min: 2, max: 100 })
-    .withMessage("Account currency seems invalid"),
+  body("swift_code").trim().optional(),
+  body("accountHolder").trim().optional(),
+  body("accountCurrency").trim().optional(),
 
-  body("bic")
-    .trim()
-    .optional()
-    .isLength({ min: 2, max: 100 })
-    .withMessage("BIC seems invalid"),
+  body("bic").trim().optional(),
   body("intermediateBank")
     .trim()
     .optional()
@@ -234,21 +193,19 @@ exports.createAdminTestCardValidation = [
   body("accountName")
     .trim()
     .notEmpty()
-    .withMessage("Account name is required")
-    .withMessage("Account name must be between 2 and 100 characters"),
+    .withMessage("Account name is required"),
 
   body("iban").optional({ nullable: true }),
 
   body("swift_code")
     .trim()
     .notEmpty()
-    .withMessage("SWIFT/BIC seems invalid"),
+    .withMessage("SWIFT/BIC is required"),
 
   body("accountHolder")
     .trim()
     .notEmpty()
-    .withMessage("Account holder is required")
-    .withMessage("Account holder must be between 2 and 100 characters"),
+    .withMessage("Account holder is required"),
 
   body("accountCurrency")
     .optional({ nullable: true }),
@@ -256,8 +213,7 @@ exports.createAdminTestCardValidation = [
   body("bic")
     .trim()
     .notEmpty()
-    .withMessage("BIC is required")
-    .withMessage("BIC seems invalid"),
+    .withMessage("BIC is required"),
 
   body("intermediateBank")
     .trim()

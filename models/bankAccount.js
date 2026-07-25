@@ -17,7 +17,7 @@ const BankAccount = sequelize.define(
     },
     accountName: {
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: true,
     },
     iban: {
       type: DataTypes.STRING,
@@ -27,7 +27,7 @@ const BankAccount = sequelize.define(
     },
     swift_code: {
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: true,
     },
     accountHolder: {
       type: DataTypes.STRING,
@@ -39,7 +39,7 @@ const BankAccount = sequelize.define(
     },
     bic: {
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: true,
     },
     intermediateBank: {
       type: DataTypes.STRING,
