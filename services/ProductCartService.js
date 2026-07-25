@@ -92,10 +92,22 @@ class ProductCartService {
     return round2((unitPrice * quantity * discountPercent) / 100);
   }
 
+  // Snapshot shape stored on a cart line for one add-on: [{ addOnId, name,
+  // price, image, isRequired }]. Carries only the first/primary image, not
+  // the whole gallery — a cart line thumbnail doesn't need every picture.
+  _toSnapshot(addOn) {
+    return {
+      addOnId: addOn.id,
+      name: addOn.name,
+      price: Number(addOn.price),
+      image: addOn.images && addOn.images.length > 0 ? addOn.images[0].url : null,
+      isRequired: !!addOn.isRequired,
+    };
+  }
+
   // Validates the requested add-on ids against whichever scope the cart line
   // actually is (the variation's own add-ons, or the product's own add-ons),
-  // requires each to be active and in stock, and returns the frozen snapshot
-  // shape stored on the cart line: [{ addOnId, name, price, image }].
+  // requires each to be active and in stock, and returns the frozen snapshot.
   async _resolveAddOns(addOnIds, shopProductId, variationId) {
     if (addOnIds === undefined || addOnIds === null) return [];
     if (!Array.isArray(addOnIds) || addOnIds.length === 0) {
@@ -119,14 +131,27 @@ class ProductCartService {
       }
     }
 
-    return found.map((addOn) => ({
-      addOnId: addOn.id,
-      name: addOn.name,
-      price: Number(addOn.price),
-      // Snapshot carries only the first/primary image, not the whole gallery —
-      // a cart line thumbnail doesn't need every picture the add-on has.
-      image: addOn.images && addOn.images.length > 0 ? addOn.images[0].url : null,
-    }));
+    return found.map((addOn) => this._toSnapshot(addOn));
+  }
+
+  // Add-ons the customer cannot opt out of — fetched fresh from whichever
+  // scope the cart line is (variation's own add-ons, or the product's own)
+  // so they get auto-attached on add-to-cart regardless of what the caller
+  // requested.
+  async _resolveRequiredAddOns(shopProductId, variationId) {
+    const required = await this.repo.fetchRequiredAddOns(shopProductId, variationId);
+    return required.map((addOn) => this._toSnapshot(addOn));
+  }
+
+  // Upserts requiredAddOns into baseAddOns by addOnId — an id already present
+  // in baseAddOns keeps its existing snapshot (already resolved/validated);
+  // only missing required ones get appended.
+  _mergeAddOns(baseAddOns, requiredAddOns) {
+    const byId = new Map((baseAddOns || []).map((a) => [a.addOnId, a]));
+    for (const req of requiredAddOns) {
+      if (!byId.has(req.addOnId)) byId.set(req.addOnId, req);
+    }
+    return [...byId.values()];
   }
 
   _addOnSubtotal(addOns) {
@@ -146,7 +171,9 @@ class ProductCartService {
       variationId
     );
 
-    const resolvedAddOns = await this._resolveAddOns(addOnIds, Number(shopProductId), variationId ? Number(variationId) : null);
+    const scopedVariationId = variationId ? Number(variationId) : null;
+    const resolvedAddOns = await this._resolveAddOns(addOnIds, Number(shopProductId), scopedVariationId);
+    const requiredAddOns = await this._resolveRequiredAddOns(Number(shopProductId), scopedVariationId);
 
     const existing = await this.repo.findExistingLine(userId, Number(shopProductId), variationId ?? null);
     const newQuantity = existing ? existing.productCartItemQuantity + qty : qty;
@@ -157,14 +184,17 @@ class ProductCartService {
 
     if (existing) {
       // Re-adding replaces the add-on selection rather than merging it — merging
-      // quantity silently duplicating add-on picks would be surprising.
+      // quantity silently duplicating add-on picks would be surprising. Required
+      // add-ons are always ensured present either way, since the customer can't
+      // opt out of them.
+      const baseAddOns = addOnIds !== undefined ? resolvedAddOns : existing.addOns || [];
       await this.repo.saveLine(existing, {
         productCartItemQuantity: newQuantity,
         unitPriceSnapshot: unitPrice,
         discountCode: discount.discountCode,
         discountPercent: discount.discountPercent,
         discountAmount,
-        ...(addOnIds !== undefined ? { addOns: resolvedAddOns } : {}),
+        addOns: this._mergeAddOns(baseAddOns, requiredAddOns),
       });
       return { message: "Quantity increased", cartItem: existing };
     }
@@ -172,13 +202,13 @@ class ProductCartService {
     const created = await this.repo.createLine({
       userId,
       shopProductId: Number(shopProductId),
-      variationId: variationId ? Number(variationId) : null,
+      variationId: scopedVariationId,
       productCartItemQuantity: qty,
       unitPriceSnapshot: unitPrice,
       discountCode: discount.discountCode,
       discountPercent: discount.discountPercent,
       discountAmount,
-      addOns: resolvedAddOns,
+      addOns: this._mergeAddOns(resolvedAddOns, requiredAddOns),
     });
     return { message: "Product added to cart", cartItem: created };
   }
@@ -211,6 +241,14 @@ class ProductCartService {
     if (!line) throw new CustomError("Cart item not found", 404);
 
     const toRemove = new Set(addOnIds.map(Number));
+    const blocked = (line.addOns || []).filter((a) => toRemove.has(a.addOnId) && a.isRequired);
+    if (blocked.length > 0) {
+      throw new CustomError(
+        `This add-on is required and cannot be removed: ${blocked.map((a) => a.name).join(", ")}.`,
+        400
+      );
+    }
+
     const remaining = (line.addOns || []).filter((a) => !toRemove.has(a.addOnId));
 
     await this.repo.saveLine(line, { addOns: remaining });
@@ -315,10 +353,16 @@ class ProductCartService {
   async getMyCart(userId) {
     const lines = await this.repo.listUserLines(userId);
 
-    const items = lines.map((line) => ({
-      ...line.toJSON(),
-      ...this._lineTotal(line),
-    }));
+    const items = lines.map((line) => {
+      const json = line.toJSON();
+      return {
+        ...json,
+        // Coerces isRequired to a boolean for cart lines snapshotted before
+        // the column existed, where it's simply absent from the JSON blob.
+        addOns: (json.addOns || []).map((a) => ({ ...a, isRequired: !!a.isRequired })),
+        ...this._lineTotal(line),
+      };
+    });
 
     const cartTotal = round2(items.reduce((sum, item) => sum + item.total, 0));
     return { items, itemCount: items.length, cartTotal };

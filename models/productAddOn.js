@@ -45,6 +45,11 @@ const ProductAddOn = sequelize.define(
       allowNull: false,
       defaultValue: true,
     },
+    isRequired: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
   },
   {
     tableName: "product_add_ons",

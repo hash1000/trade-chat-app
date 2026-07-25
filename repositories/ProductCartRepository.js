@@ -31,6 +31,17 @@ class ProductCartRepository {
     });
   }
 
+  // All active, required add-ons in scope — auto-attached on add-to-cart
+  // since the customer cannot opt out of them.
+  async fetchRequiredAddOns(shopProductId, variationId) {
+    return ProductAddOn.findAll({
+      where: variationId
+        ? { variationId, isRequired: true, isActive: true }
+        : { shopProductId, isRequired: true, isActive: true },
+      include: [{ model: ProductAddOnImage, as: "images", attributes: ["id", "url", "thumbnailUrl"] }],
+    });
+  }
+
   async findExistingLine(userId, shopProductId, variationId) {
     return ProductCartItem.findOne({
       where: { userId, shopProductId, variationId: variationId ?? null },

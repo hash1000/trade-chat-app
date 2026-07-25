@@ -34,6 +34,10 @@ function normalizeAddOn(raw, existing = null) {
       raw.isActive !== undefined
         ? raw.isActive === true || raw.isActive === "true" || raw.isActive === 1 || raw.isActive === "1"
         : existing ? existing.isActive : true,
+    isRequired:
+      raw.isRequired !== undefined
+        ? raw.isRequired === true || raw.isRequired === "true" || raw.isRequired === 1 || raw.isRequired === "1"
+        : existing ? existing.isRequired : false,
   };
 }
 
