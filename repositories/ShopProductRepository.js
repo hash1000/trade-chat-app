@@ -12,6 +12,8 @@ const ProductVariation = require("../models/productVariation");
 const ProductVariationImage = require("../models/productVariationImage");
 const ProductCategory = require("../models/productCategory");
 const PublicCategory = require("../models/publicCategories");
+const ProductAddOn = require("../models/productAddOn");
+const ProductAddOnImage = require("../models/productAddOnImage");
 
 class ShopProductRepository {
   _publicInclude() {
@@ -27,7 +29,19 @@ class ShopProductRepository {
       {
         model: ProductVariation,
         as: "variations",
-        include: [{ model: ProductVariationImage, as: "images" }],
+        include: [
+          { model: ProductVariationImage, as: "images" },
+          {
+            model: ProductAddOn,
+            as: "addOns",
+            include: [{ model: ProductAddOnImage, as: "images" }],
+          },
+        ],
+      },
+      {
+        model: ProductAddOn,
+        as: "addOns",
+        include: [{ model: ProductAddOnImage, as: "images" }],
       },
       {
         model: PublicCategory,
