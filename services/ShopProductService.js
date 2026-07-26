@@ -20,6 +20,19 @@ function isOutOfStock(product) {
   return Number(product.quantity) <= 0;
 }
 
+// isActive is the seller's own on/off toggle for an add-on and takes priority
+// over stock — a disabled add-on isn't purchasable even if stock remains.
+function addOnEffectiveStatus(addOn) {
+  if (!addOn.isActive) return "inactive";
+  return Number(addOn.stock) <= 0 ? "out_of_stock" : "in_stock";
+}
+
+function withAddOnStatus(addOns) {
+  return Array.isArray(addOns)
+    ? addOns.map((a) => ({ ...a, effectiveStatus: addOnEffectiveStatus(a) }))
+    : addOns;
+}
+
 // status is the seller-set value (draft/published/archived) persisted on the row.
 // effectiveStatus is what buyers should see: archived always wins, otherwise
 // out_of_stock is layered on top of "published" when stock is exhausted. This is
@@ -32,8 +45,11 @@ function attachEffectiveStatus(json) {
     json.variations = json.variations.map((v) => ({
       ...v,
       effectiveStatus: Number(v.stock) <= 0 ? "out_of_stock" : "in_stock",
+      addOns: withAddOnStatus(v.addOns),
     }));
   }
+
+  json.addOns = withAddOnStatus(json.addOns);
 
   json.effectiveStatus =
     json.status === "archived"

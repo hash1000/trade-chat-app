@@ -194,7 +194,7 @@ class ProductOrderService {
       for (const line of lines) {
         const lineSubtotal = round2(Number(line.unitPriceSnapshot) * line.productCartItemQuantity);
         const lineDiscount = round2(Number(line.discountAmount));
-        const lineAddOns = round2((line.addOns || []).reduce((sum, a) => sum + Number(a.price), 0));
+        const lineAddOns = round2((line.addOns || []).reduce((sum, a) => sum + Number(a.price) * Number(a.quantity ?? 1), 0));
         const lineTotal = round2(lineSubtotal - lineDiscount + lineAddOns);
 
         subtotal += lineSubtotal;

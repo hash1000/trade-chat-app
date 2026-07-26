@@ -9,7 +9,8 @@ const {
   updateQuantityValidation,
   applyDiscountValidation,
   removeItemsValidation,
-  addOnIdsValidation,
+  addAddOnsValidation,
+  removeAddOnsValidation,
 } = require("../middlewares/productCartValidator");
 
 const cartController = new ProductCartController();
@@ -44,13 +45,13 @@ router.delete(
 router.post(
   "/:cartItemId/add-ons",
   authMiddleware,
-  addOnIdsValidation,
+  addAddOnsValidation,
   cartController.addAddOns.bind(cartController)
 );
 router.delete(
   "/:cartItemId/add-ons",
   authMiddleware,
-  addOnIdsValidation,
+  removeAddOnsValidation,
   cartController.removeAddOns.bind(cartController)
 );
 

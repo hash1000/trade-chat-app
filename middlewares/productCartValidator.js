@@ -30,14 +30,19 @@ exports.addToCartValidation = [
     .isString()
     .withMessage("code must be a string"),
 
-  body("addOnIds")
+  body("addOns")
     .optional({ nullable: true })
     .isArray()
-    .withMessage("addOnIds must be an array"),
+    .withMessage("addOns must be an array"),
 
-  body("addOnIds.*")
-    .isInt()
-    .withMessage("addOnIds must contain only integers"),
+  body("addOns.*.addOnId")
+    .isInt({ min: 1 })
+    .withMessage("Each add-on must have a valid addOnId"),
+
+  body("addOns.*.quantity")
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage("Each add-on quantity must be an integer >= 1"),
 
   handleValidationErrors,
 ];
@@ -50,6 +55,20 @@ exports.updateQuantityValidation = [
     .withMessage("productCartItemQuantity is required")
     .isInt({ min: 0 })
     .withMessage("productCartItemQuantity must be an integer >= 0"),
+
+  body("addOns")
+    .optional({ nullable: true })
+    .isArray()
+    .withMessage("addOns must be an array"),
+
+  body("addOns.*.addOnId")
+    .isInt({ min: 1 })
+    .withMessage("Each add-on must have a valid addOnId"),
+
+  body("addOns.*.quantity")
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage("Each add-on quantity must be an integer >= 1"),
 
   handleValidationErrors,
 ];
@@ -78,7 +97,26 @@ exports.removeItemsValidation = [
   handleValidationErrors,
 ];
 
-exports.addOnIdsValidation = [
+exports.addAddOnsValidation = [
+  param("cartItemId").isInt().withMessage("cartItemId must be an integer"),
+
+  body("addOns")
+    .isArray({ min: 1 })
+    .withMessage("addOns must be a non-empty array"),
+
+  body("addOns.*.addOnId")
+    .isInt({ min: 1 })
+    .withMessage("Each add-on must have a valid addOnId"),
+
+  body("addOns.*.quantity")
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage("Each add-on quantity must be an integer >= 1"),
+
+  handleValidationErrors,
+];
+
+exports.removeAddOnsValidation = [
   param("cartItemId").isInt().withMessage("cartItemId must be an integer"),
 
   body("addOnIds")

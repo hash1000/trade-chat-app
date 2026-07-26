@@ -12,14 +12,14 @@ class ProductCartController {
   async addToCart(req, res) {
     try {
       const { id: userId } = req.user;
-      const { shopProductId, variationId, productCartItemQuantity, code, addOnIds } = req.body;
+      const { shopProductId, variationId, productCartItemQuantity, code, addOns } = req.body;
 
       const result = await cartService.addToCart(userId, {
         shopProductId,
         variationId,
         productCartItemQuantity,
         code,
-        addOnIds,
+        addOns,
       });
       return res.status(201).json({ success: true, ...result });
     } catch (error) {
@@ -41,9 +41,9 @@ class ProductCartController {
     try {
       const { id: userId } = req.user;
       const { cartItemId } = req.params;
-      const { productCartItemQuantity } = req.body;
+      const { productCartItemQuantity, addOns } = req.body;
 
-      const result = await cartService.updateQuantity(userId, Number(cartItemId), productCartItemQuantity);
+      const result = await cartService.updateQuantity(userId, Number(cartItemId), productCartItemQuantity, addOns);
       return res.json({ success: true, ...result });
     } catch (error) {
       return handle(res, error, "ProductCartController.updateQuantity error:");
@@ -79,9 +79,9 @@ class ProductCartController {
     try {
       const { id: userId } = req.user;
       const { cartItemId } = req.params;
-      const { addOnIds } = req.body;
+      const { addOns } = req.body;
 
-      const result = await cartService.addAddOns(userId, Number(cartItemId), addOnIds);
+      const result = await cartService.addAddOns(userId, Number(cartItemId), addOns);
       return res.json({ success: true, ...result });
     } catch (error) {
       return handle(res, error, "ProductCartController.addAddOns error:");
