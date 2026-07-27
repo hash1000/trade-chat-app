@@ -107,14 +107,15 @@ class UserProfileController {
 
   async createFriendship(req, res) {
     try {
-      //  create user friendship
+      //  add or remove a friend - no request/accept step
       const { userId: profileId, status } = req.params;
       const userId = req.user.id;
-      if (status === "add") {
-        await userProfileService.createFriendship(userId, profileId);
-      } else {
-        await userProfileService.removeFriendship(userId, profileId);
-      }
+
+      const result =
+        status === "add"
+          ? await userProfileService.createFriendship(userId, profileId)
+          : await userProfileService.removeFriendship(userId, profileId);
+
       const user = await userProfileService.getUserProfileById(
         profileId,
         req.user.id
@@ -122,10 +123,13 @@ class UserProfileController {
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
-      res.json({ user });
+      res.json({ ...result, user });
     } catch (error) {
       console.error(error);
-      res.status(500).json({ message: "Internal server error" });
+      const statusCode = error.statusCode || 500;
+      return res.status(statusCode).json({
+        message: statusCode === 500 ? "Internal server error" : error.message,
+      });
     }
   }
 

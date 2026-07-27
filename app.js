@@ -21,12 +21,15 @@ const io = new Server(httpServer, {
 
 app.use('/api/payment/webhook', bodyParser.raw({ type: 'application/json' }));
 
-// 👇 Initialize socket utils with io instance
-const { initSocketUtils } = require("./utilities/socketUtils");
-initSocketUtils(io);
+// 👇 Single source of truth for the Socket.IO instance
+require("./config/socket").init(io);
+app.set("io", io);
 
 // Initialize your upload socket
 require('./socket/streamUploadSocket')(io);
+
+// Chat rooms: authenticates the handshake, joins user-<id> / chat-<id>
+require('./socket/chatSocket')(io);
 app.use(express.static(path.join(__dirname, "public")));
 app.use(express.static(path.join(__dirname, "node_modules/socket.io/client-dist")));
 

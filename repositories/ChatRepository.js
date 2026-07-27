@@ -103,9 +103,19 @@ class ChatRepository {
     });
   }
 
+  // There is one chat row per pair. Two users adding each other at the same time
+  // would both miss the findChat, so re-check after a failed create instead of
+  // ending up with two rows for the same pair.
   async findOrCreateChat(requesterId, requesteeId) {
-    const chat = await this.findChat(requesterId, requesteeId);
-    return chat ? chat : await this.createChat(requesterId, requesteeId);
+    const existing = await this.findChat(requesterId, requesteeId);
+    if (existing) return existing;
+    try {
+      return await this.createChat(requesterId, requesteeId);
+    } catch (err) {
+      const raced = await this.findChat(requesterId, requesteeId);
+      if (raced) return raced;
+      throw err;
+    }
   }
 
   async getUserChat(userId) {
@@ -113,14 +123,41 @@ class ChatRepository {
     // const offset = (page - 1) * limit;
     const { Op } = require("sequelize");
 
-    // Fetch chats with the latest message
+    const contactAttributes = [
+      "firstName",
+      "lastName",
+      "username",
+      "email",
+      "country",
+      "gender",
+      "age",
+      "profilePic",
+      "description",
+      "settings",
+      "phoneNumber",
+      "rating",
+    ];
+
+    // Fetch chats with the latest message. The caller may be on either side of
+    // the chat, so include both users and pick the other party per row.
     const chats = await Chat.findAndCountAll({
       where: {
-        [Op.or]: [{ user1Id: userId }],
+        [Op.or]: [{ user1Id: userId }, { user2Id: userId }],
       },
       // limit,
       // offset,
       include: [
+        {
+          model: User,
+          as: "user1",
+          attributes: contactAttributes,
+          include: [
+            {
+              model: Role,
+              as: "roles",
+            },
+          ],
+        },
         {
           model: User,
           as: "user2",
@@ -147,27 +184,38 @@ class ChatRepository {
         },
       ],
     });
-    // Map the results to the desired format
-    const friends = chats.rows.map((chat) => ({
-      id: chat.user2Id,
-      username: chat.userName || chat.user2.username,
-      firstName: chat.user2.firstName,
-      lastName: chat.user2.lastName,
-      email: chat.user2.email,
-      country: chat.user2.country,
-      gender: chat.user2.gender,
-      age: chat.user2.age,
-      rating: chat.user2.rating,
-      roles: chat.user2.roles,
-      profilePic: chat.profilePic || chat.user2.profilePic,
-      description: chat.description || chat.user2.description,
-      settings: {
-        tags: chat.tags || chat.user2.tags,
-      },
-      createdAt: chat.createdAt,
-      updatedAt: chat.updatedAt,
-      phoneNumber: chat.phoneNumber || chat.user2.phoneNumber,
-    }));
+    // Map the results to the desired format. The chat-level overrides
+    // (userName/profilePic/...) were set by user1 about user2, so they only
+    // apply when the caller is user1.
+    const friends = chats.rows.map((chat) => {
+      const isUser1 = chat.user1Id === userId;
+      const other = isUser1 ? chat.user2 : chat.user1;
+      const otherId = isUser1 ? chat.user2Id : chat.user1Id;
+      const override = isUser1
+        ? chat
+        : { userName: null, profilePic: null, description: null, tags: null };
+
+      return {
+        id: otherId,
+        username: override.userName || other.username,
+        firstName: other.firstName,
+        lastName: other.lastName,
+        email: other.email,
+        country: other.country,
+        gender: other.gender,
+        age: other.age,
+        rating: other.rating,
+        roles: other.roles,
+        profilePic: override.profilePic || other.profilePic,
+        description: override.description || other.description,
+        settings: {
+          tags: override.tags || other.tags,
+        },
+        createdAt: chat.createdAt,
+        updatedAt: chat.updatedAt,
+        phoneNumber: other.phoneNumber,
+      };
+    });
 
     return friends;
   }
@@ -551,7 +599,7 @@ class ChatRepository {
       senderId: userId,
       text,
       paymentRequestId,
-      replyToId,
+      quoteToId: replyToId,
     });
   }
 

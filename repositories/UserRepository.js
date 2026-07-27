@@ -97,16 +97,24 @@ class UserRepository {
     });
   }
 
+  // The users table has no "name" column, so build one from the real fields.
   async getUserTokenAndName(userId) {
-    return User.findByPk(userId, {
+    const user = await User.findByPk(userId, {
       include: [
         {
           model: Role,
           as: "roles",
         },
       ],
-      attributes: ["id", "name", "fcm"],
+      attributes: ["id", "firstName", "lastName", "username", "fcm"],
     });
+    if (!user) return null;
+    const fullName = [user.firstName, user.lastName]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+    user.setDataValue("name", fullName || user.username || null);
+    return user;
   }
 
   async getUserProfile(id) {
@@ -330,35 +338,20 @@ class UserRepository {
     });
 
     const userIds = users.rows.map((user) => user.id);
+    // Friendship is one-sided: only my own entries count as "my friends".
     const friends = await Friends.findAll({
-      where: {
-        [Op.or]: [
-          { userId: userIds, profileId: userId },
-          { profileId: userIds, userId },
-        ],
-      },
+      where: { userId, profileId: userIds },
       attributes: ["userId", "profileId", "type"],
     });
 
     const friendsMap = friends.reduce((acc, friend) => {
-      if (friend.userId === userId) {
-        acc[friend.profileId] = friend;
-      } else {
-        acc[friend.userId] = friend;
-      }
+      acc[friend.profileId] = friend;
       return acc;
     }, {});
 
     users.rows = users.rows.map((user) => {
       user = user.toJSON();
       user.friendship = friendsMap[user.id] || null;
-      if (
-        user.friendship &&
-        user.friendship.type === "sent" &&
-        user.friendship.profileId === userId
-      ) {
-        user.friendship.type = "received";
-      }
       return user;
     });
 

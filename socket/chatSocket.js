@@ -1,0 +1,100 @@
+const jwt = require("jsonwebtoken");
+const { Op } = require("sequelize");
+const Chat = require("../models/chat");
+
+// Mirrors middlewares/authenticate.js, but reads the token from the Socket.IO
+// handshake instead of an Express header. Accepts either auth.token (preferred)
+// or the Authorization header sent by clients that reuse their REST setup.
+function readToken(socket) {
+  const fromAuth = socket.handshake.auth && socket.handshake.auth.token;
+  if (fromAuth) {
+    return String(fromAuth).replace(/^Bearer /, "");
+  }
+  const header = socket.handshake.headers && socket.handshake.headers.authorization;
+  if (header && header.startsWith("Bearer ")) {
+    return header.substring(7);
+  }
+  return null;
+}
+
+function authenticateSocket(socket, next) {
+  const token = readToken(socket);
+  if (!token) {
+    return next(new Error("Missing token"));
+  }
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
+    if (!decoded || !decoded.userId) {
+      return next(new Error("Invalid or expired token"));
+    }
+    socket.userId = Number(decoded.userId);
+    return next();
+  } catch (err) {
+    return next(new Error("Invalid or expired token"));
+  }
+}
+
+// A chat row is directional (user1Id/user2Id), so a participant may sit on
+// either side. Without this check any authenticated client could join any
+// chat-<id> room and read a conversation it is not part of.
+async function isParticipant(chatId, userId) {
+  const chat = await Chat.findOne({
+    where: {
+      id: chatId,
+      [Op.or]: [{ user1Id: userId }, { user2Id: userId }],
+    },
+  });
+  return Boolean(chat);
+}
+
+function initChatSocket(io) {
+  io.use(authenticateSocket);
+
+  io.on("connection", (socket) => {
+    // Personal room for user-targeted events (chat requests, invites).
+    socket.join(`user-${socket.userId}`);
+    console.log(`Socket ${socket.id} connected for user ${socket.userId}`);
+
+    socket.on("join chat room", async (payload, callback) => {
+      const chatId = Number(
+        payload && typeof payload === "object" ? payload.chatId : payload
+      );
+
+      if (!Number.isInteger(chatId) || chatId <= 0) {
+        if (typeof callback === "function") callback({ error: "Invalid chatId" });
+        return;
+      }
+
+      try {
+        if (!(await isParticipant(chatId, socket.userId))) {
+          if (typeof callback === "function") {
+            callback({ error: "Not a participant of this chat" });
+          }
+          return;
+        }
+
+        socket.join(`chat-${chatId}`);
+        if (typeof callback === "function") callback({ joined: chatId });
+      } catch (err) {
+        console.error("join chat room error:", err);
+        if (typeof callback === "function") callback({ error: "Failed to join chat" });
+      }
+    });
+
+    socket.on("leave chat room", (payload, callback) => {
+      const chatId = Number(
+        payload && typeof payload === "object" ? payload.chatId : payload
+      );
+      if (Number.isInteger(chatId) && chatId > 0) {
+        socket.leave(`chat-${chatId}`);
+      }
+      if (typeof callback === "function") callback({ left: chatId });
+    });
+
+    socket.on("disconnect", (reason) => {
+      console.log(`Socket ${socket.id} disconnected (${reason})`);
+    });
+  });
+}
+
+module.exports = initChatSocket;

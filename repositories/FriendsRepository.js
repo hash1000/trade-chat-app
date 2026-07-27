@@ -11,6 +11,33 @@ class FriendsRepository {
     })
   }
 
+  // Directed lookup: only "userId added profileId". Unlike get(), this does not
+  // match the reverse row, so one user adding another never implies the reverse.
+  async getDirected (userId, profileId) {
+    return Friends.findOne({
+      where: { userId, profileId },
+      attributes: ['id', 'type', 'userId', 'profileId'],
+      raw: true
+    })
+  }
+
+  // Friendship is immediate - there is no request/accept step, so it is written
+  // as 'accepted' straight away.
+  async addFriend (userId, profileId) {
+    return Friends.create({
+      userId,
+      profileId,
+      type: 'accepted'
+    })
+  }
+
+  // Remove only my own entry; the other user keeps me in their list.
+  async removeDirected (userId, profileId) {
+    return Friends.destroy({
+      where: { userId, profileId }
+    })
+  }
+
   async update (userId, profileId, type) {
     return Friends.update({
       type
@@ -35,41 +62,22 @@ class FriendsRepository {
     })
   }
 
+  // Friendship is one-sided, so "is this user my friend?" only looks at my own
+  // entry. Someone adding me does not make them my friend.
   async get (userId, profileId) {
-    const favourite = await Friends.findOne({
-      where: {
-        [Op.or]: [
-          { userId, profileId },
-          { userId: profileId, profileId: userId }
-        ]
-      },
-      attributes: ['type', 'userId', 'profileId'],
-      raw: true
-    })
-    // if type is sent and profileId is mine then return type as received
-    if (favourite && favourite.type === 'sent' && favourite.profileId === userId) {
-      favourite.type = 'received'
-    }
-    return favourite
+    return this.getDirected(userId, profileId)
   }
 
+  // My friend list = the users I added. Users who added me are not included.
   async getFriends (userId) {
     const friends = await Friends.findAll({
-      where: {
-        [Op.or]: [
-          { userId },
-          { profileId: userId }
-        ]
-      },
+      where: { userId },
       attributes: ['type', 'userId', 'profileId'],
     })
-    const friendsIds = friends.map(friend => {
-      if (friend.userId === userId) {
-        return friend.profileId
-      } else {
-        return friend.userId
-      }
-    })
+    const friendsIds = friends.map(friend => friend.profileId)
+    if (friendsIds.length === 0) {
+      return []
+    }
     const users = await User.findAll({
       where: {
         id: {
@@ -80,18 +88,11 @@ class FriendsRepository {
       raw: true
     })
     const friendsMap = friends.reduce((acc, friend) => {
-      if (friend.userId === userId) {
-        acc[friend.profileId] = friend
-      } else {
-        acc[friend.userId] = friend
-      }
+      acc[friend.profileId] = friend
       return acc
     }, {})
     return users.map(user => {
       user.friendship = friendsMap[user.id]
-      if (user.friendship && user.friendship.type === 'sent' && user.friendship.profileId === userId) {
-        user.friendship.type = 'received'
-      }
       return user
     })
   }

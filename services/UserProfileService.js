@@ -7,10 +7,7 @@ const FriendsRepository = require("../repositories/FriendsRepository");
 const ChatRepository = require("../repositories/ChatRepository");
 const Wallet = require("../models/wallet");
 
-const {
-  AddRequestNotification,
-  RequestAcceptedNotification,
-} = require("../notifications");
+const { AddRequestNotification } = require("../notifications");
 
 const CustomError = require("../errors/CustomError");
 const BankAccount = require("../models/bankAccount");
@@ -234,28 +231,39 @@ class UserService {
     return userFavouriteRepository.remove(userId, profileId);
   }
 
+  // Adding a friend is immediate and one-sided: no request/accept/reject step.
+  // Friendship is per-direction (me -> them), but the chat is shared by the
+  // pair, so if the other user already added me the existing chat is reused.
   async createFriendship(userId, profileId) {
-    //  create user friendship if already created then update the status to accepted
-    const friendship = await friendsRepository.get(userId, profileId);
-    if (friendship) {
-      if (friendship.type === "received") {
-        await friendsRepository.update(userId, profileId, "accepted");
-        // send request accepted notification
-        const otherUser = await userRepository.getUserTokenAndName(userId);
-        const myUser = await userRepository.getUserTokenAndName(profileId);
-        if (otherUser && otherUser.fcm && myUser && myUser.name) {
-          await new RequestAcceptedNotification(
-            otherUser.fcm,
-            {},
-            myUser,
-          ).sendNotification();
-        }
-      }
-    } else {
-      await friendsRepository.create(userId, profileId);
-      // sent add request notification
-      const otherUser = await userRepository.getUserTokenAndName(profileId);
-      const myUser = await userRepository.getUserTokenAndName(userId);
+    const me = Number(userId);
+    const them = Number(profileId);
+
+    if (!Number.isInteger(me) || !Number.isInteger(them)) {
+      throw new CustomError("Invalid user id", 400);
+    }
+    if (me === them) {
+      throw new CustomError("You cannot add yourself as a friend.", 400);
+    }
+
+    const target = await userRepository.getById(them);
+    if (!target) {
+      throw new CustomError("User not found", 404);
+    }
+
+    // My own directed friend entry. Only mine - adding them does not add me.
+    const existing = await friendsRepository.getDirected(me, them);
+    const alreadyFriend = Boolean(existing);
+    if (!alreadyFriend) {
+      await friendsRepository.addFriend(me, them);
+    }
+
+    // One chat row per pair, looked up in both directions.
+    const chatExisted = Boolean(await chatRepository.findChat(me, them));
+    const finalChat = await chatRepository.findOrCreateChat(me, them);
+
+    if (!alreadyFriend) {
+      const otherUser = await userRepository.getUserTokenAndName(them);
+      const myUser = await userRepository.getUserTokenAndName(me);
       if (otherUser && otherUser.fcm && myUser && myUser.name) {
         await new AddRequestNotification(
           otherUser.fcm,
@@ -264,11 +272,30 @@ class UserService {
         ).sendNotification();
       }
     }
+
+    return {
+      chatId: finalChat.id,
+      chatCreated: !chatExisted,
+      alreadyFriend,
+      message: alreadyFriend
+        ? "Already in your friend list."
+        : chatExisted
+          ? "Friend added. Existing chat reused."
+          : "Friend added and chat created.",
+    };
   }
 
+  // Removes only my own entry. The other user keeps me in their list, and the
+  // chat row is left intact so message history survives.
   async removeFriendship(userId, profileId) {
-    // remove user friendship
-    return friendsRepository.remove(userId, profileId);
+    const removed = await friendsRepository.removeDirected(
+      Number(userId),
+      Number(profileId),
+    );
+    return {
+      removed: removed > 0,
+      message: removed > 0 ? "Removed from your friend list." : "Not in your friend list.",
+    };
   }
 
   async getUserContacts(userId) {

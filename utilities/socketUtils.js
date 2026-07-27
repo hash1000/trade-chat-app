@@ -1,27 +1,35 @@
-let io = null;
+// The Socket.IO instance lives in config/socket.js. This module only wraps the
+// upload-progress emits so callers don't have to know about rooms/socket ids.
+const socket = require("../config/socket");
 
-function initSocketUtils(ioInstance) {
-  io = ioInstance;
+function getIO() {
+  try {
+    return socket.getIO();
+  } catch (err) {
+    console.warn("Socket.IO not initialized");
+    return null;
+  }
 }
 
 function emitUploadProgress(socketId, data) {
-    if (!io) return console.warn("Socket.IO not initialized");
+  const io = getIO();
+  if (!io) return;
   io.to(socketId).emit("upload-progress", data);
 }
 
-
 function emitUploadComplete(socketId, data) {
-  if (!io) return console.warn("Socket.IO not initialized");
+  const io = getIO();
+  if (!io) return;
   io.to(socketId).emit("upload-complete", data);
 }
 
 function emitUploadError(socketId, error) {
-  if (!io) return console.warn("Socket.IO not initialized");
+  const io = getIO();
+  if (!io) return;
   io.to(socketId).emit("upload-error", { error });
 }
 
 module.exports = {
-  initSocketUtils,
   emitUploadProgress,
   emitUploadComplete,
   emitUploadError,

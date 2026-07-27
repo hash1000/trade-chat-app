@@ -507,10 +507,16 @@ class CartService {
       modifiedPayload,
     );
 
-    const io = await req.app.get("io");
-    messages.forEach((message) => {
-      io.to(`chat-${chatId}`).emit("message event", message);
-    });
+    // Messages are already committed at this point, so a socket failure must not
+    // fail the request - the client would retry and duplicate them.
+    try {
+      const io = socket.getIO();
+      messages.forEach((message) => {
+        io.to(`chat-${chatId}`).emit("message event", message);
+      });
+    } catch (err) {
+      console.error("Failed to emit forwarded messages:", err);
+    }
 
     const otherUser = await User.findOne({ where: { id: recipientId } });
     // await new NewMessageNotification(otherUser.fcm,messages[messages.length-1], user).sendNotification();
