@@ -1,8 +1,8 @@
 # Use an official Node.js runtime as the base image
-FROM node:14.16.1-alpine
+FROM node:20-alpine
 
 RUN apk update && \
-  apk add bash
+  apk add bash python3 make g++
 
 # Set the working directory inside the container
 WORKDIR /var/app
