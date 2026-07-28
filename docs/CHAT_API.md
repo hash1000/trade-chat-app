@@ -31,10 +31,26 @@ Server: [socket/chatSocket.js](../socket/chatSocket.js)
 - Handshake is rejected (`connect_error`) if the token is missing or invalid.
 - On connect, the socket auto-joins room `user-<userId>` — used for
   account-level pushes (see `chat request` below).
+- **On connect, the socket also auto-joins `chat-<id>` for every chat this
+  user is already a participant in** (Firebase/Stream-style: connecting and
+  subscribing to your conversations are the same step — no manual per-chat
+  join needed for `typing` or `message event` to reach you). This is a
+  lookup against the DB at connect time, so it only covers chats that
+  already existed *before* this socket connected.
+- **Brand-new chats** (created after you're already connected, via
+  friend-add §4, `/api/chat/request` §9, or bulk-forward §6 auto-creating
+  one) are joined proactively too: the server moves any of your
+  already-connected sockets into the new `chat-<id>` room the moment it's
+  created (`config/socket.js`'s `joinUsersToChat`), so you don't need to
+  reconnect or manually join to start receiving events in it.
 - The old `client.html` in the repo root passes the token via `query`, which
   this server does **not** read. Don't copy it.
 
-### `join chat room` ✅
+### `join chat room` ✅ (optional — mostly for explicit control)
+
+Auto-join (above) covers the normal case. This is still useful if you want
+to explicitly confirm participation (the ack tells you if you're allowed in
+that chat) or reconnect after a `leave chat room`.
 
 ```js
 socket.emit("join chat room", { chatId: 5 }, (ack) => {
@@ -42,9 +58,8 @@ socket.emit("join chat room", { chatId: 5 }, (ack) => {
 });
 ```
 
-Server verifies you're `user1Id` or `user2Id` on that chat row before letting
-you join `chat-<chatId>`. You must join before you'll receive `message event`
-for that chat.
+Server verifies you're `user1Id` or `user2Id` on that chat row before
+letting you join `chat-<chatId>`.
 
 ### `leave chat room` ✅
 
@@ -57,7 +72,8 @@ socket.emit("leave chat room", { chatId: 5 }, (ack) => {
 ### `typing` ✅
 
 Fire-and-forget (no ack). Participant-checked the same way as `join chat
-room` — non-participants are silently ignored.
+room` — non-participants are silently ignored. Works as soon as both users
+are connected (see auto-join above) — no manual `join chat room` needed.
 
 ```js
 socket.emit("typing", { chatId: 5, isTyping: true });  // started typing
@@ -78,8 +94,10 @@ blur or after sending).
 
 Broadcast to room `chat-<chatId>` whenever a message is created via
 bulk-forward (§6). Payload is the raw `Message` row (id, chatId, senderId,
-text, fileUrl, local_id, settings, createdAt, ...). Only reaches sockets
-that have already joined `chat-<chatId>`.
+text, fileUrl, local_id, settings, createdAt, ...). Reaches any socket in
+`chat-<chatId>` — which, per the auto-join behavior above, is normally both
+participants as soon as they're connected, not just those who called
+`join chat room` explicitly.
 
 ### `message received` ✅
 
