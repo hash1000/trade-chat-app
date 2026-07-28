@@ -54,15 +54,46 @@ socket.emit("leave chat room", { chatId: 5 }, (ack) => {
 });
 ```
 
+### `typing` ✅
+
+Fire-and-forget (no ack). Participant-checked the same way as `join chat
+room` — non-participants are silently ignored.
+
+```js
+socket.emit("typing", { chatId: 5, isTyping: true });  // started typing
+socket.emit("typing", { chatId: 5, isTyping: false }); // stopped typing
+```
+
+Broadcasts to everyone else in `chat-<chatId>` **except the sender**
+(`socket.to()`, not `io.to()`) — you never see your own typing event echoed
+back. `isTyping` defaults to `true` if omitted, so the same event name
+covers both start and stop; the client decides when to emit `false` (e.g. on
+blur or after sending).
+
 ---
 
 ## 3. Server → client events
 
-### `message event` ✅ (emitted, but see §6 for the only way to trigger it)
+### `message event` ✅
 
 Broadcast to room `chat-<chatId>` whenever a message is created via
-bulk-forward. Payload is the raw `Message` row (id, chatId, senderId, text,
-fileUrl, local_id, settings, createdAt, ...).
+bulk-forward (§6). Payload is the raw `Message` row (id, chatId, senderId,
+text, fileUrl, local_id, settings, createdAt, ...). Only reaches sockets
+that have already joined `chat-<chatId>`.
+
+### `message received` ✅
+
+Sent **only to the recipient**, on their personal room `user-<recipientId>`
+— separate from `message event`, and delivered even if they haven't joined
+that chat's room yet (e.g. their chat list should update without the thread
+being open).
+
+```json
+{ "chatId": 5, "message": { "id": 12, "text": "...", "senderId": 2, "...": "..." } }
+```
+
+Use `message event` for "append this to the open thread" and
+`message received` for "update the chat list / show a badge."
 
 ### `chat request` ✅
 
@@ -154,45 +185,72 @@ Service: [UserProfileService.js](../services/UserProfileService.js) (`getFriendC
 
 ---
 
-## 6. Sending a message ⚠️ **broken for real clients**
+## 6. Sending a message ✅
 
-**There is no plain "send one text message" endpoint.** The only write path
-to the `messages` table is bulk-forward, and it is broken for the way any
-real multipart client (mobile app, browser `FormData`) actually calls it.
+**There is still no plain "send one text message" endpoint** — bulk-forward
+is the only write path to the `messages` table, used for both single
+messages and multi-file forwards. It used to reject every real
+`multipart/form-data` client; that's now fixed.
 
 ### `POST /api/chat/bulk-forward`
 
 `multipart/form-data`, fields:
 - `recipientId` — the other user's id
-- `payload` — **must currently be a real JSON array, not a string.** The
-  server does `payload.map(...)` directly with no `JSON.parse`. Any client
-  that sends `payload` as `JSON.stringify([...])` (the only way a
-  `multipart/form-data` field can carry structured data) gets:
-
-  ```
-  TypeError: payload.map is not a function
-  ```
-
-  and the request **hangs with no response** — the throw isn't caught, so
-  Express never sends anything back. This was confirmed against the droplet;
-  it's not a doc gap, it's a live bug in
-  [ChatService.js:490](../services/ChatService.js#L490) /
-  [ChatController.js:442](../controllers/ChatController.js#L442).
+- `payload` — a JSON array, **sent as a string field** (the normal way any
+  `multipart/form-data` client sends structured data —
+  `JSON.stringify([...])`). The server parses it with `JSON.parse` if it
+  arrives as a string. An empty/non-array payload returns `400`, not a hang.
 - `files` — 0+ file fields, uploaded to Spaces/S3, matched into `payload`
   entries by `index` / `thumbnail_index`.
 
-**Until that's fixed**, the only way to hit this endpoint successfully is
-from a client that can put a real array in a JSON body — i.e. not proper
-`multipart/form-data` at all. This route is not usable from a normal mobile
-or web client today. Treat this as a known gap, not something to build
-around in a frontend client.
+```js
+const form = new FormData();
+form.append("recipientId", "3");
+form.append("payload", JSON.stringify([{ text: "hello" }]));
+// form.append("files", fileBlob); // optional
+await fetch("/api/chat/bulk-forward", {
+  method: "POST",
+  headers: { Authorization: `Bearer ${token}` },
+  body: form,
+});
+```
 
-What it does when it works: `findOrCreateChat(userId, recipientId)`, uploads
-any files, bulk-inserts messages, emits `message event` to `chat-<chatId>`.
+What it does: `findOrCreateChat(userId, recipientId)`, uploads any files,
+bulk-inserts messages, stamps `lastMessage`/`lastMessageAt` on the chat
+(§7), emits `message event` to `chat-<chatId>` and `message received` to
+`user-<recipientId>` (§3). Verified end-to-end against the droplet with a
+real stringified-payload request.
 
 ---
 
-## 7. Reading messages ✅
+## 7. Chat list: last message & ordering ✅
+
+`GET /api/chat/` (§9 table) now includes, per conversation:
+
+```json
+{
+  "id": 3,
+  "chatId": 4,
+  "lastMessage": "hello world",
+  "lastMessageAt": "2026-07-28T12:06:26.000Z",
+  "createdAt": "2026-07-27T11:17:03.000Z",
+  "updatedAt": "2026-07-28T12:06:26.000Z",
+  "...": "rest of the contact profile fields"
+}
+```
+
+- `lastMessage` / `lastMessageAt` are columns on `chats`
+  ([models/chat.js](../models/chat.js)), stamped every time
+  `bulk-forward` (§6) creates messages. `null` until the first message.
+- File-only messages (no `text`) store `"📎 Attachment"` as the preview.
+- `updatedAt` on the chat is bumped by the same write, so it now reflects
+  last activity, not just chat creation.
+- The list is sorted `updatedAt DESC` — most recently active conversation
+  first. Chats with no messages yet sort by their creation time.
+
+---
+
+## 8. Reading messages ✅
 
 `GET /api/chat/:chatId/messages?page=1&pageSize=20&messageId=<optional>`
 
@@ -213,7 +271,7 @@ any files, bulk-inserts messages, emits `message event` to `chat-<chatId>`.
 
 ---
 
-## 8. Other REST routes (chat-adjacent)
+## 9. Other REST routes (chat-adjacent)
 
 | Route | Method | Notes |
 |---|---|---|
@@ -233,7 +291,7 @@ Full route list: [routes/chatRoutes.js](../routes/chatRoutes.js)
 
 ---
 
-## 9. Minimal connect + join example
+## 10. Minimal connect + join example
 
 ```js
 import { io } from "socket.io-client";
@@ -252,15 +310,28 @@ socket.on("connect", () => {
 });
 
 socket.on("message event", (msg) => {
-  // append msg to the thread
+  // append msg to the open thread
+});
+
+socket.on("message received", ({ chatId, message }) => {
+  // update chat list preview / unread badge, even if this thread isn't open
+});
+
+socket.on("typing", ({ chatId, userId, isTyping }) => {
+  // show/hide "typing..." indicator for that chat
 });
 
 socket.on("chat request", ({ chatId, fromUserId }) => {
   // someone wants to chat — refresh conversation list
 });
+
+// while composing:
+socket.emit("typing", { chatId, isTyping: true });
+// on blur / after send:
+socket.emit("typing", { chatId, isTyping: false });
 ```
 
-To get messages flowing today: create the chat via friend-add (§4, verify
-with §5 if unsure), fetch history via GET messages (§7). Sending new
-messages is blocked on the bulk-forward bug in §6 until that's fixed
-server-side.
+Full flow today: create the chat via friend-add (§4, verify with §5 if
+unsure), send messages via bulk-forward (§6), read history via GET messages
+(§8), and the chat list (§9) carries `lastMessage`/`lastMessageAt` sorted by
+recent activity.
