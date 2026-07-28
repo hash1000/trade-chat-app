@@ -133,6 +133,26 @@ class UserProfileController {
     }
   }
 
+  // GET /api/user/:userId/friend-chat-status
+  async getFriendChatStatus(req, res) {
+    try {
+      const { userId: profileId } = req.params;
+      const userId = req.user.id;
+
+      const status = await userProfileService.getFriendChatStatus(
+        userId,
+        profileId
+      );
+      return res.json(status);
+    } catch (error) {
+      console.error(error);
+      const statusCode = error.statusCode || 500;
+      return res.status(statusCode).json({
+        message: statusCode === 500 ? "Internal server error" : error.message,
+      });
+    }
+  }
+
   async getContacts(req, res) {
     const userId = req.user.id;
     // const { page = 1, pageSize = 10 } = req.body;

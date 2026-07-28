@@ -298,6 +298,37 @@ class UserService {
     };
   }
 
+  // createFriendship always creates-or-reuses the chat alongside the friend
+  // row, so this state shouldn't occur going forward - but friend rows from
+  // before that fix, or written by another path, may still lack a chat.
+  async getFriendChatStatus(userId, profileId) {
+    const me = Number(userId);
+    const them = Number(profileId);
+
+    if (!Number.isInteger(me) || !Number.isInteger(them)) {
+      throw new CustomError("Invalid user id", 400);
+    }
+
+    const target = await userRepository.getById(them);
+    if (!target) {
+      throw new CustomError("User not found", 404);
+    }
+
+    const myFriendship = await friendsRepository.getDirected(me, them);
+    const theirFriendship = await friendsRepository.getDirected(them, me);
+    const chat = await chatRepository.findChat(me, them);
+
+    const isFriend = Boolean(myFriendship);
+
+    return {
+      isFriend,
+      isMutualFriend: isFriend && Boolean(theirFriendship),
+      hasChat: Boolean(chat),
+      chatId: chat ? chat.id : null,
+      needsChatRepair: isFriend && !chat,
+    };
+  }
+
   async getUserContacts(userId) {
     const favourites = await userFavouriteRepository.getFavourites(userId);
     const invite = await chatRepository.getUserChat(userId);

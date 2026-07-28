@@ -55,6 +55,13 @@ router.get(
   userProfileController.createFriendship.bind(userProfileController)
 );
 
+// Check whether userId is my friend and whether a chat already exists
+router.get(
+  "/:userId/friend-chat-status",
+  authenticate,
+  userProfileController.getFriendChatStatus.bind(userProfileController)
+);
+
 // Fetch user contacts
 router.get(
   "/contacts",
