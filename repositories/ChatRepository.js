@@ -197,6 +197,7 @@ class ChatRepository {
 
       return {
         id: otherId,
+        chatId: chat.id,
         username: override.userName || other.username,
         firstName: other.firstName,
         lastName: other.lastName,
