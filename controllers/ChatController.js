@@ -440,23 +440,31 @@ class ChatController {
   }
 
   async bulkForwardMessages(req, res) {
-    const {
-      body: { payload, recipientId },
-      files,
-    } = req;
-    const { id: userId } = req.user;
-    const messages = await chatService.bulkForwardMessages(
-      payload,
-      files,
-      userId,
-      recipientId,
-      req.user,
-      req,
-    );
-    res.json({
-      message: "successfully forwarded messages",
-      data: messages,
-    });
+    try {
+      const {
+        body: { payload, recipientId },
+        files,
+      } = req;
+      const { id: userId } = req.user;
+      const messages = await chatService.bulkForwardMessages(
+        payload,
+        files,
+        userId,
+        recipientId,
+        req.user,
+        req,
+      );
+      res.json({
+        message: "successfully forwarded messages",
+        data: messages,
+      });
+    } catch (error) {
+      console.error("Error in bulkForwardMessages:", error);
+      const statusCode = error.statusCode || 500;
+      return res.status(statusCode).json({
+        message: statusCode === 500 ? "Internal server error" : error.message,
+      });
+    }
   }
 }
 

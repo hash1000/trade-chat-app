@@ -81,6 +81,21 @@ function initChatSocket(io) {
       }
     });
 
+    socket.on("typing", async (payload) => {
+      const chatId = Number(payload && payload.chatId);
+      if (!Number.isInteger(chatId) || chatId <= 0) return;
+
+      // socket.to() (not io.to()) excludes the sender - only the other
+      // participant(s) see the indicator, never yourself.
+      if (await isParticipant(chatId, socket.userId)) {
+        socket.to(`chat-${chatId}`).emit("typing", {
+          chatId,
+          userId: socket.userId,
+          isTyping: Boolean(payload.isTyping ?? true),
+        });
+      }
+    });
+
     socket.on("leave chat room", (payload, callback) => {
       const chatId = Number(
         payload && typeof payload === "object" ? payload.chatId : payload

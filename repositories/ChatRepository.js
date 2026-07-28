@@ -144,6 +144,9 @@ class ChatRepository {
       where: {
         [Op.or]: [{ user1Id: userId }, { user2Id: userId }],
       },
+      // Most recent activity first; chats with no messages yet fall back to
+      // createdAt via updatedAt, which is bumped whenever lastMessage* is set.
+      order: [["updatedAt", "DESC"]],
       // limit,
       // offset,
       include: [
@@ -212,6 +215,8 @@ class ChatRepository {
         settings: {
           tags: override.tags || other.tags,
         },
+        lastMessage: chat.lastMessageText,
+        lastMessageAt: chat.lastMessageAt,
         createdAt: chat.createdAt,
         updatedAt: chat.updatedAt,
         phoneNumber: other.phoneNumber,
@@ -605,7 +610,7 @@ class ChatRepository {
   }
 
   async createMessages(chatId, senderId, messages) {
-    return Message.bulkCreate(
+    const created = await Message.bulkCreate(
       messages.map((message) => ({
         chatId,
         senderId,
@@ -615,6 +620,19 @@ class ChatRepository {
         settings: message.settings || {},
       }))
     );
+
+    const last = created[created.length - 1];
+    if (last) {
+      await Chat.update(
+        {
+          lastMessageText: last.text || (last.fileUrl ? "📎 Attachment" : ""),
+          lastMessageAt: last.createdAt,
+        },
+        { where: { id: chatId } }
+      );
+    }
+
+    return created;
   }
 
   async bulkDeleteMessages(chatId, messageIds) {

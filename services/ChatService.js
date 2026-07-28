@@ -12,6 +12,7 @@ const crypto = require("crypto");
 
 const { PutObjectCommand, S3Client } = require("@aws-sdk/client-s3");
 const Wallet = require("../models/wallet");
+const CustomError = require("../errors/CustomError");
 
 const s3Client = new S3Client({
   endpoint: process.env.SPACES_END_POINT, // Find your endpoint in the control panel, under Settings. Prepend "https://".
@@ -459,6 +460,14 @@ class CartService {
   }
 
   async bulkForwardMessages(payload, files, userId, recipientId, user, req) {
+    // multipart/form-data (required because files ride along) always carries
+    // payload as a string field, even when the client sends JSON.stringify(array).
+    const parsedPayload =
+      typeof payload === "string" ? JSON.parse(payload) : payload;
+    if (!Array.isArray(parsedPayload) || parsedPayload.length === 0) {
+      throw new CustomError("payload must be a non-empty array of messages", 400);
+    }
+
     // get chat id if chat exists else create chat
     const chat = await this.chatRepository.findOrCreateChat(
       userId,
@@ -487,7 +496,7 @@ class CartService {
     }
 
     // replace the index with the fileUrl in the payload
-    const modifiedPayload = payload.map((message) => {
+    const modifiedPayload = parsedPayload.map((message) => {
       if (message.index != null) {
         message.fileUrl = fileUrls[message.index];
       }
@@ -512,7 +521,15 @@ class CartService {
     try {
       const io = socket.getIO();
       messages.forEach((message) => {
+        // Broadcast to whoever is actively in the chat room (in-thread live update).
         io.to(`chat-${chatId}`).emit("message event", message);
+        // Also notify the recipient's personal room directly, so they find out
+        // even if they haven't (or can't) join the chat room yet - e.g. their
+        // chat list badge/last-message preview updates without opening the thread.
+        io.to(`user-${recipientId}`).emit("message received", {
+          chatId,
+          message,
+        });
       });
     } catch (err) {
       console.error("Failed to emit forwarded messages:", err);

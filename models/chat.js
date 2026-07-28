@@ -56,6 +56,14 @@ const Chat = sequelize.define(
       allowNull: false,
       defaultValue: 0,
     },
+    lastMessageText: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    lastMessageAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
   },
   {
     tableName: "chats",
