@@ -1,6 +1,8 @@
 const jwt = require("jsonwebtoken");
 const { Op } = require("sequelize");
 const Chat = require("../models/chat");
+const ChatRepository = require("../repositories/ChatRepository");
+const chatRepository = new ChatRepository();
 
 // Mirrors middlewares/authenticate.js, but reads the token from the Socket.IO
 // handshake instead of an Express header. Accepts either auth.token (preferred)
@@ -50,10 +52,22 @@ async function isParticipant(chatId, userId) {
 function initChatSocket(io) {
   io.use(authenticateSocket);
 
-  io.on("connection", (socket) => {
+  io.on("connection", async (socket) => {
     // Personal room for user-targeted events (chat requests, invites).
     socket.join(`user-${socket.userId}`);
     console.log(`Socket ${socket.id} connected for user ${socket.userId}`);
+
+    // Auto-join every chat this user is already part of, Firebase/Stream-style:
+    // "connected" and "subscribed to your conversations" are the same event,
+    // instead of requiring a separate "join chat room" call per conversation
+    // before typing/message event will reach the client. Manual join/leave
+    // below still work for chats created after this connection was opened.
+    try {
+      const chatIds = await chatRepository.getUserChatIds(socket.userId);
+      chatIds.forEach((chatId) => socket.join(`chat-${chatId}`));
+    } catch (err) {
+      console.error(`Auto-join failed for user ${socket.userId}:`, err);
+    }
 
     socket.on("join chat room", async (payload, callback) => {
       const chatId = Number(

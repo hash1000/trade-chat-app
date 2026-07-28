@@ -40,6 +40,7 @@ class CartService {
 
     if (!chat) {
       chat = await this.chatRepository.createChat(requesterId, requesteeId);
+      socket.joinUsersToChat([requesterId, requesteeId], chat.id);
     }
 
     // Notify the requested user that someone wants to chat with them
@@ -469,11 +470,15 @@ class CartService {
     }
 
     // get chat id if chat exists else create chat
-    const chat = await this.chatRepository.findOrCreateChat(
-      userId,
-      recipientId,
-    );
+    const existingChat = await this.chatRepository.findChat(userId, recipientId);
+    const chat = existingChat || (await this.chatRepository.findOrCreateChat(userId, recipientId));
     const { id: chatId } = chat;
+
+    if (!existingChat) {
+      // Brand-new chat: get any already-connected sockets into the room now,
+      // rather than waiting for their next reconnect to auto-join it.
+      socket.joinUsersToChat([userId, recipientId], chatId);
+    }
 
     // parse the payload for the files and upload them to the server
     let fileUrls = [];

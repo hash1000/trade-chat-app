@@ -11,6 +11,7 @@ const { AddRequestNotification } = require("../notifications");
 
 const CustomError = require("../errors/CustomError");
 const BankAccount = require("../models/bankAccount");
+const socket = require("../config/socket");
 
 const userRepository = new UserRepository();
 const reactionRepository = new ReactionRepository();
@@ -260,6 +261,12 @@ class UserService {
     // One chat row per pair, looked up in both directions.
     const chatExisted = Boolean(await chatRepository.findChat(me, them));
     const finalChat = await chatRepository.findOrCreateChat(me, them);
+
+    if (!chatExisted) {
+      // Brand-new chat: get any already-connected sockets into the room now,
+      // rather than waiting for their next reconnect to auto-join it.
+      socket.joinUsersToChat([me, them], finalChat.id);
+    }
 
     if (!alreadyFriend) {
       const otherUser = await userRepository.getUserTokenAndName(them);

@@ -13,6 +13,19 @@ const UserRepository = require("./UserRepository");
 const userRepository = new UserRepository();
 
 class ChatRepository {
+  // Lightweight id-only lookup for socket auto-join - avoids the profile/role
+  // joins that getUserChat does, since we only need chat ids here.
+  async getUserChatIds(userId) {
+    const chats = await Chat.findAll({
+      where: {
+        [Op.or]: [{ user1Id: userId }, { user2Id: userId }],
+      },
+      attributes: ["id"],
+      raw: true,
+    });
+    return chats.map((c) => c.id);
+  }
+
   async findChat(requesterId, requesteeId) {
     return Chat.findOne({
       where: {

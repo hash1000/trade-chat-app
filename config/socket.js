@@ -12,5 +12,16 @@ module.exports = {
       throw new Error('Socket.io not initialized!')
     }
     return io
+  },
+  // Moves every currently-connected socket for these users into chat-<chatId>,
+  // so a brand-new chat is live for typing/message event immediately, without
+  // waiting for a reconnect (chatSocket.js only auto-joins existing chats at
+  // connection time). A no-op for anyone not currently connected - they'll
+  // pick the room up via the same auto-join on their next connect.
+  joinUsersToChat: (userIds, chatId) => {
+    if (!io) return
+    userIds.forEach((userId) => {
+      io.in(`user-${userId}`).socketsJoin(`chat-${chatId}`)
+    })
   }
 }
