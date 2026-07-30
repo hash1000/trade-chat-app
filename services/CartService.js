@@ -51,6 +51,22 @@ function resolveServicePrice(service, providedPrice) {
   return parseFloat(service.price || 0);
 }
 
+// Required add-ons track the service's quantity 1:1 — the customer can't opt
+// out or set them independently, so bumping service quantity must scale them.
+function scaleRequiredAddOns(item, quantity) {
+  const addOns = Array.isArray(item.addOns) ? item.addOns : [];
+  if (addOns.length === 0) return null;
+
+  let changed = false;
+  const updated = addOns.map((a) => {
+    if (!a.isRequired || a.quantity === quantity) return a;
+    changed = true;
+    return { ...a, quantity };
+  });
+
+  return changed ? updated : null;
+}
+
 function computeItemTotals(item) {
   const price = parseFloat(item.servicePriceSnapshot);
   const qty = item.quantity;
@@ -243,11 +259,19 @@ class CartService {
     const item = await repo.findCartItemByIdAndCart(cartItemId, cartId);
     if (!item) throw clientError("Cart item not found.", 404, "NOT_FOUND");
 
-    await repo.updateCartItem(item, { quantity });
-    const t = computeItemTotals({ ...item.toJSON(), quantity });
+    const addOns = scaleRequiredAddOns(item, quantity);
+    await repo.updateCartItem(item, addOns ? { quantity, addOns } : { quantity });
+    const t = computeItemTotals({ ...item.toJSON(), quantity, addOns: addOns || item.addOns });
     const cartTotal = await computeCartTotal(cartId);
 
-    return { quantity, subtotal: t.subtotal, addOnSubtotal: t.addOnSubtotal, itemTotal: t.itemTotal, cartTotal };
+    return {
+      quantity,
+      addOns: addOns || item.addOns,
+      subtotal: t.subtotal,
+      addOnSubtotal: t.addOnSubtotal,
+      itemTotal: t.itemTotal,
+      cartTotal,
+    };
   }
 
   /**
@@ -294,15 +318,18 @@ class CartService {
     // ── Phase 2: apply all updates atomically ───────────────────────────────────
     await sequelize.transaction(async (t) => {
       for (const { item, quantity } of resolved) {
-        await repo.updateCartItem(item, { quantity }, t);
+        const addOns = scaleRequiredAddOns(item, quantity);
+        await repo.updateCartItem(item, addOns ? { quantity, addOns } : { quantity }, t);
+        if (addOns) item.addOns = addOns;
       }
     });
 
     const updated = resolved.map(({ item, cartItemId, quantity }) => {
-      const itemTotals = computeItemTotals({ ...item.toJSON(), quantity });
+      const itemTotals = computeItemTotals({ ...item.toJSON(), quantity, addOns: item.addOns });
       return {
         cartItemId,
         quantity,
+        addOns: item.addOns,
         subtotal: itemTotals.subtotal,
         addOnSubtotal: itemTotals.addOnSubtotal,
         itemTotal: itemTotals.itemTotal,
