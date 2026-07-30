@@ -123,15 +123,6 @@ class CartService {
   }
 
   async _addToCart(cart, serviceId, service, quantity, providedPrice) {
-    const existing = await repo.findCartItem(cart.id, serviceId);
-    if (existing) {
-      throw clientError(
-        "This service is already in the cart. Remove it first or choose a different cart.",
-        409,
-        "SERVICE_ALREADY_IN_CART"
-      );
-    }
-
     const price = resolveServicePrice(service, providedPrice);
 
     // Persist the negotiated/provided price back to the service record
