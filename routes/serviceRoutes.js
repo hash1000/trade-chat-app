@@ -79,6 +79,7 @@ router.get("/:id/likes/me", authMiddleware, checkIntegerParam("id"), serviceCont
 router.post("/:id/rating", authMiddleware, checkIntegerParam("id"), serviceController.rateService.bind(serviceController));
 router.put("/:id/rating", authMiddleware, checkIntegerParam("id"), serviceController.updateRating.bind(serviceController));
 router.delete("/:id/rating", authMiddleware, checkIntegerParam("id"), serviceController.deleteRating.bind(serviceController));
+router.get("/:id/rating", checkIntegerParam("id"), serviceController.getPaginatedRatings.bind(serviceController));
 
 // ── Admin badges ──────────────────────────────────────────────────────────────
 

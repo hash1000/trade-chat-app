@@ -681,6 +681,38 @@ class ServiceRepository {
     );
   }
 
+  _ratingUserAttributes() {
+    return ["id", "username", "firstName", "lastName", "profilePic"];
+  }
+
+  async getPaginatedRatings(serviceId, page, limit) {
+    const offset = (page - 1) * limit;
+
+    const { count, rows } = await ServiceRating.findAndCountAll({
+      where: { serviceId },
+      include: [{ model: User, as: "user", attributes: this._ratingUserAttributes() }],
+      limit: Number(limit),
+      offset,
+      order: [["createdAt", "DESC"]],
+    });
+
+    // highest-rated reviews, independent of the current page
+    const topRatings = await ServiceRating.findAll({
+      where: { serviceId },
+      include: [{ model: User, as: "user", attributes: this._ratingUserAttributes() }],
+      order: [["rating", "DESC"], ["createdAt", "DESC"]],
+      limit: 5,
+    });
+
+    return {
+      total: count,
+      totalPages: Math.ceil(count / limit),
+      currentPage: Number(page),
+      topRatings,
+      ratings: rows,
+    };
+  }
+
   async updateBadges(serviceId, data) {
     const service = await Service.findByPk(serviceId);
     if (!service) return null;

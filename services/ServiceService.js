@@ -131,6 +131,10 @@ class ServiceService {
     });
   }
 
+  async getPaginatedRatings(serviceId, page, limit) {
+    return this.serviceRepository.getPaginatedRatings(serviceId, page, limit);
+  }
+
   async updateBadges(serviceId, data) {
     return this.serviceRepository.updateBadges(serviceId, data);
   }
