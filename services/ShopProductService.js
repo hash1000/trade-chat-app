@@ -558,6 +558,10 @@ class ShopProductService {
     return attachEffectiveStatus(json);
   }
 
+  async incrementViewCount(productId) {
+    return this.productRepository.incrementViewCount(productId);
+  }
+
   async getPublicPaginatedProducts(page, limit, name, shopId) {
     const result = await this.productRepository.getPublicPaginatedProducts(
       page,

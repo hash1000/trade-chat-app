@@ -137,6 +137,13 @@ class ShopProductRepository {
     return product;
   }
 
+  async incrementViewCount(productId) {
+    return ShopProduct.increment("baseViewCount", {
+      by: 1,
+      where: { id: productId },
+    });
+  }
+
   async getPublicByShopId(shopId) {
     return ShopProduct.findAll({
       where: { shopId, status: "published" },

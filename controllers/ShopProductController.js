@@ -166,6 +166,8 @@ class ShopProductController {
     try {
       const { productId } = req.params;
       const product = await productService.getPublicProductById(productId);
+      // fire-and-forget — never throws, never delays response
+      productService.incrementViewCount(Number(productId)).catch(() => {});
 
       return res.json({
         success: true,
