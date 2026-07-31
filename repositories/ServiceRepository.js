@@ -294,6 +294,13 @@ class ServiceRepository {
       plain.myRating = null;
     }
 
+    const topRatingRow = await ServiceRating.findOne({
+      where: { serviceId: id },
+      order: [["rating", "DESC"]],
+      attributes: ["rating"],
+    });
+    plain.topRating = topRatingRow ? topRatingRow.rating : null;
+
     return plain;
   }
 
