@@ -712,6 +712,37 @@ class OrderCartService {
       if (!serviceOrder) throw clientError("Service order item not found in this order.", 404, "NOT_FOUND");
     }
 
+    // No serviceOrderId → this payment applies to the whole order, so it must be
+    // spread across every item's ServiceOrder.paidAmount (not just Order.paidAmount),
+    // otherwise the read paths — which sum paidAmount from ServiceOrder rows, see
+    // getOrder/listOrders — never reflect it. Same targeting rule as topUpOrder:
+    // proportional to each item's outstanding due, falling back to proportional-by-total
+    // (or an equal split) when nothing is due.
+    let targets = [];
+    if (!serviceOrder) {
+      const serviceOrders = await ServiceOrder.findAll({ where: { orderId } });
+      if (serviceOrders.length === 0) throw clientError("Order has no items.", 400, "EMPTY_ORDER");
+
+      const itemTotals = await Promise.all(serviceOrders.map((so) => this.itemTotalForServiceOrder(so)));
+      const itemDues = serviceOrders.map((so, idx) => Math.max(0, itemTotals[idx] - parseFloat(so.paidAmount)));
+      const totalDue = itemDues.reduce((s, v) => s + v, 0);
+
+      if (totalDue > 0) {
+        targets = serviceOrders
+          .map((so, idx) => ({ so, due: itemDues[idx] }))
+          .filter((t) => t.due > 0)
+          .map((t) => ({ so: t.so, share: parsedAmount * (t.due / totalDue) }));
+      } else {
+        const sumItemTotals = itemTotals.reduce((s, v) => s + v, 0);
+        targets = serviceOrders.map((so, idx) => ({
+          so,
+          share: sumItemTotals > 0
+            ? parsedAmount * (itemTotals[idx] / sumItemTotals)
+            : parsedAmount / serviceOrders.length,
+        }));
+      }
+    }
+
     const tx = await sequelize.transaction();
     try {
       const record = await OrderPayment.create(
@@ -741,6 +772,13 @@ class OrderCartService {
           { [targetField]: sequelize.literal(`${targetField} + ${parsedAmount}`) },
           { where: { id: serviceOrder.id }, transaction: tx }
         );
+      } else {
+        for (const { so, share } of targets) {
+          await ServiceOrder.update(
+            { [targetField]: sequelize.literal(`${targetField} + ${share}`) },
+            { where: { id: so.id }, transaction: tx }
+          );
+        }
       }
 
       await tx.commit();
