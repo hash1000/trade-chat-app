@@ -196,7 +196,24 @@ class ServiceRepository {
       });
     }
 
+    include.push(this._topRatingsInclude());
+
     return include;
+  }
+
+  _ratingUserAttributes() {
+    return ["id", "username", "firstName", "lastName", "profilePic"];
+  }
+
+  _topRatingsInclude() {
+    return {
+      model: ServiceRating,
+      as: "ratings",
+      separate: true,
+      limit: 5,
+      order: [["rating", "DESC"], ["createdAt", "DESC"]],
+      include: [{ model: User, as: "user", attributes: this._ratingUserAttributes() }],
+    };
   }
 
   async create(data) {
@@ -294,12 +311,8 @@ class ServiceRepository {
       plain.myRating = null;
     }
 
-    const topRatingRow = await ServiceRating.findOne({
-      where: { serviceId: id },
-      order: [["rating", "DESC"]],
-      attributes: ["rating"],
-    });
-    plain.topRating = topRatingRow ? topRatingRow.rating : null;
+    plain.topRatings = plain.ratings || [];
+    delete plain.ratings;
 
     return plain;
   }
@@ -686,10 +699,6 @@ class ServiceRepository {
       { ratingCount: count, ratingAvg: avg },
       { where: { id: serviceId }, transaction: t },
     );
-  }
-
-  _ratingUserAttributes() {
-    return ["id", "username", "firstName", "lastName", "profilePic"];
   }
 
   async getPaginatedRatings(serviceId, page, limit) {
