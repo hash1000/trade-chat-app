@@ -295,6 +295,21 @@ class ShopProductController {
     }
   }
 
+  async getPaginatedRatings(req, res) {
+    try {
+      const { productId } = req.params;
+      const { page = 1, limit = 10 } = req.query;
+      const result = await productService.getPaginatedRatings(
+        Number(productId),
+        Number(page),
+        Number(limit)
+      );
+      return res.json({ success: true, data: result });
+    } catch (error) {
+      return res.status(error.statusCode || 500).json({ success: false, message: error.message });
+    }
+  }
+
   // ── Categories ────────────────────────────────────────────────────────────
 
   // Public — buyers browse a product's categories

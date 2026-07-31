@@ -187,6 +187,7 @@ router.get('/:productId/views/count', authMiddleware, checkIntegerParam('product
 router.post('/:productId/rating', authMiddleware, rateProductValidation, controller.rateProduct.bind(controller))
 router.put('/:productId/rating', authMiddleware, rateProductValidation, controller.rateProduct.bind(controller))
 router.delete('/:productId/rating', authMiddleware, checkIntegerParam('productId'), controller.deleteRating.bind(controller))
+router.get('/:productId/rating', checkIntegerParam('productId'), controller.getPaginatedRatings.bind(controller))
 
 // ── Admin badges ──────────────────────────────────────────────────────────────
 

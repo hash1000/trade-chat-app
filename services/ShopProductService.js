@@ -641,6 +641,11 @@ class ShopProductService {
     );
   }
 
+  async getPaginatedRatings(productId, page, limit) {
+    await this.productRepository.getById(productId);
+    return this.productRepository.getPaginatedRatings(productId, page, limit);
+  }
+
   // ── Categories ────────────────────────────────────────────────────────────
 
   async listCategories(productId) {
