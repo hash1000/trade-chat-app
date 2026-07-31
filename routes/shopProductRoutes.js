@@ -1,6 +1,7 @@
 const express = require('express')
 const router = express.Router()
 const authMiddleware = require('../middlewares/authenticate')
+const authenticateOptional = require('../middlewares/authenticateOptional')
 const authorize = require('../middlewares/authorization')
 const checkIntegerParam = require('../middlewares/paramIntegerValidation')
 const ShopProductController = require('../controllers/ShopProductController')
@@ -37,6 +38,7 @@ const addOnController = new ShopProductAddOnController()
 
 router.get(
   '/public/list',
+  authenticateOptional,
   getPaginatedProductsValidation,
   controller.getPublicPaginatedProducts.bind(controller)
 )
@@ -49,6 +51,7 @@ router.get(
 
 router.get(
   '/public/:productId',
+  authenticateOptional,
   getProductValidation,
   controller.getPublicProductById.bind(controller)
 )

@@ -165,7 +165,8 @@ class ShopProductController {
   async getPublicProductById(req, res) {
     try {
       const { productId } = req.params;
-      const product = await productService.getPublicProductById(productId);
+      const userId = req.user?.id;
+      const product = await productService.getPublicProductById(productId, userId);
       // fire-and-forget — never throws, never delays response
       productService.incrementViewCount(Number(productId)).catch(() => {});
 
@@ -184,11 +185,13 @@ class ShopProductController {
   async getPublicPaginatedProducts(req, res) {
     try {
       const { page = 1, limit = 10, name, shopId } = req.query;
+      const userId = req.user?.id;
       const products = await productService.getPublicPaginatedProducts(
         page,
         limit,
         name,
-        shopId
+        shopId,
+        userId
       );
 
       return res.json({

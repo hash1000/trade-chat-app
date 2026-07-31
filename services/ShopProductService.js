@@ -551,10 +551,13 @@ class ShopProductService {
     return products.map((p) => attachEffectiveStatus(p.toJSON()));
   }
 
-  async getPublicProductById(productId) {
+  async getPublicProductById(productId, userId) {
     const product = await this.productRepository.getPublicById(productId);
     const json = product.toJSON();
     json.variationsSummary = this.variationService.summarize(json.variations || []);
+    json.isLike = userId
+      ? await this.productRepository.hasUserLiked(userId, json.id)
+      : false;
     return attachEffectiveStatus(json);
   }
 
@@ -562,14 +565,26 @@ class ShopProductService {
     return this.productRepository.incrementViewCount(productId);
   }
 
-  async getPublicPaginatedProducts(page, limit, name, shopId) {
+  async getPublicPaginatedProducts(page, limit, name, shopId, userId) {
     const result = await this.productRepository.getPublicPaginatedProducts(
       page,
       limit,
       name,
       shopId
     );
-    result.products = result.products.map((p) => attachEffectiveStatus(p.toJSON()));
+    const products = result.products.map((p) => p.toJSON());
+
+    const likedIds = userId
+      ? await this.productRepository.getLikedProductIds(
+          userId,
+          products.map((p) => p.id)
+        )
+      : new Set();
+
+    result.products = products.map((p) => {
+      p.isLike = likedIds.has(p.id);
+      return attachEffectiveStatus(p);
+    });
     return result;
   }
 

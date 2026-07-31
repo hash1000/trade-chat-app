@@ -282,6 +282,14 @@ class ShopProductRepository {
     return like !== null;
   }
 
+  async getLikedProductIds(userId, shopProductIds) {
+    const likes = await ProductLike.findAll({
+      where: { userId, shopProductId: { [Op.in]: shopProductIds } },
+      attributes: ["shopProductId"],
+    });
+    return new Set(likes.map((l) => l.shopProductId));
+  }
+
   // ── Views ────────────────────────────────────────────────────────────────
 
   async recordView(userId, shopProductId) {
