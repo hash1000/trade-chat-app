@@ -89,10 +89,16 @@ exports.createBankAccountValidation = [
 
   body("swift_code").trim().optional(),
 
-  body("accountHolder")
-    .trim()
-    .notEmpty()
-    .withMessage("Account holder is required"),
+  body("accountHolder").trim().optional(),
+
+  body("firstName").trim().optional(),
+
+  body("lastName").trim().optional(),
+
+  body("documentType")
+    .optional()
+    .isIn(["passport", "id_card"])
+    .withMessage("Document type must be one of passport, id_card"),
 
   body("accountCurrency").trim().optional(),
 
@@ -144,6 +150,12 @@ exports.updateBankAccountValidation = [
   body("iban").optional({ nullable: true }).trim(),
   body("swift_code").trim().optional(),
   body("accountHolder").trim().optional(),
+  body("firstName").trim().optional(),
+  body("lastName").trim().optional(),
+  body("documentType")
+    .optional()
+    .isIn(["passport", "id_card"])
+    .withMessage("Document type must be one of passport, id_card"),
   body("accountCurrency").trim().optional(),
 
   body("bic").trim().optional(),
@@ -174,7 +186,7 @@ exports.updateBankAccountValidation = [
         throw new Error("Currency must be a 3-letter code like USD or EUR");
       }
     }),
-    
+
   body("testCard")
     .not()
     .exists()
