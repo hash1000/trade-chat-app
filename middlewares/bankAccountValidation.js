@@ -100,6 +100,8 @@ exports.createBankAccountValidation = [
     .isIn(["passport", "id_card"])
     .withMessage("Document type must be one of passport, id_card"),
 
+  body("documentValue").trim().optional(),
+
   body("accountCurrency").trim().optional(),
 
   body("bic").trim().optional(),
@@ -156,6 +158,7 @@ exports.updateBankAccountValidation = [
     .optional()
     .isIn(["passport", "id_card"])
     .withMessage("Document type must be one of passport, id_card"),
+  body("documentValue").trim().optional(),
   body("accountCurrency").trim().optional(),
 
   body("bic").trim().optional(),

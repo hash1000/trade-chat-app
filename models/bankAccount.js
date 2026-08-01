@@ -45,6 +45,10 @@ const BankAccount = sequelize.define(
       type: DataTypes.ENUM("passport", "id_card"),
       allowNull: true,
     },
+    documentValue: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
     accountCurrency: {
       type: DataTypes.STRING(20),
       allowNull: true,
