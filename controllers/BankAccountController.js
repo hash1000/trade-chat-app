@@ -8,6 +8,12 @@ function handleBankAccountError(res, error) {
     return res.status(400).json({ error: "IBAN already exists" });
   }
 
+  if (error.name === "SequelizeForeignKeyConstraintError") {
+    return res
+      .status(400)
+      .json({ error: "Cannot delete this account because it is linked to existing withdrawal records" });
+  }
+
   if (error.statusCode) {
     return res.status(error.statusCode).json({ error: error.message });
   }
