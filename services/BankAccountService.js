@@ -296,7 +296,47 @@ class BankAccountService {
 
   async createBankAccount(userId, accountData) {
     await this.validateAddressId(userId, accountData.addressId);
-    return this.bankAccountRepository.createBankAccount(userId, accountData);
+
+    return BankAccount.sequelize.transaction(async (transaction) => {
+      // Resolve the group this card will belong to, using the same defaults
+      // the model applies, so the "first card in group" check is accurate.
+      const walletType = accountData.walletType || "COMPANY";
+      const classification = accountData.classification || "both";
+      const isDefaultOmitted = accountData.isDefault === undefined;
+
+      let finalAccountData = accountData;
+
+      if (isDefaultOmitted && classification !== "both") {
+        const existingCount = await this.bankAccountRepository.countCardsInGroup(
+          userId,
+          walletType,
+          classification,
+          { transaction },
+        );
+
+        if (existingCount === 0) {
+          finalAccountData = { ...accountData, isDefault: true };
+        }
+      }
+
+      const newAccount = await this.bankAccountRepository.createBankAccount(
+        userId,
+        finalAccountData,
+        { transaction },
+      );
+
+      if (newAccount.isDefault) {
+        await this.bankAccountRepository.unsetOtherDefaultsInGroup(
+          userId,
+          newAccount.walletType,
+          newAccount.classification,
+          newAccount.id,
+          { transaction },
+        );
+      }
+
+      return newAccount;
+    });
   }
 
   async updateBankAccount(userId, accountId, updateData) {
@@ -304,11 +344,27 @@ class BankAccountService {
     if ("addressId" in safeUpdateData) {
       await this.validateAddressId(userId, safeUpdateData.addressId);
     }
-    return this.bankAccountRepository.updateBankAccount(
-      userId,
-      accountId,
-      safeUpdateData,
-    );
+
+    return BankAccount.sequelize.transaction(async (transaction) => {
+      const updatedAccount = await this.bankAccountRepository.updateBankAccount(
+        userId,
+        accountId,
+        safeUpdateData,
+        { transaction },
+      );
+
+      if (updatedAccount && updatedAccount.isDefault) {
+        await this.bankAccountRepository.unsetOtherDefaultsInGroup(
+          userId,
+          updatedAccount.walletType,
+          updatedAccount.classification,
+          updatedAccount.id,
+          { transaction },
+        );
+      }
+
+      return updatedAccount;
+    });
   }
 
   async getTestCards(currency) {

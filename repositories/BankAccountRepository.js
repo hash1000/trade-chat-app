@@ -137,24 +137,33 @@ class BankAccountRepository {
     });
   }
 
-  async createBankAccount(userId, accountData) {
+  async createBankAccount(userId, accountData, options = {}) {
+    const { transaction } = options;
+
     const lastAccount = await BankAccount.findOne({
       where: { userId },
       order: [["sequence", "DESC"]],
+      transaction,
     });
 
     const nextSequence = lastAccount ? lastAccount.sequence + 1 : 1;
 
-    return await BankAccount.create({
-      userId,
-      ...accountData,
-      sequence: nextSequence,
-    });
+    return await BankAccount.create(
+      {
+        userId,
+        ...accountData,
+        sequence: nextSequence,
+      },
+      { transaction },
+    );
   }
 
-  async updateBankAccount(userId, accountId, updateData) {
+  async updateBankAccount(userId, accountId, updateData, options = {}) {
+    const { transaction } = options;
+
     const account = await BankAccount.findOne({
       where: { id: accountId, userId, isDeleted: false },
+      transaction,
     });
     if (!account) return null;
 
@@ -164,8 +173,45 @@ class BankAccountRepository {
     delete safeUpdateData.testCard;
     delete safeUpdateData.isDeleted;
 
-    await account.update(safeUpdateData);
+    await account.update(safeUpdateData, { transaction });
     return account;
+  }
+
+  async countCardsInGroup(userId, walletType, classification, options = {}) {
+    const { transaction } = options;
+
+    return BankAccount.count({
+      where: { userId, walletType, classification, isDeleted: false },
+      transaction,
+    });
+  }
+
+  // Clears isDefault on every other card in the same (userId, walletType, classification)
+  // group, so at most one card can be default per group. "both" classification is excluded.
+  async unsetOtherDefaultsInGroup(
+    userId,
+    walletType,
+    classification,
+    excludeAccountId,
+    options = {},
+  ) {
+    const { transaction } = options;
+
+    if (classification === "both") return;
+
+    await BankAccount.update(
+      { isDefault: false },
+      {
+        where: {
+          userId,
+          walletType,
+          classification,
+          isDeleted: false,
+          id: { [Op.ne]: excludeAccountId },
+        },
+        transaction,
+      },
+    );
   }
 
   async updateAnyBankAccount(accountId, updateData) {
