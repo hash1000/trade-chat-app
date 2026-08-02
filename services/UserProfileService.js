@@ -44,6 +44,7 @@ class UserService {
             model: BankAccount,
             as: "bankAccounts",
             required: false,
+            where: { isDeleted: false },
             through: {
               attributes: [],
             },
@@ -55,6 +56,7 @@ class UserService {
       BankAccount.count({
         where: {
           userId: profileId,
+          isDeleted: false,
           classification: { [Op.in]: ["sender", "both"] },
         },
         group: ["walletType"],

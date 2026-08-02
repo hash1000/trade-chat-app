@@ -7,7 +7,7 @@ const Address = require("../models/address");
 class BankAccountRepository {
   // classification may be 'sender', 'receiver', 'both' or 'all' (or undefined)
   async getBankAccountsByUserId(userId, classification, filters = {}) {
-    const where = { userId };
+    const where = { userId, isDeleted: false };
 
     if (classification && classification !== "all") {
       const allowed = ["sender", "receiver", "both"];
@@ -47,7 +47,7 @@ class BankAccountRepository {
 
   async getBankAccountById(userId, accountId) {
     return await BankAccount.findOne({
-      where: { id: accountId, userId },
+      where: { id: accountId, userId, isDeleted: false },
       include: [
         {
           model: Wallet,
@@ -154,7 +154,7 @@ class BankAccountRepository {
 
   async updateBankAccount(userId, accountId, updateData) {
     const account = await BankAccount.findOne({
-      where: { id: accountId, userId },
+      where: { id: accountId, userId, isDeleted: false },
     });
     if (!account) return null;
 
@@ -162,6 +162,7 @@ class BankAccountRepository {
     delete safeUpdateData.sequence;
     delete safeUpdateData.userId;
     delete safeUpdateData.testCard;
+    delete safeUpdateData.isDeleted;
 
     await account.update(safeUpdateData);
     return account;
@@ -187,7 +188,7 @@ class BankAccountRepository {
 
     try {
       const accountToDelete = await BankAccount.findOne({
-        where: { id: accountId, userId },
+        where: { id: accountId, userId, isDeleted: false },
         transaction,
       });
 
@@ -198,15 +199,22 @@ class BankAccountRepository {
 
       const deletedSequence = accountToDelete.sequence;
 
-      await BankAccount.destroy({
-        where: { id: accountId, userId },
-        transaction,
-      });
+      await BankAccount.update(
+        { isDeleted: true },
+        {
+          where: { id: accountId, userId },
+          transaction,
+        },
+      );
 
       await BankAccount.update(
         { sequence: BankAccount.sequelize.literal("sequence - 1") },
         {
-          where: { userId, sequence: { [Op.gt]: deletedSequence } },
+          where: {
+            userId,
+            isDeleted: false,
+            sequence: { [Op.gt]: deletedSequence },
+          },
           transaction,
         },
       );
