@@ -1,3 +1,4 @@
+const { Op } = require("sequelize");
 const sequelize = require("../config/database");
 
 const UserRepository = require("../repositories/UserRepository"); // Replace the path with the correct location of your UserRepository.js file
@@ -23,29 +24,42 @@ const chatRepository = new ChatRepository();
 
 class UserService {
   async getUserProfileById(profileId, userId) {
-    const my_reaction = await reactionRepository.getReactions(
-      userId,
-      profileId,
-    );
-
-    const user = await userRepository.getUserProfile(profileId);
-
-    // Load wallets with linked bank accounts
-    const wallets = await Wallet.findAll({
-      where: {
-        userId: profileId,
-      },
-      include: [
-        {
-          model: BankAccount,
-          as: "bankAccounts",
-          required: false,
-          through: {
-            attributes: [],
-          },
+    const [
+      my_reaction,
+      user,
+      wallets,
+      favourite,
+      friendship,
+      senderCardCount,
+    ] = await Promise.all([
+      reactionRepository.getReactions(userId, profileId),
+      userRepository.getUserProfile(profileId),
+      // Load wallets with linked bank accounts
+      Wallet.findAll({
+        where: {
+          userId: profileId,
         },
-      ],
-    });
+        include: [
+          {
+            model: BankAccount,
+            as: "bankAccounts",
+            required: false,
+            through: {
+              attributes: [],
+            },
+          },
+        ],
+      }),
+      userFavouriteRepository.get(userId, profileId),
+      friendsRepository.get(userId, profileId),
+      BankAccount.count({
+        where: {
+          userId: profileId,
+          classification: { [Op.in]: ["sender", "both"] },
+        },
+        group: ["walletType"],
+      }),
+    ]);
 
     const walletDtos = wallets.map((w) => {
       return {
@@ -106,9 +120,13 @@ class UserService {
       },
     };
 
-    const favourite = await userFavouriteRepository.get(userId, profileId);
+    const isHaveCompanySenderCard = senderCardCount.some(
+      (row) => row.walletType === "COMPANY" && row.count > 0,
+    );
 
-    const friendship = await friendsRepository.get(userId, profileId);
+    const isHavePersonalSenderCard = senderCardCount.some(
+      (row) => row.walletType === "PERSONAL" && row.count > 0,
+    );
 
     return {
       ...user,
@@ -124,6 +142,10 @@ class UserService {
       disliked: my_reaction?.type === "dislike",
 
       favourited: !!favourite,
+
+      isHaveCompanySenderCard,
+
+      isHavePersonalSenderCard,
     };
   }
 
