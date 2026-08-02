@@ -108,6 +108,8 @@ exports.createBankAccountValidation = [
 
   body("bank_address").trim().optional(),
 
+  body("beneficiary_address").trim().optional(),
+
   body("intermediate_bank_name").trim().optional(),
 
   body("intermediate_bank_swift").trim().optional(),
@@ -172,6 +174,7 @@ exports.updateBankAccountValidation = [
   body("swift_code").trim().optional(),
   body("bank_name").trim().optional(),
   body("bank_address").trim().optional(),
+  body("beneficiary_address").trim().optional(),
   body("intermediate_bank_name").trim().optional(),
   body("intermediate_bank_swift").trim().optional(),
   body("intermediate_bank_address").trim().optional(),
