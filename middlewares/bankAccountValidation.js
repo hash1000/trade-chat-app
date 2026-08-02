@@ -98,6 +98,8 @@ exports.createBankAccountValidation = [
   // IBAN is optional; when provided, validate format
   body("iban").optional({ nullable: true }),
 
+  body("accountName").trim().optional(),
+
   body("accountNo").trim().optional(),
 
   body("swift_code").trim().optional(),
@@ -165,6 +167,7 @@ exports.updateBankAccountValidation = [
   body("documentValue").trim().optional(),
 
   body("iban").optional({ nullable: true }).trim(),
+  body("accountName").trim().optional(),
   body("accountNo").trim().optional(),
   body("swift_code").trim().optional(),
   body("bank_name").trim().optional(),
