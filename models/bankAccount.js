@@ -15,7 +15,7 @@ const BankAccount = sequelize.define(
       type: DataTypes.UUID,
       allowNull: false,
     },
-    accountName: {
+    bank_name: {
       type: DataTypes.STRING,
       allowNull: true,
     },
@@ -29,15 +29,15 @@ const BankAccount = sequelize.define(
       type: DataTypes.STRING,
       allowNull: true,
     },
-    accountHolder: {
-      type: DataTypes.STRING,
-      allowNull: true,
-    },
     firstName: {
       type: DataTypes.STRING,
       allowNull: true,
     },
     lastName: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    familyName: {
       type: DataTypes.STRING,
       allowNull: true,
     },
@@ -49,6 +49,10 @@ const BankAccount = sequelize.define(
       type: DataTypes.STRING,
       allowNull: true,
     },
+    accountNo: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
     accountCurrency: {
       type: DataTypes.STRING(20),
       allowNull: true,
@@ -57,11 +61,19 @@ const BankAccount = sequelize.define(
       type: DataTypes.STRING,
       allowNull: true,
     },
-    intermediateBank: {
+    bank_address: {
       type: DataTypes.STRING,
       allowNull: true,
     },
-    beneficiaryAddress: {
+    intermediate_bank_name: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    intermediate_bank_swift: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    intermediate_bank_address: {
       type: DataTypes.STRING,
       allowNull: true,
     },
@@ -95,6 +107,15 @@ const BankAccount = sequelize.define(
         model: "address",
         key: "id",
       },
+    },
+    walletType: {
+      type: DataTypes.ENUM("PERSONAL", "COMPANY"),
+      allowNull: true,
+    },
+    isDefault: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
     },
   },
   {

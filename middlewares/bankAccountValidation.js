@@ -82,18 +82,11 @@ const parseTestCardCurrencyInput = (value, options = {}) => {
 
 // Validation rules for creating a bank account
 exports.createBankAccountValidation = [
-  body("accountName").trim().optional(),
-
-  // IBAN is optional; when provided, validate format
-  body("iban").optional({ nullable: true }),
-
-  body("swift_code").trim().optional(),
-
-  body("accountHolder").trim().optional(),
-
   body("firstName").trim().optional(),
 
   body("lastName").trim().optional(),
+
+  body("familyName").trim().optional(),
 
   body("documentType")
     .optional()
@@ -102,20 +95,23 @@ exports.createBankAccountValidation = [
 
   body("documentValue").trim().optional(),
 
-  body("accountCurrency").trim().optional(),
+  // IBAN is optional; when provided, validate format
+  body("iban").optional({ nullable: true }),
 
-  body("bic").trim().optional(),
+  body("accountNo").trim().optional(),
 
-  body("intermediateBank")
-    .trim()
-    .optional()
-    .isLength({ max: 100 })
-    .withMessage("Intermediate bank is too long"),
-  body("beneficiaryAddress")
-    .trim()
-    .optional()
-    .isLength({ max: 255 })
-    .withMessage("Beneficiary address is too long"),
+  body("swift_code").trim().optional(),
+
+  body("bank_name").trim().optional(),
+
+  body("bank_address").trim().optional(),
+
+  body("intermediate_bank_name").trim().optional(),
+
+  body("intermediate_bank_swift").trim().optional(),
+
+  body("intermediate_bank_address").trim().optional(),
+
   body("note")
     .trim()
     .optional()
@@ -136,6 +132,17 @@ exports.createBankAccountValidation = [
       return true;
     }),
 
+  body("walletType")
+    .optional()
+    .isIn(["PERSONAL", "COMPANY"])
+    .withMessage("walletType must be one of PERSONAL, COMPANY"),
+
+  body("isDefault")
+    .optional()
+    .isBoolean()
+    .withMessage("isDefault must be true or false")
+    .toBoolean(),
+
   body("testCard")
     .not()
     .exists()
@@ -148,35 +155,38 @@ exports.createBankAccountValidation = [
 exports.updateBankAccountValidation = [
   param("id").isInt().withMessage("Invalid bank account id"),
 
-  body("accountName").trim().optional(),
-  body("iban").optional({ nullable: true }).trim(),
-  body("swift_code").trim().optional(),
-  body("accountHolder").trim().optional(),
   body("firstName").trim().optional(),
   body("lastName").trim().optional(),
+  body("familyName").trim().optional(),
   body("documentType")
     .optional()
     .isIn(["passport", "id_card"])
     .withMessage("Document type must be one of passport, id_card"),
   body("documentValue").trim().optional(),
-  body("accountCurrency").trim().optional(),
 
-  body("bic").trim().optional(),
-  body("intermediateBank")
-    .trim()
-    .optional()
-    .isLength({ max: 100 })
-    .withMessage("Intermediate bank is too long"),
-  body("beneficiaryAddress")
-    .trim()
-    .optional()
-    .isLength({ max: 255 })
-    .withMessage("Beneficiary address is too long"),
+  body("iban").optional({ nullable: true }).trim(),
+  body("accountNo").trim().optional(),
+  body("swift_code").trim().optional(),
+  body("bank_name").trim().optional(),
+  body("bank_address").trim().optional(),
+  body("intermediate_bank_name").trim().optional(),
+  body("intermediate_bank_swift").trim().optional(),
+  body("intermediate_bank_address").trim().optional(),
+
   body("note")
     .trim()
     .optional()
     .isLength({ max: 2000 })
     .withMessage("Note is too long"),
+  body("walletType")
+    .optional()
+    .isIn(["PERSONAL", "COMPANY"])
+    .withMessage("walletType must be one of PERSONAL, COMPANY"),
+  body("isDefault")
+    .optional()
+    .isBoolean()
+    .withMessage("isDefault must be true or false")
+    .toBoolean(),
   body("classification")
     .optional()
     .isIn(["sender", "receiver", "both"])
@@ -205,10 +215,10 @@ exports.idParamValidation = [
 ];
 
 exports.createAdminTestCardValidation = [
-  body("accountName")
+  body("bank_name")
     .trim()
     .notEmpty()
-    .withMessage("Account name is required"),
+    .withMessage("Bank name is required"),
 
   body("iban").optional({ nullable: true }),
 
@@ -216,11 +226,6 @@ exports.createAdminTestCardValidation = [
     .trim()
     .notEmpty()
     .withMessage("SWIFT/BIC is required"),
-
-  body("accountHolder")
-    .trim()
-    .notEmpty()
-    .withMessage("Account holder is required"),
 
   body("accountCurrency")
     .optional({ nullable: true }),
@@ -230,16 +235,26 @@ exports.createAdminTestCardValidation = [
     .notEmpty()
     .withMessage("BIC is required"),
 
-  body("intermediateBank")
-    .trim()
-    .optional()
-    .isLength({ max: 100 })
-    .withMessage("Intermediate bank is too long"),
-  body("beneficiaryAddress")
+  body("bank_address")
     .trim()
     .optional()
     .isLength({ max: 255 })
-    .withMessage("Beneficiary address is too long"),
+    .withMessage("Bank address is too long"),
+  body("intermediate_bank_name")
+    .trim()
+    .optional()
+    .isLength({ max: 100 })
+    .withMessage("Intermediate bank name is too long"),
+  body("intermediate_bank_swift")
+    .trim()
+    .optional()
+    .isLength({ max: 100 })
+    .withMessage("Intermediate bank SWIFT is too long"),
+  body("intermediate_bank_address")
+    .trim()
+    .optional()
+    .isLength({ max: 255 })
+    .withMessage("Intermediate bank address is too long"),
   body("note")
     .trim()
     .optional()
