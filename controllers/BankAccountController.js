@@ -26,11 +26,13 @@ class BankAccountController {
   async getBankAccounts(req, res) {
     try {
       const { id: userId } = req.user;
-      // Optional classification filter: sender | receiver | both | all
+      // Optional filters
       const classification = req.query.classification;
+      const { isDefault, walletType } = req.query;
       const accounts = await bankAccountService.getBankAccountsByUserId(
         userId,
         classification,
+        { isDefault, walletType },
       );
       res.json(bankAccountService.serializeBankAccounts(accounts));
     } catch (error) {

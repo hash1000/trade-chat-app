@@ -6,7 +6,7 @@ const Address = require("../models/address");
 
 class BankAccountRepository {
   // classification may be 'sender', 'receiver', 'both' or 'all' (or undefined)
-  async getBankAccountsByUserId(userId, classification) {
+  async getBankAccountsByUserId(userId, classification, filters = {}) {
     const where = { userId };
 
     if (classification && classification !== "all") {
@@ -15,6 +15,14 @@ class BankAccountRepository {
       if (allowed.includes(classification)) {
         where.classification = classification;
       }
+    }
+
+    if (filters.isDefault !== undefined) {
+      where.isDefault = filters.isDefault;
+    }
+
+    if (filters.walletType !== undefined) {
+      where.walletType = filters.walletType;
     }
 
     return await BankAccount.findAll({

@@ -258,10 +258,23 @@ class BankAccountService {
     }
   }
 
-  async getBankAccountsByUserId(userId, classification) {
+  async getBankAccountsByUserId(userId, classification, filters = {}) {
+    const { isDefault, walletType } = filters;
+
+    const normalizedFilters = {};
+
+    if (isDefault !== undefined) {
+      normalizedFilters.isDefault = String(isDefault).toLowerCase() === "true";
+    }
+
+    if (walletType !== undefined) {
+      normalizedFilters.walletType = this.normalizeWalletType(walletType);
+    }
+
     return this.bankAccountRepository.getBankAccountsByUserId(
       userId,
       classification,
+      normalizedFilters,
     );
   }
 
