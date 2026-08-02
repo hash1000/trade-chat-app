@@ -118,7 +118,8 @@ const BankAccount = sequelize.define(
     },
     walletType: {
       type: DataTypes.ENUM("PERSONAL", "COMPANY"),
-      allowNull: true,
+      allowNull: false,
+      defaultValue: "COMPANY",
     },
     isDefault: {
       type: DataTypes.BOOLEAN,
