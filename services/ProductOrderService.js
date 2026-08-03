@@ -656,6 +656,190 @@ class ProductOrderService {
     }
   }
 
+  // Buyer pays down the shop-order's outstanding balance directly (totalAmount -
+  // paidAmount), independent of any specific charge. Mirrors OrderCartService.topUpOrder.
+  async topUpShopOrder(userId, shopOrderId, amount, walletId, payFullBalance = false) {
+    const shopOrder = await this.repo.findShopOrderForOwnerCheck(shopOrderId);
+    if (!shopOrder) throw clientError("Order not found.", 404, "NOT_FOUND");
+    if (shopOrder.userId !== userId) throw clientError("Forbidden.", 403, "UNAUTHORIZED");
+    // delivered is terminal but still payable (trailing charges); only block
+    // cancelled/refunded/returned.
+    if (REFUNDING_STATUSES.includes(shopOrder.status)) {
+      throw clientError(`Cannot pay against a ${shopOrder.status} order.`, 409, "INVALID_STATE");
+    }
+
+    const balanceDue = Math.max(0, round2(shopOrder.totalAmount) - round2(shopOrder.paidAmount));
+
+    let parsedAmount;
+    if (payFullBalance) {
+      if (balanceDue <= 0) throw clientError("Order has no outstanding balance to pay.", 409, "NOTHING_DUE");
+      parsedAmount = balanceDue;
+    } else {
+      parsedAmount = parseFloat(amount);
+      if (!parsedAmount || Number.isNaN(parsedAmount) || parsedAmount <= 0) {
+        throw clientError("amount must be a number greater than 0.", 400, "VALIDATION_ERROR");
+      }
+    }
+
+    if (walletId === undefined || walletId === null || walletId === "") {
+      throw clientError("walletId is required.", 422, "VALIDATION_ERROR");
+    }
+    const buyerWallet = await this.repo.fetchWalletById(Number(walletId));
+    if (!buyerWallet || buyerWallet.userId !== userId) {
+      throw clientError("Wallet not found.", 404, "NO_WALLET");
+    }
+
+    const payoutWallet = await this.repo.fetchWalletById(shopOrder.payoutWalletId);
+    if (!payoutWallet) {
+      throw clientError("This shop's payout wallet is no longer available.", 500, "NO_PAYOUT_WALLET");
+    }
+    if (payoutWallet.currency !== buyerWallet.currency) {
+      throw clientError(
+        `This order's payout wallet currency (${payoutWallet.currency}) does not match your wallet currency (${buyerWallet.currency}).`,
+        402,
+        "CURRENCY_MISMATCH"
+      );
+    }
+
+    const buyerBalance = parseFloat(buyerWallet.availableBalance);
+    if (buyerBalance < parsedAmount) {
+      const err = clientError("Insufficient wallet balance.", 402, "INSUFFICIENT_BALANCE");
+      err.data = { required: parsedAmount, available: buyerBalance };
+      throw err;
+    }
+
+    const tx = await sequelize.transaction();
+    try {
+      await Wallet.update(
+        { availableBalance: sequelize.literal(`availableBalance - ${parsedAmount}`) },
+        { where: { id: buyerWallet.id }, transaction: tx }
+      );
+      await Wallet.update(
+        { availableBalance: sequelize.literal(`availableBalance + ${parsedAmount}`) },
+        { where: { id: payoutWallet.id }, transaction: tx }
+      );
+
+      const txnRecord = await WalletTransaction.create(
+        {
+          walletId: buyerWallet.id,
+          userId,
+          receiverId: null,
+          type: "TRANSFER",
+          amount: parsedAmount,
+          currency: buyerWallet.currency,
+          description: `Additional payment for shop order #${shopOrder.orderNo}`,
+          referenceType: "PRODUCT_SHOP_ORDER",
+          referenceId: shopOrder.id,
+          orderId: shopOrder.parentOrderId,
+          performedBy: userId,
+        },
+        { transaction: tx }
+      );
+
+      await this.repo.incrementShopOrderTotals(shopOrder.id, { paidAmount: parsedAmount }, tx);
+
+      await tx.commit();
+
+      const remainingBalance = Math.max(0, round2(balanceDue - parsedAmount));
+
+      return {
+        shopOrderId: shopOrder.id,
+        amountPaid: parsedAmount,
+        remainingBalance,
+        fullyPaid: remainingBalance <= 0,
+        paymentDetails: {
+          buyerWallet: { id: buyerWallet.id, deducted: parsedAmount },
+          payoutWallet: { id: payoutWallet.id, credited: parsedAmount },
+          transactionId: txnRecord.id,
+        },
+        paidAt: new Date().toISOString(),
+      };
+    } catch (error) {
+      await tx.rollback();
+      if (!error.statusCode) {
+        const wrapped = clientError("Additional payment failed. No funds deducted. Please retry.", 500, "PAYMENT_ERROR");
+        wrapped.original = error.message;
+        throw wrapped;
+      }
+      throw error;
+    }
+  }
+
+  // Admin/accountant records a payment received outside the platform (cash, bank
+  // transfer, etc.) against a shop-order. No buyer wallet is debited; the shop's
+  // payout wallet is credited for real since the money never moved through the
+  // platform otherwise. Mirrors OrderCartService.adminRecordPayment (minus the
+  // ledger row, since ProductShopOrder has no OrderPayment-equivalent table).
+  async adminRecordShopOrderPayment(adminUserId, shopOrderId, amount, note) {
+    const parsedAmount = parseFloat(amount);
+    if (!parsedAmount || Number.isNaN(parsedAmount) || parsedAmount <= 0) {
+      throw clientError("amount must be a number greater than 0.", 400, "VALIDATION_ERROR");
+    }
+
+    const shopOrder = await this.repo.findShopOrderForOwnerCheck(shopOrderId);
+    if (!shopOrder) throw clientError("Order not found.", 404, "NOT_FOUND");
+
+    const payoutWallet = await this.repo.fetchWalletById(shopOrder.payoutWalletId);
+    if (!payoutWallet) {
+      throw clientError("This shop's payout wallet is no longer available.", 500, "NO_PAYOUT_WALLET");
+    }
+
+    const shop = await this.repo.fetchShop(shopOrder.shopId);
+    const shopOwnerId = shop ? shop.userId : payoutWallet.userId;
+
+    const tx = await sequelize.transaction();
+    try {
+      await this.repo.incrementShopOrderTotals(shopOrder.id, { paidAmount: parsedAmount }, tx);
+
+      await Wallet.update(
+        { availableBalance: sequelize.literal(`availableBalance + ${parsedAmount}`) },
+        { where: { id: payoutWallet.id }, transaction: tx }
+      );
+
+      const txnRecord = await WalletTransaction.create(
+        {
+          walletId: payoutWallet.id,
+          userId: shopOwnerId,
+          receiverId: null,
+          type: "DEPOSIT",
+          amount: parsedAmount,
+          currency: payoutWallet.currency,
+          description: `Admin-recorded payment for shop order #${shopOrder.orderNo}`,
+          referenceType: "PRODUCT_SHOP_ORDER",
+          referenceId: shopOrder.id,
+          orderId: shopOrder.parentOrderId,
+          performedBy: adminUserId,
+        },
+        { transaction: tx }
+      );
+
+      await tx.commit();
+
+      await notificationService.notifyUser({
+        userId: shopOrder.userId,
+        actorId: adminUserId,
+        type: "PRODUCT_ORDER_PAYMENT_RECORDED",
+        title: "Payment Recorded",
+        message: `Admin recorded a payment of ${round2(parsedAmount)} on your order #${shopOrder.orderNo}.${note ? ` Note: ${note}` : ""}`,
+        entityType: "PRODUCT_SHOP_ORDER",
+        entityId: shopOrder.id,
+        data: { amount: round2(parsedAmount), note: note || null },
+      });
+
+      return {
+        shopOrderId: shopOrder.id,
+        amount: parsedAmount,
+        note: note || null,
+        createdBy: adminUserId,
+        transactionId: txnRecord.id,
+        createdAt: new Date().toISOString(),
+      };
+    } catch (error) {
+      await tx.rollback();
+      throw error;
+    }
+  }
+
   // ── Lists ────────────────────────────────────────────────────────────────
 
   async getMyOrders(userId, { page = 1, limit = 10 } = {}) {

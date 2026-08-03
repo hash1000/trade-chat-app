@@ -122,6 +122,36 @@ class ProductOrderController {
       return handle(res, error, "ProductOrderController.payCharge error:");
     }
   }
+
+  // POST /product-orders/shop-orders/:shopOrderId/top-up — buyer pays an
+  // additional amount against the shop-order's outstanding balance
+  async topUpShopOrder(req, res) {
+    try {
+      const { id: userId } = req.user;
+      const { shopOrderId } = req.params;
+      const { amount, walletId, payFullBalance } = req.body;
+
+      const data = await orderService.topUpShopOrder(userId, Number(shopOrderId), amount, walletId, payFullBalance === true);
+      return res.status(200).json({ success: true, data });
+    } catch (error) {
+      return handle(res, error, "ProductOrderController.topUpShopOrder error:");
+    }
+  }
+
+  // POST /product-orders/shop-orders/:shopOrderId/admin-payment — admin/accountant
+  // records a payment against a shop-order, no buyer wallet is touched
+  async adminRecordShopOrderPayment(req, res) {
+    try {
+      const { id: adminUserId } = req.user;
+      const { shopOrderId } = req.params;
+      const { amount, note } = req.body;
+
+      const data = await orderService.adminRecordShopOrderPayment(adminUserId, Number(shopOrderId), amount, note);
+      return res.status(201).json({ success: true, data });
+    } catch (error) {
+      return handle(res, error, "ProductOrderController.adminRecordShopOrderPayment error:");
+    }
+  }
 }
 
 module.exports = ProductOrderController;

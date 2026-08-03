@@ -110,3 +110,40 @@ exports.payChargeValidation = [
   body("walletId").notEmpty().withMessage("walletId is required").isInt().withMessage("walletId must be an integer"),
   handleValidationErrors,
 ];
+
+// Buyer pays down the shop-order's outstanding balance directly (not tied to a
+// specific charge). amount is required unless payFullBalance is true.
+exports.topUpShopOrderValidation = [
+  param("shopOrderId").isInt().withMessage("shopOrderId must be an integer"),
+  body("payFullBalance")
+    .optional()
+    .isBoolean()
+    .withMessage("payFullBalance must be a boolean"),
+  body("amount")
+    .if((value, { req }) => req.body.payFullBalance !== true)
+    .notEmpty()
+    .withMessage("amount is required")
+    .isFloat({ gt: 0 })
+    .withMessage("amount must be a number greater than 0"),
+  body("walletId").notEmpty().withMessage("walletId is required").isInt().withMessage("walletId must be an integer"),
+  handleValidationErrors,
+];
+
+// Admin/accountant records a payment received outside the platform (cash, bank
+// transfer, etc.) — no buyer wallet is touched, only the shop-order ledger and
+// the shop's payout wallet are credited.
+exports.adminRecordShopOrderPaymentValidation = [
+  param("shopOrderId").isInt().withMessage("shopOrderId must be an integer"),
+  body("amount")
+    .notEmpty()
+    .withMessage("amount is required")
+    .isFloat({ gt: 0 })
+    .withMessage("amount must be a number greater than 0"),
+  body("note")
+    .optional({ nullable: true })
+    .isString()
+    .trim()
+    .isLength({ max: 1000 })
+    .withMessage("note must be a string up to 1000 characters"),
+  handleValidationErrors,
+];

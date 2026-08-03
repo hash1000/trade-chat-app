@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 
 const authMiddleware = require("../middlewares/authenticate");
+const authorize = require("../middlewares/authorization");
 const checkIntegerParam = require("../middlewares/paramIntegerValidation");
 const ProductOrderController = require("../controllers/ProductOrderController");
 const {
@@ -12,6 +13,8 @@ const {
   updateStatusValidation,
   addChargeValidation,
   payChargeValidation,
+  topUpShopOrderValidation,
+  adminRecordShopOrderPaymentValidation,
 } = require("../middlewares/productOrderValidator");
 
 const orderController = new ProductOrderController();
@@ -71,6 +74,25 @@ router.post(
   authMiddleware,
   payChargeValidation,
   orderController.payCharge.bind(orderController)
+);
+
+// Buyer pays an additional amount against the shop-order's outstanding balance
+// (not tied to a specific charge; no cap, repeatable).
+router.post(
+  "/shop-orders/:shopOrderId/top-up",
+  authMiddleware,
+  topUpShopOrderValidation,
+  orderController.topUpShopOrder.bind(orderController)
+);
+
+// Admin/accountant records a payment against a shop-order received outside the
+// platform (cash, bank transfer, etc.) — no buyer wallet is touched.
+router.post(
+  "/shop-orders/:shopOrderId/admin-payment",
+  authMiddleware,
+  authorize(["admin", "accountant"]),
+  adminRecordShopOrderPaymentValidation,
+  orderController.adminRecordShopOrderPayment.bind(orderController)
 );
 
 // ── Single parent order (buyer) — keep last so literal routes above win ────
