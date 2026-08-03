@@ -500,9 +500,12 @@ class ProductOrderService {
 
   // If addOnId is given, the add-on must belong to a product/variation that is
   // actually a line item in THIS shop-order (not just any add-on from the shop)
-  // — name/amount are then always taken from the ProductAddOn row itself, never
+  // — name/price are then always taken from the ProductAddOn row itself, never
   // from the request, so a charge can't silently diverge from the catalog price.
-  async _resolveChargeAddOn(shopOrder, addOnId) {
+  // amount = addOn.price * quantity; quantity must be an active, in-stock amount
+  // (same rule ProductCartService applies at cart-add time), but stock itself is
+  // NOT decremented here — this only charges for units, it doesn't reserve them.
+  async _resolveChargeAddOn(shopOrder, addOnId, quantity) {
     const addOn = await ProductAddOn.findByPk(addOnId);
     if (!addOn) throw clientError("Add-on not found.", 404, "NOT_FOUND");
 
@@ -514,10 +517,25 @@ class ProductOrderService {
       throw clientError("This add-on does not belong to any product in this order.", 422, "VALIDATION_ERROR");
     }
 
-    return { name: addOn.name, amount: Number(addOn.price) };
+    if (!addOn.isActive) {
+      throw clientError(`Add-on "${addOn.name}" is not currently available.`, 400, "ADDON_INACTIVE");
+    }
+    if (addOn.stock <= 0) {
+      throw clientError(`Add-on "${addOn.name}" is out of stock.`, 400, "ADDON_OUT_OF_STOCK");
+    }
+    if (quantity > addOn.stock) {
+      throw clientError(`Only ${addOn.stock} unit(s) of add-on "${addOn.name}" available.`, 400, "ADDON_INSUFFICIENT_STOCK");
+    }
+
+    return { name: addOn.name, amount: round2(Number(addOn.price) * quantity) };
   }
 
-  async addCharge(actorUserId, shopOrderId, { name, description, amount, addOnId }) {
+  // Either `addOns` (array of {addOnId, quantity}) OR the freeform name/description/amount
+  // trio must be given — never both. addOns creates one charge row per entry, each priced
+  // from the catalog (addOn.price * quantity) and validated independently; a failure on
+  // any entry rolls back the whole batch. The freeform path is unchanged: exactly one
+  // custom charge (e.g. "Shipping fee") per call.
+  async addCharge(actorUserId, shopOrderId, { name, description, amount, addOnId, quantity, addOns }) {
     const shopOrder = await this.repo.findShopOrderForOwnerCheck(shopOrderId);
     if (!shopOrder) throw clientError("Order not found.", 404, "NOT_FOUND");
 
@@ -527,13 +545,48 @@ class ProductOrderService {
       throw clientError(`Cannot add a charge to a ${shopOrder.status} order.`, 409, "INVALID_STATE");
     }
 
-    let chargeName = name;
-    let chargeAmount = amount;
+    // Normalize to a single list of "plans" to create, regardless of which input shape
+    // was used, so the DB work below (transaction + total increment) is written once.
+    let plans;
 
-    if (addOnId !== undefined && addOnId !== null && addOnId !== "") {
-      const resolved = await this._resolveChargeAddOn(shopOrder, Number(addOnId));
-      chargeName = resolved.name;
-      chargeAmount = resolved.amount;
+    const hasAddOnsArray = Array.isArray(addOns) && addOns.length > 0;
+    const hasSingleAddOnId = addOnId !== undefined && addOnId !== null && addOnId !== "";
+
+    if (hasAddOnsArray) {
+      plans = [];
+      for (const entry of addOns) {
+        const entryAddOnId = entry?.addOnId;
+        if (entryAddOnId === undefined || entryAddOnId === null || entryAddOnId === "" || !Number.isFinite(Number(entryAddOnId))) {
+          throw clientError("Each entry in addOns must have a valid addOnId.", 422, "VALIDATION_ERROR");
+        }
+        const entryQuantity = entry?.quantity === undefined || entry?.quantity === null || entry?.quantity === "" ? 1 : Number(entry.quantity);
+        if (!Number.isInteger(entryQuantity) || entryQuantity < 1) {
+          throw clientError("Each entry in addOns must have an integer quantity >= 1.", 422, "VALIDATION_ERROR");
+        }
+
+        const resolved = await this._resolveChargeAddOn(shopOrder, Number(entryAddOnId), entryQuantity);
+        plans.push({
+          addOnId: Number(entryAddOnId),
+          name: resolved.name,
+          description: null,
+          amount: resolved.amount,
+          quantity: entryQuantity,
+        });
+      }
+    } else if (hasSingleAddOnId) {
+      const chargeQuantity = quantity === undefined || quantity === null || quantity === "" ? 1 : Number(quantity);
+      if (!Number.isInteger(chargeQuantity) || chargeQuantity < 1) {
+        throw clientError("quantity must be an integer >= 1.", 422, "VALIDATION_ERROR");
+      }
+
+      const resolved = await this._resolveChargeAddOn(shopOrder, Number(addOnId), chargeQuantity);
+      plans = [{
+        addOnId: Number(addOnId),
+        name: resolved.name,
+        description: null,
+        amount: resolved.amount,
+        quantity: chargeQuantity,
+      }];
     } else {
       if (!name || !String(name).trim()) {
         throw clientError("Charge name is required.", 422, "VALIDATION_ERROR");
@@ -542,32 +595,46 @@ class ProductOrderService {
       if (Number.isNaN(amt) || amt <= 0) {
         throw clientError("Charge amount must be a number greater than 0.", 422, "VALIDATION_ERROR");
       }
-      chargeAmount = amt;
+      plans = [{
+        addOnId: null,
+        name: String(name).trim(),
+        description: description != null ? String(description).trim() : null,
+        amount: amt,
+        quantity: 1,
+      }];
     }
 
     const tx = await sequelize.transaction();
     try {
-      const charge = await this.repo.createCharge(
-        {
-          shopOrderId,
-          addOnId: addOnId ? Number(addOnId) : null,
-          name: String(chargeName).trim(),
-          description: description != null ? String(description).trim() : null,
-          amount: chargeAmount,
-          addedBy: actorUserId,
-          isPaid: false,
-        },
-        tx
-      );
+      const charges = [];
+      let totalChargeAmount = 0;
+
+      for (const plan of plans) {
+        const charge = await this.repo.createCharge(
+          {
+            shopOrderId,
+            addOnId: plan.addOnId,
+            name: plan.name,
+            description: plan.description,
+            amount: plan.amount,
+            quantity: plan.quantity,
+            addedBy: actorUserId,
+            isPaid: false,
+          },
+          tx
+        );
+        charges.push(charge);
+        totalChargeAmount = round2(totalChargeAmount + plan.amount);
+      }
 
       await this.repo.incrementShopOrderTotals(
         shopOrderId,
-        { chargesAmount: chargeAmount, totalAmount: chargeAmount },
+        { chargesAmount: totalChargeAmount, totalAmount: totalChargeAmount },
         tx
       );
 
       await tx.commit();
-      return charge;
+      return hasAddOnsArray ? charges : charges[0];
     } catch (error) {
       await tx.rollback();
       throw error;

@@ -37,6 +37,14 @@ const ProductShopOrderCharge = sequelize.define(
       type: DataTypes.DECIMAL(20, 8),
       allowNull: false,
     },
+    // Only meaningful when addOnId is set — how many units of that add-on this
+    // charge covers. amount = addOn.price * quantity. Always 1 for freeform
+    // (name/amount) charges.
+    quantity: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 1,
+    },
     addedBy: {
       type: DataTypes.INTEGER,
       allowNull: false,

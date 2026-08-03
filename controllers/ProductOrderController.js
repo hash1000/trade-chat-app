@@ -101,10 +101,12 @@ class ProductOrderController {
     try {
       const { id: userId } = req.user;
       const { shopOrderId } = req.params;
-      const { name, description, amount, addOnId } = req.body;
+      const { name, description, amount, addOnId, quantity, addOns } = req.body;
 
-      const charge = await orderService.addCharge(userId, Number(shopOrderId), { name, description, amount, addOnId });
-      return res.status(201).json({ success: true, message: "Charge added", charge });
+      const result = await orderService.addCharge(userId, Number(shopOrderId), { name, description, amount, addOnId, quantity, addOns });
+      const message = Array.isArray(result) ? "Charges added" : "Charge added";
+      const payload = Array.isArray(result) ? { charges: result } : { charge: result };
+      return res.status(201).json({ success: true, message, ...payload });
     } catch (error) {
       return handle(res, error, "ProductOrderController.addCharge error:");
     }
