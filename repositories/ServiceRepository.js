@@ -196,7 +196,24 @@ class ServiceRepository {
       });
     }
 
+    include.push(this._topRatingsInclude());
+
     return include;
+  }
+
+  _ratingUserAttributes() {
+    return ["id", "username", "firstName", "lastName", "profilePic"];
+  }
+
+  _topRatingsInclude() {
+    return {
+      model: ServiceRating,
+      as: "ratings",
+      separate: true,
+      limit: 5,
+      order: [["rating", "DESC"], ["createdAt", "DESC"]],
+      include: [{ model: User, as: "user", attributes: this._ratingUserAttributes() }],
+    };
   }
 
   async create(data) {
@@ -293,6 +310,9 @@ class ServiceRepository {
     } else {
       plain.myRating = null;
     }
+
+    plain.topRatings = plain.ratings || [];
+    delete plain.ratings;
 
     return plain;
   }
@@ -679,6 +699,34 @@ class ServiceRepository {
       { ratingCount: count, ratingAvg: avg },
       { where: { id: serviceId }, transaction: t },
     );
+  }
+
+  async getPaginatedRatings(serviceId, page, limit) {
+    const offset = (page - 1) * limit;
+
+    const { count, rows } = await ServiceRating.findAndCountAll({
+      where: { serviceId },
+      include: [{ model: User, as: "user", attributes: this._ratingUserAttributes() }],
+      limit: Number(limit),
+      offset,
+      order: [["createdAt", "DESC"]],
+    });
+
+    // highest-rated reviews, independent of the current page
+    const topRatings = await ServiceRating.findAll({
+      where: { serviceId },
+      include: [{ model: User, as: "user", attributes: this._ratingUserAttributes() }],
+      order: [["rating", "DESC"], ["createdAt", "DESC"]],
+      limit: 5,
+    });
+
+    return {
+      total: count,
+      totalPages: Math.ceil(count / limit),
+      currentPage: Number(page),
+      topRatings,
+      ratings: rows,
+    };
   }
 
   async updateBadges(serviceId, data) {

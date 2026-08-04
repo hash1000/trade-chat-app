@@ -180,6 +180,16 @@ class UserService {
       }
 
       if (profileData.settings) {
+        // Strip fields that are tracked as real columns elsewhere so clients
+        // can't write a stale shadow copy into the settings JSON blob.
+        const {
+          email_verified: _settingsEmailVerified,
+          phoneNumber_verified: _settingsPhoneNumberVerified,
+          password: _settingsPassword,
+          ...sanitizedSettings
+        } = profileData.settings;
+        profileData.settings = sanitizedSettings;
+
         // Check if tags exist in the incoming data or user settings
         if (profileData.settings.tags || user.settings?.tags?.length > 0) {
           // Fetch the existing UserTags entry
@@ -227,7 +237,7 @@ class UserService {
       if (profileData.profilePic) {
         user.profilePic = profileData.profilePic;
       }
-      if (profileData.email_verified) {
+      if (profileData.hasOwnProperty("email_verified")) {
         user.email_verified = profileData.email_verified;
       }
       if (profileData.phoneNumber_verified) {

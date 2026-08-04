@@ -330,6 +330,21 @@ class ProductOrderService {
               { where: { id: line.shopProductId }, transaction: tx }
             );
           }
+
+          // Add-on stock: decrement by each add-on's own quantity, as snapshotted on
+          // the cart line — required add-ons are already scaled 1:1 with
+          // productCartItemQuantity at add-to-cart time (see
+          // ProductCartService._scaleRequiredAddOns), optional add-ons carry
+          // whatever quantity the buyer chose independently, so no further
+          // multiplication happens here.
+          for (const addOn of line.addOns || []) {
+            const addOnQty = Number(addOn.quantity ?? 1);
+            if (addOnQty <= 0) continue;
+            await ProductAddOn.update(
+              { stock: sequelize.literal(`stock - ${addOnQty}`) },
+              { where: { id: addOn.addOnId }, transaction: tx }
+            );
+          }
         }
 
         createdShopOrders.push(shopOrder);
@@ -500,9 +515,13 @@ class ProductOrderService {
 
   // If addOnId is given, the add-on must belong to a product/variation that is
   // actually a line item in THIS shop-order (not just any add-on from the shop)
-  // — name/amount are then always taken from the ProductAddOn row itself, never
+  // — name/price are then always taken from the ProductAddOn row itself, never
   // from the request, so a charge can't silently diverge from the catalog price.
-  async _resolveChargeAddOn(shopOrder, addOnId) {
+  // amount = addOn.price * quantity. Only checks ownership + isActive here; the
+  // stock check + decrement happens later, inside the transaction, right before
+  // each charge is created (see addCharge) — doing it here would let two entries
+  // for the same addOnId in one `addOns` array both pass against stale stock.
+  async _resolveChargeAddOn(shopOrder, addOnId, quantity) {
     const addOn = await ProductAddOn.findByPk(addOnId);
     if (!addOn) throw clientError("Add-on not found.", 404, "NOT_FOUND");
 
@@ -514,10 +533,25 @@ class ProductOrderService {
       throw clientError("This add-on does not belong to any product in this order.", 422, "VALIDATION_ERROR");
     }
 
-    return { name: addOn.name, amount: Number(addOn.price) };
+    if (!addOn.isActive) {
+      throw clientError(`Add-on "${addOn.name}" is not currently available.`, 400, "ADDON_INACTIVE");
+    }
+
+    return { name: addOn.name, amount: round2(Number(addOn.price) * quantity) };
   }
 
-  async addCharge(actorUserId, shopOrderId, { name, description, amount, addOnId }) {
+  // status is computed, never stored — mirrors ShopProductService.addOnEffectiveStatus.
+  _addOnEffectiveStatus(addOn) {
+    if (!addOn.isActive) return "inactive";
+    return Number(addOn.stock) <= 0 ? "out_of_stock" : "in_stock";
+  }
+
+  // Either `addOns` (array of {addOnId, quantity}) OR the freeform name/description/amount
+  // trio must be given — never both. addOns creates one charge row per entry, each priced
+  // from the catalog (addOn.price * quantity) and validated independently; a failure on
+  // any entry rolls back the whole batch. The freeform path is unchanged: exactly one
+  // custom charge (e.g. "Shipping fee") per call.
+  async addCharge(actorUserId, shopOrderId, { name, description, amount, addOnId, quantity, addOns }) {
     const shopOrder = await this.repo.findShopOrderForOwnerCheck(shopOrderId);
     if (!shopOrder) throw clientError("Order not found.", 404, "NOT_FOUND");
 
@@ -527,13 +561,48 @@ class ProductOrderService {
       throw clientError(`Cannot add a charge to a ${shopOrder.status} order.`, 409, "INVALID_STATE");
     }
 
-    let chargeName = name;
-    let chargeAmount = amount;
+    // Normalize to a single list of "plans" to create, regardless of which input shape
+    // was used, so the DB work below (transaction + total increment) is written once.
+    let plans;
 
-    if (addOnId !== undefined && addOnId !== null && addOnId !== "") {
-      const resolved = await this._resolveChargeAddOn(shopOrder, Number(addOnId));
-      chargeName = resolved.name;
-      chargeAmount = resolved.amount;
+    const hasAddOnsArray = Array.isArray(addOns) && addOns.length > 0;
+    const hasSingleAddOnId = addOnId !== undefined && addOnId !== null && addOnId !== "";
+
+    if (hasAddOnsArray) {
+      plans = [];
+      for (const entry of addOns) {
+        const entryAddOnId = entry?.addOnId;
+        if (entryAddOnId === undefined || entryAddOnId === null || entryAddOnId === "" || !Number.isFinite(Number(entryAddOnId))) {
+          throw clientError("Each entry in addOns must have a valid addOnId.", 422, "VALIDATION_ERROR");
+        }
+        const entryQuantity = entry?.quantity === undefined || entry?.quantity === null || entry?.quantity === "" ? 1 : Number(entry.quantity);
+        if (!Number.isInteger(entryQuantity) || entryQuantity < 1) {
+          throw clientError("Each entry in addOns must have an integer quantity >= 1.", 422, "VALIDATION_ERROR");
+        }
+
+        const resolved = await this._resolveChargeAddOn(shopOrder, Number(entryAddOnId), entryQuantity);
+        plans.push({
+          addOnId: Number(entryAddOnId),
+          name: resolved.name,
+          description: null,
+          amount: resolved.amount,
+          quantity: entryQuantity,
+        });
+      }
+    } else if (hasSingleAddOnId) {
+      const chargeQuantity = quantity === undefined || quantity === null || quantity === "" ? 1 : Number(quantity);
+      if (!Number.isInteger(chargeQuantity) || chargeQuantity < 1) {
+        throw clientError("quantity must be an integer >= 1.", 422, "VALIDATION_ERROR");
+      }
+
+      const resolved = await this._resolveChargeAddOn(shopOrder, Number(addOnId), chargeQuantity);
+      plans = [{
+        addOnId: Number(addOnId),
+        name: resolved.name,
+        description: null,
+        amount: resolved.amount,
+        quantity: chargeQuantity,
+      }];
     } else {
       if (!name || !String(name).trim()) {
         throw clientError("Charge name is required.", 422, "VALIDATION_ERROR");
@@ -542,32 +611,69 @@ class ProductOrderService {
       if (Number.isNaN(amt) || amt <= 0) {
         throw clientError("Charge amount must be a number greater than 0.", 422, "VALIDATION_ERROR");
       }
-      chargeAmount = amt;
+      plans = [{
+        addOnId: null,
+        name: String(name).trim(),
+        description: description != null ? String(description).trim() : null,
+        amount: amt,
+        quantity: 1,
+      }];
     }
 
     const tx = await sequelize.transaction();
     try {
-      const charge = await this.repo.createCharge(
-        {
-          shopOrderId,
-          addOnId: addOnId ? Number(addOnId) : null,
-          name: String(chargeName).trim(),
-          description: description != null ? String(description).trim() : null,
-          amount: chargeAmount,
-          addedBy: actorUserId,
-          isPaid: false,
-        },
-        tx
-      );
+      const charges = [];
+      let totalChargeAmount = 0;
+
+      for (const plan of plans) {
+        // Row-locked re-check + decrement, one add-on at a time, inside the same
+        // transaction — guards against two entries for the same addOnId in one
+        // `addOns` array both passing against stock read before either decremented,
+        // and against a concurrent request racing the same add-on.
+        let updatedAddOn = null;
+        if (plan.addOnId) {
+          const addOn = await ProductAddOn.findByPk(plan.addOnId, { transaction: tx, lock: tx.LOCK.UPDATE });
+          if (!addOn) throw clientError("Add-on not found.", 404, "NOT_FOUND");
+          if (addOn.stock <= 0) {
+            throw clientError(`Add-on "${addOn.name}" is out of stock.`, 400, "ADDON_OUT_OF_STOCK");
+          }
+          if (plan.quantity > addOn.stock) {
+            throw clientError(`Only ${addOn.stock} unit(s) of add-on "${addOn.name}" available.`, 400, "ADDON_INSUFFICIENT_STOCK");
+          }
+          await addOn.update({ stock: addOn.stock - plan.quantity }, { transaction: tx });
+          updatedAddOn = addOn;
+        }
+
+        const charge = await this.repo.createCharge(
+          {
+            shopOrderId,
+            addOnId: plan.addOnId,
+            name: plan.name,
+            description: plan.description,
+            amount: plan.amount,
+            quantity: plan.quantity,
+            addedBy: actorUserId,
+            isPaid: false,
+          },
+          tx
+        );
+
+        charges.push({
+          ...charge.toJSON(),
+          addOnStock: updatedAddOn ? updatedAddOn.stock : null,
+          addOnEffectiveStatus: updatedAddOn ? this._addOnEffectiveStatus(updatedAddOn) : null,
+        });
+        totalChargeAmount = round2(totalChargeAmount + plan.amount);
+      }
 
       await this.repo.incrementShopOrderTotals(
         shopOrderId,
-        { chargesAmount: chargeAmount, totalAmount: chargeAmount },
+        { chargesAmount: totalChargeAmount, totalAmount: totalChargeAmount },
         tx
       );
 
       await tx.commit();
-      return charge;
+      return hasAddOnsArray ? charges : charges[0];
     } catch (error) {
       await tx.rollback();
       throw error;
@@ -652,6 +758,190 @@ class ProductOrderService {
         wrapped.original = error.message;
         throw wrapped;
       }
+      throw error;
+    }
+  }
+
+  // Buyer pays down the shop-order's outstanding balance directly (totalAmount -
+  // paidAmount), independent of any specific charge. Mirrors OrderCartService.topUpOrder.
+  async topUpShopOrder(userId, shopOrderId, amount, walletId, payFullBalance = false) {
+    const shopOrder = await this.repo.findShopOrderForOwnerCheck(shopOrderId);
+    if (!shopOrder) throw clientError("Order not found.", 404, "NOT_FOUND");
+    if (shopOrder.userId !== userId) throw clientError("Forbidden.", 403, "UNAUTHORIZED");
+    // delivered is terminal but still payable (trailing charges); only block
+    // cancelled/refunded/returned.
+    if (REFUNDING_STATUSES.includes(shopOrder.status)) {
+      throw clientError(`Cannot pay against a ${shopOrder.status} order.`, 409, "INVALID_STATE");
+    }
+
+    const balanceDue = Math.max(0, round2(shopOrder.totalAmount) - round2(shopOrder.paidAmount));
+
+    let parsedAmount;
+    if (payFullBalance) {
+      if (balanceDue <= 0) throw clientError("Order has no outstanding balance to pay.", 409, "NOTHING_DUE");
+      parsedAmount = balanceDue;
+    } else {
+      parsedAmount = parseFloat(amount);
+      if (!parsedAmount || Number.isNaN(parsedAmount) || parsedAmount <= 0) {
+        throw clientError("amount must be a number greater than 0.", 400, "VALIDATION_ERROR");
+      }
+    }
+
+    if (walletId === undefined || walletId === null || walletId === "") {
+      throw clientError("walletId is required.", 422, "VALIDATION_ERROR");
+    }
+    const buyerWallet = await this.repo.fetchWalletById(Number(walletId));
+    if (!buyerWallet || buyerWallet.userId !== userId) {
+      throw clientError("Wallet not found.", 404, "NO_WALLET");
+    }
+
+    const payoutWallet = await this.repo.fetchWalletById(shopOrder.payoutWalletId);
+    if (!payoutWallet) {
+      throw clientError("This shop's payout wallet is no longer available.", 500, "NO_PAYOUT_WALLET");
+    }
+    if (payoutWallet.currency !== buyerWallet.currency) {
+      throw clientError(
+        `This order's payout wallet currency (${payoutWallet.currency}) does not match your wallet currency (${buyerWallet.currency}).`,
+        402,
+        "CURRENCY_MISMATCH"
+      );
+    }
+
+    const buyerBalance = parseFloat(buyerWallet.availableBalance);
+    if (buyerBalance < parsedAmount) {
+      const err = clientError("Insufficient wallet balance.", 402, "INSUFFICIENT_BALANCE");
+      err.data = { required: parsedAmount, available: buyerBalance };
+      throw err;
+    }
+
+    const tx = await sequelize.transaction();
+    try {
+      await Wallet.update(
+        { availableBalance: sequelize.literal(`availableBalance - ${parsedAmount}`) },
+        { where: { id: buyerWallet.id }, transaction: tx }
+      );
+      await Wallet.update(
+        { availableBalance: sequelize.literal(`availableBalance + ${parsedAmount}`) },
+        { where: { id: payoutWallet.id }, transaction: tx }
+      );
+
+      const txnRecord = await WalletTransaction.create(
+        {
+          walletId: buyerWallet.id,
+          userId,
+          receiverId: null,
+          type: "TRANSFER",
+          amount: parsedAmount,
+          currency: buyerWallet.currency,
+          description: `Additional payment for shop order #${shopOrder.orderNo}`,
+          referenceType: "PRODUCT_SHOP_ORDER",
+          referenceId: shopOrder.id,
+          orderId: shopOrder.parentOrderId,
+          performedBy: userId,
+        },
+        { transaction: tx }
+      );
+
+      await this.repo.incrementShopOrderTotals(shopOrder.id, { paidAmount: parsedAmount }, tx);
+
+      await tx.commit();
+
+      const remainingBalance = Math.max(0, round2(balanceDue - parsedAmount));
+
+      return {
+        shopOrderId: shopOrder.id,
+        amountPaid: parsedAmount,
+        remainingBalance,
+        fullyPaid: remainingBalance <= 0,
+        paymentDetails: {
+          buyerWallet: { id: buyerWallet.id, deducted: parsedAmount },
+          payoutWallet: { id: payoutWallet.id, credited: parsedAmount },
+          transactionId: txnRecord.id,
+        },
+        paidAt: new Date().toISOString(),
+      };
+    } catch (error) {
+      await tx.rollback();
+      if (!error.statusCode) {
+        const wrapped = clientError("Additional payment failed. No funds deducted. Please retry.", 500, "PAYMENT_ERROR");
+        wrapped.original = error.message;
+        throw wrapped;
+      }
+      throw error;
+    }
+  }
+
+  // Admin/accountant records a payment received outside the platform (cash, bank
+  // transfer, etc.) against a shop-order. No buyer wallet is debited; the shop's
+  // payout wallet is credited for real since the money never moved through the
+  // platform otherwise. Mirrors OrderCartService.adminRecordPayment (minus the
+  // ledger row, since ProductShopOrder has no OrderPayment-equivalent table).
+  async adminRecordShopOrderPayment(adminUserId, shopOrderId, amount, note) {
+    const parsedAmount = parseFloat(amount);
+    if (!parsedAmount || Number.isNaN(parsedAmount) || parsedAmount <= 0) {
+      throw clientError("amount must be a number greater than 0.", 400, "VALIDATION_ERROR");
+    }
+
+    const shopOrder = await this.repo.findShopOrderForOwnerCheck(shopOrderId);
+    if (!shopOrder) throw clientError("Order not found.", 404, "NOT_FOUND");
+
+    const payoutWallet = await this.repo.fetchWalletById(shopOrder.payoutWalletId);
+    if (!payoutWallet) {
+      throw clientError("This shop's payout wallet is no longer available.", 500, "NO_PAYOUT_WALLET");
+    }
+
+    const shop = await this.repo.fetchShop(shopOrder.shopId);
+    const shopOwnerId = shop ? shop.userId : payoutWallet.userId;
+
+    const tx = await sequelize.transaction();
+    try {
+      await this.repo.incrementShopOrderTotals(shopOrder.id, { paidAmount: parsedAmount }, tx);
+
+      await Wallet.update(
+        { availableBalance: sequelize.literal(`availableBalance + ${parsedAmount}`) },
+        { where: { id: payoutWallet.id }, transaction: tx }
+      );
+
+      const txnRecord = await WalletTransaction.create(
+        {
+          walletId: payoutWallet.id,
+          userId: shopOwnerId,
+          receiverId: null,
+          type: "DEPOSIT",
+          amount: parsedAmount,
+          currency: payoutWallet.currency,
+          description: `Admin-recorded payment for shop order #${shopOrder.orderNo}`,
+          referenceType: "PRODUCT_SHOP_ORDER",
+          referenceId: shopOrder.id,
+          orderId: shopOrder.parentOrderId,
+          performedBy: adminUserId,
+        },
+        { transaction: tx }
+      );
+
+      await tx.commit();
+
+      await notificationService.notifyUser({
+        userId: shopOrder.userId,
+        actorId: adminUserId,
+        type: "PRODUCT_ORDER_PAYMENT_RECORDED",
+        title: "Payment Recorded",
+        message: `Admin recorded a payment of ${round2(parsedAmount)} on your order #${shopOrder.orderNo}.${note ? ` Note: ${note}` : ""}`,
+        entityType: "PRODUCT_SHOP_ORDER",
+        entityId: shopOrder.id,
+        data: { amount: round2(parsedAmount), note: note || null },
+      });
+
+      return {
+        shopOrderId: shopOrder.id,
+        amount: parsedAmount,
+        note: note || null,
+        createdBy: adminUserId,
+        transactionId: txnRecord.id,
+        createdAt: new Date().toISOString(),
+      };
+    } catch (error) {
+      await tx.rollback();
       throw error;
     }
   }

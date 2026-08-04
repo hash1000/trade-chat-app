@@ -689,8 +689,9 @@ class OrderCartService {
     }
   }
 
-  // POST: admin records a payment against an order without moving any wallet balance
-  // (e.g. payment was received outside the platform). Pure ledger entry.
+  // POST: admin records a payment against an order that was received outside the
+  // platform (cash, bank transfer, etc.). Credits the owner's wallet for real — no
+  // buyer wallet is debited, since the buyer didn't pay through the platform.
   async adminRecordPayment(adminUserId, orderId, amount, type, note, serviceOrderId) {
     const parsedAmount = parseFloat(amount);
     if (!parsedAmount || Number.isNaN(parsedAmount) || parsedAmount <= 0) {
@@ -711,6 +712,45 @@ class OrderCartService {
       serviceOrder = await ServiceOrder.findOne({ where: { id: serviceOrderId, orderId } });
       if (!serviceOrder) throw clientError("Service order item not found in this order.", 404, "NOT_FOUND");
     }
+
+    // No serviceOrderId → this payment applies to the whole order, so it must be
+    // spread across every item's ServiceOrder.paidAmount (not just Order.paidAmount),
+    // otherwise the read paths — which sum paidAmount from ServiceOrder rows, see
+    // getOrder/listOrders — never reflect it. Same targeting rule as topUpOrder:
+    // proportional to each item's outstanding due, falling back to proportional-by-total
+    // (or an equal split) when nothing is due.
+    let targets;
+    if (serviceOrder) {
+      targets = [{ so: serviceOrder, share: parsedAmount }];
+    } else {
+      const serviceOrders = await ServiceOrder.findAll({ where: { orderId } });
+      if (serviceOrders.length === 0) throw clientError("Order has no items.", 400, "EMPTY_ORDER");
+
+      const itemTotals = await Promise.all(serviceOrders.map((so) => this.itemTotalForServiceOrder(so)));
+      const itemDues = serviceOrders.map((so, idx) => Math.max(0, itemTotals[idx] - parseFloat(so.paidAmount)));
+      const totalDue = itemDues.reduce((s, v) => s + v, 0);
+
+      if (totalDue > 0) {
+        targets = serviceOrders
+          .map((so, idx) => ({ so, due: itemDues[idx] }))
+          .filter((t) => t.due > 0)
+          .map((t) => ({ so: t.so, share: parsedAmount * (t.due / totalDue) }));
+      } else {
+        const sumItemTotals = itemTotals.reduce((s, v) => s + v, 0);
+        targets = serviceOrders.map((so, idx) => ({
+          so,
+          share: sumItemTotals > 0
+            ? parsedAmount * (itemTotals[idx] / sumItemTotals)
+            : parsedAmount / serviceOrders.length,
+        }));
+      }
+    }
+
+    // Admin-recorded payments still credit the owner's wallet for real — the money was
+    // received outside the platform (cash, bank transfer, etc.), so this is what actually
+    // gets it into the owner's account. No buyer wallet is debited since the buyer didn't
+    // pay through the platform.
+    const ownerWallets = await Promise.all(targets.map((t) => this.resolveOwnerWallet(t.so)));
 
     const tx = await sequelize.transaction();
     try {
@@ -736,10 +776,39 @@ class OrderCartService {
         { where: { id: orderId }, transaction: tx }
       );
 
-      if (serviceOrder) {
+      for (let i = 0; i < targets.length; i++) {
+        const { so, share } = targets[i];
+        const ownerWallet = ownerWallets[i];
+
         await ServiceOrder.update(
-          { [targetField]: sequelize.literal(`${targetField} + ${parsedAmount}`) },
-          { where: { id: serviceOrder.id }, transaction: tx }
+          { [targetField]: sequelize.literal(`${targetField} + ${share}`) },
+          { where: { id: so.id }, transaction: tx }
+        );
+
+        // Credit the owner's wallet with their share of the admin-recorded payment.
+        await Wallet.update(
+          { availableBalance: sequelize.literal(`availableBalance + ${share}`) },
+          { where: { id: ownerWallet.id }, transaction: tx }
+        );
+
+        // type: DEPOSIT (not TRANSFER) — there's no counterpart debit anywhere (no
+        // buyer wallet involved), so this must bucket as a credit in wallet summaries
+        // (WalletService.js treats DEPOSIT/UNLOCK as credit, everything else as debit).
+        await WalletTransaction.create(
+          {
+            walletId: ownerWallet.id,
+            userId: so.serviceOwnerId,
+            receiverId: so.serviceOwnerId,
+            type: "DEPOSIT",
+            amount: share,
+            currency: ownerWallet.currency,
+            description: `Admin-recorded ${recordType === "order_top_up" ? "top-up" : "payment"} for service order #${so.id}`,
+            referenceType: "SERVICE_ORDER",
+            referenceId: so.id,
+            orderId,
+            performedBy: adminUserId,
+          },
+          { transaction: tx }
         );
       }
 

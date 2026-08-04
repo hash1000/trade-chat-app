@@ -176,6 +176,14 @@ class ProductCartService {
     return [...byId.values()];
   }
 
+  // Required add-ons track the line's product quantity 1:1 — the customer
+  // can't opt out or set them independently, so bumping product quantity
+  // must scale them too.
+  _scaleRequiredAddOns(addOns, quantity) {
+    if (!Array.isArray(addOns) || addOns.length === 0) return addOns;
+    return addOns.map((a) => (a.isRequired && a.quantity !== quantity ? { ...a, quantity } : a));
+  }
+
   _addOnSubtotal(addOns) {
     return round2((addOns || []).reduce((sum, a) => sum + Number(a.price) * Number(a.quantity ?? 1), 0));
   }
@@ -327,6 +335,8 @@ class ProductCartService {
       const requiredAddOns = await this._resolveRequiredAddOns(line.shopProductId, line.variationId);
       fields.addOns = this._mergeAddOns(resolvedAddOns, requiredAddOns);
     }
+
+    fields.addOns = this._scaleRequiredAddOns(fields.addOns ?? line.addOns, qty);
 
     await this.repo.saveLine(line, fields);
     return { message: "Quantity updated", cartItem: line };

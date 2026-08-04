@@ -6,8 +6,8 @@ const Address = require("../models/address");
 
 class BankAccountRepository {
   // classification may be 'sender', 'receiver', 'both' or 'all' (or undefined)
-  async getBankAccountsByUserId(userId, classification) {
-    const where = { userId };
+  async getBankAccountsByUserId(userId, classification, filters = {}) {
+    const where = { userId, isDeleted: false };
 
     if (classification && classification !== "all") {
       const allowed = ["sender", "receiver", "both"];
@@ -15,6 +15,14 @@ class BankAccountRepository {
       if (allowed.includes(classification)) {
         where.classification = classification;
       }
+    }
+
+    if (filters.isDefault !== undefined) {
+      where.isDefault = filters.isDefault;
+    }
+
+    if (filters.walletType !== undefined) {
+      where.walletType = filters.walletType;
     }
 
     return await BankAccount.findAll({
@@ -39,7 +47,7 @@ class BankAccountRepository {
 
   async getBankAccountById(userId, accountId) {
     return await BankAccount.findOne({
-      where: { id: accountId, userId },
+      where: { id: accountId, userId, isDeleted: false },
       include: [
         {
           model: Wallet,
@@ -129,24 +137,33 @@ class BankAccountRepository {
     });
   }
 
-  async createBankAccount(userId, accountData) {
+  async createBankAccount(userId, accountData, options = {}) {
+    const { transaction } = options;
+
     const lastAccount = await BankAccount.findOne({
       where: { userId },
       order: [["sequence", "DESC"]],
+      transaction,
     });
 
     const nextSequence = lastAccount ? lastAccount.sequence + 1 : 1;
 
-    return await BankAccount.create({
-      userId,
-      ...accountData,
-      sequence: nextSequence,
-    });
+    return await BankAccount.create(
+      {
+        userId,
+        ...accountData,
+        sequence: nextSequence,
+      },
+      { transaction },
+    );
   }
 
-  async updateBankAccount(userId, accountId, updateData) {
+  async updateBankAccount(userId, accountId, updateData, options = {}) {
+    const { transaction } = options;
+
     const account = await BankAccount.findOne({
-      where: { id: accountId, userId },
+      where: { id: accountId, userId, isDeleted: false },
+      transaction,
     });
     if (!account) return null;
 
@@ -154,9 +171,47 @@ class BankAccountRepository {
     delete safeUpdateData.sequence;
     delete safeUpdateData.userId;
     delete safeUpdateData.testCard;
+    delete safeUpdateData.isDeleted;
 
-    await account.update(safeUpdateData);
+    await account.update(safeUpdateData, { transaction });
     return account;
+  }
+
+  async countCardsInGroup(userId, walletType, classification, options = {}) {
+    const { transaction } = options;
+
+    return BankAccount.count({
+      where: { userId, walletType, classification, isDeleted: false },
+      transaction,
+    });
+  }
+
+  // Clears isDefault on every other card in the same (userId, walletType, classification)
+  // group, so at most one card can be default per group. "both" classification is excluded.
+  async unsetOtherDefaultsInGroup(
+    userId,
+    walletType,
+    classification,
+    excludeAccountId,
+    options = {},
+  ) {
+    const { transaction } = options;
+
+    if (classification === "both") return;
+
+    await BankAccount.update(
+      { isDefault: false },
+      {
+        where: {
+          userId,
+          walletType,
+          classification,
+          isDeleted: false,
+          id: { [Op.ne]: excludeAccountId },
+        },
+        transaction,
+      },
+    );
   }
 
   async updateAnyBankAccount(accountId, updateData) {
@@ -179,7 +234,7 @@ class BankAccountRepository {
 
     try {
       const accountToDelete = await BankAccount.findOne({
-        where: { id: accountId, userId },
+        where: { id: accountId, userId, isDeleted: false },
         transaction,
       });
 
@@ -190,15 +245,22 @@ class BankAccountRepository {
 
       const deletedSequence = accountToDelete.sequence;
 
-      await BankAccount.destroy({
-        where: { id: accountId, userId },
-        transaction,
-      });
+      await BankAccount.update(
+        { isDeleted: true },
+        {
+          where: { id: accountId, userId },
+          transaction,
+        },
+      );
 
       await BankAccount.update(
         { sequence: BankAccount.sequelize.literal("sequence - 1") },
         {
-          where: { userId, sequence: { [Op.gt]: deletedSequence } },
+          where: {
+            userId,
+            isDeleted: false,
+            sequence: { [Op.gt]: deletedSequence },
+          },
           transaction,
         },
       );

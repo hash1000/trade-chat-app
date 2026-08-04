@@ -223,5 +223,10 @@ exports.validateUpdateProfile = [
     .optional()
     .isString()
     .withMessage("Description must be a string"),
+  body("email_verified")
+    .optional()
+    .isBoolean()
+    .withMessage("email_verified must be true or false")
+    .toBoolean(),
   handleValidationErrors,
 ];

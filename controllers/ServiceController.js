@@ -952,14 +952,15 @@ class ServiceController {
       const { rating, comment } = req.body;
 
       if (
-        !rating ||
+        rating === undefined ||
+        rating === null ||
         !Number.isInteger(Number(rating)) ||
-        Number(rating) < 1 ||
-        Number(rating) > 5
+        Number(rating) < 0 ||
+        Number(rating) > 10
       ) {
         return res.status(400).json({
           success: false,
-          error: "rating must be an integer between 1 and 5.",
+          error: "rating must be an integer between 0 and 10.",
         });
       }
 
@@ -998,16 +999,17 @@ class ServiceController {
       const { rating, comment } = req.body;
 
       if (
-        !rating ||
+        rating === undefined ||
+        rating === null ||
         !Number.isInteger(Number(rating)) ||
-        Number(rating) < 1 ||
-        Number(rating) > 5
+        Number(rating) < 0 ||
+        Number(rating) > 10
       ) {
         return res
           .status(400)
           .json({
             success: false,
-            error: "rating must be an integer between 1 and 5.",
+            error: "rating must be an integer between 0 and 10.",
           });
       }
 
@@ -1063,6 +1065,27 @@ class ServiceController {
       });
     } catch (error) {
       console.error("ServiceController.deleteRating error:", error);
+      return res.status(500).json({
+        success: false,
+        error: "Server error. Please try again later.",
+      });
+    }
+  }
+
+  async getPaginatedRatings(req, res) {
+    try {
+      const serviceId = Number(req.params.id);
+      const { page = 1, limit = 10 } = req.query;
+
+      const result = await serviceService.getPaginatedRatings(
+        serviceId,
+        Number(page),
+        Number(limit),
+      );
+
+      return res.status(200).json({ success: true, data: result });
+    } catch (error) {
+      console.error("ServiceController.getPaginatedRatings error:", error);
       return res.status(500).json({
         success: false,
         error: "Server error. Please try again later.",

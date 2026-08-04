@@ -19,6 +19,10 @@ const BankAccount = sequelize.define(
       type: DataTypes.STRING,
       allowNull: true,
     },
+    bank_name: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
     iban: {
       type: DataTypes.STRING,
       allowNull: true,
@@ -29,9 +33,29 @@ const BankAccount = sequelize.define(
       type: DataTypes.STRING,
       allowNull: true,
     },
-    accountHolder: {
+    firstName: {
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: true,
+    },
+    lastName: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    familyName: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    documentType: {
+      type: DataTypes.ENUM("passport", "id_card"),
+      allowNull: true,
+    },
+    documentValue: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    accountNo: {
+      type: DataTypes.STRING,
+      allowNull: true,
     },
     accountCurrency: {
       type: DataTypes.STRING(20),
@@ -41,11 +65,23 @@ const BankAccount = sequelize.define(
       type: DataTypes.STRING,
       allowNull: true,
     },
-    intermediateBank: {
+    bank_address: {
       type: DataTypes.STRING,
       allowNull: true,
     },
-    beneficiaryAddress: {
+    beneficiary_address: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    intermediate_bank_name: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    intermediate_bank_swift: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    intermediate_bank_address: {
       type: DataTypes.STRING,
       allowNull: true,
     },
@@ -79,6 +115,21 @@ const BankAccount = sequelize.define(
         model: "address",
         key: "id",
       },
+    },
+    walletType: {
+      type: DataTypes.ENUM("PERSONAL", "COMPANY"),
+      allowNull: false,
+      defaultValue: "COMPANY",
+    },
+    isDefault: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
+    isDeleted: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
     },
   },
   {

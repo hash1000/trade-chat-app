@@ -1,6 +1,7 @@
 const express = require('express')
 const router = express.Router()
 const authMiddleware = require('../middlewares/authenticate')
+const authenticateOptional = require('../middlewares/authenticateOptional')
 const authorize = require('../middlewares/authorization')
 const checkIntegerParam = require('../middlewares/paramIntegerValidation')
 const ShopProductController = require('../controllers/ShopProductController')
@@ -37,6 +38,7 @@ const addOnController = new ShopProductAddOnController()
 
 router.get(
   '/public/list',
+  authenticateOptional,
   getPaginatedProductsValidation,
   controller.getPublicPaginatedProducts.bind(controller)
 )
@@ -49,6 +51,7 @@ router.get(
 
 router.get(
   '/public/:productId',
+  authenticateOptional,
   getProductValidation,
   controller.getPublicProductById.bind(controller)
 )
@@ -184,6 +187,7 @@ router.get('/:productId/views/count', authMiddleware, checkIntegerParam('product
 router.post('/:productId/rating', authMiddleware, rateProductValidation, controller.rateProduct.bind(controller))
 router.put('/:productId/rating', authMiddleware, rateProductValidation, controller.rateProduct.bind(controller))
 router.delete('/:productId/rating', authMiddleware, checkIntegerParam('productId'), controller.deleteRating.bind(controller))
+router.get('/:productId/rating', checkIntegerParam('productId'), controller.getPaginatedRatings.bind(controller))
 
 // ── Admin badges ──────────────────────────────────────────────────────────────
 

@@ -14,6 +14,7 @@ const ProductCategory = require("../models/productCategory");
 const PublicCategory = require("../models/publicCategories");
 const ProductAddOn = require("../models/productAddOn");
 const ProductAddOnImage = require("../models/productAddOnImage");
+const User = require("../models/user");
 
 class ShopProductRepository {
   _publicInclude() {
@@ -64,7 +65,19 @@ class ShopProductRepository {
           "updatedAt",
         ],
       },
+      this._topRatingsInclude(),
     ];
+  }
+
+  _topRatingsInclude() {
+    return {
+      model: ProductRating,
+      as: "productRatings",
+      separate: true,
+      limit: 5,
+      order: [["rating", "DESC"], ["createdAt", "DESC"]],
+      include: [{ model: User, as: "user", attributes: this._ratingUserAttributes() }],
+    };
   }
 
   async createProduct(data, transaction) {
@@ -106,6 +119,7 @@ class ShopProductRepository {
           as: "categories",
           through: { attributes: [] },
         },
+        this._topRatingsInclude(),
       ],
     });
     if (!product) throw new CustomError("Product not found", 404);
@@ -135,6 +149,13 @@ class ShopProductRepository {
 
     if (!product) throw new CustomError("Product not found", 404);
     return product;
+  }
+
+  async incrementViewCount(productId) {
+    return ShopProduct.increment("baseViewCount", {
+      by: 1,
+      where: { id: productId },
+    });
   }
 
   async getPublicByShopId(shopId) {
@@ -275,6 +296,14 @@ class ShopProductRepository {
     return like !== null;
   }
 
+  async getLikedProductIds(userId, shopProductIds) {
+    const likes = await ProductLike.findAll({
+      where: { userId, shopProductId: { [Op.in]: shopProductIds } },
+      attributes: ["shopProductId"],
+    });
+    return new Set(likes.map((l) => l.shopProductId));
+  }
+
   // ── Views ────────────────────────────────────────────────────────────────
 
   async recordView(userId, shopProductId) {
@@ -343,6 +372,38 @@ class ShopProductRepository {
       { ratingCount: count, ratingAvg: avg },
       { where: { id: shopProductId }, transaction: t },
     );
+  }
+
+  _ratingUserAttributes() {
+    return ["id", "username", "firstName", "lastName", "profilePic"];
+  }
+
+  async getPaginatedRatings(shopProductId, page, limit) {
+    const offset = (page - 1) * limit;
+
+    const { count, rows } = await ProductRating.findAndCountAll({
+      where: { shopProductId },
+      include: [{ model: User, as: "user", attributes: this._ratingUserAttributes() }],
+      limit: Number(limit),
+      offset,
+      order: [["createdAt", "DESC"]],
+    });
+
+    // highest-rated reviews, independent of the current page
+    const topRatings = await ProductRating.findAll({
+      where: { shopProductId },
+      include: [{ model: User, as: "user", attributes: this._ratingUserAttributes() }],
+      order: [["rating", "DESC"], ["createdAt", "DESC"]],
+      limit: 5,
+    });
+
+    return {
+      total: count,
+      totalPages: Math.ceil(count / limit),
+      currentPage: Number(page),
+      topRatings,
+      ratings: rows,
+    };
   }
 
   // ── Categories ────────────────────────────────────────────────────────────

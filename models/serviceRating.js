@@ -20,7 +20,7 @@ const ServiceRating = sequelize.define(
     rating: {
       type: DataTypes.INTEGER,
       allowNull: false,
-      validate: { min: 1, max: 5 },
+      validate: { min: 0, max: 10 },
     },
     comment: {
       type: DataTypes.TEXT,

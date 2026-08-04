@@ -75,6 +75,46 @@ class WalletService {
     return { income_expense_by_currency: byCurrency, transfer_totals: totals };
   }
 
+  /**
+   * Same shape as _buildTransferIncomeExpenseSummary, but built from pre-aggregated
+   * SQL rows (one row per currency, already SUM'd) instead of raw transaction rows.
+   */
+  _buildTransferIncomeExpenseSummaryFromAgg(aggRows) {
+    const defaultCurrencies = ["USD", "EUR", "CNY"];
+    const byCurrency = {};
+    for (const c of defaultCurrencies) {
+      byCurrency[c] = { income: 0, expense: 0, income_count: 0, expense_count: 0 };
+    }
+
+    const totals = { income_amount: 0, expense_amount: 0, income_count: 0, expense_count: 0 };
+
+    for (const row of aggRows) {
+      const currency = String(row.currency || "").toUpperCase();
+      if (!currency) continue;
+
+      const income = Number(row.income) || 0;
+      const expense = Number(row.expense) || 0;
+      const incomeCount = Number(row.income_count) || 0;
+      const expenseCount = Number(row.expense_count) || 0;
+
+      if (!byCurrency[currency]) {
+        byCurrency[currency] = { income: 0, expense: 0, income_count: 0, expense_count: 0 };
+      }
+
+      byCurrency[currency].income += income;
+      byCurrency[currency].expense += expense;
+      byCurrency[currency].income_count += incomeCount;
+      byCurrency[currency].expense_count += expenseCount;
+
+      totals.income_amount += income;
+      totals.expense_amount += expense;
+      totals.income_count += incomeCount;
+      totals.expense_count += expenseCount;
+    }
+
+    return { income_expense_by_currency: byCurrency, transfer_totals: totals };
+  }
+
   async getUserWalletById(userId) {
     return User.findByPk(userId);
   }
@@ -1158,6 +1198,7 @@ class WalletService {
     }
     if (currency) transferWhere.currency = String(currency).toUpperCase();
     if (receiptId) transferWhere.receiptId = receiptId;
+    if (orderId != null && orderId !== "") transferWhere.orderId = orderId;
     if (transaction_group_id)
       transferWhere.transaction_group_id = String(transaction_group_id).trim();
     if (startDate && endDate) {
@@ -1166,12 +1207,23 @@ class WalletService {
       };
     }
 
-    const transferRows = await WalletTransaction.findAll({
+    // Aggregated in SQL (SUM/COUNT grouped by currency) instead of pulling every
+    // matching row into JS — the prior findAll had no limit and, without the orderId
+    // scope above, was scanning the user's entire TRANSFER history on every request.
+    const transferAgg = await WalletTransaction.findAll({
       where: transferWhere,
-      attributes: ["amount", "currency", "type"],
+      attributes: [
+        "currency",
+        [sequelize.fn("SUM", sequelize.literal("CASE WHEN amount > 0 THEN amount ELSE 0 END")), "income"],
+        [sequelize.fn("SUM", sequelize.literal("CASE WHEN amount > 0 THEN 1 ELSE 0 END")), "income_count"],
+        [sequelize.fn("SUM", sequelize.literal("CASE WHEN amount < 0 THEN -amount ELSE 0 END")), "expense"],
+        [sequelize.fn("SUM", sequelize.literal("CASE WHEN amount < 0 THEN 1 ELSE 0 END")), "expense_count"],
+      ],
+      group: ["currency"],
+      raw: true,
     });
 
-    const summary = this._buildTransferIncomeExpenseSummary(transferRows);
+    const summary = this._buildTransferIncomeExpenseSummaryFromAgg(transferAgg);
 
     return {
       data: Object.values(grouped),

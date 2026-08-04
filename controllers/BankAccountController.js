@@ -8,6 +8,12 @@ function handleBankAccountError(res, error) {
     return res.status(400).json({ error: "IBAN already exists" });
   }
 
+  if (error.name === "SequelizeForeignKeyConstraintError") {
+    return res
+      .status(400)
+      .json({ error: "Cannot delete this account because it is linked to existing withdrawal records" });
+  }
+
   if (error.statusCode) {
     return res.status(error.statusCode).json({ error: error.message });
   }
@@ -20,11 +26,13 @@ class BankAccountController {
   async getBankAccounts(req, res) {
     try {
       const { id: userId } = req.user;
-      // Optional classification filter: sender | receiver | both | all
+      // Optional filters
       const classification = req.query.classification;
+      const { isDefault, walletType } = req.query;
       const accounts = await bankAccountService.getBankAccountsByUserId(
         userId,
         classification,
+        { isDefault, walletType },
       );
       res.json(bankAccountService.serializeBankAccounts(accounts));
     } catch (error) {
@@ -52,32 +60,50 @@ class BankAccountController {
     try {
       const { id: userId } = req.user;
       const {
-        accountName,
+        firstName,
+        lastName,
+        familyName,
+        documentType,
+        documentValue,
         iban,
-        accountHolder,
-        accountCurrency,
-        bic,
+        accountName,
+        accountNo,
         swift_code,
-        intermediateBank,
+        bank_name,
+        bank_address,
+        beneficiary_address,
+        intermediate_bank_name,
+        intermediate_bank_swift,
+        intermediate_bank_address,
         note,
-        beneficiaryAddress,
         classification,
         currency,
+        walletType,
+        isDefault,
         addressId,
       } = req.body;
 
       const newAccount = await bankAccountService.createBankAccount(userId, {
-        accountName,
+        firstName,
+        lastName,
+        familyName,
+        documentType,
+        documentValue,
         iban,
-        accountHolder,
-        accountCurrency,
-        bic,
+        accountName,
+        accountNo,
         swift_code,
+        bank_name,
+        bank_address,
+        beneficiary_address,
+        intermediate_bank_name,
+        intermediate_bank_swift,
+        intermediate_bank_address,
         note,
-        intermediateBank,
-        beneficiaryAddress,
         classification,
         currency,
+        walletType,
+        isDefault,
         addressId: addressId ?? null,
       });
 

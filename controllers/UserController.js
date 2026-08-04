@@ -1016,6 +1016,7 @@ class UserController {
         profilePic,
         password,
         description,
+        email_verified,
       } = req.body;
       
       const user = req.user;
@@ -1044,6 +1045,7 @@ class UserController {
             settings,
             description,
             rating,
+            email_verified,
           });
           res.json({ user: updatedUser });
         }
@@ -1060,6 +1062,7 @@ class UserController {
           settings,
           description,
             rating,
+            email_verified,
         });
         res.json({ user: updatedUser });
       }

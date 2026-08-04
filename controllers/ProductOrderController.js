@@ -101,10 +101,12 @@ class ProductOrderController {
     try {
       const { id: userId } = req.user;
       const { shopOrderId } = req.params;
-      const { name, description, amount, addOnId } = req.body;
+      const { name, description, amount, addOnId, quantity, addOns } = req.body;
 
-      const charge = await orderService.addCharge(userId, Number(shopOrderId), { name, description, amount, addOnId });
-      return res.status(201).json({ success: true, message: "Charge added", charge });
+      const result = await orderService.addCharge(userId, Number(shopOrderId), { name, description, amount, addOnId, quantity, addOns });
+      const message = Array.isArray(result) ? "Charges added" : "Charge added";
+      const payload = Array.isArray(result) ? { charges: result } : { charge: result };
+      return res.status(201).json({ success: true, message, ...payload });
     } catch (error) {
       return handle(res, error, "ProductOrderController.addCharge error:");
     }
@@ -120,6 +122,36 @@ class ProductOrderController {
       return res.json({ success: true, message: "Charge paid", shopOrder });
     } catch (error) {
       return handle(res, error, "ProductOrderController.payCharge error:");
+    }
+  }
+
+  // POST /product-orders/shop-orders/:shopOrderId/top-up — buyer pays an
+  // additional amount against the shop-order's outstanding balance
+  async topUpShopOrder(req, res) {
+    try {
+      const { id: userId } = req.user;
+      const { shopOrderId } = req.params;
+      const { amount, walletId, payFullBalance } = req.body;
+
+      const data = await orderService.topUpShopOrder(userId, Number(shopOrderId), amount, walletId, payFullBalance === true);
+      return res.status(200).json({ success: true, data });
+    } catch (error) {
+      return handle(res, error, "ProductOrderController.topUpShopOrder error:");
+    }
+  }
+
+  // POST /product-orders/shop-orders/:shopOrderId/admin-payment — admin/accountant
+  // records a payment against a shop-order, no buyer wallet is touched
+  async adminRecordShopOrderPayment(req, res) {
+    try {
+      const { id: adminUserId } = req.user;
+      const { shopOrderId } = req.params;
+      const { amount, note } = req.body;
+
+      const data = await orderService.adminRecordShopOrderPayment(adminUserId, Number(shopOrderId), amount, note);
+      return res.status(201).json({ success: true, data });
+    } catch (error) {
+      return handle(res, error, "ProductOrderController.adminRecordShopOrderPayment error:");
     }
   }
 }

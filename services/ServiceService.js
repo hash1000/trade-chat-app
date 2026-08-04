@@ -1,4 +1,4 @@
-const { Service, ServicePurchase } = require("../models");
+const { Service } = require("../models");
 const sequelize = require("../config/database");
 const ServiceRepository = require("../repositories/ServiceRepository");
 
@@ -113,13 +113,6 @@ class ServiceService {
   }
 
   async rateService(userId, serviceId, rating, comment) {
-    const purchase = await ServicePurchase.findOne({ where: { userId, serviceId } });
-    if (!purchase) {
-      const err = new Error("You must purchase this service before rating it.");
-      err.name = "NotPurchasedError";
-      throw err;
-    }
-
     return sequelize.transaction(async (t) => {
       await this.serviceRepository.upsertRating(userId, serviceId, rating, comment, t);
     });
@@ -129,6 +122,10 @@ class ServiceService {
     return sequelize.transaction(async (t) => {
       return this.serviceRepository.deleteRating(userId, serviceId, t);
     });
+  }
+
+  async getPaginatedRatings(serviceId, page, limit) {
+    return this.serviceRepository.getPaginatedRatings(serviceId, page, limit);
   }
 
   async updateBadges(serviceId, data) {
