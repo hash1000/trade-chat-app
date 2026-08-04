@@ -330,6 +330,21 @@ class ProductOrderService {
               { where: { id: line.shopProductId }, transaction: tx }
             );
           }
+
+          // Add-on stock: decrement by each add-on's own quantity, as snapshotted on
+          // the cart line — required add-ons are already scaled 1:1 with
+          // productCartItemQuantity at add-to-cart time (see
+          // ProductCartService._scaleRequiredAddOns), optional add-ons carry
+          // whatever quantity the buyer chose independently, so no further
+          // multiplication happens here.
+          for (const addOn of line.addOns || []) {
+            const addOnQty = Number(addOn.quantity ?? 1);
+            if (addOnQty <= 0) continue;
+            await ProductAddOn.update(
+              { stock: sequelize.literal(`stock - ${addOnQty}`) },
+              { where: { id: addOn.addOnId }, transaction: tx }
+            );
+          }
         }
 
         createdShopOrders.push(shopOrder);
@@ -502,9 +517,10 @@ class ProductOrderService {
   // actually a line item in THIS shop-order (not just any add-on from the shop)
   // — name/price are then always taken from the ProductAddOn row itself, never
   // from the request, so a charge can't silently diverge from the catalog price.
-  // amount = addOn.price * quantity; quantity must be an active, in-stock amount
-  // (same rule ProductCartService applies at cart-add time), but stock itself is
-  // NOT decremented here — this only charges for units, it doesn't reserve them.
+  // amount = addOn.price * quantity. Only checks ownership + isActive here; the
+  // stock check + decrement happens later, inside the transaction, right before
+  // each charge is created (see addCharge) — doing it here would let two entries
+  // for the same addOnId in one `addOns` array both pass against stale stock.
   async _resolveChargeAddOn(shopOrder, addOnId, quantity) {
     const addOn = await ProductAddOn.findByPk(addOnId);
     if (!addOn) throw clientError("Add-on not found.", 404, "NOT_FOUND");
@@ -520,14 +536,14 @@ class ProductOrderService {
     if (!addOn.isActive) {
       throw clientError(`Add-on "${addOn.name}" is not currently available.`, 400, "ADDON_INACTIVE");
     }
-    if (addOn.stock <= 0) {
-      throw clientError(`Add-on "${addOn.name}" is out of stock.`, 400, "ADDON_OUT_OF_STOCK");
-    }
-    if (quantity > addOn.stock) {
-      throw clientError(`Only ${addOn.stock} unit(s) of add-on "${addOn.name}" available.`, 400, "ADDON_INSUFFICIENT_STOCK");
-    }
 
     return { name: addOn.name, amount: round2(Number(addOn.price) * quantity) };
+  }
+
+  // status is computed, never stored — mirrors ShopProductService.addOnEffectiveStatus.
+  _addOnEffectiveStatus(addOn) {
+    if (!addOn.isActive) return "inactive";
+    return Number(addOn.stock) <= 0 ? "out_of_stock" : "in_stock";
   }
 
   // Either `addOns` (array of {addOnId, quantity}) OR the freeform name/description/amount
@@ -610,6 +626,24 @@ class ProductOrderService {
       let totalChargeAmount = 0;
 
       for (const plan of plans) {
+        // Row-locked re-check + decrement, one add-on at a time, inside the same
+        // transaction — guards against two entries for the same addOnId in one
+        // `addOns` array both passing against stock read before either decremented,
+        // and against a concurrent request racing the same add-on.
+        let updatedAddOn = null;
+        if (plan.addOnId) {
+          const addOn = await ProductAddOn.findByPk(plan.addOnId, { transaction: tx, lock: tx.LOCK.UPDATE });
+          if (!addOn) throw clientError("Add-on not found.", 404, "NOT_FOUND");
+          if (addOn.stock <= 0) {
+            throw clientError(`Add-on "${addOn.name}" is out of stock.`, 400, "ADDON_OUT_OF_STOCK");
+          }
+          if (plan.quantity > addOn.stock) {
+            throw clientError(`Only ${addOn.stock} unit(s) of add-on "${addOn.name}" available.`, 400, "ADDON_INSUFFICIENT_STOCK");
+          }
+          await addOn.update({ stock: addOn.stock - plan.quantity }, { transaction: tx });
+          updatedAddOn = addOn;
+        }
+
         const charge = await this.repo.createCharge(
           {
             shopOrderId,
@@ -623,7 +657,12 @@ class ProductOrderService {
           },
           tx
         );
-        charges.push(charge);
+
+        charges.push({
+          ...charge.toJSON(),
+          addOnStock: updatedAddOn ? updatedAddOn.stock : null,
+          addOnEffectiveStatus: updatedAddOn ? this._addOnEffectiveStatus(updatedAddOn) : null,
+        });
         totalChargeAmount = round2(totalChargeAmount + plan.amount);
       }
 
