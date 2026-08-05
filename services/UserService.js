@@ -2,14 +2,12 @@ const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 const UserRepository = require("../repositories/UserRepository"); // Replace the path with the correct location of your UserRepository.js file
 const CustomError = require("../errors/CustomError");
-const ChatRepository = require("../repositories/ChatRepository");
 const PaymentService = require("./PaymentService");
 const UserFavouriteRepository = require("../repositories/UserFavouriteRepository");
 const UserTags = require("../models/userTags");
 const { User, Role } = require("../models");
 const sequelize = require("../config/database");
 const WalletService = require("./WalletService");
-const chat = new ChatRepository();
 const userRepository = new UserRepository();
 const userFavourite = new UserFavouriteRepository();
 const paymentService = new PaymentService();
@@ -343,9 +341,6 @@ class UserService {
 
     // Then cancel user favourites
     await userFavourite.deleteUserFavourite(userId);
-
-    // Then cancel chat invites
-    await chat.deleteInvite(userId);
 
     // 1. Delete user tags
     await userRepository.deleteUserTags(userId);

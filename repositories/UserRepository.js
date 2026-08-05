@@ -1,4 +1,3 @@
-const Chat = require("../models/chat");
 const Friends = require("../models/friends");
 const User = require("../models/user");
 const { Op } = require("sequelize");
@@ -278,11 +277,6 @@ class UserRepository {
     if (!user) {
       throw new Error("User not found");
     }
-    await Chat.destroy({
-      where: {
-        user2Id: userId,
-      },
-    });
     return user.destroy();
   }
 

@@ -6,6 +6,7 @@ const PaymentService = require("../services/PaymentService");
 const paymentService = new PaymentService();
 const currencyService = new CurrencyService();
 const User = require("../models/user");
+const Wallet = require("../models/wallet");
 
 class PaymentController {
   async createPayment(req, res, next) {
@@ -1128,6 +1129,146 @@ class PaymentController {
     } catch (error) {
       console.error(error);
       res.status(500).json({ error: "Server Error" });
+    }
+  }
+
+  // Wallet-to-wallet transfer endpoints (moved from ChatController).
+  async sendPaymentRequest(req, res) {
+    const { amount, currency, description, requesteeId } = req.body;
+    const { id: requesterId } = req.user;
+
+    try {
+      const paymentRequest = await paymentService.sendPaymentRequest(
+        Number(requesterId),
+        Number(requesteeId),
+        amount,
+        currency,
+        description,
+      );
+
+      res.json(paymentRequest);
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  }
+
+  async sendPayment(req, res) {
+    try {
+      const { amount, description, requesteeId, currency = "CNY", walletType } = req.body;
+      const { id: requesterId } = req.user;
+
+      if (!amount || isNaN(amount) || amount <= 0) {
+        return res.status(400).json({ error: "Invalid amount" });
+      }
+
+      const requesterWallet = await Wallet.findOne({
+        where: { userId: requesterId, currency, walletType: "PERSONAL" },
+      });
+
+      if (!requesterWallet) {
+        return res.status(404).json({ error: "Requester's wallet not found" });
+      }
+
+      const recipientWallet = await Wallet.findOne({
+        where: { userId: requesteeId, currency, walletType: "PERSONAL" },
+      });
+
+      if (!recipientWallet) {
+        return res.status(404).json({ error: "Recipient's wallet not found" });
+      }
+
+      const payment = await paymentService.sendPayment(
+        requesterId,
+        requesteeId,
+        amount,
+        currency,
+        walletType,
+        description,
+      );
+
+      res.status(200).json({
+        success: true,
+        payment,
+        newBalance: requesterWallet.availableBalance - amount,
+      });
+    } catch (error) {
+      console.error("Payment error:", error);
+      res.status(500).json({
+        error: error.message,
+        stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
+      });
+    }
+  }
+
+  async adminDecreasePayment(req, res) {
+    try {
+      const {
+        amount,
+        description,
+        requesteeId,
+        userId,
+        currency = "CNY",
+        walletType = "PERSONAL",
+      } = req.body;
+      const { id: adminUserId } = req.user;
+
+      const targetUserId = Number(userId || requesteeId);
+      const parsedAmount = Number(amount);
+      const normalizedCurrency = String(currency).trim().toUpperCase();
+      const normalizedWalletType = String(walletType).trim().toUpperCase();
+
+      if (!targetUserId || Number.isNaN(targetUserId) || targetUserId <= 0) {
+        return res.status(400).json({ error: "Valid userId or requesteeId is required" });
+      }
+
+      if (!parsedAmount || Number.isNaN(parsedAmount) || parsedAmount <= 0) {
+        return res.status(400).json({ error: "Invalid amount" });
+      }
+
+      if (normalizedCurrency.length !== 3) {
+        return res.status(400).json({ error: "currency must be a 3-letter code" });
+      }
+
+      if (!["PERSONAL", "COMPANY"].includes(normalizedWalletType)) {
+        return res.status(400).json({
+          error: "walletType must be PERSONAL or COMPANY",
+        });
+      }
+
+      const result = await paymentService.adminDecreasePayment(
+        adminUserId,
+        targetUserId,
+        parsedAmount,
+        normalizedCurrency,
+        description,
+        normalizedWalletType,
+      );
+
+      return res.status(200).json({
+        success: true,
+        targetUserId,
+        currency: normalizedCurrency,
+        withdrawal: result.walletTransaction,
+        newBalance: result.wallet.availableBalance,
+      });
+    } catch (error) {
+      console.error("Admin decrease payment error:", error);
+
+      if (error.message === "Wallet not found" || error.message.includes("User with ID")) {
+        return res.status(404).json({ error: error.message });
+      }
+
+      if (
+        error.message === "Invalid amount" ||
+        error.message === "Insufficient available balance"
+      ) {
+        return res.status(400).json({ error: error.message });
+      }
+
+      return res.status(500).json({
+        error: error.message,
+        stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
+      });
     }
   }
 }

@@ -139,13 +139,101 @@ class UserProfileController {
       const { userId: profileId } = req.params;
       const userId = req.user.id;
 
-      const status = await userProfileService.getFriendChatStatus(
+      const status = await userProfileService.getFriendStatus(
         userId,
         profileId
       );
       return res.json(status);
     } catch (error) {
       console.error(error);
+      const statusCode = error.statusCode || 500;
+      return res.status(statusCode).json({
+        message: statusCode === 500 ? "Internal server error" : error.message,
+      });
+    }
+  }
+
+  // POST /api/friends/status  { requesteeId }
+  async getFriendFavouriteStatus(req, res) {
+    try {
+      const { requesteeId } = req.body;
+      const { id: userId } = req.user;
+
+      const data = await userProfileService.getFriendFavouriteStatus(
+        userId,
+        requesteeId
+      );
+
+      return res.status(200).json({
+        status: "success",
+        data,
+      });
+    } catch (error) {
+      console.error("Error in getFriendFavouriteStatus:", error);
+      const statusCode = error.statusCode || 500;
+      return res.status(statusCode).json({
+        status: "error",
+        message: statusCode === 500 ? "Internal server error" : error.message,
+      });
+    }
+  }
+
+  // POST /api/friends/add  { requesteeId }
+  async addFriend(req, res) {
+    try {
+      const { requesteeId } = req.body;
+      const { id: userId } = req.user;
+
+      if (Number(requesteeId) === Number(userId)) {
+        return res
+          .status(400)
+          .json({ message: "You cannot add yourself as a friend." });
+      }
+
+      const result = await userProfileService.createFriendship(
+        userId,
+        requesteeId
+      );
+      return res.status(200).json(result);
+    } catch (error) {
+      console.error("Error in addFriend:", error);
+      const statusCode = error.statusCode || 500;
+      return res.status(statusCode).json({
+        message: statusCode === 500 ? "Internal server error" : error.message,
+      });
+    }
+  }
+
+  // POST /api/friends/remove  { requesteeId }
+  async removeFriend(req, res) {
+    try {
+      const { requesteeId } = req.body;
+      const { id: userId } = req.user;
+
+      const result = await userProfileService.removeFriendship(
+        userId,
+        requesteeId
+      );
+      return res.status(200).json(result);
+    } catch (error) {
+      console.error("Error in removeFriend:", error);
+      const statusCode = error.statusCode || 500;
+      return res.status(statusCode).json({
+        message: statusCode === 500 ? "Internal server error" : error.message,
+      });
+    }
+  }
+
+  // PUT /api/friends/update-tags  { tags }
+  async updateTags(req, res) {
+    try {
+      const { tags } = req.body;
+      const { id: userId } = req.user;
+
+      const result = await userProfileService.updateTags(userId, tags);
+      return res.status(200).json(result);
+    } catch (error) {
+      console.error("Error in updateTags:", error);
       const statusCode = error.statusCode || 500;
       return res.status(statusCode).json({
         message: statusCode === 500 ? "Internal server error" : error.message,

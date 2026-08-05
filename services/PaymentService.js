@@ -4,13 +4,18 @@ const PaymentRepository = require("../repositories/PaymentRepository");
 const PaymentRequest = require("../models/payment_request");
 const { Transaction, PaymentType, Income, Expense } = require("../models");
 const User = require("../models/user");
+const Role = require("../models/role");
 const CurrencyService = require("./CurrencyService");
 const { PaymentTypes } = require("../constants");
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+const crypto = require("crypto");
 
 const currencyService = new CurrencyService();
 const WalletService = require("./WalletService");
 const walletService = new WalletService();
+const UserRepository = require("../repositories/UserRepository");
+const userRepository = new UserRepository();
+const Wallet = require("../models/wallet");
 
 class PaymentService {
   constructor() {
@@ -1114,6 +1119,233 @@ class PaymentService {
       throw new Error("Cannot delete - payment type is in use");
     }
     return this.paymentRepository.deletePaymentType(id);
+  }
+
+  // Wallet-to-wallet transfer between two users (moved from ChatService).
+  async sendPaymentRequest(requesterId, requesteeId, amount, currency, description) {
+    const requester = await userRepository.getById(requesterId);
+    const requestee = await userRepository.getById(requesteeId);
+    if (!requester || !requestee) {
+      throw new Error("One or both users not found");
+    }
+
+    return this.paymentRepository.createPaymentRequest(
+      requesterId,
+      requesteeId,
+      amount,
+      currency,
+      description,
+    );
+  }
+
+  async sendPayment(requesterId, requesteeId, amount, currency, walletType, description) {
+    const user = await userRepository.getById(requesteeId);
+    if (!user) {
+      return { message: `User with ID ${requesteeId} not found` };
+    }
+    if (requesterId === requesteeId && user.roles[0].name !== "admin") {
+      return {
+        message: "Regular users cannot transfer balance to themselves.",
+        success: false,
+      };
+    }
+
+    const paymentRequest = await this.paymentRepository.createPaymentRequest(
+      requesterId,
+      requesteeId,
+      amount,
+      currency,
+      description,
+      "accepted",
+    );
+
+    // Now perform the balance transfer
+    await this.transferBalance(requesterId, requesteeId, walletType, amount, currency, description);
+
+    return this.paymentRepository.getTransactionById(paymentRequest.id);
+  }
+
+  async adminDecreasePayment(
+    adminUserId,
+    targetUserId,
+    amount,
+    currency,
+    description,
+    walletType = "PERSONAL",
+  ) {
+    const user = await userRepository.getById(targetUserId);
+    if (!user) {
+      throw new Error(`User with ID ${targetUserId} not found`);
+    }
+
+    return walletService.withdraw({
+      userId: targetUserId,
+      currency,
+      description,
+      amount,
+      walletType,
+      meta: {
+        source: "admin_manual_decrease",
+        description: description || null,
+      },
+      performedBy: adminUserId,
+    });
+  }
+
+  async transferBalance(fromUserId, toUserId, walletType, amount, currency, description) {
+    const t = await sequelize.transaction();
+    try {
+      const fromId = Number(fromUserId);
+      const toId = Number(toUserId);
+      const transferAmount = Number(amount);
+      const normalizedCurrency = String(currency || "").trim().toUpperCase();
+
+      if (!Number.isFinite(fromId) || !Number.isFinite(toId)) {
+        throw new Error("Invalid sender/recipient userId");
+      }
+      if (!Number.isFinite(transferAmount) || transferAmount <= 0) {
+        throw new Error("Invalid transfer amount");
+      }
+      if (!normalizedCurrency || normalizedCurrency.length !== 3) {
+        throw new Error("Invalid currency");
+      }
+
+      const senderUser = await User.findByPk(fromId, {
+        include: [{ model: Role, as: "roles" }],
+        transaction: t,
+      });
+      const senderRole = senderUser?.roles?.[0]?.name;
+      const isAdmin = String(senderRole || "").toLowerCase() === "admin";
+      const isSameUser = fromId === toId;
+
+      if (isSameUser && !isAdmin) {
+        throw new Error("Regular users cannot transfer balance to themselves.");
+      }
+
+      // Lock wallets in stable order to reduce deadlocks
+      const firstUserId = Math.min(fromId, toId);
+      const secondUserId = Math.max(fromId, toId);
+
+      const firstWallet = await Wallet.findOne({
+        where: { userId: firstUserId, currency: normalizedCurrency, walletType },
+        transaction: t,
+        lock: t.LOCK.UPDATE,
+      });
+      const secondWallet =
+        secondUserId === firstUserId
+          ? firstWallet
+          : await Wallet.findOne({
+              where: { userId: secondUserId, currency: normalizedCurrency, walletType },
+              transaction: t,
+              lock: t.LOCK.UPDATE,
+            });
+
+      const senderWallet = fromId === firstUserId ? firstWallet : secondWallet;
+      const recipientWallet = toId === firstUserId ? firstWallet : secondWallet;
+
+      if (!senderWallet || !recipientWallet) {
+        throw new Error("Wallet not found for sender or recipient");
+      }
+
+      const senderAvailableBalance = Number(senderWallet.availableBalance) || 0;
+      const recipientAvailableBalance = Number(recipientWallet.availableBalance) || 0;
+
+      // Admin self transfer: credit availableBalance (no debit)
+      if (isSameUser && isAdmin) {
+        const after = senderAvailableBalance + transferAmount;
+        const groupId = crypto.randomUUID();
+
+        await walletService.createWalletTransaction(
+          {
+            transaction_group_id: groupId,
+            walletId: senderWallet.id,
+            userId: toId,
+            type: "DEPOSIT",
+            amount: transferAmount,
+            currency: normalizedCurrency,
+            description: description,
+            receiptId: null,
+            meta: {
+              source: "admin_deposit_self",
+              balanceBefore: senderAvailableBalance,
+              balanceAfter: after,
+            },
+            performedBy: fromId,
+          },
+          t,
+        );
+
+        senderWallet.availableBalance = after;
+        await senderWallet.save({ transaction: t });
+        await t.commit();
+        return { transaction_group_id: groupId };
+      }
+
+      if (senderAvailableBalance < transferAmount) {
+        throw new Error("Insufficient balance");
+      }
+
+      const groupId = crypto.randomUUID();
+
+      const senderAfter = senderAvailableBalance - transferAmount;
+      await walletService.createWalletTransaction(
+        {
+          transaction_group_id: groupId,
+          walletId: senderWallet.id,
+          userId: fromId,
+          receiverId: toId,
+          type: "TRANSFER",
+          amount: -transferAmount,
+          currency: normalizedCurrency,
+          description: description,
+          receiptId: null,
+          meta: {
+            source: "transfer_out",
+            toUser: toId,
+            balanceBefore: senderAvailableBalance,
+            balanceAfter: senderAfter,
+          },
+          performedBy: fromId,
+        },
+        t,
+      );
+
+      senderWallet.availableBalance = senderAfter;
+      await senderWallet.save({ transaction: t });
+
+      const recipientAfter = recipientAvailableBalance + transferAmount;
+      await walletService.createWalletTransaction(
+        {
+          transaction_group_id: groupId,
+          walletId: recipientWallet.id,
+          userId: toId,
+          receiverId: fromId,
+          type: "TRANSFER",
+          amount: transferAmount,
+          currency: normalizedCurrency,
+          description: description,
+          receiptId: null,
+          meta: {
+            source: "transfer_in",
+            fromUser: fromId,
+            balanceBefore: recipientAvailableBalance,
+            balanceAfter: recipientAfter,
+          },
+          performedBy: fromId,
+        },
+        t,
+      );
+
+      recipientWallet.availableBalance = recipientAfter;
+      await recipientWallet.save({ transaction: t });
+
+      await t.commit();
+      return { transaction_group_id: groupId };
+    } catch (error) {
+      await t.rollback();
+      console.error("Error transferring balance:", error);
+      throw error;
+    }
   }
 }
 

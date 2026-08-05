@@ -327,4 +327,28 @@ router.delete(
   paymentController.deletePaymentType.bind(paymentController),
 );
 
+// ------------------ WALLET-TO-WALLET TRANSFER (moved from /chat) ------------------
+
+// route to send a payment request to a user
+router.post(
+  "/request-payment",
+  authMiddleware,
+  paymentController.sendPaymentRequest.bind(paymentController),
+);
+
+// route to send a payment to a user
+router.post(
+  "/create-payment",
+  authMiddleware,
+  paymentController.sendPayment.bind(paymentController),
+);
+
+// route for admin to decrease a user's wallet balance by currency
+router.post(
+  "/decrease-payment",
+  authMiddleware,
+  authorize(["admin"]),
+  paymentController.adminDecreasePayment.bind(paymentController),
+);
+
 module.exports = router;

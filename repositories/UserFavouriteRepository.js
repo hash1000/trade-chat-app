@@ -2,21 +2,14 @@ const { Op } = require("sequelize");
 const UserFavourite = require("../models/user_favourites");
 const Friends = require("../models/friends");
 const User = require("../models/user");
-const Chat = require("../models/chat");
 const sequelize = require("../config/database");
 
 class UserFavouriteRepository {
   async create(userId, profileId) {
-    const favourite = await UserFavourite.create({
+    return UserFavourite.create({
       userId,
       profileId,
     });
-    const chat = await Chat.findOne({
-      where: {
-        [Op.and]: [{ user2Id: profileId }, { user1Id: userId }],
-      },
-    });
-    return { favourite, chat };
   }
 
   async remove(userId, profileId) {

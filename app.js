@@ -27,9 +27,6 @@ app.set("io", io);
 
 // Initialize your upload socket
 require('./socket/streamUploadSocket')(io);
-
-// Chat rooms: authenticates the handshake, joins user-<id> / chat-<id>
-require('./socket/chatSocket')(io);
 app.use(express.static(path.join(__dirname, "public")));
 app.use(express.static(path.join(__dirname, "node_modules/socket.io/client-dist")));
 

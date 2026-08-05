@@ -5,20 +5,18 @@ const UserRepository = require("../repositories/UserRepository"); // Replace the
 const ReactionRepository = require("../repositories/ReactionRepository"); // Replace the path with the correct location of your UserRepository.js file
 const UserFavouriteRepository = require("../repositories/UserFavouriteRepository");
 const FriendsRepository = require("../repositories/FriendsRepository");
-const ChatRepository = require("../repositories/ChatRepository");
 const Wallet = require("../models/wallet");
+const UserTags = require("../models/userTags");
 
 const { AddRequestNotification } = require("../notifications");
 
 const CustomError = require("../errors/CustomError");
 const BankAccount = require("../models/bankAccount");
-const socket = require("../config/socket");
 
 const userRepository = new UserRepository();
 const reactionRepository = new ReactionRepository();
 const userFavouriteRepository = new UserFavouriteRepository();
 const friendsRepository = new FriendsRepository();
-const chatRepository = new ChatRepository();
 
 class UserService {
   async getUserProfileById(profileId, userId) {
@@ -265,8 +263,7 @@ class UserService {
   }
 
   // Adding a friend is immediate and one-sided: no request/accept/reject step.
-  // Friendship is per-direction (me -> them), but the chat is shared by the
-  // pair, so if the other user already added me the existing chat is reused.
+  // Friendship is per-direction (me -> them).
   async createFriendship(userId, profileId) {
     const me = Number(userId);
     const them = Number(profileId);
@@ -288,19 +285,7 @@ class UserService {
     const alreadyFriend = Boolean(existing);
     if (!alreadyFriend) {
       await friendsRepository.addFriend(me, them);
-    }
 
-    // One chat row per pair, looked up in both directions.
-    const chatExisted = Boolean(await chatRepository.findChat(me, them));
-    const finalChat = await chatRepository.findOrCreateChat(me, them);
-
-    if (!chatExisted) {
-      // Brand-new chat: get any already-connected sockets into the room now,
-      // rather than waiting for their next reconnect to auto-join it.
-      socket.joinUsersToChat([me, them], finalChat.id);
-    }
-
-    if (!alreadyFriend) {
       const otherUser = await userRepository.getUserTokenAndName(them);
       const myUser = await userRepository.getUserTokenAndName(me);
       if (otherUser && otherUser.fcm && myUser && myUser.name) {
@@ -313,14 +298,10 @@ class UserService {
     }
 
     return {
-      chatId: finalChat.id,
-      chatCreated: !chatExisted,
       alreadyFriend,
       message: alreadyFriend
         ? "Already in your friend list."
-        : chatExisted
-          ? "Friend added. Existing chat reused."
-          : "Friend added and chat created.",
+        : "Friend added.",
     };
   }
 
@@ -337,10 +318,7 @@ class UserService {
     };
   }
 
-  // createFriendship always creates-or-reuses the chat alongside the friend
-  // row, so this state shouldn't occur going forward - but friend rows from
-  // before that fix, or written by another path, may still lack a chat.
-  async getFriendChatStatus(userId, profileId) {
+  async getFriendStatus(userId, profileId) {
     const me = Number(userId);
     const them = Number(profileId);
 
@@ -355,44 +333,68 @@ class UserService {
 
     const myFriendship = await friendsRepository.getDirected(me, them);
     const theirFriendship = await friendsRepository.getDirected(them, me);
-    const chat = await chatRepository.findChat(me, them);
 
     const isFriend = Boolean(myFriendship);
 
     return {
       isFriend,
       isMutualFriend: isFriend && Boolean(theirFriendship),
-      hasChat: Boolean(chat),
-      chatId: chat ? chat.id : null,
-      needsChatRepair: isFriend && !chat,
+    };
+  }
+
+  // Friend/favourite check for a single profile, independent of any chat.
+  async getFriendFavouriteStatus(userId, profileId) {
+    const me = Number(userId);
+    const them = Number(profileId);
+
+    if (!Number.isInteger(me) || !Number.isInteger(them)) {
+      throw new CustomError("Invalid user id", 400);
+    }
+
+    const [friendship, favourite] = await Promise.all([
+      friendsRepository.getDirected(me, them),
+      userFavouriteRepository.get(me, them),
+    ]);
+
+    return {
+      isFriend: Boolean(friendship),
+      isFavourite: Boolean(favourite),
     };
   }
 
   async getUserContacts(userId) {
     const favourites = await userFavouriteRepository.getFavourites(userId);
-    const invite = await chatRepository.getUserChat(userId);
-    // Iterate through the favourites array
-    for (let i = 0; i < favourites.length; i++) {
-      const fav = favourites[i];
-      const inv = invite.find((inviteUser) => inviteUser.id === fav.id);
-      // If a corresponding invite is found, update the favourite
-      if (inv && fav) {
-        favourites[i] = {
-          ...fav, // Keep existing fields from favourites
-          username: inv.username, // Update/replace with values from invite
-          profilePic: inv.profilePic,
-          email: inv.email,
-          settings: {
-            tags: inv.settings.tags,
-          },
-          roles: inv.role,
-          createdAt: inv.createdAt,
-          updatedAt: inv.updatedAt,
-          phoneNumber: inv.phoneNumber,
-        };
-      }
+    const friends = await friendsRepository.getFriends(userId);
+    return { favourites, friends };
+  }
+
+  // Merges the requester's tags with the tags they're assigning a friend,
+  // deduping. Replaces the chat-row-based updateFriend now that per-friend
+  // profile overrides (userName/profilePic/description/rating) no longer
+  // have a chats table to live on.
+  async updateTags(userId, tags) {
+    const existing = await UserTags.findOne({ where: { userId } });
+
+    let newTags = tags;
+    if (existing) {
+      const merged = `${existing.tags},${tags}`.split(",");
+      newTags = merged
+        .filter((value, index, self) => self.indexOf(value) === index)
+        .join(",");
+      await UserTags.update(
+        { tags: newTags, updatedAt: new Date() },
+        { where: { userId } },
+      );
+    } else {
+      await UserTags.create({
+        userId,
+        tags: newTags,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
     }
-    return { favourites, friends: invite };
+
+    return { message: "Tags successfully updated", tags: newTags };
   }
 
   async getUserForNotification(id) {
