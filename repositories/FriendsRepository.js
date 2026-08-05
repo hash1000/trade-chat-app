@@ -1,5 +1,6 @@
 const { Op } = require('sequelize')
 const Friends = require('../models/friends')
+const FriendProfile = require('../models/friendProfile')
 const User = require('../models/user')
 
 class FriendsRepository {
@@ -69,6 +70,8 @@ class FriendsRepository {
   }
 
   // My friend list = the users I added. Users who added me are not included.
+  // Applies my private per-friend overrides (nickname/photo/note) on top of
+  // each friend's real profile - these are mine only and never touch theirs.
   async getFriends (userId) {
     const friends = await Friends.findAll({
       where: { userId },
@@ -84,17 +87,42 @@ class FriendsRepository {
           [Op.in]: friendsIds
         }
       },
-      attributes: ['id', 'role', 'country_code', 'email', 'phoneNumber', 'profilePic'],
+      attributes: ['id', 'username', 'country_code', 'email', 'phoneNumber', 'profilePic', 'description'],
       raw: true
     })
     const friendsMap = friends.reduce((acc, friend) => {
       acc[friend.profileId] = friend
       return acc
     }, {})
+    const profiles = await FriendProfile.findAll({
+      where: { userId, profileId: { [Op.in]: friendsIds } },
+      raw: true
+    })
+    const profilesMap = profiles.reduce((acc, profile) => {
+      acc[profile.profileId] = profile
+      return acc
+    }, {})
     return users.map(user => {
       user.friendship = friendsMap[user.id]
+      const override = profilesMap[user.id]
+      if (override) {
+        user.username = override.userName || user.username
+        user.profilePic = override.profilePic || user.profilePic
+        user.description = override.description || user.description
+      }
       return user
     })
+  }
+
+  // Upsert my private override for a specific friend (nickname/photo/note).
+  async upsertProfileOverride (userId, profileId, { userName, profilePic, description }) {
+    const existing = await FriendProfile.findOne({ where: { userId, profileId } })
+    const fields = { userName, profilePic, description }
+    if (existing) {
+      await existing.update(fields)
+      return existing
+    }
+    return FriendProfile.create({ userId, profileId, ...fields })
   }
 }
 

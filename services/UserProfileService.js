@@ -368,33 +368,62 @@ class UserService {
     return { favourites, friends };
   }
 
-  // Merges the requester's tags with the tags they're assigning a friend,
-  // deduping. Replaces the chat-row-based updateFriend now that per-friend
-  // profile overrides (userName/profilePic/description/rating) no longer
-  // have a chats table to live on.
-  async updateTags(userId, tags) {
-    const existing = await UserTags.findOne({ where: { userId } });
-
-    let newTags = tags;
-    if (existing) {
-      const merged = `${existing.tags},${tags}`.split(",");
-      newTags = merged
-        .filter((value, index, self) => self.indexOf(value) === index)
-        .join(",");
-      await UserTags.update(
-        { tags: newTags, updatedAt: new Date() },
-        { where: { userId } },
-      );
-    } else {
-      await UserTags.create({
-        userId,
-        tags: newTags,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
+  // Replaces the old chat-row-based updateFriend, now backed by the
+  // FriendProfile table instead of a chats row. userName/profilePic/description
+  // are private overrides visible only in the requester's own friend list -
+  // they never touch the target user's real profile. rating and tags keep
+  // their original (non-private) behavior: rating overwrites the target's
+  // real User.rating, tags merge into the requester's own global UserTags.
+  async updateFriendProfile(
+    requesterId,
+    requesteeId,
+    userName,
+    profilePic,
+    description,
+    rating,
+    tags,
+  ) {
+    const target = await userRepository.getById(requesteeId);
+    if (!target) {
+      throw new CustomError("User not found", 404);
     }
 
-    return { message: "Tags successfully updated", tags: newTags };
+    await friendsRepository.upsertProfileOverride(requesterId, requesteeId, {
+      userName,
+      profilePic,
+      description,
+    });
+
+    if (rating) {
+      await userRepository.update(requesteeId, { rating });
+    }
+
+    let newTags = tags;
+    if (tags) {
+      const existing = await UserTags.findOne({ where: { userId: requesterId } });
+      if (existing) {
+        const merged = `${existing.tags},${tags}`.split(",");
+        newTags = merged
+          .filter((value, index, self) => self.indexOf(value) === index)
+          .join(",");
+        await UserTags.update(
+          { tags: newTags, updatedAt: new Date() },
+          { where: { userId: requesterId } },
+        );
+      } else {
+        await UserTags.create({
+          userId: requesterId,
+          tags: newTags,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+      }
+    }
+
+    return {
+      message: "Friend and tags successfully updated",
+      tags: newTags,
+    };
   }
 
   async getUserForNotification(id) {

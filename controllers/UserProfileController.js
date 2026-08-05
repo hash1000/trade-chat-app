@@ -224,16 +224,25 @@ class UserProfileController {
     }
   }
 
-  // PUT /api/friends/update-tags  { tags }
-  async updateTags(req, res) {
+  // PUT /api/friends/update-friend  { requesteeId, userName, profilePic, description, rating, tags }
+  async updateFriendProfile(req, res) {
     try {
-      const { tags } = req.body;
+      const { requesteeId, userName, profilePic, description, rating, tags } =
+        req.body;
       const { id: userId } = req.user;
 
-      const result = await userProfileService.updateTags(userId, tags);
+      const result = await userProfileService.updateFriendProfile(
+        userId,
+        requesteeId,
+        userName,
+        profilePic,
+        description,
+        rating,
+        tags,
+      );
       return res.status(200).json(result);
     } catch (error) {
-      console.error("Error in updateTags:", error);
+      console.error("Error in updateFriendProfile:", error);
       const statusCode = error.statusCode || 500;
       return res.status(statusCode).json({
         message: statusCode === 500 ? "Internal server error" : error.message,

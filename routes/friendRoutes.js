@@ -26,11 +26,12 @@ router.post(
   userProfileController.removeFriend.bind(userProfileController)
 );
 
-// Update the caller's tags list for a friend (replaces the old chat-based update-friend).
+// Update the caller's private overrides (nickname/photo/note) + rating/tags
+// for a specific friend. Same body shape as the old chat-based update-friend.
 router.put(
-  "/update-tags",
+  "/update-friend",
   authMiddleware,
-  userProfileController.updateTags.bind(userProfileController)
+  userProfileController.updateFriendProfile.bind(userProfileController)
 );
 
 module.exports = router;
