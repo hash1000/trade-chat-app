@@ -125,6 +125,12 @@ router.put(
   checkIntegerParam("id"),
   userController.adminUpdateUserEmail.bind(userController)
 );
+router.put(
+  "/admin/reset-password",
+  authenticate,
+  authorize(["admin"]),
+  userController.adminResetUserPassword.bind(userController)
+);
 
 router.post(
   "/users",

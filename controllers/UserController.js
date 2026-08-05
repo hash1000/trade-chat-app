@@ -33,8 +33,6 @@ class UserController {
       let user = await userService.getUserByEmail(email);
 
       if (user) {
-        await userService.updateTokenVersion(user);
-
         // Always update profile with email_verified = true (and run is_completed check)
         user = await userService.updateUserProfile(user, {
           email_verified: true,
@@ -108,7 +106,6 @@ class UserController {
       const userByEmail = await userService.getUserByEmail(email);
 
       if (userByEmail) {
-        await userService.updateTokenVersion(userByEmail);
         const token = jwt.sign(
           {
             userId: userByEmail.id,
@@ -320,9 +317,6 @@ class UserController {
       if (user.disableAccount) {
         return res.status(403).json({ message: "Your account has been disabled." });
       }
-
-      // Update token version
-      await userService.updateTokenVersion(user);
 
       // Check if profile is incomplete
       // const requiredFields = [
@@ -537,7 +531,6 @@ class UserController {
                   .status(400)
                   .json({ message: "User with this email dose not exist" });
               } else {
-                await userService.updateTokenVersion(user);
                 token = jwt.sign(
                   { userId: user.id, tokenVersion: user.tokenVersion },
                   process.env.JWT_SECRET_KEY
@@ -943,6 +936,42 @@ class UserController {
       return res
         .status(200)
         .json({ message: "User email updated.", updateData });
+    } catch (error) {
+      console.error(error);
+      return res
+        .status(500)
+        .json({ message: "An internal server error occurred." });
+    }
+  }
+
+  async adminResetUserPassword(req, res) {
+    const { email, newPassword } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: "Email is required." });
+    }
+    if (!newPassword || newPassword.length < 6) {
+      return res
+        .status(400)
+        .json({ message: "New password must be at least 6 characters." });
+    }
+
+    try {
+      const targetUser = await userService.getUserByEmail(email);
+      if (!targetUser) {
+        return res.status(404).json({ message: "User not found." });
+      }
+
+      const updatedUser = await userService.updateUserPassword(
+        targetUser.id,
+        newPassword
+      );
+      // Invalidate tokens issued under the old password on every session of this user
+      await userService.updateTokenVersion(updatedUser);
+
+      return res
+        .status(200)
+        .json({ message: "User password has been reset." });
     } catch (error) {
       console.error(error);
       return res
