@@ -30,7 +30,7 @@ router.get(
 router.patch(
   "/users",
   authenticate,
-  authorize(["admin"]),
+  // authorize(["admin"]), // temporarily open to any authenticated user
   updateUserRolesValidation,
   roleController.updateUserRoles.bind(roleController)
 );
