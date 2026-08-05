@@ -914,6 +914,43 @@ class UserController {
     }
   }
 
+  async adminUpdateUserEmail(req, res) {
+    const { id } = req.params;
+    const { email } = req.body;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!email || !emailRegex.test(email)) {
+      return res.status(400).json({ message: "A valid email is required." });
+    }
+
+    try {
+      const targetUser = await userService.getUserById(id);
+      if (!targetUser) {
+        return res.status(404).json({ message: "User not found." });
+      }
+
+      const userCheck = await userService.getUserByEmail(email);
+      if (userCheck) {
+        return res
+          .status(401)
+          .json({ message: "Invalid Email Already Exist." });
+      }
+
+      const updateData = await userService.updateEmail(targetUser, { email });
+      // Invalidate tokens issued under the old email on every session of this user
+      await userService.updateTokenVersion(updateData);
+
+      return res
+        .status(200)
+        .json({ message: "User email updated.", updateData });
+    } catch (error) {
+      console.error(error);
+      return res
+        .status(500)
+        .json({ message: "An internal server error occurred." });
+    }
+  }
+
   async setDisableAccount(req, res) {
     try {
       const { id } = req.params;

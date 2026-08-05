@@ -118,6 +118,13 @@ router.post(
   emailPhoneNumberValidation,
   userController.updateUserEmailOrPhoneNumber.bind(userController)
 );
+router.put(
+  "/users/:id/update-email",
+  authenticate,
+  authorize(["admin"]),
+  checkIntegerParam("id"),
+  userController.adminUpdateUserEmail.bind(userController)
+);
 
 router.post(
   "/users",
