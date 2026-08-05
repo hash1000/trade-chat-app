@@ -107,6 +107,11 @@ const User = sequelize.define(
       type: DataTypes.INTEGER,
       defaultValue: 0,
     },
+    disableAccount: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
     likes: {
       type: DataTypes.INTEGER,
       defaultValue: 0,

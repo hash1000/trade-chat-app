@@ -43,7 +43,7 @@ class UserController {
         });
 
         const token = jwt.sign(
-          { userId: user.id },
+          { userId: user.id, tokenVersion: user.tokenVersion },
           process.env.JWT_SECRET_KEY
         );
 
@@ -60,7 +60,7 @@ class UserController {
         await userService.updateUserProfile(newUser, { email_verified: true });
 
         const token = jwt.sign(
-          { userId: newUser.id },
+          { userId: newUser.id, tokenVersion: newUser.tokenVersion },
           process.env.JWT_SECRET_KEY
         );
 
@@ -111,7 +111,8 @@ class UserController {
         await userService.updateTokenVersion(userByEmail);
         const token = jwt.sign(
           {
-            userId: userByEmail.id
+            userId: userByEmail.id,
+            tokenVersion: userByEmail.tokenVersion
           },
           process.env.JWT_SECRET_KEY
         );
@@ -195,7 +196,7 @@ class UserController {
         
         const newUser = await userService.createUser(userData);
         const token = jwt.sign(
-          { userId: newUser.id },
+          { userId: newUser.id, tokenVersion: newUser.tokenVersion },
           process.env.JWT_SECRET_KEY
         );
 
@@ -262,7 +263,7 @@ class UserController {
           userData
         );
         const token = jwt.sign(
-          { userId: updateUser.id },
+          { userId: updateUser.id, tokenVersion: updateUser.tokenVersion },
           process.env.JWT_SECRET_KEY
         );
 
@@ -316,6 +317,10 @@ class UserController {
         return res.status(400).json({ message: "Invalid request parameters." });
       }
 
+      if (user.disableAccount) {
+        return res.status(403).json({ message: "Your account has been disabled." });
+      }
+
       // Update token version
       await userService.updateTokenVersion(user);
 
@@ -343,7 +348,7 @@ class UserController {
 
       // Generate JWT token
       const token = jwt.sign(
-        { userId: user.id },
+        { userId: user.id, tokenVersion: user.tokenVersion },
         process.env.JWT_SECRET_KEY
       );
 
@@ -534,7 +539,7 @@ class UserController {
               } else {
                 await userService.updateTokenVersion(user);
                 token = jwt.sign(
-                  { userId: user.id },
+                  { userId: user.id, tokenVersion: user.tokenVersion },
                   process.env.JWT_SECRET_KEY
                 );
               }
@@ -795,15 +800,24 @@ class UserController {
             email,
           };
           updateData = await userService.updateEmail(user, userData);
+          // Invalidate tokens issued under the old email on every other session
+          await userService.updateTokenVersion(updateData);
         }
       }
 
       if (!updateData) {
         return res.status(500).json({ message: "User Not Exist" });
       }
-      return res
-        .status(200)
-        .json({ message: "User exists.", updateData: updateData });
+
+      const response = { message: "User exists.", updateData: updateData };
+      if (email) {
+        // Re-issue a valid token for this session since its tokenVersion just changed
+        response.token = jwt.sign(
+          { userId: updateData.id, tokenVersion: updateData.tokenVersion },
+          process.env.JWT_SECRET_KEY
+        );
+      }
+      return res.status(200).json(response);
     } catch (error) {
       // Log the error and send a generic error message
       console.error(error);
@@ -870,7 +884,7 @@ class UserController {
         newPassword
       );
       const token = jwt.sign(
-        { userId: updateduser.id },
+        { userId: updateduser.id, tokenVersion: updateduser.tokenVersion },
         process.env.JWT_SECRET_KEY
       );
       // Respond with the token and user data
@@ -897,6 +911,33 @@ class UserController {
     } catch (error) {
       console.error("Error during login:", error);
       res.status(500).json({ message: "Login failed" });
+    }
+  }
+
+  async setDisableAccount(req, res) {
+    try {
+      const { id } = req.params;
+      const { disableAccount } = req.body;
+
+      if (typeof disableAccount !== "boolean") {
+        return res
+          .status(400)
+          .json({ message: "disableAccount must be true or false." });
+      }
+
+      const user = await userService.setDisableAccount(id, disableAccount);
+      return res.status(200).json({
+        message: disableAccount
+          ? "Account has been disabled."
+          : "Account has been enabled.",
+        user,
+      });
+    } catch (error) {
+      console.error("Error updating disableAccount:", error);
+      if (error instanceof CustomError) {
+        return res.status(error.statusCode).json({ message: error.message });
+      }
+      res.status(500).json({ message: "Failed to update account status." });
     }
   }
 
@@ -983,7 +1024,7 @@ class UserController {
       if (userId) {
         const user = await userService.updateUserPassword(userId, password);
         const token = jwt.sign(
-          { userId: user.id },
+          { userId: user.id, tokenVersion: user.tokenVersion },
           process.env.JWT_SECRET_KEY
         );
         // Respond with the token and user data
