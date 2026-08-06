@@ -205,42 +205,55 @@ class ProductCartService {
     const resolvedAddOns = await this._resolveAddOns(addOns, Number(shopProductId), scopedVariationId);
     const requiredAddOns = await this._resolveRequiredAddOns(Number(shopProductId), scopedVariationId);
 
-    const existing = await this.repo.findExistingLine(userId, Number(shopProductId), variationId ?? null);
-    const newQuantity = existing ? existing.productCartItemQuantity + qty : qty;
-    this._assertStock(availableStock, newQuantity);
-
-    const discount = await this._resolveDiscount(Number(shopProductId), newQuantity, code);
-    const discountAmount = this._computeDiscountAmount(unitPrice, newQuantity, discount.discountPercent);
-
-    if (existing) {
-      // Re-adding replaces the add-on selection rather than merging it — merging
-      // quantity silently duplicating add-on picks would be surprising. Required
-      // add-ons are always ensured present either way, since the customer can't
-      // opt out of them.
-      const baseAddOns = addOns !== undefined ? resolvedAddOns : existing.addOns || [];
-      await this.repo.saveLine(existing, {
-        productCartItemQuantity: newQuantity,
-        unitPriceSnapshot: unitPrice,
-        discountCode: discount.discountCode,
-        discountPercent: discount.discountPercent,
-        discountAmount,
-        addOns: this._mergeAddOns(baseAddOns, requiredAddOns),
-      });
-      return { message: "Quantity increased", cartItem: existing };
-    }
-
-    const created = await this.repo.createLine({
+    return this.repo.withCartLineLock(
       userId,
-      shopProductId: Number(shopProductId),
-      variationId: scopedVariationId,
-      productCartItemQuantity: qty,
-      unitPriceSnapshot: unitPrice,
-      discountCode: discount.discountCode,
-      discountPercent: discount.discountPercent,
-      discountAmount,
-      addOns: this._mergeAddOns(resolvedAddOns, requiredAddOns),
-    });
-    return { message: "Product added to cart", cartItem: created };
+      Number(shopProductId),
+      variationId ?? null,
+      async (existing, t) => {
+        const newQuantity = existing ? existing.productCartItemQuantity + qty : qty;
+        this._assertStock(availableStock, newQuantity);
+
+        const discount = await this._resolveDiscount(Number(shopProductId), newQuantity, code);
+        const discountAmount = this._computeDiscountAmount(unitPrice, newQuantity, discount.discountPercent);
+
+        if (existing) {
+          // Re-adding replaces the add-on selection rather than merging it — merging
+          // quantity silently duplicating add-on picks would be surprising. Required
+          // add-ons are always ensured present either way, since the customer can't
+          // opt out of them.
+          const baseAddOns = addOns !== undefined ? resolvedAddOns : existing.addOns || [];
+          await this.repo.saveLine(
+            existing,
+            {
+              productCartItemQuantity: newQuantity,
+              unitPriceSnapshot: unitPrice,
+              discountCode: discount.discountCode,
+              discountPercent: discount.discountPercent,
+              discountAmount,
+              addOns: this._mergeAddOns(baseAddOns, requiredAddOns),
+            },
+            t
+          );
+          return { message: "Quantity increased", cartItem: existing };
+        }
+
+        const created = await this.repo.createLine(
+          {
+            userId,
+            shopProductId: Number(shopProductId),
+            variationId: scopedVariationId,
+            productCartItemQuantity: qty,
+            unitPriceSnapshot: unitPrice,
+            discountCode: discount.discountCode,
+            discountPercent: discount.discountPercent,
+            discountAmount,
+            addOns: this._mergeAddOns(resolvedAddOns, requiredAddOns),
+          },
+          t
+        );
+        return { message: "Product added to cart", cartItem: created };
+      }
+    );
   }
 
   // `addOns` is an array of { addOnId, quantity } — quantity defaults to 1.

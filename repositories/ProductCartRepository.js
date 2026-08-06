@@ -7,6 +7,7 @@ const {
   ProductAddOn,
   ProductAddOnImage,
 } = require("../models");
+const sequelize = require("../config/database");
 const CustomError = require("../errors/CustomError");
 
 class ProductCartRepository {
@@ -42,14 +43,24 @@ class ProductCartRepository {
     });
   }
 
-  async findExistingLine(userId, shopProductId, variationId) {
-    return ProductCartItem.findOne({
-      where: { userId, shopProductId, variationId: variationId ?? null },
-    });
+  async createLine(data, transaction) {
+    return ProductCartItem.create(data, { transaction });
   }
 
-  async createLine(data) {
-    return ProductCartItem.create(data);
+  // Runs find-existing-line + create/update inside one transaction with a row
+  // lock, so two near-simultaneous add-to-cart requests for the same product
+  // (e.g. a double-tap) can't both read "no existing line" and each insert
+  // their own row — the second waits for the first to commit, then sees it
+  // and increments instead of duplicating.
+  async withCartLineLock(userId, shopProductId, variationId, fn) {
+    return sequelize.transaction(async (t) => {
+      const existing = await ProductCartItem.findOne({
+        where: { userId, shopProductId, variationId: variationId ?? null },
+        transaction: t,
+        lock: t.LOCK.UPDATE,
+      });
+      return fn(existing, t);
+    });
   }
 
   async findUserLine(userId, cartItemId) {
@@ -110,8 +121,8 @@ class ProductCartRepository {
     });
   }
 
-  async saveLine(line, fields) {
-    return line.update(fields);
+  async saveLine(line, fields, transaction) {
+    return line.update(fields, { transaction });
   }
 
   async deleteLine(userId, cartItemId) {
