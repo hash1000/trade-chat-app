@@ -124,6 +124,7 @@ class ServiceController {
         moneyBack,
         support247,
         replyTime,
+        delivery_terms,
         tags,
         ratingAvg,
         ratingCount,
@@ -266,6 +267,7 @@ class ServiceController {
         support247: support247 === true || support247 === "true",
         tags: parsedTags,
         replyTime: replyTime ? replyTime.trim() : undefined,
+        delivery_terms: delivery_terms ? delivery_terms.trim() : undefined,
         ...(ratingAvg !== undefined && {
           ratingAvg: parseFloat(Number(ratingAvg).toFixed(2)),
         }),
@@ -360,6 +362,7 @@ class ServiceController {
         isChat,
         tags,
         replyTime,
+        delivery_terms,
         isTopChoice,
         isQRMVerified,
         desiredViewCount,
@@ -456,6 +459,13 @@ class ServiceController {
       if (replyTime !== undefined) {
         updateData.replyTime =
           typeof replyTime === "string" ? replyTime.trim() : replyTime;
+      }
+
+      if (delivery_terms !== undefined) {
+        updateData.delivery_terms =
+          typeof delivery_terms === "string"
+            ? delivery_terms.trim()
+            : delivery_terms;
       }
 
       if (pricing_type !== undefined) {
