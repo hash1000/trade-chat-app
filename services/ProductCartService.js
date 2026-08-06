@@ -178,10 +178,17 @@ class ProductCartService {
 
   // Required add-ons track the line's product quantity 1:1 — the customer
   // can't opt out or set them independently, so bumping product quantity
-  // must scale them too.
-  _scaleRequiredAddOns(addOns, quantity) {
+  // must scale them too. Capped at the add-on's live stock: an out-of-stock
+  // (stock <= 0) required add-on stays at 0 instead of scaling up, since
+  // there's nothing to fulfill it with — it's excluded from totals as a result.
+  _scaleRequiredAddOns(addOns, quantity, stockById) {
     if (!Array.isArray(addOns) || addOns.length === 0) return addOns;
-    return addOns.map((a) => (a.isRequired && a.quantity !== quantity ? { ...a, quantity } : a));
+    return addOns.map((a) => {
+      if (!a.isRequired) return a;
+      const stock = stockById ? stockById.get(a.addOnId) ?? Infinity : Infinity;
+      const target = Math.min(quantity, Math.max(stock, 0));
+      return a.quantity !== target ? { ...a, quantity: target } : a;
+    });
   }
 
   _addOnSubtotal(addOns) {
@@ -320,7 +327,9 @@ class ProductCartService {
       fields.addOns = this._mergeAddOns(resolvedAddOns, requiredAddOns);
     }
 
-    fields.addOns = this._scaleRequiredAddOns(fields.addOns ?? line.addOns, qty);
+    const liveRequiredAddOns = await this.repo.fetchRequiredAddOns(line.shopProductId, line.variationId);
+    const stockById = new Map(liveRequiredAddOns.map((a) => [a.id, Number(a.stock)]));
+    fields.addOns = this._scaleRequiredAddOns(fields.addOns ?? line.addOns, qty, stockById);
 
     await this.repo.saveLine(line, fields);
     return { message: "Quantity updated", cartItem: line };
