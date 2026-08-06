@@ -1,6 +1,6 @@
 const { Op } = require("sequelize");
 const sequelize = require("../config/database");
-const { Service, PaymentTerm, User } = require("../models");
+const { Service, PaymentTerm, User, Role } = require("../models");
 
 // Deterministic icon + color derived from term name
 const ICONS = ["checkmark", "split", "shield", "clock", "lock", "star", "bolt", "tag"];
@@ -38,8 +38,15 @@ class PaymentTermService {
     return service;
   }
 
-  assertOwnerOrAdmin(service, userId, isAdmin) {
-    if (service.userId !== userId && !isAdmin) {
+  async assertOwnerOrAdmin(service, userId) {
+    if (service.userId === userId) return;
+
+    const user = await User.findByPk(userId, {
+      include: [{ model: Role, as: "roles" }],
+    });
+    const isAdmin = user?.roles?.some((role) => role.name === "admin");
+
+    if (!isAdmin) {
       const err = new Error("Forbidden. Only the service owner or an admin can perform this action.");
       err.statusCode = 403;
       throw err;
@@ -138,7 +145,7 @@ class PaymentTermService {
    */
   async createTerm(serviceId, actorId, isAdmin, data) {
     const service = await this.assertServiceExists(serviceId);
-    this.assertOwnerOrAdmin(service, actorId, isAdmin);
+    await this.assertOwnerOrAdmin(service, actorId);
 
     const { name, type = "FULL_PREPAYMENT", description, visibleToBuyers, isDefault } = data;
 
@@ -231,7 +238,7 @@ class PaymentTermService {
    */
   async updateTerm(serviceId, termId, actorId, isAdmin, data) {
     const service = await this.assertServiceExists(serviceId);
-    this.assertOwnerOrAdmin(service, actorId, isAdmin);
+    await this.assertOwnerOrAdmin(service, actorId);
     const term = await this.assertTermBelongsToService(termId, serviceId);
 
     const updates = {};
@@ -287,7 +294,7 @@ class PaymentTermService {
    */
   async setDefault(serviceId, termId, actorId, isAdmin) {
     const service = await this.assertServiceExists(serviceId);
-    this.assertOwnerOrAdmin(service, actorId, isAdmin);
+    await this.assertOwnerOrAdmin(service, actorId);
     const term = await this.assertTermBelongsToService(termId, serviceId);
 
     if (!term.isActive) {
@@ -308,7 +315,7 @@ class PaymentTermService {
    */
   async deleteTerm(serviceId, termId, actorId, isAdmin) {
     const service = await this.assertServiceExists(serviceId);
-    this.assertOwnerOrAdmin(service, actorId, isAdmin);
+    await this.assertOwnerOrAdmin(service, actorId);
     const term = await this.assertTermBelongsToService(termId, serviceId);
 
     // Guard: if this is the only term, prevent deletion
