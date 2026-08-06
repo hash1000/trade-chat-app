@@ -71,6 +71,7 @@ class ServiceController {
       const includeMembers = req.query.includeMembers === "true";
       const includeCategories = req.query.includeCategories !== "false";
       const includeAddOns = req.query.includeAddOns === "true";
+      const includePaymentTerms = req.query.includePaymentTerms !== "false";
       const isLiked = req.query.isLiked === "true";
       const me = req.query.me === "true";
 
@@ -80,6 +81,7 @@ class ServiceController {
         includeMembers,
         includeCategories,
         includeAddOns,
+        includePaymentTerms,
         isLiked,
         me,
       });

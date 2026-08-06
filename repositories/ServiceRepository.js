@@ -19,6 +19,7 @@ const {
   ServiceMember,
   ServiceAddOn,
   ServiceAddOnFile,
+  PaymentTerm,
 } = require("../models");
 
 class ServiceRepository {
@@ -196,6 +197,20 @@ class ServiceRepository {
       });
     }
 
+    if (options.includePaymentTerms) {
+      include.push({
+        model: PaymentTerm,
+        as: "paymentTerms",
+        where: { isActive: true },
+        required: false,
+        separate: true,
+        order: [
+          ["isDefault", "DESC"],
+          ["createdAt", "ASC"],
+        ],
+      });
+    }
+
     include.push(this._topRatingsInclude());
 
     return include;
@@ -231,6 +246,7 @@ class ServiceRepository {
     delete queryOptions.userId;
     delete queryOptions.me;
     delete queryOptions.includeAddOns;
+    delete queryOptions.includePaymentTerms;
 
     const attributes = { include: [] };
 
