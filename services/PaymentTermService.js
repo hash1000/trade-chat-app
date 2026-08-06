@@ -200,7 +200,7 @@ class PaymentTermService {
 
     const terms = await PaymentTerm.findAll({
       where,
-      include: [{ model: User, as: "creator", attributes: ["id", "name", "email"] }],
+      include: [{ model: User, as: "creator", attributes: ["id", "firstName", "lastName", "email"] }],
       order: [
         ["isDefault", "DESC"],
         ["createdAt", "ASC"],
