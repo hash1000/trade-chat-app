@@ -158,11 +158,13 @@ class ProductCartService {
   // Add-ons the customer cannot opt out of — fetched fresh from whichever
   // scope the cart line is (variation's own add-ons, or the product's own)
   // so they get auto-attached on add-to-cart regardless of what the caller
-  // requested. Always quantity 1 unless the caller also selected the same
-  // add-on explicitly (handled by the merge step keeping the caller's pick).
+  // requested. Quantity 1 unless the caller also selected the same add-on
+  // explicitly (handled by the merge step keeping the caller's pick), capped
+  // at 0 when the add-on is out of stock — nothing to fulfill it with, so it
+  // shouldn't be silently added (and billed) at quantity 1.
   async _resolveRequiredAddOns(shopProductId, variationId) {
     const required = await this.repo.fetchRequiredAddOns(shopProductId, variationId);
-    return required.map((addOn) => this._toSnapshot(addOn, 1));
+    return required.map((addOn) => this._toSnapshot(addOn, Number(addOn.stock) > 0 ? 1 : 0));
   }
 
   // Upserts requiredAddOns into baseAddOns by addOnId — an id already present
