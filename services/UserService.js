@@ -325,6 +325,19 @@ class UserService {
     }
   }
 
+  async setDisableAccount(userId, disableAccount) {
+    const user = await userRepository.getById(userId);
+    if (!user) {
+      throw new CustomError("User not found", 404);
+    }
+    user.disableAccount = disableAccount;
+    if (disableAccount) {
+      // Invalidate all existing sessions for this account
+      user.tokenVersion += 1;
+    }
+    return await user.save();
+  }
+
   async getUserById(userId) {
     return await userRepository.getById(userId);
   }

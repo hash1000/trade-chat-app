@@ -33,8 +33,6 @@ class UserController {
       let user = await userService.getUserByEmail(email);
 
       if (user) {
-        await userService.updateTokenVersion(user);
-
         // Always update profile with email_verified = true (and run is_completed check)
         user = await userService.updateUserProfile(user, {
           email_verified: true,
@@ -43,7 +41,7 @@ class UserController {
         });
 
         const token = jwt.sign(
-          { userId: user.id },
+          { userId: user.id, tokenVersion: user.tokenVersion },
           process.env.JWT_SECRET_KEY
         );
 
@@ -60,7 +58,7 @@ class UserController {
         await userService.updateUserProfile(newUser, { email_verified: true });
 
         const token = jwt.sign(
-          { userId: newUser.id },
+          { userId: newUser.id, tokenVersion: newUser.tokenVersion },
           process.env.JWT_SECRET_KEY
         );
 
@@ -108,10 +106,10 @@ class UserController {
       const userByEmail = await userService.getUserByEmail(email);
 
       if (userByEmail) {
-        await userService.updateTokenVersion(userByEmail);
         const token = jwt.sign(
           {
-            userId: userByEmail.id
+            userId: userByEmail.id,
+            tokenVersion: userByEmail.tokenVersion
           },
           process.env.JWT_SECRET_KEY
         );
@@ -195,7 +193,7 @@ class UserController {
         
         const newUser = await userService.createUser(userData);
         const token = jwt.sign(
-          { userId: newUser.id },
+          { userId: newUser.id, tokenVersion: newUser.tokenVersion },
           process.env.JWT_SECRET_KEY
         );
 
@@ -262,7 +260,7 @@ class UserController {
           userData
         );
         const token = jwt.sign(
-          { userId: updateUser.id },
+          { userId: updateUser.id, tokenVersion: updateUser.tokenVersion },
           process.env.JWT_SECRET_KEY
         );
 
@@ -316,8 +314,9 @@ class UserController {
         return res.status(400).json({ message: "Invalid request parameters." });
       }
 
-      // Update token version
-      await userService.updateTokenVersion(user);
+      if (user.disableAccount) {
+        return res.status(403).json({ message: "Your account has been disabled." });
+      }
 
       // Check if profile is incomplete
       // const requiredFields = [
@@ -343,7 +342,7 @@ class UserController {
 
       // Generate JWT token
       const token = jwt.sign(
-        { userId: user.id },
+        { userId: user.id, tokenVersion: user.tokenVersion },
         process.env.JWT_SECRET_KEY
       );
 
@@ -532,9 +531,8 @@ class UserController {
                   .status(400)
                   .json({ message: "User with this email dose not exist" });
               } else {
-                await userService.updateTokenVersion(user);
                 token = jwt.sign(
-                  { userId: user.id },
+                  { userId: user.id, tokenVersion: user.tokenVersion },
                   process.env.JWT_SECRET_KEY
                 );
               }
@@ -795,15 +793,24 @@ class UserController {
             email,
           };
           updateData = await userService.updateEmail(user, userData);
+          // Invalidate tokens issued under the old email on every other session
+          await userService.updateTokenVersion(updateData);
         }
       }
 
       if (!updateData) {
         return res.status(500).json({ message: "User Not Exist" });
       }
-      return res
-        .status(200)
-        .json({ message: "User exists.", updateData: updateData });
+
+      const response = { message: "User exists.", updateData: updateData };
+      if (email) {
+        // Re-issue a valid token for this session since its tokenVersion just changed
+        response.token = jwt.sign(
+          { userId: updateData.id, tokenVersion: updateData.tokenVersion },
+          process.env.JWT_SECRET_KEY
+        );
+      }
+      return res.status(200).json(response);
     } catch (error) {
       // Log the error and send a generic error message
       console.error(error);
@@ -870,7 +877,7 @@ class UserController {
         newPassword
       );
       const token = jwt.sign(
-        { userId: updateduser.id },
+        { userId: updateduser.id, tokenVersion: updateduser.tokenVersion },
         process.env.JWT_SECRET_KEY
       );
       // Respond with the token and user data
@@ -897,6 +904,106 @@ class UserController {
     } catch (error) {
       console.error("Error during login:", error);
       res.status(500).json({ message: "Login failed" });
+    }
+  }
+
+  async adminUpdateUserEmail(req, res) {
+    const { id } = req.params;
+    const { email } = req.body;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!email || !emailRegex.test(email)) {
+      return res.status(400).json({ message: "A valid email is required." });
+    }
+
+    try {
+      const targetUser = await userService.getUserById(id);
+      if (!targetUser) {
+        return res.status(404).json({ message: "User not found." });
+      }
+
+      const userCheck = await userService.getUserByEmail(email);
+      if (userCheck) {
+        return res
+          .status(401)
+          .json({ message: "Invalid Email Already Exist." });
+      }
+
+      const updateData = await userService.updateEmail(targetUser, { email });
+      // Invalidate tokens issued under the old email on every session of this user
+      await userService.updateTokenVersion(updateData);
+
+      return res
+        .status(200)
+        .json({ message: "User email updated.", updateData });
+    } catch (error) {
+      console.error(error);
+      return res
+        .status(500)
+        .json({ message: "An internal server error occurred." });
+    }
+  }
+
+  async adminResetUserPassword(req, res) {
+    const { email, newPassword } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: "Email is required." });
+    }
+    if (!newPassword || newPassword.length < 6) {
+      return res
+        .status(400)
+        .json({ message: "New password must be at least 6 characters." });
+    }
+
+    try {
+      const targetUser = await userService.getUserByEmail(email);
+      if (!targetUser) {
+        return res.status(404).json({ message: "User not found." });
+      }
+
+      const updatedUser = await userService.updateUserPassword(
+        targetUser.id,
+        newPassword
+      );
+      // Invalidate tokens issued under the old password on every session of this user
+      await userService.updateTokenVersion(updatedUser);
+
+      return res
+        .status(200)
+        .json({ message: "User password has been reset." });
+    } catch (error) {
+      console.error(error);
+      return res
+        .status(500)
+        .json({ message: "An internal server error occurred." });
+    }
+  }
+
+  async setDisableAccount(req, res) {
+    try {
+      const { id } = req.params;
+      const { disableAccount } = req.body;
+
+      if (typeof disableAccount !== "boolean") {
+        return res
+          .status(400)
+          .json({ message: "disableAccount must be true or false." });
+      }
+
+      const user = await userService.setDisableAccount(id, disableAccount);
+      return res.status(200).json({
+        message: disableAccount
+          ? "Account has been disabled."
+          : "Account has been enabled.",
+        user,
+      });
+    } catch (error) {
+      console.error("Error updating disableAccount:", error);
+      if (error instanceof CustomError) {
+        return res.status(error.statusCode).json({ message: error.message });
+      }
+      res.status(500).json({ message: "Failed to update account status." });
     }
   }
 
@@ -983,7 +1090,7 @@ class UserController {
       if (userId) {
         const user = await userService.updateUserPassword(userId, password);
         const token = jwt.sign(
-          { userId: user.id },
+          { userId: user.id, tokenVersion: user.tokenVersion },
           process.env.JWT_SECRET_KEY
         );
         // Respond with the token and user data

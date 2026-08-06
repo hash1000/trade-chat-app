@@ -1,5 +1,5 @@
 const sequelize = require("../config/database");
-const { Service, ServiceDiscount, User } = require("../models");
+const { Service, ServiceDiscount, User, Role } = require("../models");
 
 class ServiceDiscountService {
   /**
@@ -19,10 +19,16 @@ class ServiceDiscountService {
   /**
    * @param {Service} service
    * @param {number} userId
-   * @param {boolean} isAdmin
    */
-  assertOwnerOrAdmin(service, userId, isAdmin) {
-    if (service.userId !== userId && !isAdmin) {
+  async assertOwnerOrAdmin(service, userId) {
+    if (service.userId === userId) return;
+
+    const user = await User.findByPk(userId, {
+      include: [{ model: Role, as: "roles" }],
+    });
+    const isAdmin = user?.roles?.some((role) => role.name === "admin");
+
+    if (!isAdmin) {
       const err = new Error(
         "Forbidden. Only the service owner or an admin can perform this action.",
       );
@@ -41,7 +47,7 @@ class ServiceDiscountService {
    */
   async createDiscount(serviceId, actorId, isAdmin, data) {
     const service = await this.assertServiceExists(serviceId);
-    this.assertOwnerOrAdmin(service, actorId, isAdmin);
+    await this.assertOwnerOrAdmin(service, actorId);
 
     const { code, discountPercentage, expiryDate } = data;
 
@@ -122,7 +128,7 @@ class ServiceDiscountService {
     { includeUsed = false, page = 1, limit = 20 } = {},
   ) {
     const service = await this.assertServiceExists(serviceId);
-    this.assertOwnerOrAdmin(service, actorId, isAdmin);
+    await this.assertOwnerOrAdmin(service, actorId);
 
     const offset = (page - 1) * limit;
     const where = { serviceId };
@@ -309,7 +315,7 @@ class ServiceDiscountService {
     }
 
     const service = await this.assertServiceExists(discount.serviceId);
-    this.assertOwnerOrAdmin(service, actorId, isAdmin);
+    await this.assertOwnerOrAdmin(service, actorId);
 
     return discount;
   }
@@ -331,7 +337,7 @@ class ServiceDiscountService {
     }
 
     const service = await this.assertServiceExists(discount.serviceId);
-    this.assertOwnerOrAdmin(service, actorId, isAdmin);
+    await this.assertOwnerOrAdmin(service, actorId);
 
     const updates = {};
 
@@ -409,7 +415,7 @@ class ServiceDiscountService {
     }
 
     const service = await this.assertServiceExists(discount.serviceId);
-    this.assertOwnerOrAdmin(service, actorId, isAdmin);
+    await this.assertOwnerOrAdmin(service, actorId);
 
     await discount.destroy();
   }

@@ -158,11 +158,13 @@ class ProductCartService {
   // Add-ons the customer cannot opt out of — fetched fresh from whichever
   // scope the cart line is (variation's own add-ons, or the product's own)
   // so they get auto-attached on add-to-cart regardless of what the caller
-  // requested. Always quantity 1 unless the caller also selected the same
-  // add-on explicitly (handled by the merge step keeping the caller's pick).
+  // requested. Quantity 1 unless the caller also selected the same add-on
+  // explicitly (handled by the merge step keeping the caller's pick), capped
+  // at 0 when the add-on is out of stock — nothing to fulfill it with, so it
+  // shouldn't be silently added (and billed) at quantity 1.
   async _resolveRequiredAddOns(shopProductId, variationId) {
     const required = await this.repo.fetchRequiredAddOns(shopProductId, variationId);
-    return required.map((addOn) => this._toSnapshot(addOn, 1));
+    return required.map((addOn) => this._toSnapshot(addOn, Number(addOn.stock) > 0 ? 1 : 0));
   }
 
   // Upserts requiredAddOns into baseAddOns by addOnId — an id already present
@@ -178,10 +180,17 @@ class ProductCartService {
 
   // Required add-ons track the line's product quantity 1:1 — the customer
   // can't opt out or set them independently, so bumping product quantity
-  // must scale them too.
-  _scaleRequiredAddOns(addOns, quantity) {
+  // must scale them too. Capped at the add-on's live stock: an out-of-stock
+  // (stock <= 0) required add-on stays at 0 instead of scaling up, since
+  // there's nothing to fulfill it with — it's excluded from totals as a result.
+  _scaleRequiredAddOns(addOns, quantity, stockById) {
     if (!Array.isArray(addOns) || addOns.length === 0) return addOns;
-    return addOns.map((a) => (a.isRequired && a.quantity !== quantity ? { ...a, quantity } : a));
+    return addOns.map((a) => {
+      if (!a.isRequired) return a;
+      const stock = stockById ? stockById.get(a.addOnId) ?? Infinity : Infinity;
+      const target = Math.min(quantity, Math.max(stock, 0));
+      return a.quantity !== target ? { ...a, quantity: target } : a;
+    });
   }
 
   _addOnSubtotal(addOns) {
@@ -205,29 +214,13 @@ class ProductCartService {
     const resolvedAddOns = await this._resolveAddOns(addOns, Number(shopProductId), scopedVariationId);
     const requiredAddOns = await this._resolveRequiredAddOns(Number(shopProductId), scopedVariationId);
 
-    const existing = await this.repo.findExistingLine(userId, Number(shopProductId), variationId ?? null);
-    const newQuantity = existing ? existing.productCartItemQuantity + qty : qty;
-    this._assertStock(availableStock, newQuantity);
+    // Every add-to-cart call creates its own line, same as the service cart
+    // (CartService._addToCart) — re-adding a product does not merge into an
+    // existing line, it appends a new one.
+    this._assertStock(availableStock, qty);
 
-    const discount = await this._resolveDiscount(Number(shopProductId), newQuantity, code);
-    const discountAmount = this._computeDiscountAmount(unitPrice, newQuantity, discount.discountPercent);
-
-    if (existing) {
-      // Re-adding replaces the add-on selection rather than merging it — merging
-      // quantity silently duplicating add-on picks would be surprising. Required
-      // add-ons are always ensured present either way, since the customer can't
-      // opt out of them.
-      const baseAddOns = addOns !== undefined ? resolvedAddOns : existing.addOns || [];
-      await this.repo.saveLine(existing, {
-        productCartItemQuantity: newQuantity,
-        unitPriceSnapshot: unitPrice,
-        discountCode: discount.discountCode,
-        discountPercent: discount.discountPercent,
-        discountAmount,
-        addOns: this._mergeAddOns(baseAddOns, requiredAddOns),
-      });
-      return { message: "Quantity increased", cartItem: existing };
-    }
+    const discount = await this._resolveDiscount(Number(shopProductId), qty, code);
+    const discountAmount = this._computeDiscountAmount(unitPrice, qty, discount.discountPercent);
 
     const created = await this.repo.createLine({
       userId,
@@ -336,7 +329,9 @@ class ProductCartService {
       fields.addOns = this._mergeAddOns(resolvedAddOns, requiredAddOns);
     }
 
-    fields.addOns = this._scaleRequiredAddOns(fields.addOns ?? line.addOns, qty);
+    const liveRequiredAddOns = await this.repo.fetchRequiredAddOns(line.shopProductId, line.variationId);
+    const stockById = new Map(liveRequiredAddOns.map((a) => [a.id, Number(a.stock)]));
+    fields.addOns = this._scaleRequiredAddOns(fields.addOns ?? line.addOns, qty, stockById);
 
     await this.repo.saveLine(line, fields);
     return { message: "Quantity updated", cartItem: line };

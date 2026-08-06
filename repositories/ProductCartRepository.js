@@ -42,12 +42,6 @@ class ProductCartRepository {
     });
   }
 
-  async findExistingLine(userId, shopProductId, variationId) {
-    return ProductCartItem.findOne({
-      where: { userId, shopProductId, variationId: variationId ?? null },
-    });
-  }
-
   async createLine(data) {
     return ProductCartItem.create(data);
   }
@@ -110,8 +104,8 @@ class ProductCartRepository {
     });
   }
 
-  async saveLine(line, fields) {
-    return line.update(fields);
+  async saveLine(line, fields, transaction) {
+    return line.update(fields, { transaction });
   }
 
   async deleteLine(userId, cartItemId) {

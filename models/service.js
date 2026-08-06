@@ -43,6 +43,11 @@ const Service = sequelize.define(
       type: DataTypes.STRING,
       allowNull: true,
     },
+    delivery_terms: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      defaultValue: "DDP — Delivered Duty Paid",
+    },
     description: {
       type: DataTypes.TEXT,
       allowNull: true,

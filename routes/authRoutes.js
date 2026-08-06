@@ -15,6 +15,8 @@ const {
 } = require("../middlewares/userValidation");
 const decodeToken = require("../middlewares/decodeToken");
 const authenticate = require("../middlewares/authenticate");
+const authorize = require("../middlewares/authorization");
+const checkIntegerParam = require("../middlewares/paramIntegerValidation");
 
 const router = express.Router();
 const userController = new UserController();
@@ -116,6 +118,19 @@ router.post(
   emailPhoneNumberValidation,
   userController.updateUserEmailOrPhoneNumber.bind(userController)
 );
+router.put(
+  "/users/:id/update-email",
+  authenticate,
+  authorize(["admin"]),
+  checkIntegerParam("id"),
+  userController.adminUpdateUserEmail.bind(userController)
+);
+router.put(
+  "/admin/reset-password",
+  authenticate,
+  authorize(["admin"]),
+  userController.adminResetUserPassword.bind(userController)
+);
 
 router.post(
   "/users",
@@ -133,6 +148,13 @@ router.post(
   userController.changePassword.bind(userController)
 );
 router.post("/create-admin", userController.createAdmin.bind(userController));
+router.put(
+  "/users/:id/disable-account",
+  authenticate,
+  authorize(["admin"]),
+  checkIntegerParam("id"),
+  userController.setDisableAccount.bind(userController)
+);
 router.post(
   "/update-fcm",
   authenticate,
