@@ -50,6 +50,9 @@ const WalletTransaction = require("./walletTransaction");
 const Team = require("./team");
 const TeamMember = require("./teamMember");
 const Service = require("./service");
+const Chat = require("./chat");
+const ChatMember = require("./chatMember");
+const ChatService = require("./chatService");
 const TeamServiceLink = require("./teamService");
 const ServiceCategoryLink = require("./serviceCategory");
 const PaymentRequest = require("./payment_request");
@@ -660,6 +663,60 @@ Order.belongsTo(Address, {
 
   User.hasMany(OrderPayment, { foreignKey: "createdBy", as: "recordedOrderPayments" });
   OrderPayment.belongsTo(User, { foreignKey: "createdBy", as: "recordedBy" });
+
+  // Chat <-> ChatMember (per-user membership + unread/mute/favourite state)
+  Chat.hasMany(ChatMember, { foreignKey: "chatId", as: "members" });
+  ChatMember.belongsTo(Chat, { foreignKey: "chatId", as: "chat" });
+
+  User.hasMany(ChatMember, { foreignKey: "userId", as: "chatMemberships" });
+  ChatMember.belongsTo(User, { foreignKey: "userId", as: "user" });
+
+  Chat.belongsToMany(User, {
+    through: ChatMember,
+    foreignKey: "chatId",
+    otherKey: "userId",
+    as: "participants",
+  });
+  User.belongsToMany(Chat, {
+    through: ChatMember,
+    foreignKey: "userId",
+    otherKey: "chatId",
+    as: "chats",
+  });
+
+  // Chat -> admin (group creator/owner)
+  Chat.belongsTo(User, { foreignKey: "adminId", as: "admin" });
+
+  // Chat -> order (set when this chat bundles one or more isChat services
+  // from a single order — lookup key for "does this order have a chat")
+  Chat.belongsTo(Order, { foreignKey: "orderId", as: "order" });
+  Order.hasOne(Chat, { foreignKey: "orderId", as: "chat" });
+
+  Chat.belongsTo(User, { foreignKey: "customerId", as: "customer" });
+
+  // Chat <-> Service (many-to-many via ChatService) — a plain
+  // service-linked chat has one row, an order-combined chat has one row
+  // per bundled service.
+  Chat.hasMany(ChatService, { foreignKey: "chatId", as: "chatServices" });
+  ChatService.belongsTo(Chat, { foreignKey: "chatId", as: "chat" });
+
+  Service.hasMany(ChatService, { foreignKey: "serviceId", as: "chatServices" });
+  ChatService.belongsTo(Service, { foreignKey: "serviceId", as: "service" });
+
+  ChatService.belongsTo(Team, { foreignKey: "teamId", as: "team" });
+
+  Chat.belongsToMany(Service, {
+    through: ChatService,
+    foreignKey: "chatId",
+    otherKey: "serviceId",
+    as: "services",
+  });
+  Service.belongsToMany(Chat, {
+    through: ChatService,
+    foreignKey: "serviceId",
+    otherKey: "chatId",
+    as: "chats",
+  });
 }
 
 // Initialize associations
@@ -730,4 +787,7 @@ module.exports = {
   ProductShopOrder,
   ProductShopOrderItem,
   ProductShopOrderCharge,
+  Chat,
+  ChatMember,
+  ChatService,
 };
