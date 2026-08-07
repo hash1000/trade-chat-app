@@ -90,6 +90,20 @@ class MessageRepository {
     return Message.findByPk(id, { include: this.buildDetailIncludes() });
   }
 
+  // Most recent message in a chat, full shape (not just the lastMessage
+  // preview string stored on Chat). id DESC as a tiebreaker — see the
+  // ordering note on findForChat below.
+  async findLatestForChat(chatId) {
+    return Message.findOne({
+      where: { chatId },
+      include: this.buildDetailIncludes(),
+      order: [
+        ["createdAt", "DESC"],
+        ["id", "DESC"],
+      ],
+    });
+  }
+
   // Paginated history, newest-first page order but chronological within
   // the page (typical chat-scroll shape). excludeDeletedFor hides messages
   // the requesting user has deleted for themselves.

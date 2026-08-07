@@ -232,19 +232,25 @@ function initChatSocket(io) {
         // resetUnread always sets this to exactly 0 — no extra query needed
         // to know the reader's new count.
         const unreadCount = 0;
+        // Full latest message (not just Chat.lastMessage's preview string)
+        // so the client can refresh its chat-list row / last-bubble render
+        // from this one event instead of a separate fetch.
+        const latestMessage = await messageService.getLatestFormatted(chatId, socket.userId);
 
-        ack({ seen: messageIds, unreadCount });
+        ack({ seen: messageIds, unreadCount, latestMessage });
 
         // io.to() (not socket.to()) — the reader's OTHER tabs should also
         // see this reflected, not just the sender. unreadCount here is the
         // READER's own count (userId), not the recipient's — everyone else
         // in the room only cares about their own badge, which this event
-        // doesn't change.
+        // doesn't change. latestMessage is chat-wide (same for everyone),
+        // unlike unreadCount.
         io.to(`chat-${chatId}`).emit("message seen", {
           chatId,
           messageIds,
           userId: socket.userId,
           unreadCount,
+          latestMessage,
         });
       } catch (err) {
         console.error("mark message seen error:", err);

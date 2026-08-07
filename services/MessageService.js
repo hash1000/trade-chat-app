@@ -252,6 +252,12 @@ class MessageService {
     if (!message) return null;
     return this.formatMessage(message, viewerUserId);
   }
+
+  async getLatestFormatted(chatId, viewerUserId) {
+    const message = await this.messageRepository.findLatestForChat(chatId);
+    if (!message) return null;
+    return this.formatMessage(message, viewerUserId);
+  }
 }
 
 module.exports = MessageService;
