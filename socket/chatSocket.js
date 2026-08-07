@@ -202,6 +202,49 @@ function initChatSocket(io) {
       }
     });
 
+    // Client explicitly marks message(s) as read by them — the frontend
+    // decides when that's true (e.g. scrolled into view), there's no
+    // server-side auto-detection based on room membership. Accepts either
+    // a single messageId or messageIds[]. Also resets this user's unread
+    // counter on the chat (same effect as PUT /:id/read), and broadcasts
+    // "message seen" so the sender's client can show a read receipt live
+    // instead of having to re-fetch history.
+    socket.on("mark message seen", async (payload, callback) => {
+      const ack = typeof callback === "function" ? callback : () => {};
+      const chatId = Number(payload && payload.chatId);
+      const messageIds = Array.isArray(payload && payload.messageIds)
+        ? payload.messageIds
+        : payload && payload.messageId
+        ? [payload.messageId]
+        : [];
+
+      if (!Number.isInteger(chatId) || chatId <= 0 || messageIds.length === 0) {
+        return ack({ error: "chatId and messageId/messageIds are required" });
+      }
+
+      try {
+        if (!(await chatRepository.isParticipant(chatId, socket.userId))) {
+          return ack({ error: "Not a participant of this chat" });
+        }
+
+        await messageService.markSeen(messageIds, socket.userId);
+        await chatRepository.resetUnread(chatId, socket.userId);
+
+        ack({ seen: messageIds });
+
+        // io.to() (not socket.to()) — the reader's OTHER tabs should also
+        // see this reflected, not just the sender.
+        io.to(`chat-${chatId}`).emit("message seen", {
+          chatId,
+          messageIds,
+          userId: socket.userId,
+        });
+      } catch (err) {
+        console.error("mark message seen error:", err);
+        ack({ error: "Failed to mark message(s) seen" });
+      }
+    });
+
     socket.on("disconnect", async (reason) => {
       console.log(`Socket ${socket.id} disconnected (${reason})`);
 

@@ -75,6 +75,14 @@ class MessageRepository {
       );
     }
 
+    // Sending a message counts as having seen it — the sender wrote it,
+    // there's no "unread" state for your own message.
+    await MessageRead.create({
+      messageId: message.id,
+      userId: data.senderId,
+      seenAt: new Date(),
+    });
+
     return this.findByPk(message.id);
   }
 
@@ -150,6 +158,15 @@ class MessageRepository {
       await row.save();
     }
     return row;
+  }
+
+  async setUploaded(messageId, uploadingPercentage = 100) {
+    const [count] = await Message.update(
+      { isUploading: false, uploadingPercentage },
+      { where: { id: messageId } }
+    );
+    if (count === 0) return null;
+    return this.findByPk(messageId);
   }
 
   async getUnreadCountForUser(chatId, userId, lastReadAt) {

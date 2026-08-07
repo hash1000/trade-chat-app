@@ -180,6 +180,9 @@ class MessageService {
       messageType: payload.messageType || "text",
       message: payload.message || null,
       isForward: !!payload.isForward,
+      // Marked uploading on create for every message type; the client
+      // clears it via markUploaded() once it's confirmed ready.
+      isUploading: true,
       replyToMessageId: payload.replyToMessageId || null,
       contactCardId: payload.contactCardId || null,
       mediaUrl: payload.mediaUrl || null,
@@ -238,6 +241,10 @@ class MessageService {
 
   async deleteForMe(messageId, userId, isDeleteAll = false) {
     return this.messageRepository.markDeleted(messageId, userId, isDeleteAll);
+  }
+
+  async markUploaded(messageId, uploadingPercentage = 100) {
+    return this.messageRepository.setUploaded(messageId, uploadingPercentage);
   }
 
   async getByIdFormatted(messageId, viewerUserId) {

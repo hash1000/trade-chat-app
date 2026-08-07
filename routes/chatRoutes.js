@@ -45,6 +45,7 @@ router.delete("/:id", authMiddleware, chatController.remove.bind(chatController)
 // per-recipient read/delete state.
 router.get("/:chatId/messages", authMiddleware, messageController.history.bind(messageController));
 router.put("/:chatId/messages/seen", authMiddleware, messageController.markSeen.bind(messageController));
+router.put("/messages/:messageId/uploaded", authMiddleware, messageController.markUploaded.bind(messageController));
 router.delete("/messages/:messageId", authMiddleware, messageController.deleteForMe.bind(messageController));
 
 module.exports = router;
