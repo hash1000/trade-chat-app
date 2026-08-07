@@ -1,10 +1,9 @@
 # Chat Socket — Frontend Reference
 
 Everything below reflects what's actually implemented in
-[socket/chatSocket.js](../socket/chatSocket.js) and
-[config/socket.js](../config/socket.js) right now. There is **no message
-persistence yet** — no `messages` table, no "send message" event. This
-covers connection, rooms, and the typing indicator only.
+[socket/chatSocket.js](../socket/chatSocket.js),
+[services/MessageService.js](../services/MessageService.js), and
+[config/socket.js](../config/socket.js) right now.
 
 Status key: ✅ implemented and tested · 🚧 not built yet.
 
@@ -107,9 +106,160 @@ socket.emit("typing", { chatId: 5, isTyping: false }); // stopped typing
 - Works as soon as you're connected — no `join chat room` needed first,
   per the auto-join behavior in §1.
 
+### `send message` ✅
+
+This is how messages are created — there is **no REST POST for sending**.
+Ack-based: the server persists the message and acks back the full row, so
+the client can flip its optimistic "sending" bubble to "sent" using the
+real server-assigned `id`.
+
+```js
+socket.emit(
+  "send message",
+  {
+    chatId: 5,
+    localId: "client-generated-uuid", // for retry de-dup, see below
+    messageType: "text", // "text" | "image" | "video" | "audio" | "file" |
+                          // "contact" | "payment" | "order" | "address" |
+                          // "bankCard" | "shortList" | "balanceSheet"
+    message: "Sure, I'll send the invoice shortly.",
+
+    // optional, depending on messageType:
+    replyToMessageId: 12,
+    mediaUrl: "https://cdn.example.com/media/img55_full.jpg",
+    thumbnailUrl: "https://cdn.example.com/thumbs/img55.jpg",
+    thumbnailBlurHash: "L6PZfSi_.AyE_3t7t7R**0o#DgR4",
+    contactCardId: 45, // a userId, shares that user as a contact card
+    mentionUserIds: [12, 45],
+    hashtags: ["#urgent"],
+
+    // reference attachments — id only, full record is snapshotted into
+    // the response (§ "media/contact/reply/payment and friends" below):
+    paymentRequestId: 9, // must already exist — create it via the
+                         // existing payment-request endpoints first
+    orderId: 482,
+    addressId: 3,
+    bankAccountId: 7,
+    shortListId: 2,
+    ledgerId: 14, // "balanceSheet" in the response
+  },
+  (ack) => {
+    if (ack.error) return console.error(ack.error);
+    replaceOptimisticMessage(payload.localId, ack.message);
+  }
+);
+```
+
+- **`localId` de-dup**: if the ack is dropped (network blip) and your client
+  retries the exact same `chatId` + `localId`, the server returns the
+  *already-created* message instead of creating a duplicate, and does
+  **not** re-broadcast it a second time. Always generate a fresh `localId`
+  per logical message (e.g. a UUID), reuse it only on retry of that same
+  send.
+- Rejected with `{ error: "Not a participant of this chat" }` if you're not
+  a member of `chatId`.
+- The response `message` object is the same shape documented in §3's
+  `message` event below.
+
 ---
 
 ## 3. Server → client events
+
+### `message` ✅
+
+Broadcast to everyone else in `chat-<chatId>` (`socket.to()` — the sender
+does **not** get this; they already have the row from their `send message`
+ack). Also bumps `Chat.lastMessage`/`lastMessageAt` and increments
+`ChatMember.unreadCount` for every other participant server-side, so
+`GET /api/chat` chat-list previews and unread badges update automatically
+— no separate call needed after sending.
+
+```js
+socket.on("message", (message) => {
+  appendToOpenThread(message);
+});
+```
+
+Full message shape (nested sub-objects are `null` when not applicable to
+that message):
+
+```json
+{
+  "id": 3022,
+  "chat_id": 5,
+  "message_sender_id": 12,
+  "message_sender_name": "Ayesha Khan",
+  "message_sender_imageUrl": "https://cdn.example.com/users/12.png",
+  "message_type": "image",
+  "message": "Here's the reference photo",
+  "isForward": 0,
+  "isEdit": 0,
+  "isUploading": 0,
+  "uploadingPercentage": 0,
+  "hashtags": ["#urgent"],
+  "created_at": 1732000560000,
+  "updated_at": 1732000560000,
+
+  "media": {
+    "type": "image",
+    "mediaUrl": "https://cdn.example.com/media/img55_full.jpg",
+    "thumbnail": "https://cdn.example.com/thumbs/img55.jpg",
+    "thumbnailUrl": "https://cdn.example.com/thumbs/img55.jpg",
+    "thumbnailBlurHash": "L6PZfSi_.AyE_3t7t7R**0o#DgR4",
+    "isUploading": false,
+    "uploadingPercentage": 100
+  },
+  "contact": null,
+  "reply": {
+    "parentMessageId": 3021,
+    "parentMessage": "Sure, I'll send the invoice shortly.",
+    "replyType": "text",
+    "replyerId": 45,
+    "replyerName": "Bilal Ahmed"
+  },
+  "payment": null,
+  "order": null,
+  "address": null,
+  "bankCard": null,
+  "shortList": null,
+  "balanceSheet": null,
+
+  "mention_members": [
+    { "memberId": 45, "memberName": "Bilal Ahmed", "memberImage": "...", "memberPhone": "..." }
+  ],
+  "seenMessagePersons": [],
+  "deleteMessagePersonsIds": [],
+  "isDeletedForViewer": false
+}
+```
+
+`payment` (when `messageType: "payment"`) looks like:
+
+```json
+{
+  "payment": {
+    "paymentRequestId": 9,
+    "amount": "50.00",
+    "currency": "USD",
+    "description": "Logo design deposit",
+    "status": "pending",
+    "requesterId": 12,
+    "requesteeId": 45
+  }
+}
+```
+
+`order` / `address` / `bankCard` / `shortList` / `balanceSheet` are
+**reference-only snapshots** of the existing `Order` / `Address` /
+`BankAccount` / `ShortList` / `Ledger` records at the id you sent — sending
+one doesn't create or modify anything in those tables, it's the same idea
+as attaching `mediaUrl` to a message. `balanceSheet` maps to the `Ledger`
+model (`GET /api/payment/ledgers`), not a separate table.
+
+### `typing` ✅
+
+Broadcast to every other socket in `chat-<chatId>` — **never echoed back
+to the sender** (`socket.to()`, not `io.to()`).
 
 ### `typing` ✅
 
@@ -177,13 +327,18 @@ missing/invalid. See §1.
 These would normally live in a chat socket doc but don't exist in this
 codebase yet — don't wire a client up expecting them:
 
-- **No message events** (`message event`, `message received`, or any
-  send/receive-message socket flow) — there is no `messages` table.
 - **No `chat request` / friend-add push event.**
+- **No delivered/edit/delete socket events** — read receipts
+  (`seenMessagePersons`) and per-user delete are REST-only (§6), not pushed
+  live over the socket yet. A client has to re-fetch or poll history to see
+  another user's read receipt update.
+- **No file upload wiring for `mediaUrl`/`thumbnailUrl`** — you're expected
+  to upload the file yourself (e.g. via the existing
+  [socket/streamUploadSocket.js](../socket/streamUploadSocket.js) `/upload`
+  namespace, or a REST upload endpoint) and pass the resulting URL into
+  `send message`. Sending a message does not upload anything itself.
 
-Ask for these explicitly when you're ready to build messaging — the room
-plumbing above (auth, auto-join, `chat-<id>` rooms) is what they'll be
-built on top of.
+Ask for these explicitly when you're ready to build them.
 
 ---
 
@@ -212,6 +367,21 @@ socket.on("user online", ({ chatId, userId }) => {
 socket.on("user offline", ({ chatId, userId }) => {
   updatePresence(chatId, userId, "offline");
 });
+
+socket.on("message", (message) => {
+  appendToOpenThread(message);
+});
+
+// sending a message:
+const localId = crypto.randomUUID();
+socket.emit(
+  "send message",
+  { chatId: 5, localId, messageType: "text", message: "hey" },
+  (ack) => {
+    if (ack.error) return console.error(ack.error);
+    replaceOptimisticMessage(localId, ack.message);
+  }
+);
 
 // while composing in chat 5:
 inputEl.addEventListener("input", () => {
@@ -250,6 +420,12 @@ created/managed over REST, under `/api/chat` (auth: `Bearer <jwt>`,
 | `/api/chat/:id/read` | PUT | Reset your unread counter |
 | `/api/chat/:id/settings` | PUT | Update group name/image/AI/lock settings |
 | `/api/chat/:id` | DELETE | Delete chat entirely |
+| `/api/chat/:chatId/messages` | GET | `?page=1&pageSize=30` — paginated history, oldest→newest per page, your own soft-deletes excluded |
+| `/api/chat/:chatId/messages/seen` | PUT | `{ messageIds[] }` — mark messages as read by you |
+| `/api/chat/messages/:messageId` | DELETE | `{ isDeleteAll? }` — delete for you only (or flag delete-for-everyone intent) |
+
+Message **creation** is socket-only (§2 `send message`) — there is no
+`POST /api/chat/:chatId/messages`.
 
 Every creation/add-member endpoint above triggers `joinUsersToChat`
 server-side, so already-connected sockets don't need to reconnect to start

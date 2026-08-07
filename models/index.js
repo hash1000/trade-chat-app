@@ -53,6 +53,10 @@ const Service = require("./service");
 const Chat = require("./chat");
 const ChatMember = require("./chatMember");
 const ChatService = require("./chatService");
+const Message = require("./message");
+const MessageRead = require("./messageRead");
+const MessageDelete = require("./messageDelete");
+const MessageMention = require("./messageMention");
 const TeamServiceLink = require("./teamService");
 const ServiceCategoryLink = require("./serviceCategory");
 const PaymentRequest = require("./payment_request");
@@ -717,6 +721,39 @@ Order.belongsTo(Address, {
     otherKey: "chatId",
     as: "chats",
   });
+
+  // --- Messages ---
+
+  Chat.hasMany(Message, { foreignKey: "chatId", as: "messages" });
+  Message.belongsTo(Chat, { foreignKey: "chatId", as: "chat" });
+
+  User.hasMany(Message, { foreignKey: "senderId", as: "sentMessages" });
+  Message.belongsTo(User, { foreignKey: "senderId", as: "sender" });
+
+  // Self-referencing reply
+  Message.belongsTo(Message, { foreignKey: "replyToMessageId", as: "replyToMessage" });
+  Message.hasMany(Message, { foreignKey: "replyToMessageId", as: "replies" });
+
+  Message.belongsTo(User, { foreignKey: "contactCardId", as: "contactCard" });
+  Message.belongsTo(PaymentRequest, { foreignKey: "paymentRequestId", as: "paymentRequest" });
+  Message.belongsTo(Order, { foreignKey: "orderId", as: "order" });
+  Message.belongsTo(Address, { foreignKey: "addressId", as: "address" });
+  Message.belongsTo(BankAccount, { foreignKey: "bankAccountId", as: "bankAccount" });
+  Message.belongsTo(ShortList, { foreignKey: "shortListId", as: "shortList" });
+  Message.belongsTo(Ledger, { foreignKey: "ledgerId", as: "balanceSheet" });
+
+  // Per-recipient state — same junction-table pattern as ChatMember.
+  Message.hasMany(MessageRead, { foreignKey: "messageId", as: "reads" });
+  MessageRead.belongsTo(Message, { foreignKey: "messageId", as: "message" });
+  MessageRead.belongsTo(User, { foreignKey: "userId", as: "user" });
+
+  Message.hasMany(MessageDelete, { foreignKey: "messageId", as: "deletes" });
+  MessageDelete.belongsTo(Message, { foreignKey: "messageId", as: "message" });
+  MessageDelete.belongsTo(User, { foreignKey: "userId", as: "user" });
+
+  Message.hasMany(MessageMention, { foreignKey: "messageId", as: "mentions" });
+  MessageMention.belongsTo(Message, { foreignKey: "messageId", as: "message" });
+  MessageMention.belongsTo(User, { foreignKey: "userId", as: "user" });
 }
 
 // Initialize associations
@@ -737,6 +774,9 @@ module.exports = {
   Income,
   Expense,
   PaymentType,
+  PaymentRequest,
+  BankAccount,
+  ShortList,
   Team,
   TeamMember,
   Service,
@@ -790,4 +830,8 @@ module.exports = {
   Chat,
   ChatMember,
   ChatService,
+  Message,
+  MessageRead,
+  MessageDelete,
+  MessageMention,
 };

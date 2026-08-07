@@ -3,7 +3,9 @@ const router = express.Router();
 
 const authMiddleware = require("../middlewares/authenticate");
 const ChatController = require("../controllers/ChatController");
+const MessageController = require("../controllers/MessageController");
 const chatController = new ChatController();
+const messageController = new MessageController();
 
 // List the caller's chats (add ?archived=true for the archived list).
 router.get("/", authMiddleware, chatController.list.bind(chatController));
@@ -37,5 +39,12 @@ router.put("/:id/read", authMiddleware, chatController.markRead.bind(chatControl
 router.put("/:id/settings", authMiddleware, chatController.updateSettings.bind(chatController));
 
 router.delete("/:id", authMiddleware, chatController.remove.bind(chatController));
+
+// Messages are created over the socket ("send message" event, see
+// socket/chatSocket.js) — REST only covers paginated history and
+// per-recipient read/delete state.
+router.get("/:chatId/messages", authMiddleware, messageController.history.bind(messageController));
+router.put("/:chatId/messages/seen", authMiddleware, messageController.markSeen.bind(messageController));
+router.delete("/messages/:messageId", authMiddleware, messageController.deleteForMe.bind(messageController));
 
 module.exports = router;

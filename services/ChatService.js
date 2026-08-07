@@ -52,6 +52,7 @@ class ChatService {
       simpleModeOn: !!plain.simpleModeOn,
       group_last_message: plain.lastMessage,
       created_at: plain.createdAt ? Math.floor(new Date(plain.createdAt).getTime() / 1000) : null,
+      updated_at: plain.updatedAt ? Math.floor(new Date(plain.updatedAt).getTime() / 1000) : null,
       memberIds: members.map((m) => m.userId),
       group_members: members.map((m) => this.formatMember(m)),
       isFav: members.filter((m) => m.isFavourite).map((m) => m.userId),

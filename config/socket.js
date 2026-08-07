@@ -1,10 +1,27 @@
+const { createAdapter } = require("@socket.io/redis-adapter")
+const { redisOptions } = require("./redis")
+const Redis = require("ioredis")
+
 let io = null
 
 module.exports = {
   // Store the Socket.IO server created in app.js. Do not create a new one here:
   // a second Server instance on the same httpServer would not share rooms.
+  //
+  // Attaches the Redis adapter so rooms (chat-<id>, user-<id>) and
+  // broadcasts (io.to(), socket.to(), socketsJoin()) work correctly across
+  // multiple server processes, not just within the process that owns a
+  // given socket. Without this, two app servers behind a load balancer
+  // would each have their own private room registry — a message sent by a
+  // user connected to server 1 would never reach a recipient connected to
+  // server 2.
   init: (ioInstance) => {
     io = ioInstance
+
+    const pubClient = new Redis(redisOptions)
+    const subClient = pubClient.duplicate()
+    io.adapter(createAdapter(pubClient, subClient))
+
     return io
   },
   getIO: () => {
