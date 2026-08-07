@@ -5,6 +5,7 @@ const UserRepository = require("../repositories/UserRepository"); // Replace the
 const ReactionRepository = require("../repositories/ReactionRepository"); // Replace the path with the correct location of your UserRepository.js file
 const UserFavouriteRepository = require("../repositories/UserFavouriteRepository");
 const FriendsRepository = require("../repositories/FriendsRepository");
+const ChatRepository = require("../repositories/ChatRepository");
 const Wallet = require("../models/wallet");
 const UserTags = require("../models/userTags");
 
@@ -17,6 +18,7 @@ const userRepository = new UserRepository();
 const reactionRepository = new ReactionRepository();
 const userFavouriteRepository = new UserFavouriteRepository();
 const friendsRepository = new FriendsRepository();
+const chatRepository = new ChatRepository();
 
 class UserService {
   async getUserProfileById(profileId, userId) {
@@ -351,14 +353,18 @@ class UserService {
       throw new CustomError("Invalid user id", 400);
     }
 
-    const [friendship, favourite] = await Promise.all([
+    const [friendship, favourite, existingChat] = await Promise.all([
       friendsRepository.getDirected(me, them),
       userFavouriteRepository.get(me, them),
+      chatRepository.findExistingDirectChat(me, them),
     ]);
 
     return {
       isFriend: Boolean(friendship),
       isFavourite: Boolean(favourite),
+      // Symmetric lookup by membership, not by who created it — user1
+      // creating a chat with user2 means user2 sees the same chatId here.
+      chatId: existingChat ? existingChat.id : null,
     };
   }
 
