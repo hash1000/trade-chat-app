@@ -116,6 +116,24 @@ class ChatRepository {
     return ChatMember.findOne({ where: { chatId, userId } });
   }
 
+  // Every chat this user currently belongs to — used to auto-join
+  // chat-<id> socket rooms on connect.
+  async getUserChatIds(userId) {
+    const memberships = await ChatMember.findAll({
+      where: { userId },
+      attributes: ["chatId"],
+    });
+    return memberships.map((m) => m.chatId);
+  }
+
+  async isParticipant(chatId, userId) {
+    const member = await ChatMember.findOne({
+      where: { chatId, userId },
+      attributes: ["id"],
+    });
+    return Boolean(member);
+  }
+
   async findAllForUser(userId, { archived = false } = {}) {
     const memberships = await ChatMember.findAll({
       where: { userId, isArchived: archived },
@@ -166,6 +184,24 @@ class ChatRepository {
     return links.map((l) => l.team).filter(Boolean);
   }
 
+  // Oldest remaining member (by join order), used to auto-promote a new
+  // admin when the current admin leaves.
+  async findOldestMember(chatId, excludeUserId, t) {
+    return ChatMember.findOne({
+      where: { chatId, userId: { [Op.ne]: excludeUserId } },
+      order: [["createdAt", "ASC"]],
+      transaction: t,
+    });
+  }
+
+  async promoteAdmin(chatId, userId, t) {
+    await Chat.update({ adminId: userId }, { where: { id: chatId }, transaction: t });
+    await ChatMember.update(
+      { isAdmin: true },
+      { where: { chatId, userId }, transaction: t }
+    );
+  }
+
   async addMembers(chatId, userIds) {
     const existing = await ChatMember.findAll({
       where: { chatId, userId: { [Op.in]: userIds } },
@@ -178,8 +214,8 @@ class ChatRepository {
     return ChatMember.bulkCreate(toAdd.map((userId) => ({ chatId, userId })));
   }
 
-  async removeMember(chatId, userId) {
-    const deleted = await ChatMember.destroy({ where: { chatId, userId } });
+  async removeMember(chatId, userId, t) {
+    const deleted = await ChatMember.destroy({ where: { chatId, userId }, transaction: t });
     return deleted > 0;
   }
 
@@ -209,10 +245,10 @@ class ChatRepository {
     await Chat.update({ lastMessage, lastMessageAt }, { where: { id: chatId } });
   }
 
-  async updateChat(chatId, data) {
-    const [count] = await Chat.update(data, { where: { id: chatId } });
+  async updateChat(chatId, data, t) {
+    const [count] = await Chat.update(data, { where: { id: chatId }, transaction: t });
     if (count === 0) return null;
-    return Chat.findByPk(chatId);
+    return Chat.findByPk(chatId, { transaction: t });
   }
 
   async deleteChat(chatId) {

@@ -1,10 +1,19 @@
 // services/ChatService.js
 const sequelize = require("../config/database");
 const ChatRepository = require("../repositories/ChatRepository");
+const { joinUsersToChat } = require("../config/socket");
 
 class ChatService {
   constructor() {
     this.chatRepository = new ChatRepository();
+  }
+
+  // Moves already-connected sockets for these members into the new
+  // chat-<id> room immediately — otherwise they'd only pick it up on
+  // their next reconnect (chatSocket.js auto-joins at connect time only).
+  notifyNewChat(chat) {
+    const memberIds = (chat.members || []).map((m) => m.userId);
+    joinUsersToChat(memberIds, chat.id);
   }
 
   // --- response shaping -----------------------------------------------
@@ -130,7 +139,9 @@ class ChatService {
     if (existing) return this.chatRepository.findByPk(existing.id);
 
     const chat = await this.chatRepository.create({ type: "chat" }, [userAId, userBId]);
-    return this.chatRepository.findByPk(chat.id);
+    const fullChat = await this.chatRepository.findByPk(chat.id);
+    this.notifyNewChat(fullChat);
+    return fullChat;
   }
 
   async createGroup({ groupName, groupImage, adminId, memberIds, lockSettings = false }) {
@@ -145,12 +156,14 @@ class ChatService {
       },
       allMemberIds
     );
-    return this.chatRepository.findByPk(chat.id);
+    const fullChat = await this.chatRepository.findByPk(chat.id);
+    this.notifyNewChat(fullChat);
+    return fullChat;
   }
 
   // Single-service request chat: customer <-> service team.
   async createServiceChat({ serviceId, teamId, customerId, ownerId, requestSubject, requestDesc }) {
-    return sequelize.transaction(async (t) => {
+    const chat = await sequelize.transaction(async (t) => {
       const chat = await this.chatRepository.create(
         { type: "chat", customerId },
         [customerId, ownerId],
@@ -162,7 +175,10 @@ class ChatService {
         t
       );
       return chat;
-    }).then((chat) => this.chatRepository.findByPk(chat.id));
+    });
+    const fullChat = await this.chatRepository.findByPk(chat.id);
+    this.notifyNewChat(fullChat);
+    return fullChat;
   }
 
   // Order-combined chat: bundles every isChat service in the order into
@@ -171,7 +187,7 @@ class ChatService {
     const existing = await this.chatRepository.findByOrderId(orderId);
     if (existing) return this.chatRepository.findByPk(existing.id);
 
-    return sequelize.transaction(async (t) => {
+    const chat = await sequelize.transaction(async (t) => {
       const chat = await this.chatRepository.create(
         { type: "chat", orderId, customerId },
         [customerId, ownerId],
@@ -188,7 +204,10 @@ class ChatService {
         t
       );
       return chat;
-    }).then((chat) => this.chatRepository.findByPk(chat.id));
+    });
+    const fullChat = await this.chatRepository.findByPk(chat.id);
+    this.notifyNewChat(fullChat);
+    return fullChat;
   }
 
   // --- reads ---------------------------------------------------------
@@ -208,11 +227,37 @@ class ChatService {
 
   async addMembers(chatId, userIds) {
     await this.chatRepository.addMembers(chatId, userIds);
-    return this.chatRepository.findByPk(chatId);
+    const fullChat = await this.chatRepository.findByPk(chatId);
+    joinUsersToChat(userIds, chatId);
+    return fullChat;
   }
 
   async removeMember(chatId, userId) {
     return this.chatRepository.removeMember(chatId, userId);
+  }
+
+  // Self-service leave. If the leaver was the group admin and other
+  // members remain, the oldest remaining member is auto-promoted so the
+  // group always has exactly one admin.
+  async leaveChat(chatId, userId) {
+    const chat = await this.chatRepository.findByPk(chatId);
+    if (!chat) return null;
+
+    const wasAdmin = chat.adminId === userId;
+
+    return sequelize.transaction(async (t) => {
+      await this.chatRepository.removeMember(chatId, userId, t);
+
+      if (wasAdmin) {
+        const nextAdmin = await this.chatRepository.findOldestMember(chatId, userId, t);
+        if (nextAdmin) {
+          await this.chatRepository.promoteAdmin(chatId, nextAdmin.userId, t);
+        } else {
+          // No members left — nothing to promote, chat is now empty.
+          await this.chatRepository.updateChat(chatId, { adminId: null }, t);
+        }
+      }
+    }).then(() => ({ left: true }));
   }
 
   async setFavourite(chatId, userId, isFavourite) {

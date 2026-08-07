@@ -27,6 +27,9 @@ app.set("io", io);
 
 // Initialize your upload socket
 require('./socket/streamUploadSocket')(io);
+
+// Initialize the chat socket (auth, rooms, typing)
+require('./socket/chatSocket')(io);
 app.use(express.static(path.join(__dirname, "public")));
 app.use(express.static(path.join(__dirname, "node_modules/socket.io/client-dist")));
 

@@ -26,6 +26,10 @@ router.post("/order", authMiddleware, chatController.createOrGetOrderChat.bind(c
 router.post("/:id/members", authMiddleware, chatController.addMembers.bind(chatController));
 router.delete("/:id/members/:userId", authMiddleware, chatController.removeMember.bind(chatController));
 
+// Caller removes themselves. If they were the group admin, the oldest
+// remaining member is auto-promoted.
+router.post("/:id/leave", authMiddleware, chatController.leave.bind(chatController));
+
 router.put("/:id/favourite", authMiddleware, chatController.setFavourite.bind(chatController));
 router.put("/:id/archive", authMiddleware, chatController.setArchived.bind(chatController));
 router.put("/:id/block", authMiddleware, chatController.setBlocked.bind(chatController));

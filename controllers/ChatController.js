@@ -199,6 +199,25 @@ class ChatController {
     }
   }
 
+  async leave(req, res) {
+    try {
+      const { id } = req.params;
+      const { id: userId } = req.user;
+
+      const result = await chatService.leaveChat(id, userId);
+      if (!result) {
+        return res.status(404).json({ success: false, error: "Chat not found." });
+      }
+      return res.status(200).json({ success: true });
+    } catch (error) {
+      console.error("ChatController.leave error:", error);
+      return res.status(500).json({
+        success: false,
+        error: "Server error. Please try again later.",
+      });
+    }
+  }
+
   async setFavourite(req, res) {
     try {
       const { id } = req.params;
