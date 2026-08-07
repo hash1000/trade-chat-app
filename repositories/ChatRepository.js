@@ -126,6 +126,20 @@ class ChatRepository {
     return memberships.map((m) => m.chatId);
   }
 
+  // Updates memberStatus across every chat this user belongs to at once —
+  // used on socket connect/disconnect. Returns the affected chatIds so the
+  // caller knows which chat-<id> rooms to broadcast the change into.
+  async setStatusForAllChats(userId, memberStatus) {
+    const chatIds = await this.getUserChatIds(userId);
+    if (chatIds.length === 0) return [];
+
+    await ChatMember.update(
+      { memberStatus, statusUpdatedAt: new Date() },
+      { where: { userId, chatId: { [Op.in]: chatIds } } }
+    );
+    return chatIds;
+  }
+
   async isParticipant(chatId, userId) {
     const member = await ChatMember.findOne({
       where: { chatId, userId },

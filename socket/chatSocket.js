@@ -35,6 +35,45 @@ function authenticateSocket(socket, next) {
   }
 }
 
+// Tracks how many live sockets each user currently has open (multiple
+// tabs/devices count as one "online" user — we only flip to offline when
+// the last socket disconnects, not on every tab close).
+const onlineCounts = new Map();
+
+// True if chat-<chatId> currently has a connected socket belonging to
+// someone other than `userId` — i.e. there's actually an audience for the
+// presence event. Uses Socket.IO's own room membership, no DB query.
+function hasOtherLiveMember(io, chatId, userId) {
+  const room = io.sockets.adapter.rooms.get(`chat-${chatId}`);
+  if (!room || room.size === 0) return false;
+  for (const socketId of room) {
+    const socket = io.sockets.sockets.get(socketId);
+    if (socket && socket.userId !== userId) return true;
+  }
+  return false;
+}
+
+async function broadcastStatus(io, userId, memberStatus) {
+  // Always persist across every chat — statusMembers over REST must be
+  // accurate regardless of who's currently connected to see it live.
+  const chatIds = await chatRepository.setStatusForAllChats(userId, memberStatus);
+
+  // But only emit into rooms someone is actually watching right now — a
+  // user with thousands of chats shouldn't fan out thousands of no-op
+  // emits into empty rooms on every connect/disconnect. WhatsApp-style:
+  // presence is pushed to active viewers, not broadcast to every chat you
+  // have.
+  const event = memberStatus === "online" ? "user online" : "user offline";
+  chatIds.forEach((chatId) => {
+    if (hasOtherLiveMember(io, chatId, userId)) {
+      console.log(`[presence] emitting ${event} into chat-${chatId} (has live audience)`);
+      io.to(`chat-${chatId}`).emit(event, { userId, chatId, memberStatus });
+    } else {
+      console.log(`[presence] SKIPPED chat-${chatId} (no live audience)`);
+    }
+  });
+}
+
 function initChatSocket(io) {
   io.use(authenticateSocket);
 
@@ -54,6 +93,15 @@ function initChatSocket(io) {
       chatIds.forEach((chatId) => socket.join(`chat-${chatId}`));
     } catch (err) {
       console.error(`Auto-join failed for user ${socket.userId}:`, err);
+    }
+
+    // First socket for this user -> they just came online.
+    const priorCount = onlineCounts.get(socket.userId) || 0;
+    onlineCounts.set(socket.userId, priorCount + 1);
+    if (priorCount === 0) {
+      broadcastStatus(io, socket.userId, "online").catch((err) =>
+        console.error(`online broadcast failed for user ${socket.userId}:`, err)
+      );
     }
 
     socket.on("join chat room", async (payload, callback) => {
@@ -109,6 +157,17 @@ function initChatSocket(io) {
 
     socket.on("disconnect", (reason) => {
       console.log(`Socket ${socket.id} disconnected (${reason})`);
+
+      // Last socket for this user -> they just went offline.
+      const remaining = (onlineCounts.get(socket.userId) || 1) - 1;
+      if (remaining <= 0) {
+        onlineCounts.delete(socket.userId);
+        broadcastStatus(io, socket.userId, "offline").catch((err) =>
+          console.error(`offline broadcast failed for user ${socket.userId}:`, err)
+        );
+      } else {
+        onlineCounts.set(socket.userId, remaining);
+      }
     });
   });
 }

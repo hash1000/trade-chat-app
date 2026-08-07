@@ -51,6 +51,11 @@ socket.on("connect_error", (err) => {
    `chat-<id>` room too (`joinUsersToChat` in `config/socket.js`). You do
    **not** need to reconnect or manually join after your own or someone
    else's REST call creates a chat you're a member of.
+4. Your `memberStatus` flips to `"online"` on **every** chat you belong to,
+   persisted to the DB, and a `user online` event is broadcast to each of
+   those `chat-<id>` rooms (see §3). On disconnect the same happens in
+   reverse with `user offline`. Multiple tabs/devices count as one online
+   user — you only go offline once your *last* connected socket closes.
 
 Net effect: as a frontend dev, you almost never need to call `join chat
 room` by hand. It exists for explicit confirmation / reconnecting after a
@@ -121,6 +126,45 @@ socket.on("typing", ({ chatId, userId, isTyping }) => {
 { "chatId": 5, "userId": 2, "isTyping": true }
 ```
 
+### `user online` / `user offline` ✅
+
+Broadcast (via `io.to()`, so it **does** reach the user who just
+connected/disconnected on any of their other open sockets too — this isn't
+sender-excluded like `typing`) to every `chat-<id>` room that user belongs
+to, once per chat, whenever they go online or offline. Fires on the first
+socket connecting (online) and the last socket disconnecting (offline) —
+opening a second tab does not re-fire `user online`.
+
+```js
+socket.on("user online", ({ userId, chatId, memberStatus }) => {
+  // memberStatus is always "online" here
+});
+socket.on("user offline", ({ userId, chatId, memberStatus }) => {
+  // memberStatus is always "offline" here
+});
+```
+
+```json
+{ "userId": 2, "chatId": 5, "memberStatus": "online" }
+```
+
+This also persists: `GET /api/chat/:id` and `GET /api/chat` (list) reflect
+the live status in `statusMembers`:
+
+```json
+"statusMembers": [
+  { "userId": 2, "updatedAt": 1732000500, "memberStatus": "online" },
+  { "userId": 3, "updatedAt": 1731999000, "memberStatus": "offline" }
+]
+```
+
+`updatedAt` is a unix timestamp (seconds) of the last online/offline
+transition for that member, `null` if they've never connected. So a
+newly-opened chat screen can render correct presence from the REST
+response alone, then keep it live via the `user online`/`user offline`
+events above — no need to wait for a socket round-trip just to know who's
+currently online.
+
 ### `connect_error` ✅
 
 Standard Socket.IO event, fired instead of `connect` when the JWT is
@@ -135,9 +179,6 @@ codebase yet — don't wire a client up expecting them:
 
 - **No message events** (`message event`, `message received`, or any
   send/receive-message socket flow) — there is no `messages` table.
-- **No online/offline presence broadcast** — `chat_members.memberStatus`
-  exists as a column but nothing currently updates it from
-  connect/disconnect.
 - **No `chat request` / friend-add push event.**
 
 Ask for these explicitly when you're ready to build messaging — the room
@@ -163,6 +204,13 @@ socket.on("connect", () => {
 
 socket.on("typing", ({ chatId, userId, isTyping }) => {
   updateTypingIndicator(chatId, userId, isTyping);
+});
+
+socket.on("user online", ({ chatId, userId }) => {
+  updatePresence(chatId, userId, "online");
+});
+socket.on("user offline", ({ chatId, userId }) => {
+  updatePresence(chatId, userId, "offline");
 });
 
 // while composing in chat 5:
