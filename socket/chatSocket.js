@@ -229,15 +229,22 @@ function initChatSocket(io) {
 
         await messageService.markSeen(messageIds, socket.userId);
         await chatRepository.resetUnread(chatId, socket.userId);
+        // resetUnread always sets this to exactly 0 — no extra query needed
+        // to know the reader's new count.
+        const unreadCount = 0;
 
-        ack({ seen: messageIds });
+        ack({ seen: messageIds, unreadCount });
 
         // io.to() (not socket.to()) — the reader's OTHER tabs should also
-        // see this reflected, not just the sender.
+        // see this reflected, not just the sender. unreadCount here is the
+        // READER's own count (userId), not the recipient's — everyone else
+        // in the room only cares about their own badge, which this event
+        // doesn't change.
         io.to(`chat-${chatId}`).emit("message seen", {
           chatId,
           messageIds,
           userId: socket.userId,
+          unreadCount,
         });
       } catch (err) {
         console.error("mark message seen error:", err);
