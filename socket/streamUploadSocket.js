@@ -5,7 +5,10 @@ const { promisify } = require("util");
 const pipeline = promisify(require("stream").pipeline);
 
 // Define UPLOAD_DIR and uploadMeta at the top level
-const UPLOAD_DIR = path.join(__dirname, "../../public/uploads");
+// __dirname is <project>/socket, so one ".." reaches <project>, matching
+// where app.js serves static files from (path.join(__dirname, "public")
+// in app.js, whose __dirname IS the project root).
+const UPLOAD_DIR = path.join(__dirname, "../public/uploads");
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 // Initialize uploadMeta as a Map to track upload sessions
