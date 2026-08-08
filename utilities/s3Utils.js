@@ -320,7 +320,7 @@ async function handleVideoStreamUpload(
 
     console.log("Generating thumbnail");
     // Read the compressed file for thumbnail generation
-    const compressedFileBuffer = await fps.readFile(compressedPath);
+    const compressedFileBuffer = await fs.readFile(compressedPath);
     const thumbnailBuffer = await processVideoStream(compressedFileBuffer);
     const thumbKey = `${path.parse(key).name}_thumb.jpg`;
     const thumbnailUrl = await uploadToS3(
