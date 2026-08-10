@@ -1,0 +1,617 @@
+{
+  "info": {
+    "name": "Chat & Messages APIs",
+    "description": "Test kit for the chat feature: direct/group/service/order-combined chats, membership, favourite/archive/block, leave with admin auto-promotion, and messages (REST history/seen/delete; creation is SOCKET-ONLY, see docs/CHAT_SOCKET.md \u2014 not covered by this collection).\n\nRULES:\n- A chat has a fixed set of members (chat_members) \u2014 REST never lets you act on a chat you're not a participant of.\n- Direct/order-combined chat creation is idempotent: calling it again with the same users/orderId returns the EXISTING chat instead of duplicating.\n- Message CREATION happens over Socket.IO's \"send message\" event, not REST \u2014 this collection only covers GET history / PUT seen / DELETE (per-user soft delete). Use docs/CHAT_SOCKET.md + a socket.io-client script to actually send messages for testing reply/media/payment/mention shapes.\n- Leaving a group as the admin auto-promotes the oldest remaining member \u2014 see '4. Membership & Leave'.\n\nORDER: 1) Run 'Login (user A)' and 'Login (user B)' \u2014 tokens auto-save. 2) Set otherUserId/secondUserId in Variables to real user ids on your DB. 3) Run 'Create direct chat' \u2014 chatId auto-saves. 4) Run any other request.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5001/api"
+    },
+    {
+      "key": "userToken",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Auth",
+      "item": [
+        {
+          "name": "Login (user A)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.token) { pm.collectionVariables.set('userToken', json.token); console.log('userToken saved'); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{userEmail}}\",\n  \"password\": \"{{userPassword}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login (user B)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.token) { pm.collectionVariables.set('secondUserToken', json.token); console.log('secondUserToken saved'); }",
+                  "if (json.user && json.user.id) { pm.collectionVariables.set('otherUserId', json.user.id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{secondUserEmail}}\",\n  \"password\": \"{{secondUserPassword}}\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. Chat Creation",
+      "item": [
+        {
+          "name": "Create/reuse direct chat (userA <-> userB)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.data && json.data.id) { pm.collectionVariables.set('chatId', json.data.id); console.log('chatId saved:', json.data.id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/chat/direct",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": {{otherUserId}}\n}"
+            },
+            "description": "Idempotent: calling again with the same pair of users returns the existing chat instead of creating a duplicate."
+          }
+        },
+        {
+          "name": "Create group chat",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.data && json.data.id) { pm.collectionVariables.set('groupChatId', json.data.id); console.log('groupChatId saved:', json.data.id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/chat/group",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"groupName\": \"Design Team\",\n  \"groupImage\": \"https://cdn.example.com/groups/g1.png\",\n  \"memberIds\": [{{otherUserId}}],\n  \"lockSettings\": false\n}"
+            },
+            "description": "Caller becomes group_admin_id. memberIds should NOT include the caller \u2014 they're added automatically as admin."
+          }
+        },
+        {
+          "name": "Create service-request chat",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/chat/service",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"serviceId\": {{serviceId}},\n  \"teamId\": {{teamId}},\n  \"ownerId\": {{otherUserId}},\n  \"requestSubject\": \"Need a modern logo\",\n  \"requestDesc\": \"Looking for a minimalist logo in blue tones\"\n}"
+            },
+            "description": "Caller becomes customerId. ownerId is the service owner/team side of the conversation. Response includes a single-service 'service' object."
+          }
+        },
+        {
+          "name": "Create/reuse order-combined chat",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/chat/order",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderId\": {{orderId}},\n  \"ownerId\": {{otherUserId}},\n  \"services\": [\n    { \"serviceId\": 77, \"teamId\": 3, \"status\": 1 },\n    { \"serviceId\": 81, \"teamId\": 3, \"status\": 1 },\n    { \"serviceId\": 84, \"teamId\": 8, \"status\": 1 }\n  ]\n}"
+            },
+            "description": "Idempotent by orderId, NOT by service list \u2014 calling again with the same orderId returns the existing chat even if you pass different services. Response's 'service' object includes service_order_id + service_ids[]."
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Read",
+      "item": [
+        {
+          "name": "List my chats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/chat?archived=false",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "chat"
+              ],
+              "query": [
+                {
+                  "key": "archived",
+                  "value": "false"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "List my archived chats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/chat?archived=true",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "chat"
+              ],
+              "query": [
+                {
+                  "key": "archived",
+                  "value": "true"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get chat by id",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/chat/{{chatId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Per-viewer state (favourite/archive/block/read)",
+      "item": [
+        {
+          "name": "Mark favourite",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/chat/{{chatId}}/favourite",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isFavourite\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "Unmark favourite",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/chat/{{chatId}}/favourite",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isFavourite\": false\n}"
+            }
+          }
+        },
+        {
+          "name": "Archive chat",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/chat/{{chatId}}/archive",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isArchived\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "Unarchive chat",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/chat/{{chatId}}/archive",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isArchived\": false\n}"
+            }
+          }
+        },
+        {
+          "name": "Block chat",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/chat/{{chatId}}/block",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isBlocked\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "Unblock chat",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/chat/{{chatId}}/block",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isBlocked\": false\n}"
+            }
+          }
+        },
+        {
+          "name": "Mark read (reset unread counter)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/chat/{{chatId}}/read"
+          }
+        },
+        {
+          "name": "Update group settings",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/chat/{{groupChatId}}/settings",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"groupName\": \"Design Team (Updated)\",\n  \"lockSettings\": true,\n  \"enableAIAnswer\": false,\n  \"simpleModeOn\": false\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Membership & Leave",
+      "item": [
+        {
+          "name": "Add members to group",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/chat/{{groupChatId}}/members",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberIds\": [{{otherUserId}}]\n}"
+            },
+            "description": "Also live-joins already-connected sockets for these users into the chat room \u2014 see docs/CHAT_SOCKET.md."
+          }
+        },
+        {
+          "name": "Remove member from group",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/chat/{{groupChatId}}/members/{{otherUserId}}",
+            "description": "No permission check today \u2014 any participant can remove any other participant, not just the admin."
+          }
+        },
+        {
+          "name": "Leave chat (self)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{secondUserToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/chat/{{groupChatId}}/leave",
+            "description": "If the leaving user was the group admin and members remain, the oldest remaining member (by chat_members.createdAt) is auto-promoted to admin. If they were the last member, adminId is cleared to null instead of pointing at someone no longer in the chat."
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Delete",
+      "item": [
+        {
+          "name": "Delete chat entirely",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/chat/{{chatId}}",
+            "description": "Cascades: removes chat_members and chat_services rows too. No confirmation step."
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Messages (REST: history/seen/delete only)",
+      "description": "Message CREATION is socket-only \u2014 there is no POST here. Use a socket.io-client to emit 'send message' first (see docs/CHAT_SOCKET.md), then use these to read/mark-seen/delete what was created.",
+      "item": [
+        {
+          "name": "Get message history (paginated)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/chat/{{chatId}}/messages?page=1&pageSize=30",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "chat",
+                "{{chatId}}",
+                "messages"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "30"
+                }
+              ]
+            },
+            "description": "Oldest\u2192newest per page. Messages the caller has soft-deleted for themselves are excluded. 403 if the caller isn't a participant of chatId."
+          }
+        },
+        {
+          "name": "Mark message uploaded (clears isUploading)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/chat/messages/{{messageId}}/uploaded",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"uploadingPercentage\": 100\n}"
+            },
+            "description": "Every message is created with isUploading:1 regardless of type (send message, socket-only). This clears it to 0 and broadcasts a 'message updated' event to chat-<chatId> so other connected clients update live. uploadingPercentage defaults to 100 if omitted."
+          }
+        },
+        {
+          "name": "Mark messages as seen",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{secondUserToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/chat/{{chatId}}/messages/seen",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"messageIds\": [{{messageId}}]\n}"
+            },
+            "description": "Adds the caller to seenMessagePersons for each id. Idempotent \u2014 marking an already-seen message again is a no-op."
+          }
+        },
+        {
+          "name": "Delete message for me",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/chat/messages/{{messageId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isDeleteAll\": false\n}"
+            },
+            "description": "isDeleteAll:false = hidden for the caller only, everyone else still sees it. The DB row and other users' access are unaffected."
+          }
+        }
+      ]
+    }
+  ]
+}

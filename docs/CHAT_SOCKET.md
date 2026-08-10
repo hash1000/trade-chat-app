@@ -2,6 +2,7 @@
 
 Everything below reflects what's actually implemented in
 [socket/chatSocket.js](../socket/chatSocket.js),
+[socket/streamUploadSocket.js](../socket/streamUploadSocket.js),
 [services/MessageService.js](../services/MessageService.js), and
 [config/socket.js](../config/socket.js) right now.
 
@@ -89,7 +90,7 @@ socket.emit("leave chat room", { chatId: 5 }, (ack) => {
 No participant check — leaving a room you're not in is a harmless no-op.
 This only affects the socket room; it does **not** call the `POST
 /api/chat/:id/leave` REST endpoint (which actually removes you as a member
-— see §4).
+— see §7).
 
 ### `typing` ✅
 
@@ -160,6 +161,54 @@ socket.emit(
   a member of `chatId`.
 - The response `message` object is the same shape documented in §3's
   `message` event below.
+- **Every message is created with `isUploading: 1`**, regardless of
+  `messageType` — even a plain text message. This is not tied to the
+  `/upload` namespace (§4) or to whether `mediaUrl` is set; it's a flag on
+  the message row itself. Call `PUT
+  /api/chat/messages/:messageId/uploaded` (§7) once you're ready to clear
+  it — see the `message updated` event in §3 for how the change reaches
+  other participants live.
+
+### `mark message seen` ✅
+
+The frontend decides when a message counts as "read" (e.g. scrolled into
+view, chat screen focused) and explicitly emits this — there is **no
+automatic server-side detection** based on room membership or the chat
+being open. Receiving the `message` event does **not** imply it's seen.
+
+```js
+socket.emit(
+  "mark message seen",
+  { chatId: 5, messageId: 12 },
+  // or: { chatId: 5, messageIds: [12, 13, 14] }
+  (ack) => {
+    if (ack.error) return console.error(ack.error);
+    // { seen: [12], unreadCount: 0, latestMessage: { id, message, ... full shape } }
+    updateUnreadBadge(5, ack.unreadCount);
+    updateChatListPreview(5, ack.latestMessage);
+  }
+);
+```
+
+- Also resets your unread counter on the chat to `0` — same effect as
+  `PUT /:id/read` (§7), no need to call both. **The ack includes the real
+  `unreadCount`** (always `0` today — marking anything seen resets the
+  whole chat's counter, it isn't a precise per-message decrement, see §5
+  for the caveat on this) so you don't need a separate fetch just to
+  update the badge.
+- **The ack also includes `latestMessage`** — the chat's single most
+  recent message, in the full shape documented under the `message` event
+  below (media/reply/payment/etc., not just `Chat.lastMessage`'s plain
+  preview string used in the chat list). `null` if the chat somehow has no
+  messages. This is the *chat's* latest message, not necessarily the one(s)
+  you just marked seen — useful for refreshing a chat-list row or
+  "jump to latest" UI from this one event instead of a separate fetch.
+- Rejected with `{ error: "Not a participant of this chat" }` if you're not
+  a member of `chatId`.
+- Broadcasts `message seen` (§3) to the whole room, **including your own
+  other tabs** (`io.to()`, not sender-excluded) — so read state (and your
+  `unreadCount`) stays in sync across your own devices too, not just
+  visible to the other participant.
 
 ---
 
@@ -169,14 +218,43 @@ socket.emit(
 
 Broadcast to everyone else in `chat-<chatId>` (`socket.to()` — the sender
 does **not** get this; they already have the row from their `send message`
-ack). Also bumps `Chat.lastMessage`/`lastMessageAt` and increments
+ack). Also bumps `Chat.lastMessage`/`lastMessageAt` and **increments**
 `ChatMember.unreadCount` for every other participant server-side, so
 `GET /api/chat` chat-list previews and unread badges update automatically
-— no separate call needed after sending.
+on the *incoming* side — no separate call needed just to see the badge go
+up.
+
+**The sender is automatically included in `seenMessagePersons` from the
+moment the message is created** — sending a message counts as having seen
+it, no separate `mark message seen` call needed for your own messages.
+Every other recipient only appears in that array once they explicitly emit
+`mark message seen` (§2).
+
+⚠️ **Getting the counter back to 0 is not automatic — it requires the
+client to act.** The server has no way to know a chat screen is open or a
+message is visually on-screen; receiving this `message` event does not by
+itself mark anything read or touch `unreadCount`. If the recipient's chat
+screen is genuinely open right now, **your client is responsible for
+immediately emitting `mark message seen` (§2) for that message** — do it
+unconditionally in your `message` handler whenever the chat this message
+belongs to is the one currently open/focused. Skipping this means the
+unread badge stays incremented even though the user is looking straight at
+the message.
 
 ```js
 socket.on("message", (message) => {
   appendToOpenThread(message);
+
+  // REQUIRED for the unread badge to behave correctly: if the chat this
+  // message belongs to is the one currently open on screen, mark it seen
+  // right away. Without this call unreadCount keeps climbing even while
+  // the user is actively looking at the conversation.
+  if (message.chat_id === currentlyOpenChatId) {
+    socket.emit("mark message seen", {
+      chatId: message.chat_id,
+      messageId: message.id,
+    });
+  }
 });
 ```
 
@@ -194,7 +272,7 @@ that message):
   "message": "Here's the reference photo",
   "isForward": 0,
   "isEdit": 0,
-  "isUploading": 0,
+  "isUploading": 1,
   "uploadingPercentage": 0,
   "hashtags": ["#urgent"],
   "created_at": 1732000560000,
@@ -227,7 +305,7 @@ that message):
   "mention_members": [
     { "memberId": 45, "memberName": "Bilal Ahmed", "memberImage": "...", "memberPhone": "..." }
   ],
-  "seenMessagePersons": [],
+  "seenMessagePersons": [12],
   "deleteMessagePersonsIds": [],
   "isDeletedForViewer": false
 }
@@ -256,10 +334,71 @@ one doesn't create or modify anything in those tables, it's the same idea
 as attaching `mediaUrl` to a message. `balanceSheet` maps to the `Ledger`
 model (`GET /api/payment/ledgers`), not a separate table.
 
-### `typing` ✅
+### `message updated` ✅
 
-Broadcast to every other socket in `chat-<chatId>` — **never echoed back
-to the sender** (`socket.to()`, not `io.to()`).
+Broadcast to `chat-<chatId>` (`io.to()` — reaches everyone in the room,
+including the message's own sender on their other tabs, not sender-excluded
+like `message`) whenever `PUT /api/chat/messages/:messageId/uploaded` (§7)
+is called. Today this is the only thing that triggers it — there's no
+generic "edit message" flow yet.
+
+```js
+socket.on("message updated", (message) => {
+  // full message shape, same as the "message" event — patch the
+  // existing bubble in place using message.id, don't append a new one
+  patchMessageInThread(message);
+});
+```
+
+The payload is the full message object (§3 `message` shape above) with
+`isUploading` now `0` and `uploadingPercentage` reflecting whatever was
+passed to the REST call (defaults to `100`).
+
+### `message seen` ✅
+
+Broadcast to `chat-<chatId>` (`io.to()`, whole room including the reader's
+own other tabs) whenever `mark message seen` (§2) is emitted by anyone in
+the chat.
+
+```js
+socket.on("message seen", ({ chatId, messageIds, userId, unreadCount, latestMessage }) => {
+  // userId is who just read these messages — update the
+  // read-receipt/checkmark state on each message in messageIds
+  messageIds.forEach((id) => markMessageAsReadInUi(id, userId));
+
+  // unreadCount is USERID's own new count, not yours — only meaningful to
+  // act on if userId === your own id (i.e. this fired from one of your
+  // OTHER tabs, since the sender doesn't get sender-excluded here).
+  if (userId === myOwnUserId) updateUnreadBadge(chatId, unreadCount);
+
+  // latestMessage is chat-wide, not tied to who read what — safe to use
+  // regardless of who userId is.
+  updateChatListPreview(chatId, latestMessage);
+});
+```
+
+```json
+{
+  "chatId": 5,
+  "messageIds": [12, 13],
+  "userId": 45,
+  "unreadCount": 0,
+  "latestMessage": { "id": 13, "message": "sounds good", "...": "full message shape, see the message event above" }
+}
+```
+
+`unreadCount` belongs to **`userId`** (whoever just read the message), not
+to you as the listener — check `userId === myOwnUserId` before using it,
+otherwise you'll overwrite your own badge with someone else's count.
+`latestMessage` has no such caveat — it's the chat's single most recent
+message regardless of who's asking, `null` if the chat has none.
+
+Aside from those two fields, this is a **thin event** — just ids for
+`messageIds`, not a full message object per id. If you need the updated
+`seenMessagePersons` array rendered for something other than the latest
+message, patch it into your already-held copy locally, or re-fetch via
+`GET /:chatId/messages` (§7) if you don't already have that message
+client-side.
 
 ### `typing` ✅
 
@@ -322,27 +461,98 @@ missing/invalid. See §1.
 
 ---
 
-## 4. Not built yet 🚧
+## 4. File upload (separate namespace) — how to get `mediaUrl`/`thumbnailUrl`
+
+`send message` never uploads anything itself — you upload the file first,
+get back a URL, then pass that URL into `mediaUrl`/`thumbnailUrl` on `send
+message` (§2). Uploads go through a **separate namespace**,
+[socket/streamUploadSocket.js](../socket/streamUploadSocket.js), not the
+default `/` namespace everything else in this doc uses.
+
+```js
+const uploadSocket = io("http://<host>:<port>/upload", {
+  path: "/socket.io",
+  // no auth — see the warning below
+});
+```
+
+⚠️ **This namespace has no authentication and no per-file size/type limit
+enforced server-side** — unlike every other event in this doc, there is no
+JWT check here at all. Don't treat it as hardened; this is a gap, not a
+documented feature, flagged here so you don't assume it's protected.
+
+Protocol — chunked, gzip-compressed per chunk, base64-encoded over the
+wire, driven entirely by the client (server just assembles what it's told):
+
+```js
+function emitAck(socket, event, payload) {
+  return new Promise((resolve) => socket.emit(event, payload, resolve));
+}
+
+const fileId = crypto.randomUUID();
+const chunkSize = 256 * 1024; // pick your own chunk size
+const totalChunks = Math.ceil(file.size / chunkSize);
+
+await emitAck(uploadSocket, "upload-start", {
+  fileId,
+  fileName: file.name,
+  fileSize: file.size,
+  fileHash: null, // unused server-side today, send whatever/omit
+  totalChunks,
+});
+
+for (let i = 0; i < totalChunks; i++) {
+  const chunk = file.slice(i * chunkSize, (i + 1) * chunkSize);
+  const gzipped = gzipSync(await chunk.arrayBuffer()); // client-side gzip required
+  await emitAck(uploadSocket, "upload-chunk", {
+    fileId,
+    chunkIndex: i,
+    chunkData: gzipped.toString("base64"),
+    totalChunks,
+  });
+}
+
+const result = await emitAck(uploadSocket, "upload-complete", { fileId });
+// { success: true, url: "/uploads/1732000560000_photo.jpg", hash: "<sha256>" }
+// url is a path relative to this server's origin, not a full URL — prefix
+// it with the same <host>:<port> you connected to.
+```
+
+- **`upload-progress`** (server → client, on the same socket, no ack) fires
+  after each accepted chunk: `{ fileId, progress, receivedChunks,
+  totalChunks }` — `progress` is a 0–100 percentage of bytes uploaded.
+- **`cancel-upload`**: `socket.emit("cancel-upload", { fileId })` —
+  fire-and-forget, deletes the in-progress temp chunks server-side.
+- Disconnecting mid-upload auto-cleans that socket's incomplete temp
+  chunks — you don't need to explicitly cancel before closing the tab.
+- `upload-complete` rejects with `{ error: "Missing N chunks (...)" }` if
+  any `chunkIndex` never arrived — resend just the missing ones and retry
+  `upload-complete`, or restart with a fresh `fileId`.
+- There's no `thumbnailBlurHash` generation here — if you want one, compute
+  it client-side (e.g. via `blurhash`) before calling `send message`.
+
+---
+
+## 5. Not built yet 🚧
 
 These would normally live in a chat socket doc but don't exist in this
 codebase yet — don't wire a client up expecting them:
 
 - **No `chat request` / friend-add push event.**
-- **No delivered/edit/delete socket events** — read receipts
-  (`seenMessagePersons`) and per-user delete are REST-only (§6), not pushed
-  live over the socket yet. A client has to re-fetch or poll history to see
-  another user's read receipt update.
-- **No file upload wiring for `mediaUrl`/`thumbnailUrl`** — you're expected
-  to upload the file yourself (e.g. via the existing
-  [socket/streamUploadSocket.js](../socket/streamUploadSocket.js) `/upload`
-  namespace, or a REST upload endpoint) and pass the resulting URL into
-  `send message`. Sending a message does not upload anything itself.
+- **No delivered/edit/delete socket events for per-user delete** — deleting
+  a message for yourself (§7 `DELETE /messages/:messageId`) is REST-only,
+  not broadcast. Read receipts ARE live now — see `mark message seen` (§2)
+  / `message seen` (§3).
+- **No auth on the `/upload` namespace** (§4) — anyone who can reach the
+  server can upload files, there's no participant/chat check either since
+  uploads aren't associated with a chat until you reference the resulting
+  URL in `send message`.
 
 Ask for these explicitly when you're ready to build them.
 
 ---
 
-## 5. Minimal end-to-end example
+## 6. Minimal end-to-end example
 
 ```js
 import { io } from "socket.io-client";
@@ -370,6 +580,14 @@ socket.on("user offline", ({ chatId, userId }) => {
 
 socket.on("message", (message) => {
   appendToOpenThread(message);
+  // REQUIRED so unreadCount goes back to 0 while the chat is open — see §3.
+  if (message.chat_id === currentlyOpenChatId) {
+    socket.emit("mark message seen", { chatId: message.chat_id, messageId: message.id });
+  }
+});
+
+socket.on("message seen", ({ chatId, messageIds, userId }) => {
+  messageIds.forEach((id) => markMessageAsReadInUi(id, userId));
 });
 
 // sending a message:
@@ -399,7 +617,7 @@ socket.emit("join chat room", { chatId: 5 }, (ack) => {
 
 ---
 
-## 6. Related REST endpoints (chat membership, not covered above)
+## 7. Related REST endpoints (chat membership, not covered above)
 
 The socket layer reacts to chats that already exist — chats themselves are
 created/managed over REST, under `/api/chat` (auth: `Bearer <jwt>`,
@@ -422,6 +640,7 @@ created/managed over REST, under `/api/chat` (auth: `Bearer <jwt>`,
 | `/api/chat/:id` | DELETE | Delete chat entirely |
 | `/api/chat/:chatId/messages` | GET | `?page=1&pageSize=30` — paginated history, oldest→newest per page, your own soft-deletes excluded |
 | `/api/chat/:chatId/messages/seen` | PUT | `{ messageIds[] }` — mark messages as read by you |
+| `/api/chat/messages/:messageId/uploaded` | PUT | `{ uploadingPercentage? }` (default 100) — clears `isUploading`, broadcasts `message updated` (§3) |
 | `/api/chat/messages/:messageId` | DELETE | `{ isDeleteAll? }` — delete for you only (or flag delete-for-everyone intent) |
 
 Message **creation** is socket-only (§2 `send message`) — there is no
