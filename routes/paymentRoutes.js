@@ -343,6 +343,18 @@ router.post(
   paymentController.sendPayment.bind(paymentController),
 );
 
+// requestee accepts/rejects a pending payment request; body: { walletType? } (accept only, defaults to PERSONAL)
+router.put(
+  "/request-payment/:id/accept",
+  authMiddleware,
+  paymentController.acceptPaymentRequest.bind(paymentController),
+);
+router.put(
+  "/request-payment/:id/reject",
+  authMiddleware,
+  paymentController.rejectPaymentRequest.bind(paymentController),
+);
+
 // route for admin to decrease a user's wallet balance by currency
 router.post(
   "/decrease-payment",

@@ -3,8 +3,11 @@
 Everything below reflects what's actually implemented in
 [socket/chatSocket.js](../socket/chatSocket.js),
 [socket/streamUploadSocket.js](../socket/streamUploadSocket.js),
-[services/MessageService.js](../services/MessageService.js), and
-[config/socket.js](../config/socket.js) right now.
+[services/MessageService.js](../services/MessageService.js),
+[config/socket.js](../config/socket.js), and (for the payment
+accept/reject → `message updated` trigger in §3)
+[controllers/PaymentController.js](../controllers/PaymentController.js) /
+[services/PaymentService.js](../services/PaymentService.js) right now.
 
 Status key: ✅ implemented and tested · 🚧 not built yet.
 
@@ -136,8 +139,10 @@ socket.emit(
 
     // reference attachments — id only, full record is snapshotted into
     // the response (§ "media/contact/reply/payment and friends" below):
-    paymentRequestId: 9, // must already exist — create it via the
-                         // existing payment-request endpoints first
+    paymentRequestId: 9, // must already exist — create it first via
+                         // POST /api/payment/request-payment (asking to be
+                         // paid) or POST /api/payment/create-payment
+                         // (an already-completed direct transfer)
     orderId: 482,
     addressId: 3,
     bankAccountId: 7,
@@ -281,11 +286,7 @@ that message):
   "media": {
     "type": "image",
     "mediaUrl": "https://cdn.example.com/media/img55_full.jpg",
-    "thumbnail": "https://cdn.example.com/thumbs/img55.jpg",
-    "thumbnailUrl": "https://cdn.example.com/thumbs/img55.jpg",
-    "thumbnailBlurHash": "L6PZfSi_.AyE_3t7t7R**0o#DgR4",
-    "isUploading": false,
-    "uploadingPercentage": 100
+    "thumbnailUrl": "https://cdn.example.com/thumbs/img55.jpg"
   },
   "contact": null,
   "reply": {
@@ -311,6 +312,11 @@ that message):
 }
 ```
 
+`media.type` is just `messageType` echoed back (`"image"` / `"video"` /
+`"audio"` / `"file"`) — `thumbnailBlurHash`, `isUploading`, and
+`uploadingPercentage` are **not** duplicated inside `media`; use the
+top-level fields of the same name on the message itself.
+
 `payment` (when `messageType: "payment"`) looks like:
 
 ```json
@@ -319,13 +325,32 @@ that message):
     "paymentRequestId": 9,
     "amount": "50.00",
     "currency": "USD",
-    "description": "Logo design deposit",
+    "note": "Logo design deposit",
     "status": "pending",
+    "type": "paymentRequest",
     "requesterId": 12,
     "requesteeId": 45
   }
 }
 ```
+
+- `note` is the payment's description text (renamed from the old
+  `description` key).
+- `type` is one of `"paymentSend"`, `"paymentReceived"`, or
+  `"paymentRequest"`, and **is computed per viewer** — the same underlying
+  row can format differently depending on who's asking:
+  - Created via `POST /api/payment/create-payment` (a direct,
+    already-completed transfer) → `type` is `"paymentSend"` if you
+    (`viewerUserId`) are `requesterId` (the payer), `"paymentReceived"` if
+    you're `requesteeId` (the payee). `status` is `"accepted"` from the
+    moment it's created — there's no pending state for a direct send.
+  - Created via `POST /api/payment/request-payment` (asking someone to pay
+    you) → `type` is always `"paymentRequest"`, for **both** sides, no
+    matter what `status` is. `status` starts `"pending"` and moves to
+    `"accepted"` or `"rejected"` once the requestee calls
+    `PUT /api/payment/request-payment/:id/accept` or `/reject` — see the
+    `message updated` section below for how that update reaches the chat
+    live.
 
 `order` / `address` / `bankCard` / `shortList` / `balanceSheet` are
 **reference-only snapshots** of the existing `Order` / `Address` /
@@ -338,9 +363,22 @@ model (`GET /api/payment/ledgers`), not a separate table.
 
 Broadcast to `chat-<chatId>` (`io.to()` — reaches everyone in the room,
 including the message's own sender on their other tabs, not sender-excluded
-like `message`) whenever `PUT /api/chat/messages/:messageId/uploaded` (§7)
-is called. Today this is the only thing that triggers it — there's no
-generic "edit message" flow yet.
+like `message`). There's no generic "edit message" flow yet — two specific
+things trigger it today:
+
+1. **`PUT /api/chat/messages/:messageId/uploaded`** (§7) — clears
+   `isUploading` and sets `uploadingPercentage`. Payload is the full message
+   object (§3 `message` shape above) with `isUploading` now `0` and
+   `uploadingPercentage` reflecting whatever was passed (defaults to `100`).
+2. **`PUT /api/payment/request-payment/:id/accept`** or **`/:id/reject`**
+   — whichever chat message was originally sent with that `paymentRequestId`
+   (via `send message`, §2) gets re-formatted and re-broadcast, with
+   `payment.status` now `"accepted"` or `"rejected"` (`payment.type` stays
+   `"paymentRequest"` — see the `payment` sub-object notes above). If that
+   `paymentRequestId` was never attached to any chat message (created over
+   REST but never sent via `send message`), nothing is broadcast — there's
+   no message row to update, and the REST response's own `message` field
+   comes back `null` in that case.
 
 ```js
 socket.on("message updated", (message) => {
@@ -349,10 +387,6 @@ socket.on("message updated", (message) => {
   patchMessageInThread(message);
 });
 ```
-
-The payload is the full message object (§3 `message` shape above) with
-`isUploading` now `0` and `uploadingPercentage` reflecting whatever was
-passed to the REST call (defaults to `100`).
 
 ### `message seen` ✅
 
@@ -645,6 +679,23 @@ created/managed over REST, under `/api/chat` (auth: `Bearer <jwt>`,
 
 Message **creation** is socket-only (§2 `send message`) — there is no
 `POST /api/chat/:chatId/messages`.
+
+Payment requests/sends themselves live under a separate router,
+`/api/payment` ([routes/paymentRoutes.js](../routes/paymentRoutes.js),
+[controllers/PaymentController.js](../controllers/PaymentController.js)),
+not `/api/chat` — but two of its endpoints matter here because they trigger
+`message updated` (§3) on whichever chat message references them:
+
+| Route | Method | Notes |
+|---|---|---|
+| `/api/payment/request-payment` | POST | `{ requesteeId, amount, currency, description }` — creates a pending payment request (`kind: "request"`), no chat/participant check |
+| `/api/payment/create-payment` | POST | `{ requesteeId, amount, currency, walletType, description }` — direct, already-completed transfer (`kind: "direct"`), no chat/participant check |
+| `/api/payment/request-payment/:id/accept` | PUT | `{ walletType? }` (default `PERSONAL`) — requestee only, moves funds requestee → requester, `status: "accepted"` |
+| `/api/payment/request-payment/:id/reject` | PUT | requestee only, `status: "rejected"`, no funds move |
+
+Creating a payment request/send doesn't require a chat at all — it only
+becomes visible in a chat once you separately `send message` with that
+`paymentRequestId` (§2).
 
 Every creation/add-member endpoint above triggers `joinUsersToChat`
 server-side, so already-connected sockets don't need to reconnect to start

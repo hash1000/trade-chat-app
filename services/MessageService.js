@@ -25,11 +25,7 @@ class MessageService {
     return {
       type: plain.messageType,
       mediaUrl: plain.mediaUrl,
-      thumbnail: plain.thumbnailUrl,
       thumbnailUrl: plain.thumbnailUrl,
-      thumbnailBlurHash: plain.thumbnailBlurHash,
-      isUploading: !!plain.isUploading,
-      uploadingPercentage: plain.uploadingPercentage,
     };
   }
 
@@ -58,15 +54,27 @@ class MessageService {
     };
   }
 
-  formatPayment(plain) {
+  // "direct" payments (sent via sendPayment) are already-completed transfers,
+  // so their type flips per viewer: the payer sees paymentSend, the payee
+  // sees paymentReceived. "request" payments (sendPaymentRequest) are always
+  // paymentRequest for both sides — status (pending/accepted/rejected) is
+  // what changes as the requestee acts on it.
+  formatPayment(plain, viewerUserId) {
     const p = plain.paymentRequest;
     if (!p) return null;
+    const type =
+      p.kind === "direct"
+        ? viewerUserId === p.requesterId
+          ? "paymentSend"
+          : "paymentReceived"
+        : "paymentRequest";
     return {
       paymentRequestId: p.id,
       amount: p.amount,
       currency: p.currency,
-      description: p.description,
+      note: p.description,
       status: p.status,
+      type,
       requesterId: p.requesterId,
       requesteeId: p.requesteeId,
     };
@@ -148,7 +156,7 @@ class MessageService {
       media: this.formatMedia(plain),
       contact: this.formatContact(plain),
       reply: this.formatReply(plain),
-      payment: this.formatPayment(plain),
+      payment: this.formatPayment(plain, viewerUserId),
       order: this.formatOrder(plain),
       address: this.formatAddress(plain),
       bankCard: this.formatBankCard(plain),
@@ -255,6 +263,14 @@ class MessageService {
 
   async getLatestFormatted(chatId, viewerUserId) {
     const message = await this.messageRepository.findLatestForChat(chatId);
+    if (!message) return null;
+    return this.formatMessage(message, viewerUserId);
+  }
+
+  // Used after accept/reject so the caller can broadcast the updated
+  // payment bubble into the chat room without the client re-fetching.
+  async getByPaymentRequestFormatted(paymentRequestId, viewerUserId) {
+    const message = await this.messageRepository.findByPaymentRequestId(paymentRequestId);
     if (!message) return null;
     return this.formatMessage(message, viewerUserId);
   }

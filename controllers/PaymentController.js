@@ -2,9 +2,12 @@ const sequelize = require("../config/database");
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const CurrencyService = require("../services/CurrencyService");
 const PaymentService = require("../services/PaymentService");
+const MessageService = require("../services/MessageService");
+const { getIO } = require("../config/socket");
 
 const paymentService = new PaymentService();
 const currencyService = new CurrencyService();
+const messageService = new MessageService();
 const User = require("../models/user");
 const Wallet = require("../models/wallet");
 
@@ -1149,6 +1152,50 @@ class PaymentController {
       res.json(paymentRequest);
     } catch (error) {
       res.status(500).json({ message: error.message });
+    }
+  }
+
+  // Broadcasts the payment message's new state into its chat room, mirroring
+  // the "message updated" pattern MessageController.markUploaded already uses.
+  async broadcastPaymentMessageUpdate(paymentRequestId, viewerUserId) {
+    const message = await messageService.getByPaymentRequestFormatted(paymentRequestId, viewerUserId);
+    if (!message) return null;
+    try {
+      getIO().to(`chat-${message.chat_id}`).emit("message updated", message);
+    } catch (err) {
+      console.warn("Socket.IO not initialized, skipping message-updated broadcast");
+    }
+    return message;
+  }
+
+  async acceptPaymentRequest(req, res) {
+    try {
+      const { id } = req.params;
+      const { id: userId } = req.user;
+      const { walletType } = req.body;
+
+      const paymentRequest = await paymentService.acceptPaymentRequest(id, userId, walletType);
+      const message = await this.broadcastPaymentMessageUpdate(paymentRequest.id, userId);
+
+      return res.json({ success: true, data: paymentRequest, message });
+    } catch (error) {
+      console.error("Accept payment request error:", error);
+      return res.status(error.statusCode || 500).json({ success: false, message: error.message });
+    }
+  }
+
+  async rejectPaymentRequest(req, res) {
+    try {
+      const { id } = req.params;
+      const { id: userId } = req.user;
+
+      const paymentRequest = await paymentService.rejectPaymentRequest(id, userId);
+      const message = await this.broadcastPaymentMessageUpdate(paymentRequest.id, userId);
+
+      return res.json({ success: true, data: paymentRequest, message });
+    } catch (error) {
+      console.error("Reject payment request error:", error);
+      return res.status(error.statusCode || 500).json({ success: false, message: error.message });
     }
   }
 

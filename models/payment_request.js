@@ -44,6 +44,13 @@ const PaymentRequest = sequelize.define(
       allowNull: false,
       defaultValue: "pending",
     },
+    // "direct" = created via sendPayment, transfer already happened.
+    // "request" = created via sendPaymentRequest, awaiting accept/reject.
+    kind: {
+      type: DataTypes.STRING(10),
+      allowNull: false,
+      defaultValue: "request",
+    },
   },
   {
     tableName: "payment_requests",

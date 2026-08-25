@@ -132,6 +132,7 @@ class PaymentRepository {
     currency,
     description,
     status,
+    kind,
   ) {
     const paymentRequest = await PaymentRequest.create({
       requesterId,
@@ -140,6 +141,7 @@ class PaymentRepository {
       currency:currency,
       description:description,
       status: status || "pending",
+      kind: kind || "request",
     });
 
     return PaymentRequest.findByPk(paymentRequest.id, {

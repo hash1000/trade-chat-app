@@ -90,6 +90,15 @@ class MessageRepository {
     return Message.findByPk(id, { include: this.buildDetailIncludes() });
   }
 
+  // The message that carries a given payment request, so accepting/rejecting
+  // it can push a "message updated" broadcast into the right chat room.
+  async findByPaymentRequestId(paymentRequestId) {
+    return Message.findOne({
+      where: { paymentRequestId },
+      include: this.buildDetailIncludes(),
+    });
+  }
+
   // Most recent message in a chat, full shape (not just the lastMessage
   // preview string stored on Chat). id DESC as a tiebreaker — see the
   // ordering note on findForChat below.

@@ -1135,6 +1135,8 @@ class PaymentService {
       amount,
       currency,
       description,
+      "pending",
+      "request",
     );
   }
 
@@ -1157,12 +1159,82 @@ class PaymentService {
       currency,
       description,
       "accepted",
+      "direct",
     );
 
     // Now perform the balance transfer
     await this.transferBalance(requesterId, requesteeId, walletType, amount, currency, description);
 
     return this.paymentRepository.getTransactionById(paymentRequest.id);
+  }
+
+  // Requestee accepts a pending payment request: pays the requester out of
+  // their own wallet (reverse direction from sendPayment, where the
+  // requester is the one initiating the transfer), then flips status.
+  async acceptPaymentRequest(paymentRequestId, actingUserId, walletType = "PERSONAL") {
+    const request = await PaymentRequest.findByPk(paymentRequestId);
+    if (!request) {
+      const err = new Error("Payment request not found");
+      err.statusCode = 404;
+      throw err;
+    }
+    if (request.kind !== "request") {
+      const err = new Error("This payment is not a pending request");
+      err.statusCode = 400;
+      throw err;
+    }
+    if (request.requesteeId !== actingUserId) {
+      const err = new Error("Only the requestee can accept this payment request");
+      err.statusCode = 403;
+      throw err;
+    }
+    if (request.status !== "pending") {
+      const err = new Error(`Payment request already ${request.status}`);
+      err.statusCode = 400;
+      throw err;
+    }
+
+    await this.transferBalance(
+      actingUserId,
+      request.requesterId,
+      walletType,
+      request.amount,
+      request.currency,
+      request.description,
+    );
+
+    request.status = "accepted";
+    await request.save();
+    return request;
+  }
+
+  // Requestee declines a pending payment request: no funds move, status only.
+  async rejectPaymentRequest(paymentRequestId, actingUserId) {
+    const request = await PaymentRequest.findByPk(paymentRequestId);
+    if (!request) {
+      const err = new Error("Payment request not found");
+      err.statusCode = 404;
+      throw err;
+    }
+    if (request.kind !== "request") {
+      const err = new Error("This payment is not a pending request");
+      err.statusCode = 400;
+      throw err;
+    }
+    if (request.requesteeId !== actingUserId) {
+      const err = new Error("Only the requestee can reject this payment request");
+      err.statusCode = 403;
+      throw err;
+    }
+    if (request.status !== "pending") {
+      const err = new Error(`Payment request already ${request.status}`);
+      err.statusCode = 400;
+      throw err;
+    }
+
+    request.status = "rejected";
+    await request.save();
+    return request;
   }
 
   async adminDecreasePayment(
