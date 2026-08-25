@@ -1121,10 +1121,9 @@ class PaymentService {
     return this.paymentRepository.deletePaymentType(id);
   }
 
-  // Sequelize returns createdAt/updatedAt as Date instances, which
-  // res.json() serializes to ISO strings — normalize to epoch ms, matching
-  // the created_at/updated_at convention MessageService.formatMessage
-  // already uses for chat messages.
+  // Explicitly normalize to ISO 8601 strings (what Sequelize's Date
+  // instances already serialize to via res.json(), made explicit here so
+  // the shape doesn't silently depend on the driver's default).
   formatPaymentRequest(paymentRequest) {
     if (!paymentRequest) return null;
     const plain =
@@ -1133,8 +1132,8 @@ class PaymentService {
         : paymentRequest;
     return {
       ...plain,
-      createdAt: plain.createdAt ? new Date(plain.createdAt).getTime() : null,
-      updatedAt: plain.updatedAt ? new Date(plain.updatedAt).getTime() : null,
+      createdAt: plain.createdAt ? new Date(plain.createdAt).toISOString() : null,
+      updatedAt: plain.updatedAt ? new Date(plain.updatedAt).toISOString() : null,
     };
   }
 

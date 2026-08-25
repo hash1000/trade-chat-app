@@ -51,8 +51,8 @@ class ChatService {
       lockSettings: !!plain.lockSettings,
       simpleModeOn: !!plain.simpleModeOn,
       group_last_message: plain.lastMessage,
-      created_at: plain.createdAt ? Math.floor(new Date(plain.createdAt).getTime() / 1000) : null,
-      updated_at: plain.updatedAt ? Math.floor(new Date(plain.updatedAt).getTime() / 1000) : null,
+      created_at: plain.createdAt ? new Date(plain.createdAt).toISOString() : null,
+      updated_at: plain.updatedAt ? new Date(plain.updatedAt).toISOString() : null,
       memberIds: members.map((m) => m.userId),
       group_members: members.map((m) => this.formatMember(m)),
       isFav: members.filter((m) => m.isFavourite).map((m) => m.userId),
@@ -69,7 +69,7 @@ class ChatService {
       statusMembers: members.map((m) => ({
         userId: m.userId,
         updatedAt: m.statusUpdatedAt
-          ? Math.floor(new Date(m.statusUpdatedAt).getTime() / 1000)
+          ? new Date(m.statusUpdatedAt).toISOString()
           : null,
         memberStatus: m.memberStatus,
       })),
