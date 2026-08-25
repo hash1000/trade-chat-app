@@ -1121,6 +1121,23 @@ class PaymentService {
     return this.paymentRepository.deletePaymentType(id);
   }
 
+  // Sequelize returns createdAt/updatedAt as Date instances, which
+  // res.json() serializes to ISO strings — normalize to epoch ms, matching
+  // the created_at/updated_at convention MessageService.formatMessage
+  // already uses for chat messages.
+  formatPaymentRequest(paymentRequest) {
+    if (!paymentRequest) return null;
+    const plain =
+      typeof paymentRequest.get === "function"
+        ? paymentRequest.get({ plain: true })
+        : paymentRequest;
+    return {
+      ...plain,
+      createdAt: plain.createdAt ? new Date(plain.createdAt).getTime() : null,
+      updatedAt: plain.updatedAt ? new Date(plain.updatedAt).getTime() : null,
+    };
+  }
+
   // Wallet-to-wallet transfer between two users (moved from ChatService).
   async sendPaymentRequest(requesterId, requesteeId, amount, currency, description) {
     const requester = await userRepository.getById(requesterId);

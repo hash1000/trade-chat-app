@@ -1149,7 +1149,7 @@ class PaymentController {
         description,
       );
 
-      res.json(paymentRequest);
+      res.json(paymentService.formatPaymentRequest(paymentRequest));
     } catch (error) {
       res.status(500).json({ message: error.message });
     }
@@ -1177,7 +1177,7 @@ class PaymentController {
       const paymentRequest = await paymentService.acceptPaymentRequest(id, userId, walletType);
       const message = await this.broadcastPaymentMessageUpdate(paymentRequest.id, userId);
 
-      return res.json({ success: true, data: paymentRequest, message });
+      return res.json({ success: true, data: paymentService.formatPaymentRequest(paymentRequest), message });
     } catch (error) {
       console.error("Accept payment request error:", error);
       return res.status(error.statusCode || 500).json({ success: false, message: error.message });
@@ -1192,7 +1192,7 @@ class PaymentController {
       const paymentRequest = await paymentService.rejectPaymentRequest(id, userId);
       const message = await this.broadcastPaymentMessageUpdate(paymentRequest.id, userId);
 
-      return res.json({ success: true, data: paymentRequest, message });
+      return res.json({ success: true, data: paymentService.formatPaymentRequest(paymentRequest), message });
     } catch (error) {
       console.error("Reject payment request error:", error);
       return res.status(error.statusCode || 500).json({ success: false, message: error.message });

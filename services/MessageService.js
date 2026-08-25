@@ -77,6 +77,8 @@ class MessageService {
       type,
       requesterId: p.requesterId,
       requesteeId: p.requesteeId,
+      createdAt: p.createdAt ? new Date(p.createdAt).getTime() : null,
+      updatedAt: p.updatedAt ? new Date(p.updatedAt).getTime() : null,
     };
   }
 

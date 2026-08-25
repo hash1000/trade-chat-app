@@ -1,17 +1,17 @@
 {
   "info": {
     "name": "Chat & Messages APIs",
-    "description": "Test kit for the chat feature: direct/group/service/order-combined chats, membership, favourite/archive/block, leave with admin auto-promotion, and messages (REST history/seen/delete; creation is SOCKET-ONLY, see docs/CHAT_SOCKET.md \u2014 not covered by this collection).\n\nRULES:\n- A chat has a fixed set of members (chat_members) \u2014 REST never lets you act on a chat you're not a participant of.\n- Direct/order-combined chat creation is idempotent: calling it again with the same users/orderId returns the EXISTING chat instead of duplicating.\n- Message CREATION happens over Socket.IO's \"send message\" event, not REST \u2014 this collection only covers GET history / PUT seen / DELETE (per-user soft delete). Use docs/CHAT_SOCKET.md + a socket.io-client script to actually send messages for testing reply/media/payment/mention shapes.\n- Leaving a group as the admin auto-promotes the oldest remaining member \u2014 see '4. Membership & Leave'.\n\nORDER: 1) Run 'Login (user A)' and 'Login (user B)' \u2014 tokens auto-save. 2) Set otherUserId/secondUserId in Variables to real user ids on your DB. 3) Run 'Create direct chat' \u2014 chatId auto-saves. 4) Run any other request.",
+    "description": "Test kit for the chat feature: direct/group/service/order-combined chats, membership, favourite/archive/block, leave with admin auto-promotion, messages (REST history/seen/delete; creation is SOCKET-ONLY, see docs/CHAT_SOCKET.md), and payment requests (REST create/accept/reject \u2014 '7. Payments' below).\n\nRULES:\n- A chat has a fixed set of members (chat_members) \u2014 REST never lets you act on a chat you're not a participant of.\n- Direct/order-combined chat creation is idempotent: calling it again with the same users/orderId returns the EXISTING chat instead of duplicating.\n- Message CREATION happens over Socket.IO's \"send message\" event, not REST \u2014 this collection only covers GET history / PUT seen / DELETE (per-user soft delete). Use docs/CHAT_SOCKET.md + a socket.io-client script to actually send messages for testing reply/media/payment/mention shapes.\n- Leaving a group as the admin auto-promotes the oldest remaining member \u2014 see '4. Membership & Leave'.\n- Payment requests/sends live under /api/payment, not /api/chat, and have NO chat/participant check \u2014 they only become visible in a chat once you separately emit 'send message' with the resulting paymentRequestId. Accepting/rejecting a request that IS attached to a chat message broadcasts 'message updated' into that chat (see docs/CHAT_SOCKET.md \u00a73) \u2014 see '7. Payments' below.\n\nORDER: 1) Run 'Login (user A)' and 'Login (user B)' \u2014 tokens auto-save. 2) Set otherUserId/secondUserId in Variables to real user ids on your DB. 3) Run 'Create direct chat' \u2014 chatId auto-saves. 4) Run any other request. For payment testing: 5) Run 'Create payment request' (as user A) \u2014 paymentRequestId auto-saves. 6) Emit 'send message' over the socket with { chatId, messageType: 'payment', paymentRequestId } to attach it to the chat (see docs/CHAT_SOCKET.md \u00a72). 7) Run 'Accept payment request' or 'Reject payment request' (as user B) to complete the flow.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
     {
       "key": "baseUrl",
-      "value": "http://localhost:5001/api"
+      "value": "http://167.71.209.170:5001/api"
     },
     {
-      "key": "userToken",
-      "value": ""
+      "key": "token",
+      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjIsInRva2VuVmVyc2lvbiI6MywiaWF0IjoxNzg2MDYxNTU0fQ.7xPU8NP0QyNEHuDdtPKEQG54wkEh3ek8mS_ogqJf8C4"
     }
   ],
   "item": [
@@ -542,7 +542,7 @@
                 }
               ]
             },
-            "description": "Oldest\u2192newest per page. Messages the caller has soft-deleted for themselves are excluded. 403 if the caller isn't a participant of chatId."
+            "description": "Oldest\u2192newest per page. Messages the caller has soft-deleted for themselves are excluded. 403 if the caller isn't a participant of chatId.\n\nNested attachment shapes: media is { type, mediaUrl, thumbnailUrl } (type mirrors message_type: image/video/audio/file). payment is { paymentRequestId, amount, currency, note, status, type, requesterId, requesteeId, createdAt, updatedAt } \u2014 note replaces the old description field; type is 'paymentSend'/'paymentReceived' (viewer-dependent) for a direct send via /payment/create-payment, or always 'paymentRequest' for both sides of a request via /payment/request-payment, with status moving pending -> accepted/rejected as the requestee acts on it (see '7. Payments'); createdAt/updatedAt are epoch-millisecond timestamps (updatedAt moves when accepted/rejected), same convention as the message's own created_at/updated_at."
           }
         },
         {
@@ -609,6 +609,104 @@
               "raw": "{\n  \"isDeleteAll\": false\n}"
             },
             "description": "isDeleteAll:false = hidden for the caller only, everyone else still sees it. The DB row and other users' access are unaffected."
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Payments (request/send + accept/reject)",
+      "description": "Lives under /api/payment, not /api/chat — grouped here because payment is a message attachment type (messageType: 'payment') and accept/reject broadcast 'message updated' into the chat over the socket (docs/CHAT_SOCKET.md §3). No chat/participant check on creation — a payment request/send can target any requesteeId regardless of whether you share a chat. It only shows up in a chat once you separately emit 'send message' (socket) with the resulting paymentRequestId.",
+      "item": [
+        {
+          "name": "Create payment request (ask to be paid)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.id) { pm.collectionVariables.set('paymentRequestId', json.id); console.log('paymentRequestId saved:', json.id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/payment/request-payment",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"requesteeId\": {{otherUserId}},\n  \"amount\": 50.00,\n  \"currency\": \"CNY\",\n  \"description\": \"Deposit for sample order\"\n}"
+            },
+            "description": "Caller (user A) is requesterId — asking requesteeId (user B) to pay them. Creates a payment_requests row with kind: 'request', status: 'pending'. Response is the raw PaymentRequest row (NOT wrapped in {success}), with requester/requestee user objects included. paymentRequestId auto-saves from the response's id. Attach it to a chat next via socket 'send message' with { chatId, messageType: 'payment', paymentRequestId }."
+          }
+        },
+        {
+          "name": "Send payment directly (already completed)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/payment/create-payment",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"requesteeId\": {{otherUserId}},\n  \"amount\": 50.00,\n  \"currency\": \"CNY\",\n  \"walletType\": \"PERSONAL\",\n  \"description\": \"Paid in full\"\n}"
+            },
+            "description": "Caller (user A) is requesterId and the PAYER here — immediately transfers the balance requester -> requestee via the wallet system and creates the payment_requests row with kind: 'direct', status: 'accepted' (no pending/accept step). Requires both users to already have a PERSONAL wallet in that currency (404 otherwise). Attach it to a chat the same way as a request; formatMessage will show payment.type as paymentSend/paymentReceived per viewer instead of paymentRequest, since kind is 'direct'."
+          }
+        },
+        {
+          "name": "Accept payment request",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{secondUserToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/payment/request-payment/{{paymentRequestId}}/accept",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"walletType\": \"PERSONAL\"\n}"
+            },
+            "description": "Only the requesteeId on the request (user B here) can call this, and only while status is 'pending' and kind is 'request' — 403/400 otherwise. Moves funds requestee -> requester (reverse direction from 'Send payment directly'), sets status: 'accepted'. walletType is optional, defaults to PERSONAL (it's the requestee's own wallet they're paying from). Response: { success, data: <PaymentRequest row>, message: <formatted chat message, or null if this paymentRequestId was never attached to one via 'send message'> }. If message is non-null, it was also just broadcast as 'message updated' into chat-<chatId>."
+          }
+        },
+        {
+          "name": "Reject payment request",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{secondUserToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/payment/request-payment/{{paymentRequestId}}/reject",
+            "description": "Same authorization/state rules as accept (requestee only, status must be 'pending'). No funds move — sets status: 'rejected'. Same response shape and 'message updated' broadcast behavior as accept."
           }
         }
       ]

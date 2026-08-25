@@ -329,13 +329,19 @@ top-level fields of the same name on the message itself.
     "status": "pending",
     "type": "paymentRequest",
     "requesterId": 12,
-    "requesteeId": 45
+    "requesteeId": 45,
+    "createdAt": 1798270200000,
+    "updatedAt": 1798270200000
   }
 }
 ```
 
 - `note` is the payment's description text (renamed from the old
   `description` key).
+- `createdAt`/`updatedAt` are the underlying `payment_requests` row's
+  timestamps, in epoch **milliseconds** — same convention as the message's
+  own top-level `created_at`/`updated_at`. `updatedAt` moves forward when
+  the requestee accepts/rejects (§ `message updated` below).
 - `type` is one of `"paymentSend"`, `"paymentReceived"`, or
   `"paymentRequest"`, and **is computed per viewer** — the same underlying
   row can format differently depending on who's asking:
