@@ -1179,9 +1179,18 @@ class PaymentService {
     );
 
     // Now perform the balance transfer
-    await this.transferBalance(requesterId, requesteeId, walletType, amount, currency, description);
+    const transfer = await this.transferBalance(requesterId, requesteeId, walletType, amount, currency, description);
 
-    return this.paymentRepository.getTransactionById(paymentRequest.id);
+    // paymentRequest.id is a payment_requests PK, not a transactions PK —
+    // looking it up via getTransactionById(paymentRequest.id) was pulling
+    // from the wrong table/sequence and always came back null (or, worse,
+    // an unrelated row if the ids happened to collide). Return the payment
+    // record that was actually just created instead, plus the wallet
+    // transaction group id from the transfer itself.
+    return {
+      ...this.formatPaymentRequest(paymentRequest),
+      transactionGroupId: transfer.transaction_group_id,
+    };
   }
 
   // Requestee accepts a pending payment request: pays the requester out of
