@@ -1,5 +1,5 @@
 const { Op } = require("sequelize");
-const { User, Transaction, Role, ServicePurchase, Service } = require("../models");
+const { User, Transaction, Role, ServicePurchase, Service, PaymentRequest } = require("../models");
 const sequelize = require("../config/database");
 const UserRepository = require("../repositories/UserRepository");
 const crypto = require("crypto");
@@ -257,6 +257,7 @@ class WalletService {
       receiverId = null,
       receiptId = null,
       withdrawId = null,
+      paymentRequestId = null,
       meta = {},
       performedBy = null,
     },
@@ -275,6 +276,7 @@ class WalletService {
         receiverId,
         receiptId,
         withdrawId,
+        paymentRequestId,
         meta,
         performedBy: performedBy != null ? Number(performedBy) : null,
       },
@@ -1049,6 +1051,7 @@ class WalletService {
     transaction_group_id,
     referenceType,
     referenceId,
+    status,
   } = {}) {
     const pageNum = Math.max(1, parseInt(String(page), 10) || 1);
     const limitNum = Math.min(
@@ -1138,6 +1141,17 @@ class WalletService {
             ],
           },
         ],
+      },
+      {
+        // Only ever set on rows created by sendPayment/acceptPaymentRequest
+        // (see PaymentService.transferBalance) — required: true when
+        // filtering by status turns this into an inner join, so rows with
+        // no linked payment request (most wallet activity) are excluded.
+        model: PaymentRequest,
+        as: "paymentRequest",
+        attributes: ["id", "status", "kind", "requesterId", "requesteeId"],
+        required: !!status,
+        ...(status && { where: { status } }),
       },
     ];
 

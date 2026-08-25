@@ -490,6 +490,10 @@ Order.belongsTo(Address, {
     foreignKey: "withdrawId",
     as: "withdraw",
   });
+  WalletTransaction.belongsTo(PaymentRequest, {
+    foreignKey: "paymentRequestId",
+    as: "paymentRequest",
+  });
   // FK column is `performedBy`; association alias must differ (Sequelize naming collision)
   WalletTransaction.belongsTo(User, {
     foreignKey: "performedBy",

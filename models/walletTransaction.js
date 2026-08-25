@@ -67,6 +67,12 @@ const WalletTransaction = sequelize.define(
       type: DataTypes.INTEGER,
       allowNull: true,
     },
+    // Set when this movement came from sendPayment or an accepted
+    // payment request, so it can be filtered by that request's status.
+    paymentRequestId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
     performedBy: {
       type: DataTypes.INTEGER,
       allowNull: true,
@@ -85,6 +91,7 @@ const WalletTransaction = sequelize.define(
       { fields: ["orderId"] },
       { fields: ["receiptId"] },
       { fields: ["withdrawId"] },
+      { fields: ["paymentRequestId"] },
       { fields: ["referenceType", "referenceId"] },  // ← lookup both together
       { fields: ["createdAt"] },
       { fields: ["walletId", "createdAt"] },

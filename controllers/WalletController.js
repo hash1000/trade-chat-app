@@ -10,6 +10,9 @@ const ALLOWED_REFERENCE_TYPES = new Set([
   "PRODUCT_SHOP_ORDER_CHARGE",
   "PRODUCT_SHOP_ORDER_REFUND",
 ]); // extend as you add more
+// payment_requests.status values — filters wallet transactions down to
+// ones tied to a payment request in that state (see PaymentRequest.status).
+const ALLOWED_PAYMENT_STATUSES = new Set(["pending", "accepted", "rejected"]);
 
 class WalletController {
   // controllers/WalletController.js — replace both duplicate methods with these two
@@ -359,6 +362,7 @@ async listWalletTransactions(req, res) {
       orderId,
       startDate,
       endDate,
+      status,
       page  = 1,
       limit = 20,
     } = req.query;
@@ -375,6 +379,11 @@ async listWalletTransactions(req, res) {
       return res.status(400).json({ success: false, error: `Invalid referenceType. Allowed: ${[...ALLOWED_REFERENCE_TYPES].join(", ")}.` });
     }
 
+    const normalizedStatus = status ? String(status).toLowerCase() : undefined;
+    if (normalizedStatus && !ALLOWED_PAYMENT_STATUSES.has(normalizedStatus)) {
+      return res.status(400).json({ success: false, error: `Invalid status. Allowed: ${[...ALLOWED_PAYMENT_STATUSES].join(", ")}.` });
+    }
+
     const result = await walletService.listWalletTransactions({
       page,
       limit,
@@ -389,6 +398,7 @@ async listWalletTransactions(req, res) {
       orderId,
       startDate,
       endDate,
+      status: normalizedStatus,
     });
 
     return res.status(200).json({
@@ -423,6 +433,7 @@ async listWalletMyTransactions(req, res) {
       orderId,
       startDate,
       endDate,
+      status,
       page  = 1,
       limit = 20,
     } = req.query;
@@ -439,6 +450,11 @@ async listWalletMyTransactions(req, res) {
       return res.status(400).json({ success: false, error: `Invalid referenceType. Allowed: ${[...ALLOWED_REFERENCE_TYPES].join(", ")}.` });
     }
 
+    const normalizedStatus = status ? String(status).toLowerCase() : undefined;
+    if (normalizedStatus && !ALLOWED_PAYMENT_STATUSES.has(normalizedStatus)) {
+      return res.status(400).json({ success: false, error: `Invalid status. Allowed: ${[...ALLOWED_PAYMENT_STATUSES].join(", ")}.` });
+    }
+
     const result = await walletService.listWalletTransactions({
       page,
       limit,
@@ -453,6 +469,7 @@ async listWalletMyTransactions(req, res) {
       orderId,
       startDate,
       endDate,
+      status: normalizedStatus,
     });
 
     return res.status(200).json({

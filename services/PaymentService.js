@@ -1179,7 +1179,7 @@ class PaymentService {
     );
 
     // Now perform the balance transfer
-    const transfer = await this.transferBalance(requesterId, requesteeId, walletType, amount, currency, description);
+    const transfer = await this.transferBalance(requesterId, requesteeId, walletType, amount, currency, description, paymentRequest.id);
 
     // paymentRequest.id is a payment_requests PK, not a transactions PK —
     // looking it up via getTransactionById(paymentRequest.id) was pulling
@@ -1226,6 +1226,7 @@ class PaymentService {
       request.amount,
       request.currency,
       request.description,
+      request.id,
     );
 
     request.status = "accepted";
@@ -1289,7 +1290,7 @@ class PaymentService {
     });
   }
 
-  async transferBalance(fromUserId, toUserId, walletType, amount, currency, description) {
+  async transferBalance(fromUserId, toUserId, walletType, amount, currency, description, paymentRequestId = null) {
     const t = await sequelize.transaction();
     try {
       const fromId = Number(fromUserId);
@@ -1362,6 +1363,7 @@ class PaymentService {
             currency: normalizedCurrency,
             description: description,
             receiptId: null,
+            paymentRequestId,
             meta: {
               source: "admin_deposit_self",
               balanceBefore: senderAvailableBalance,
@@ -1396,6 +1398,7 @@ class PaymentService {
           currency: normalizedCurrency,
           description: description,
           receiptId: null,
+          paymentRequestId,
           meta: {
             source: "transfer_out",
             toUser: toId,
@@ -1422,6 +1425,7 @@ class PaymentService {
           currency: normalizedCurrency,
           description: description,
           receiptId: null,
+          paymentRequestId,
           meta: {
             source: "transfer_in",
             fromUser: fromId,
