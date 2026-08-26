@@ -183,6 +183,22 @@ class MessageRepository {
     return row;
   }
 
+  // Soft-deletes every existing message in a chat for one user only — used
+  // when the chat itself is deleted "for me" (see ChatService.deleteChatForUser).
+  // isDeleteAll: false because this only ever hides messages for THIS user,
+  // same meaning the flag already has on the single-message delete endpoint.
+  // ignoreDuplicates skips messages this user already deleted individually
+  // (the unique (messageId, userId) index on message_deletes would otherwise
+  // reject them).
+  async markAllDeletedForChat(chatId, userId) {
+    const messages = await Message.findAll({ where: { chatId }, attributes: ["id"] });
+    if (messages.length === 0) return;
+    await MessageDelete.bulkCreate(
+      messages.map((m) => ({ messageId: m.id, userId, isDeleteAll: false })),
+      { ignoreDuplicates: true }
+    );
+  }
+
   async setUploaded(messageId, uploadingPercentage = 100) {
     const [count] = await Message.update(
       { isUploading: false, uploadingPercentage },

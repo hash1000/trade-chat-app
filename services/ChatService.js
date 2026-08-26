@@ -1,19 +1,58 @@
 // services/ChatService.js
 const sequelize = require("../config/database");
 const ChatRepository = require("../repositories/ChatRepository");
-const { joinUsersToChat } = require("../config/socket");
+const MessageRepository = require("../repositories/MessageRepository");
+const FriendsRepository = require("../repositories/FriendsRepository");
+const { joinUsersToChat, getIO } = require("../config/socket");
 
 class ChatService {
   constructor() {
     this.chatRepository = new ChatRepository();
+    this.messageRepository = new MessageRepository();
+    this.friendsRepository = new FriendsRepository();
+  }
+
+  // Everything the caller needs to decide "start a chat" vs "open existing"
+  // before hitting POST /chat/direct — friendship is one-directional (only
+  // my own added-them entry counts, see FriendsRepository.get), and hasChat
+  // only looks at a 1:1 direct chat (type "chat"), not groups/service/order
+  // threads the two of them might also share.
+  async getRelationship(userId, otherUserId) {
+    const [friendRow, existingChat] = await Promise.all([
+      this.friendsRepository.get(userId, otherUserId),
+      this.chatRepository.findExistingDirectChat(userId, otherUserId),
+    ]);
+
+    return {
+      userId: otherUserId,
+      isFriend: !!friendRow,
+      hasChat: !!existingChat,
+      chatId: existingChat ? existingChat.id : null,
+    };
   }
 
   // Moves already-connected sockets for these members into the new
   // chat-<id> room immediately — otherwise they'd only pick it up on
   // their next reconnect (chatSocket.js auto-joins at connect time only).
-  notifyNewChat(chat) {
+  // Also emits "new chat" to every OTHER member's personal room
+  // (user-<id>) — the creator already has the chat from their own REST
+  // response, so this is the only way anyone else finds out one exists
+  // without polling GET /api/chat.
+  notifyNewChat(chat, creatorId) {
     const memberIds = (chat.members || []).map((m) => m.userId);
     joinUsersToChat(memberIds, chat.id);
+
+    const otherMemberIds = memberIds.filter((id) => id !== creatorId);
+    if (otherMemberIds.length === 0) return;
+
+    try {
+      const io = getIO();
+      otherMemberIds.forEach((userId) => {
+        io.to(`user-${userId}`).emit("new chat", this.formatChat(chat, userId));
+      });
+    } catch (err) {
+      console.warn("Socket.IO not initialized, skipping new-chat broadcast");
+    }
   }
 
   // --- response shaping -----------------------------------------------
@@ -141,7 +180,7 @@ class ChatService {
 
     const chat = await this.chatRepository.create({ type: "chat" }, [userAId, userBId]);
     const fullChat = await this.chatRepository.findByPk(chat.id);
-    this.notifyNewChat(fullChat);
+    this.notifyNewChat(fullChat, userAId);
     return fullChat;
   }
 
@@ -158,7 +197,7 @@ class ChatService {
       allMemberIds
     );
     const fullChat = await this.chatRepository.findByPk(chat.id);
-    this.notifyNewChat(fullChat);
+    this.notifyNewChat(fullChat, adminId);
     return fullChat;
   }
 
@@ -178,7 +217,7 @@ class ChatService {
       return chat;
     });
     const fullChat = await this.chatRepository.findByPk(chat.id);
-    this.notifyNewChat(fullChat);
+    this.notifyNewChat(fullChat, customerId);
     return fullChat;
   }
 
@@ -207,7 +246,7 @@ class ChatService {
       return chat;
     });
     const fullChat = await this.chatRepository.findByPk(chat.id);
-    this.notifyNewChat(fullChat);
+    this.notifyNewChat(fullChat, customerId);
     return fullChat;
   }
 
@@ -306,8 +345,23 @@ class ChatService {
     return this.chatRepository.updateChat(chatId, allowed);
   }
 
-  async deleteChat(chatId) {
-    return this.chatRepository.deleteChat(chatId);
+  // Soft, per-caller delete: hides the chat from the caller's own list and
+  // clears their own message history for it — the other participant(s)
+  // keep the chat and every message exactly as before, this never touches
+  // their data. A later message from them clears this again (see
+  // MessageService.sendMessage -> ChatRepository.clearDeleteAllForOthers),
+  // so the chat comes back into the caller's list with their old history
+  // still hidden but that new message (and any after it) visible.
+  async deleteChatForUser(chatId, userId) {
+    const isParticipant = await this.chatRepository.isParticipant(chatId, userId);
+    if (!isParticipant) {
+      const err = new Error("Not a participant of this chat");
+      err.statusCode = 403;
+      throw err;
+    }
+
+    await this.chatRepository.updateMemberState(chatId, userId, { isDeleteAll: true });
+    await this.messageRepository.markAllDeletedForChat(chatId, userId);
   }
 }
 

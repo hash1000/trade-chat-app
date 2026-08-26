@@ -10,6 +10,10 @@ const messageController = new MessageController();
 // List the caller's chats (add ?archived=true for the archived list).
 router.get("/", authMiddleware, chatController.list.bind(chatController));
 
+// Is this user my friend / do we already have a 1:1 chat (and its id).
+// Must stay above "/:id" — otherwise "relationship" would be swallowed as :id.
+router.get("/relationship/:userId", authMiddleware, chatController.getRelationship.bind(chatController));
+
 // Fetch a single chat/group by id.
 router.get("/:id", authMiddleware, chatController.getById.bind(chatController));
 

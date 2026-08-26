@@ -3,6 +3,29 @@ const ChatService = require("../services/ChatService");
 const chatService = new ChatService();
 
 class ChatController {
+  // GET /api/chat/relationship/:userId — "is this user my friend, do we
+  // already have a 1:1 chat" — the two signals a client needs before
+  // deciding whether to show "Add friend" / "Message" / "Open chat".
+  async getRelationship(req, res) {
+    try {
+      const { id: userId } = req.user;
+      const otherUserId = Number(req.params.userId);
+
+      if (!Number.isInteger(otherUserId) || otherUserId <= 0) {
+        return res.status(400).json({ success: false, error: "Invalid userId." });
+      }
+
+      const data = await chatService.getRelationship(userId, otherUserId);
+      return res.status(200).json({ success: true, data });
+    } catch (error) {
+      console.error("ChatController.getRelationship error:", error);
+      return res.status(500).json({
+        success: false,
+        error: "Server error. Please try again later.",
+      });
+    }
+  }
+
   async list(req, res) {
     try {
       const { id: userId } = req.user;
@@ -321,13 +344,20 @@ class ChatController {
     }
   }
 
+  // Soft, per-caller delete — see ChatService.deleteChatForUser. Only ever
+  // affects the caller's own membership row and their own message history;
+  // the other participant(s) are completely unaffected.
   async remove(req, res) {
     try {
       const { id } = req.params;
-      await chatService.deleteChat(id);
+      const { id: userId } = req.user;
+      await chatService.deleteChatForUser(id, userId);
       return res.status(200).json({ success: true });
     } catch (error) {
       console.error("ChatController.remove error:", error);
+      if (error.statusCode === 403) {
+        return res.status(403).json({ success: false, error: error.message });
+      }
       return res.status(500).json({
         success: false,
         error: "Server error. Please try again later.",

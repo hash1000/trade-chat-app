@@ -1,6 +1,5 @@
 // repositories/ChatRepository.js
 const { Op } = require("sequelize");
-const sequelize = require("../config/database");
 const {
   Chat,
   ChatMember,
@@ -150,7 +149,11 @@ class ChatRepository {
 
   async findAllForUser(userId, { archived = false } = {}) {
     const memberships = await ChatMember.findAll({
-      where: { userId, isArchived: archived },
+      // isDeleteAll: excludes chats this user deleted "for me" (see
+      // ChatService.deleteChatForUser) — cleared again the moment the other
+      // participant sends a new message (MessageService.sendMessage), which
+      // is what brings the chat back into this list.
+      where: { userId, isArchived: archived, isDeleteAll: false },
       include: [
         {
           model: Chat,
@@ -248,6 +251,17 @@ class ChatRepository {
     });
   }
 
+  // Un-hides this chat for every OTHER member who'd previously deleted it
+  // "for me" — a new incoming message revives it back into their list. Their
+  // already-soft-deleted message history stays hidden; only this message
+  // (and any after it) becomes visible again.
+  async clearDeleteAllForOthers(chatId, excludeUserId) {
+    await ChatMember.update(
+      { isDeleteAll: false },
+      { where: { chatId, userId: { [Op.ne]: excludeUserId }, isDeleteAll: true } }
+    );
+  }
+
   // Other participants for a chat (self excluded), with their current
   // unreadCount — used to fan out push notifications on "send message".
   // Call after incrementUnreadForOthers() so the count is already current.
@@ -276,13 +290,6 @@ class ChatRepository {
     return Chat.findByPk(chatId, { transaction: t });
   }
 
-  async deleteChat(chatId) {
-    return sequelize.transaction(async (t) => {
-      await ChatService.destroy({ where: { chatId }, transaction: t });
-      await ChatMember.destroy({ where: { chatId }, transaction: t });
-      await Chat.destroy({ where: { id: chatId }, transaction: t });
-    });
-  }
 }
 
 module.exports = ChatRepository;
