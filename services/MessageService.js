@@ -1,11 +1,13 @@
 // services/MessageService.js
 const MessageRepository = require("../repositories/MessageRepository");
 const ChatRepository = require("../repositories/ChatRepository");
+const NotificationService = require("./NotificationService");
 
 class MessageService {
   constructor() {
     this.messageRepository = new MessageRepository();
     this.chatRepository = new ChatRepository();
+    this.notificationService = new NotificationService();
   }
 
   formatUserRef(user) {
@@ -212,7 +214,54 @@ class MessageService {
     await this.chatRepository.setLastMessage(chatId, this.previewText(message));
     await this.chatRepository.incrementUnreadForOthers(chatId, senderId);
 
+    // Fire-and-forget — never blocks or fails the send itself. Skipped for
+    // duplicate localId retries by the caller (see chatSocket.js), same as
+    // the "message" broadcast.
+    this.notifyNewMessage(chatId, senderId, message).catch((err) =>
+      console.error("notifyNewMessage error:", err.message)
+    );
+
     return { message, isDuplicate: false };
+  }
+
+  // Pushes a notification (DB row + best-effort FCM) to every other chat
+  // participant. NotificationService.notifyUser never throws, but this is
+  // still wrapped by the caller as a belt-and-suspenders fire-and-forget.
+  async notifyNewMessage(chatId, senderId, message) {
+    // Called after incrementUnreadForOthers() in sendMessage(), so each
+    // member's unreadCount here already reflects this new message.
+    const recipients = await this.chatRepository.getOtherMembers(chatId, senderId);
+    if (recipients.length === 0) return;
+
+    const sender = message.sender || {};
+    const senderName =
+      [sender.firstName, sender.lastName].filter(Boolean).join(" ") ||
+      sender.username ||
+      "Someone";
+    const preview = this.previewText(message);
+
+    await Promise.all(
+      recipients.map(({ userId, unreadCount }) =>
+        this.notificationService.notifyUser({
+          userId,
+          actorId: senderId,
+          type: "NEW_MESSAGE",
+          title: senderName,
+          message: preview,
+          entityType: "CHAT",
+          entityId: chatId,
+          // Full message (viewer-specific — e.g. payment.type/isDeletedForViewer
+          // depend on who's looking) plus this recipient's own up-to-date
+          // unread count for the chat, so the client can open straight into
+          // the thread and refresh its badge without a round-trip.
+          data: {
+            chatId,
+            unreadCount,
+            message: this.formatMessage(message, userId),
+          },
+        })
+      )
+    );
   }
 
   previewText(message) {

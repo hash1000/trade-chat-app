@@ -248,6 +248,17 @@ class ChatRepository {
     });
   }
 
+  // Other participants for a chat (self excluded), with their current
+  // unreadCount — used to fan out push notifications on "send message".
+  // Call after incrementUnreadForOthers() so the count is already current.
+  async getOtherMembers(chatId, excludeUserId) {
+    const members = await ChatMember.findAll({
+      where: { chatId, userId: { [Op.ne]: excludeUserId } },
+      attributes: ["userId", "unreadCount"],
+    });
+    return members.map((m) => ({ userId: m.userId, unreadCount: m.unreadCount }));
+  }
+
   async resetUnread(chatId, userId) {
     return ChatMember.update(
       { unreadCount: 0, isMention: false, lastReadAt: new Date() },
