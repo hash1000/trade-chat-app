@@ -220,6 +220,15 @@ class MessageRepository {
     return this.findByPk(messageId);
   }
 
+  async updateText(messageId, message) {
+    const [count] = await Message.update(
+      { message, isEdit: true },
+      { where: { id: messageId } }
+    );
+    if (count === 0) return null;
+    return this.findByPk(messageId);
+  }
+
   async getUnreadCountForUser(chatId, userId, lastReadAt) {
     return Message.count({
       where: {

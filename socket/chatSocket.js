@@ -202,6 +202,35 @@ function initChatSocket(io) {
       }
     });
 
+    // Client edits the text of their own message. Text-only — media/contact/
+    // payment/reference messages have no editable caption, so the type check
+    // lives in MessageService.editMessage. Ownership check doubles as the
+    // participant check: only a chat member could have sent it originally.
+    socket.on("edit message", async (payload, callback) => {
+      const ack = typeof callback === "function" ? callback : () => {};
+      const messageId = Number(payload && payload.messageId);
+      const text = payload && typeof payload.message === "string" ? payload.message.trim() : "";
+
+      if (!Number.isInteger(messageId) || messageId <= 0 || !text) {
+        return ack({ error: "messageId and message are required" });
+      }
+
+      try {
+        const updated = await messageService.editMessage(messageId, socket.userId, text);
+        const formatted = messageService.formatMessage(updated, socket.userId);
+
+        ack({ message: formatted });
+
+        // io.to() (not socket.to()) — same "message updated" convention as
+        // markUploaded/payment accept-reject: reaches the editor's own other
+        // tabs too, not just other participants.
+        io.to(`chat-${formatted.chat_id}`).emit("message updated", formatted);
+      } catch (err) {
+        console.error("edit message error:", err);
+        ack({ error: err.message || "Failed to edit message" });
+      }
+    });
+
     // Client explicitly marks message(s) as read by them — the frontend
     // decides when that's true (e.g. scrolled into view), there's no
     // server-side auto-detection based on room membership. Accepts either

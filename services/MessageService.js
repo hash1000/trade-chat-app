@@ -310,6 +310,36 @@ class MessageService {
     return this.messageRepository.setUploaded(messageId, uploadingPercentage);
   }
 
+  // Text messages only — media/contact/payment/reference messages carry no
+  // editable "message" body of their own (a caption isn't supported), so
+  // editing them isn't a meaningful operation. Use delete-for-me instead.
+  async editMessage(messageId, userId, newText) {
+    const message = await this.messageRepository.findByPk(messageId);
+    if (!message) {
+      const err = new Error("Message not found.");
+      err.statusCode = 404;
+      throw err;
+    }
+    if (message.senderId !== userId) {
+      const err = new Error("You can only edit your own messages.");
+      err.statusCode = 403;
+      throw err;
+    }
+    if (message.messageType !== "text") {
+      const err = new Error("Only text messages can be edited.");
+      err.statusCode = 400;
+      throw err;
+    }
+    const text = (newText || "").trim();
+    if (!text) {
+      const err = new Error("message is required.");
+      err.statusCode = 400;
+      throw err;
+    }
+
+    return this.messageRepository.updateText(messageId, text);
+  }
+
   async getByIdFormatted(messageId, viewerUserId) {
     const message = await this.messageRepository.findByPk(messageId);
     if (!message) return null;
