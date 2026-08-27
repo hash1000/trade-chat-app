@@ -257,6 +257,41 @@ function initChatSocket(io) {
       }
     });
 
+    // Client deletes a message either "for me" (hides it only from their
+    // own history/devices — default) or "for everyone" via isDeleteAll:true,
+    // a WhatsApp-style recall restricted to the sender that hides it from
+    // every participant at once. Ownership/participant checks live in
+    // MessageService (deleteForMe / deleteForEveryone), same split REST uses.
+    socket.on("delete message", async (payload, callback) => {
+      const ack = typeof callback === "function" ? callback : () => {};
+      const messageId = Number(payload && payload.messageId);
+      const isDeleteAll = Boolean(payload && payload.isDeleteAll);
+
+      if (!Number.isInteger(messageId) || messageId <= 0) {
+        return ack({ error: "messageId is required" });
+      }
+
+      try {
+        const formatted = isDeleteAll
+          ? await messageService.deleteForEveryone(messageId, socket.userId)
+          : await messageService.deleteForMe(messageId, socket.userId);
+
+        ack({ message: formatted });
+
+        if (isDeleteAll) {
+          // Recalled — everyone in the room just lost this message.
+          io.to(`chat-${formatted.chat_id}`).emit("message deleted", formatted);
+        } else {
+          // Hidden for this user only — sync their OTHER tabs/devices;
+          // nobody else in the chat is affected.
+          io.to(`user-${socket.userId}`).emit("message deleted", formatted);
+        }
+      } catch (err) {
+        console.error("delete message error:", err);
+        ack({ error: err.message || "Failed to delete message" });
+      }
+    });
+
     // Client explicitly marks message(s) as read by them — the frontend
     // decides when that's true (e.g. scrolled into view), there's no
     // server-side auto-detection based on room membership. Accepts either

@@ -273,6 +273,16 @@ class ChatRepository {
     return members.map((m) => ({ userId: m.userId, unreadCount: m.unreadCount }));
   }
 
+  // Every member's userId for a chat (self included) — used to fan out
+  // "delete for everyone" (recall) rows across all participants at once.
+  async getMemberIds(chatId) {
+    const members = await ChatMember.findAll({
+      where: { chatId },
+      attributes: ["userId"],
+    });
+    return members.map((m) => m.userId);
+  }
+
   async resetUnread(chatId, userId) {
     return ChatMember.update(
       { unreadCount: 0, isMention: false, lastReadAt: new Date() },

@@ -83,19 +83,35 @@ class MessageController {
   }
 
   // DELETE /api/chat/messages/:messageId  { isDeleteAll?: boolean }
+  // isDeleteAll:true is "delete for everyone" (recall, sender-only) — same
+  // rules as the "delete message" socket event, see MessageService.
   async deleteForMe(req, res) {
     try {
       const { messageId } = req.params;
       const { id: userId } = req.user;
       const { isDeleteAll } = req.body;
 
-      await messageService.deleteForMe(messageId, userId, !!isDeleteAll);
-      return res.status(200).json({ success: true });
+      const formatted = isDeleteAll
+        ? await messageService.deleteForEveryone(messageId, userId)
+        : await messageService.deleteForMe(messageId, userId);
+
+      try {
+        // isDeleteAll: broadcast to the whole room, every participant just
+        // lost this message. Otherwise: only this user's own other tabs/
+        // devices need to know — nobody else's view changed.
+        const room = isDeleteAll ? `chat-${formatted.chat_id}` : `user-${userId}`;
+        getIO().to(room).emit("message deleted", formatted);
+      } catch (err) {
+        console.warn("Socket.IO not initialized, skipping message-deleted broadcast");
+      }
+
+      return res.status(200).json({ success: true, data: formatted });
     } catch (error) {
       console.error("MessageController.deleteForMe error:", error);
-      return res.status(500).json({
+      const statusCode = error.statusCode || 500;
+      return res.status(statusCode).json({
         success: false,
-        error: "Server error. Please try again later.",
+        error: statusCode === 500 ? "Server error. Please try again later." : error.message,
       });
     }
   }

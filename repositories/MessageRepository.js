@@ -221,16 +221,26 @@ class MessageRepository {
     );
   }
 
-  async markDeleted(messageId, userId, isDeleteAll = false) {
-    const [row] = await MessageDelete.findOrCreate({
+  // "Delete for me" — hides the message from just this one user. A single
+  // row; everyone else's view is untouched.
+  async markDeletedForMe(messageId, userId) {
+    await MessageDelete.findOrCreate({
       where: { messageId, userId },
-      defaults: { messageId, userId, isDeleteAll },
+      defaults: { messageId, userId, isDeleteAll: false },
     });
-    if (row.isDeleteAll !== isDeleteAll) {
-      row.isDeleteAll = isDeleteAll;
-      await row.save();
-    }
-    return row;
+  }
+
+  // "Delete for everyone" (recall) — one row per chat member, so the
+  // message disappears from every participant's history at once, not just
+  // the caller's. ignoreDuplicates skips anyone who'd already deleted it
+  // for themselves individually (the unique (messageId, userId) index would
+  // otherwise reject them) — they're already hidden from it either way.
+  async markDeletedForAll(messageId, memberUserIds) {
+    if (memberUserIds.length === 0) return;
+    await MessageDelete.bulkCreate(
+      memberUserIds.map((userId) => ({ messageId, userId, isDeleteAll: true })),
+      { ignoreDuplicates: true }
+    );
   }
 
   // Soft-deletes every existing message in a chat for one user only — used

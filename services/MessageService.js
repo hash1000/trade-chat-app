@@ -169,7 +169,12 @@ class MessageService {
 
       mention_members: mentions.map((m) => this.formatUserRef(m.user)),
       seenMessagePersons: reads.map((r) => r.userId),
-      deleteMessagePersonsIds: deletes.map((d) => ({ userId: d.userId, isDeleteAll: d.isDeleteAll ? 1 : 0 })),
+      // Flat list of userIds this message is currently hidden from. "Delete
+      // for me" adds just the caller's own id; "delete for everyone" adds
+      // every chat member's id at once (see deleteForEveryone), so a client
+      // can tell "recalled for all" apart from "I deleted it locally" by
+      // comparing this list's length against the chat's member count.
+      deleteMessagePersonsIds: deletes.map((d) => d.userId),
 
       isDeletedForViewer: deletes.some((d) => d.userId === viewerUserId),
     };
@@ -302,8 +307,47 @@ class MessageService {
     await this.messageRepository.markSeen(messageIds, userId);
   }
 
-  async deleteForMe(messageId, userId, isDeleteAll = false) {
-    return this.messageRepository.markDeleted(messageId, userId, isDeleteAll);
+  // "Delete for me" — any participant can hide a message from just their
+  // own history/devices, including ones they didn't send. Participant check
+  // lives here (not the transport layer) so REST and the "delete message"
+  // socket event enforce it identically.
+  async deleteForMe(messageId, userId) {
+    const message = await this.messageRepository.findByPk(messageId);
+    if (!message) {
+      const err = new Error("Message not found.");
+      err.statusCode = 404;
+      throw err;
+    }
+    if (!(await this.chatRepository.isParticipant(message.chatId, userId))) {
+      const err = new Error("Not a participant of this chat.");
+      err.statusCode = 403;
+      throw err;
+    }
+
+    await this.messageRepository.markDeletedForMe(messageId, userId);
+    return this.getByIdFormatted(messageId, userId);
+  }
+
+  // "Delete for everyone" (recall) — sender-only, same ownership rule as
+  // editMessage. Fans a delete row out to every chat member at once, so the
+  // message disappears from everyone's history immediately instead of only
+  // the caller's — WhatsApp/Telegram-style recall.
+  async deleteForEveryone(messageId, userId) {
+    const message = await this.messageRepository.findByPk(messageId);
+    if (!message) {
+      const err = new Error("Message not found.");
+      err.statusCode = 404;
+      throw err;
+    }
+    if (message.senderId !== userId) {
+      const err = new Error("You can only delete your own messages for everyone.");
+      err.statusCode = 403;
+      throw err;
+    }
+
+    const memberIds = await this.chatRepository.getMemberIds(message.chatId);
+    await this.messageRepository.markDeletedForAll(messageId, memberIds);
+    return this.getByIdFormatted(messageId, userId);
   }
 
   async markUploaded(messageId, uploadingPercentage = 100) {
