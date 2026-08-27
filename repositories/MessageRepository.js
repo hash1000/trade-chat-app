@@ -34,25 +34,52 @@ class MessageRepository {
         attributes: ["id", "message", "messageType", "senderId"],
         include: [{ model: User, as: "sender", attributes: ["id", "firstName", "lastName"] }],
       },
-      { model: PaymentRequest, as: "paymentRequest" },
+      {
+        model: PaymentRequest,
+        as: "paymentRequest",
+        // Only what formatPayment() reads — the table also carries wallet/
+        // transaction bookkeeping columns nothing here needs.
+        attributes: [
+          "id", "amount", "currency", "description", "status", "kind",
+          "requesterId", "requesteeId", "createdAt", "updatedAt",
+        ],
+      },
       { model: Order, as: "order", attributes: ["id", "status"] },
-      { model: Address, as: "address" },
-      { model: BankAccount, as: "bankAccount" },
-      { model: ShortList, as: "shortList" },
-      { model: Ledger, as: "balanceSheet" },
+      {
+        model: Address,
+        as: "address",
+        attributes: ["id", "companyName", "firstName", "lastName", "country", "city", "street", "postalCode"],
+      },
+      {
+        model: BankAccount,
+        as: "bankAccount",
+        attributes: ["id", "accountName", "bank_name", "iban", "swift_code", "accountNo", "accountCurrency"],
+      },
+      { model: ShortList, as: "shortList", attributes: ["id", "title", "type", "description"] },
+      { model: Ledger, as: "balanceSheet", attributes: ["id", "title", "description", "archived"] },
+      // separate: true — reads/deletes/mentions are all hasMany on Message.
+      // Joining 3+ hasMany associations into one query multiplies rows
+      // (cartesian product: N reads x M deletes x K mentions per message),
+      // which Sequelize then has to deduplicate in JS after transferring
+      // every combination over the wire. separate:true instead issues one
+      // extra lightweight "WHERE messageId IN (...)" query per association,
+      // which is far cheaper for a page of 30-50 messages in an active chat.
       {
         model: MessageRead,
         as: "reads",
         attributes: ["userId", "seenAt"],
+        separate: true,
       },
       {
         model: MessageDelete,
         as: "deletes",
         attributes: ["userId", "isDeleteAll"],
+        separate: true,
       },
       {
         model: MessageMention,
         as: "mentions",
+        separate: true,
         include: [{ model: User, as: "user", attributes: USER_ATTRIBUTES }],
       },
     ];
@@ -125,6 +152,7 @@ class MessageRepository {
         where: { userId: excludeDeletedFor },
         include: [{ model: Message, as: "message", attributes: ["chatId"], where: { chatId } }],
         attributes: ["messageId"],
+        raw: true,
       });
       excludeIds = deletedRows.map((r) => r.messageId);
     }
@@ -134,20 +162,30 @@ class MessageRepository {
       where.id = { [Op.notIn]: excludeIds };
     }
 
-    const { count, rows } = await Message.findAndCountAll({
-      where,
-      include: this.buildDetailIncludes(),
-      // id as a tiebreaker: createdAt is a DATETIME (second precision), so
-      // two messages sent within the same second would otherwise sort
-      // non-deterministically.
-      order: [
-        ["createdAt", "DESC"],
-        ["id", "DESC"],
-      ],
-      limit: pageSize,
-      offset,
-      distinct: true,
-    });
+    // id as a tiebreaker: createdAt is a DATETIME (second precision), so two
+    // messages sent within the same second would otherwise sort
+    // non-deterministically.
+    const order = [
+      ["createdAt", "DESC"],
+      ["id", "DESC"],
+    ];
+
+    // Plain Message.count() (no includes) run alongside the detailed page
+    // fetch, instead of findAndCountAll's combined query — now that
+    // buildDetailIncludes() has no hasMany joins left (separate: true on
+    // reads/deletes/mentions), there's nothing left that could multiply
+    // rows, so a distinct-aware combined count buys nothing but still costs
+    // an extra JOIN plan on every call.
+    const [count, rows] = await Promise.all([
+      Message.count({ where }),
+      Message.findAll({
+        where,
+        include: this.buildDetailIncludes(),
+        order,
+        limit: pageSize,
+        offset,
+      }),
+    ]);
 
     return {
       total: count,

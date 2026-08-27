@@ -138,6 +138,32 @@ function initChatSocket(io) {
       }
     });
 
+    // Same data/shape as GET /api/chat/:chatId/messages (MessageService.
+    // getHistory) — lets the client fetch a page of history without a
+    // separate REST round-trip, e.g. right after "join chat room".
+    socket.on("get messages", async (payload, callback) => {
+      const ack = typeof callback === "function" ? callback : () => {};
+      const chatId = Number(payload && payload.chatId);
+      const page = Math.max(1, parseInt(payload && payload.page, 10) || 1);
+      const pageSize = Math.min(100, Math.max(1, parseInt(payload && payload.pageSize, 10) || 30));
+
+      if (!Number.isInteger(chatId) || chatId <= 0) {
+        return ack({ error: "chatId is required" });
+      }
+
+      try {
+        if (!(await chatRepository.isParticipant(chatId, socket.userId))) {
+          return ack({ error: "Not a participant of this chat" });
+        }
+
+        const result = await messageService.getHistory(chatId, socket.userId, { page, pageSize });
+        ack(result);
+      } catch (err) {
+        console.error("get messages error:", err);
+        ack({ error: "Failed to fetch messages" });
+      }
+    });
+
     socket.on("leave chat room", (payload, callback) => {
       const chatId = Number(
         payload && typeof payload === "object" ? payload.chatId : payload
