@@ -5,12 +5,18 @@ const { PassThrough } = require("stream");
 const path = require("path");
 const ffmpeg = require("fluent-ffmpeg");
 const ffmpegPath = require("ffmpeg-static");
+// ffmpeg-static only ships the "ffmpeg" binary, not "ffprobe" — without this,
+// fluent-ffmpeg falls back to looking for "ffprobe" on the system PATH,
+// which fails with "Cannot find ffprobe" on any box without ffmpeg installed
+// system-wide (getVideoDuration below then silently treats duration as 0).
+const ffprobePath = require("ffprobe-static").path;
 const fs = require("fs").promises;
 const fps = require("fs");
 const tmp = require("tmp-promise");
 const sharp = require("sharp");
 
 ffmpeg.setFfmpegPath(ffmpegPath);
+ffmpeg.setFfprobePath(ffprobePath);
 
 const s3Client = new S3Client({
   endpoint: process.env.SPACES_END_POINT,
