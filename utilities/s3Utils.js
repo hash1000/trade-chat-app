@@ -265,6 +265,16 @@ const compressVideoStream = async (inputPath, outputPath, originalSize) => {
   }
 };
 
+// fileType is whatever the client put in the "type" form field — if it's
+// missing or doesn't match exactly ("Video", "video/mp4", etc. all miss),
+// thumbnail generation below was silently skipped with no error. Falling
+// back to the actual mimetype makes it work regardless of what (if
+// anything) the client sent as "type".
+const isVideoUpload = (fileType, mimetype) =>
+  fileType === "video" || Boolean(mimetype && mimetype.startsWith("video/"));
+const isImageUpload = (fileType, mimetype) =>
+  fileType === "image" || Boolean(mimetype && mimetype.startsWith("image/"));
+
 const bufferToStream = (buffer) => {
   const stream = new PassThrough();
   stream.end(buffer);
@@ -366,19 +376,21 @@ const uploadMemoryFileToS3 = async (
   try {
     const thumbKey = `${path.parse(mainKey).name}_thumb.jpg`;
 
-    if (fileType === "image") {
+    if (isImageUpload(fileType, mimetype)) {
       const thumbnailBuffer = await processImage(buffer);
       thumbnailUrl = await uploadToS3(thumbnailBuffer, thumbKey, "image/jpeg");
       console.log(`[Image] Thumbnail uploaded: ${thumbnailUrl}`);
-    }
-
-    if (fileType === "video") {
+    } else if (isVideoUpload(fileType, mimetype)) {
       const thumbnailBuffer = await processVideo(buffer);
       thumbnailUrl = await uploadToS3(thumbnailBuffer, thumbKey, "image/jpeg");
       console.log(`[Video] Thumbnail uploaded: ${thumbnailUrl}`);
+    } else {
+      console.warn(
+        `No thumbnail generated: fileType=${fileType} mimetype=${mimetype} matched neither image nor video`
+      );
     }
   } catch (err) {
-    console.error("Thumbnail generation failed:", err.message);
+    console.error("Thumbnail generation failed:", err);
   }
 
   return {
@@ -407,17 +419,19 @@ const uploadDiskFileToS3 = async (
   try {
     const thumbKey = `${path.parse(mainKey).name}_thumb.jpg`;
 
-    if (fileType === "image") {
+    if (isImageUpload(fileType, mimetype)) {
       const thumbnailBuffer = await processImage(buffer);
       thumbnailUrl = await uploadToS3(thumbnailBuffer, thumbKey, "image/jpeg");
-    }
-
-    if (fileType === "video") {
+    } else if (isVideoUpload(fileType, mimetype)) {
       const thumbnailBuffer = await processVideo(buffer);
       thumbnailUrl = await uploadToS3(thumbnailBuffer, thumbKey, "image/jpeg");
+    } else {
+      console.warn(
+        `No thumbnail generated: fileType=${fileType} mimetype=${mimetype} matched neither image nor video`
+      );
     }
   } catch (err) {
-    console.error("Disk upload thumbnail failed:", err.message);
+    console.error("Disk upload thumbnail failed:", err);
   }
 
   return {
@@ -484,12 +498,14 @@ const uploadLargeFileToS3 = async ({
     const thumbKey = `${path.parse(key).name}_thumb.jpg`;
     let thumbnailBuffer;
 
-    if (fileType === "video") {
-      thumbnailBuffer = await processVideo(processedBuffer);
-    } else if (fileType === "image") {
+    if (isImageUpload(fileType, mimetype)) {
       thumbnailBuffer = await processImage(processedBuffer);
+    } else if (isVideoUpload(fileType, mimetype)) {
+      thumbnailBuffer = await processVideo(processedBuffer);
     } else {
-      throw new Error("Unsupported file type for thumbnail generation");
+      throw new Error(
+        `Unsupported file type for thumbnail generation: fileType=${fileType} mimetype=${mimetype}`
+      );
     }
 
     const thumbUpload = new Upload({
