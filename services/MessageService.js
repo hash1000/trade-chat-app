@@ -148,7 +148,12 @@ class MessageService {
       message_sender_name: [sender.firstName, sender.lastName].filter(Boolean).join(" ") || sender.username,
       message_sender_imageUrl: sender.profilePic || null,
       message_type: plain.messageType,
-      message: plain.message,
+      // Media messages (image/video/audio/file) carry no caption — plain.message
+      // is null for them. Fall back to the mediaUrl so top-level "message"
+      // is never empty for a client that only reads this field (the full
+      // { type, mediaUrl, thumbnailUrl } shape is still available at media
+      // below for anything that wants it structured).
+      message: plain.message || plain.mediaUrl || null,
       isForward: plain.isForward ? 1 : 0,
       isEdit: plain.isEdit ? 1 : 0,
       isUploading: plain.isUploading ? 1 : 0,
