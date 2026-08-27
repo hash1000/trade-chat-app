@@ -160,9 +160,21 @@ class MessageRepository {
 
   async markSeen(messageIds, userId) {
     if (messageIds.length === 0) return;
+
+    // Filter to ids that actually exist first — messageId has a hard FK to
+    // messages.id, so one stale/wrong id in the batch would otherwise throw
+    // a SequelizeForeignKeyConstraintError and make Promise.all reject the
+    // whole batch, silently dropping the valid ids along with it.
+    const existing = await Message.findAll({
+      where: { id: { [Op.in]: messageIds } },
+      attributes: ["id"],
+    });
+    const validIds = existing.map((m) => m.id);
+    if (validIds.length === 0) return;
+
     const seenAt = new Date();
     await Promise.all(
-      messageIds.map((messageId) =>
+      validIds.map((messageId) =>
         MessageRead.findOrCreate({
           where: { messageId, userId },
           defaults: { messageId, userId, seenAt },
