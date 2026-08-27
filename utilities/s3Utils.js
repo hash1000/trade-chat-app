@@ -77,23 +77,69 @@ const processImage = async (buffer) => {
   }
 };
 
+// Duration in seconds, or 0 if ffprobe can't tell (e.g. a malformed/partial
+// upload) — callers treat 0 the same as "too short to seek into".
+const getVideoDuration = (inputPath) =>
+  new Promise((resolve) => {
+    ffmpeg.ffprobe(inputPath, (err, data) => {
+      if (err || !data || !data.format || !data.format.duration) {
+        console.warn("ffprobe failed, treating video as duration 0:", err && err.message);
+        return resolve(0);
+      }
+      resolve(data.format.duration);
+    });
+  });
+
+// Runs a single "grab one frame at `seekTime`" ffmpeg pass, resolving true
+// only if a non-empty file actually landed at outputPath. A seek past the
+// last frame (or a corrupt input) makes ffmpeg print "Output file is empty,
+// nothing was encoded" and still exit 0 — no error event fires, so the only
+// reliable signal is checking the file afterward.
+const extractFrameAt = (inputPath, outputPath, seekTime) =>
+  new Promise((resolve, reject) => {
+    ffmpeg(inputPath)
+      .seekInput(seekTime)
+      .outputOptions(["-vframes", "1", "-vf", "scale=180:180", "-q:v", "4"])
+      .output(outputPath)
+      .on("start", (cmd) => console.log("FFmpeg video command:", cmd))
+      .on("end", async () => {
+        try {
+          const stats = await fs.stat(outputPath);
+          resolve(stats.size > 0);
+        } catch {
+          resolve(false); // ffmpeg "succeeded" but wrote nothing
+        }
+      })
+      .on("error", reject)
+      .run();
+  });
+
+// Grabs one frame from a video for use as its thumbnail. Seeking to a fixed
+// 1s in used to be hardcoded here, which silently produced no thumbnail for
+// any video shorter than 1s (ffmpeg just no-ops instead of erroring — see
+// extractFrameAt above). Now: probe the real duration, seek to at most half
+// of it, and fall back to frame 0 if that still comes up empty.
+const extractVideoFrame = async (inputPath, outputPath) => {
+  const duration = await getVideoDuration(inputPath);
+  const seekTime = duration > 0.2 ? Math.min(1, duration / 2) : 0;
+
+  let ok = await extractFrameAt(inputPath, outputPath, seekTime);
+  if (!ok && seekTime !== 0) {
+    console.warn(`No frame at ${seekTime}s, retrying at 0s`);
+    ok = await extractFrameAt(inputPath, outputPath, 0);
+  }
+  if (!ok) {
+    throw new Error("Could not extract any frame from video for thumbnail");
+  }
+};
+
 const processVideo = async (buffer) => {
   const { path: tmpInputPath, cleanup } = await tmp.file({ postfix: ".mp4" });
   const { path: tmpOutputPath } = await tmp.file({ postfix: ".jpg" });
 
   try {
     await fs.writeFile(tmpInputPath, buffer);
-
-    await new Promise((resolve, reject) => {
-      ffmpeg(tmpInputPath)
-        .seekInput(1)
-        .outputOptions(["-vframes", "1", "-vf", "scale=180:180", "-q:v", "4"])
-        .output(tmpOutputPath)
-        .on("start", (cmd) => console.log("FFmpeg video command:", cmd))
-        .on("end", resolve)
-        .on("error", reject)
-        .run();
-    });
+    await extractVideoFrame(tmpInputPath, tmpOutputPath);
 
     // Process the extracted frame with sharp for blur and quality
     const frameBuffer = await fs.readFile(tmpOutputPath);
@@ -122,23 +168,8 @@ const processVideoStream = async (buffer) => {
     await fs.writeFile(tmpInputPath, buffer);
     console.log("Temporary video file written for thumbnail generation");
 
-    await new Promise((resolve, reject) => {
-      console.log("Starting FFmpeg thumbnail extraction");
-      ffmpeg(tmpInputPath)
-        .seekInput(1)
-        .outputOptions(["-vframes", "1", "-vf", "scale=180:180", "-q:v", "4"])
-        .output(tmpOutputPath)
-        .on("start", (cmd) => console.log("FFmpeg command:", cmd))
-        .on("end", () => {
-          console.log("Thumbnail extraction completed");
-          resolve();
-        })
-        .on("error", (err) => {
-          console.error("FFmpeg error:", err);
-          reject(err);
-        })
-        .run();
-    });
+    await extractVideoFrame(tmpInputPath, tmpOutputPath);
+    console.log("Thumbnail extraction completed");
 
     const frameBuffer = await fs.readFile(tmpOutputPath);
     console.log("Processing thumbnail with sharp");
