@@ -354,6 +354,12 @@ router.put(
   authMiddleware,
   paymentController.rejectPaymentRequest.bind(paymentController),
 );
+// requester withdraws their own still-pending request before the requestee acts on it
+router.put(
+  "/request-payment/:id/cancel",
+  authMiddleware,
+  paymentController.cancelPaymentRequest.bind(paymentController),
+);
 
 // route for admin to decrease a user's wallet balance by currency
 router.post(

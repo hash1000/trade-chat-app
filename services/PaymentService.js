@@ -1263,6 +1263,37 @@ class PaymentService {
     return request;
   }
 
+  // Requester withdraws their own pending request before the requestee has
+  // acted on it — mirrors rejectPaymentRequest, but gated on the OTHER side
+  // of the relationship (requester, not requestee) and its own status.
+  async cancelPaymentRequest(paymentRequestId, actingUserId) {
+    const request = await PaymentRequest.findByPk(paymentRequestId);
+    if (!request) {
+      const err = new Error("Payment request not found");
+      err.statusCode = 404;
+      throw err;
+    }
+    if (request.kind !== "request") {
+      const err = new Error("This payment is not a pending request");
+      err.statusCode = 400;
+      throw err;
+    }
+    if (request.requesterId !== actingUserId) {
+      const err = new Error("Only the requester can cancel this payment request");
+      err.statusCode = 403;
+      throw err;
+    }
+    if (request.status !== "pending") {
+      const err = new Error(`Payment request already ${request.status}`);
+      err.statusCode = 400;
+      throw err;
+    }
+
+    request.status = "cancelled";
+    await request.save();
+    return request;
+  }
+
   async adminDecreasePayment(
     adminUserId,
     targetUserId,

@@ -14,6 +14,17 @@ class BankAccountService {
     this.walletService = new WalletService();
   }
 
+  // iban is optional and not unique; keep blanks as null so they don't collide
+  // and stored data stays consistent with the column default.
+  normalizeIban(value) {
+    if (value === undefined || value === null) {
+      return value;
+    }
+
+    const trimmed = String(value).trim();
+    return trimmed === "" ? null : trimmed;
+  }
+
   normalizeCurrency(value) {
     if (value === undefined || value === null || value === "") {
       return null;
@@ -297,6 +308,10 @@ class BankAccountService {
   async createBankAccount(userId, accountData) {
     await this.validateAddressId(userId, accountData.addressId);
 
+    if ("iban" in accountData) {
+      accountData = { ...accountData, iban: this.normalizeIban(accountData.iban) };
+    }
+
     return BankAccount.sequelize.transaction(async (transaction) => {
       // Resolve the group this card will belong to, using the same defaults
       // the model applies, so the "first card in group" check is accurate.
@@ -343,6 +358,9 @@ class BankAccountService {
     const safeUpdateData = { ...updateData };
     if ("addressId" in safeUpdateData) {
       await this.validateAddressId(userId, safeUpdateData.addressId);
+    }
+    if ("iban" in safeUpdateData) {
+      safeUpdateData.iban = this.normalizeIban(safeUpdateData.iban);
     }
 
     return BankAccount.sequelize.transaction(async (transaction) => {

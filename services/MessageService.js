@@ -59,8 +59,9 @@ class MessageService {
   // "direct" payments (sent via sendPayment) are already-completed transfers,
   // so their type flips per viewer: the payer sees paymentSend, the payee
   // sees paymentReceived. "request" payments (sendPaymentRequest) are always
-  // paymentRequest for both sides — status (pending/accepted/rejected) is
-  // what changes as the requestee acts on it.
+  // paymentRequest for both sides — status (pending/accepted/rejected/
+  // cancelled) is what changes as either side acts on it: the requestee
+  // accepts/rejects, the requester can cancel their own still-pending one.
   formatPayment(plain, viewerUserId) {
     const p = plain.paymentRequest;
     if (!p) return null;

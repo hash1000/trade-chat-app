@@ -1199,6 +1199,21 @@ class PaymentController {
     }
   }
 
+  async cancelPaymentRequest(req, res) {
+    try {
+      const { id } = req.params;
+      const { id: userId } = req.user;
+
+      const paymentRequest = await paymentService.cancelPaymentRequest(id, userId);
+      const message = await this.broadcastPaymentMessageUpdate(paymentRequest.id, userId);
+
+      return res.json({ success: true, data: paymentService.formatPaymentRequest(paymentRequest), message });
+    } catch (error) {
+      console.error("Cancel payment request error:", error);
+      return res.status(error.statusCode || 500).json({ success: false, message: error.message });
+    }
+  }
+
   async sendPayment(req, res) {
     try {
       const { amount, description, requesteeId, currency = "CNY", walletType } = req.body;
