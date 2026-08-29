@@ -165,7 +165,9 @@ class ChatRepository {
   // Just enough to authorize hardDeleteChat (adminId, type) without paying
   // for buildDetailIncludes().
   async findMeta(chatId) {
-    return Chat.findByPk(chatId, { attributes: ["id", "adminId", "type"] });
+    return Chat.findByPk(chatId, {
+      attributes: ["id", "adminId", "type", "allowMembersToAddOthers"],
+    });
   }
 
   // Real, permanent delete — chat_members/chat_services/messages (and
@@ -308,9 +310,13 @@ class ChatRepository {
   async getOtherMembers(chatId, excludeUserId) {
     const members = await ChatMember.findAll({
       where: { chatId, userId: { [Op.ne]: excludeUserId } },
-      attributes: ["userId", "unreadCount"],
+      attributes: ["userId", "unreadCount", "isMuted"],
     });
-    return members.map((m) => ({ userId: m.userId, unreadCount: m.unreadCount }));
+    return members.map((m) => ({
+      userId: m.userId,
+      unreadCount: m.unreadCount,
+      isMuted: !!m.isMuted,
+    }));
   }
 
   // Every member's userId for a chat (self included) — used to fan out

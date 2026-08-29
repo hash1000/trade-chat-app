@@ -62,6 +62,15 @@ const ChatMember = sequelize.define(
       defaultValue: false,
     },
 
+    // Personal, per-chat — when true, this member is skipped from the
+    // push-notification fan-out for this chat (MessageService.
+    // notifyNewMessage). Doesn't affect unread counts or message visibility.
+    isMuted: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
+
     memberStatus: {
       type: DataTypes.ENUM("online", "offline"),
       allowNull: false,

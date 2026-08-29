@@ -128,6 +128,7 @@ class ChatService {
       group_online_image: plain.groupOnlineImage,
       type: plain.type,
       group_admin_id: plain.adminId || 0,
+      allowMembersToAddOthers: !!plain.allowMembersToAddOthers,
       allowMembersToViewProfile: !!plain.allowMembersToViewProfile,
       enableAIAnswer: !!plain.enableAIAnswer,
       lockSettings: !!plain.lockSettings,
@@ -140,6 +141,7 @@ class ChatService {
       isFav: members.filter((m) => m.isFavourite).map((m) => m.userId),
       archive: members.filter((m) => m.isArchived).map((m) => m.userId),
       blockData: members.filter((m) => m.isBlocked).map((m) => m.userId),
+      mutedMembers: members.filter((m) => m.isMuted).map((m) => m.userId),
       counterMessageNo: members.map((m) => ({
         userId: m.userId,
         counter: m.unreadCount,
@@ -163,6 +165,7 @@ class ChatService {
             isArchived: !!viewerMember.isArchived,
             isBlocked: !!viewerMember.isBlocked,
             isAdmin: !!viewerMember.isAdmin,
+            isMuted: !!viewerMember.isMuted,
           }
         : null,
     };
@@ -312,20 +315,20 @@ class ChatService {
   // chatRepository.addMembers already de-dupes anyone already in the chat
   // and returns just the ones it created.
   //
-  // Admin-only: gated to this chat's own admin (Chat.adminId) or a platform
-  // "admin" role — same check as hardDeleteChat below. Previously unchecked
-  // entirely (any member could add anyone), same gap removeMembers had.
+  // Gated by assertCanAddMembers below: this chat's admin / a platform
+  // admin, OR any current member if Group settings' "Allow members to add
+  // others" is turned on.
   //
   // Exception: adding *only yourself* (userIds === [actingUserId]) is
-  // exempt — that's self-join (the QR-scanned "request to join a service
-  // group" flow, not admin member-management), same spirit as
+  // exempt from all of that — that's self-join (the QR-scanned "request to
+  // join a service group" flow, not member-management), same spirit as
   // removeMembers' self-removal exemption below (redirected to /leave
   // instead of being blocked). Adding anyone else, alone or mixed with
-  // yourself, still requires being this chat's admin or a platform admin.
+  // yourself, still goes through the full check.
   async addMembers(chatId, userIds, actingUserId) {
     const isSelfJoinOnly = userIds.length === 1 && userIds[0] === actingUserId;
     if (!isSelfJoinOnly) {
-      await this.assertCanManageMembers(chatId, actingUserId, "add members");
+      await this.assertCanAddMembers(chatId, actingUserId);
     }
 
     const added = await this.chatRepository.addMembers(chatId, userIds);
@@ -356,7 +359,6 @@ class ChatService {
   async removeMembers(chatId, targetUserIds, actingUserId) {
     await this.assertCanManageMembers(chatId, actingUserId, "remove members");
 
-    const label = await this.getGroupLabel(chatId);
     const actorName = await this.getUserName(actingUserId);
 
     const removed = [];
@@ -380,7 +382,7 @@ class ChatService {
       // (chat-<id> is still their room at this point). Evicting first would
       // silently deny them even that, leaving `check chat membership` (§2)
       // as their only way to find out.
-      await this.postSystemMessage(chatId, actingUserId, `${actorName} removed ${targetName} from this ${label}`);
+      await this.postSystemMessage(chatId, actingUserId, `${actorName} removed ${targetName}`);
       leaveUsersFromChat([targetUserId], chatId);
 
       removed.push(targetUserId);
@@ -443,6 +445,23 @@ class ChatService {
     return this.chatRepository.updateMemberState(chatId, userId, { isBlocked });
   }
 
+  // Personal — no admin gate, this only ever affects the caller's own
+  // notifications (see MessageService.notifyNewMessage, which skips muted
+  // recipients). Broadcast to the caller's own personal room only (not the
+  // whole chat) so their other tabs/devices stay in sync — nobody else's
+  // view needs to change when you mute a chat.
+  async setMuted(chatId, userId, isMuted) {
+    const member = await this.chatRepository.updateMemberState(chatId, userId, { isMuted });
+    if (member) {
+      try {
+        getIO().to(`user-${userId}`).emit("chat muted", { chatId, isMuted: !!isMuted });
+      } catch (err) {
+        console.warn("Socket.IO not initialized, skipping chat-muted broadcast");
+      }
+    }
+    return member;
+  }
+
   async setDeleteAll(chatId, userId, isDeleteAll) {
     return this.chatRepository.updateMemberState(chatId, userId, { isDeleteAll });
   }
@@ -464,16 +483,42 @@ class ChatService {
     await this.chatRepository.incrementUnreadForOthers(chatId, senderId);
   }
 
-  async updateSettings(chatId, data) {
+  // Admin-only (this chat's adminId or a platform admin) — previously
+  // unchecked entirely, same gap add/removeMembers had before their own
+  // gates were added. Broadcasts "group settings updated" (whole room) so
+  // every connected member's client reflects the change live instead of
+  // only whoever called this getting it back in the REST response.
+  async updateSettings(chatId, data, actingUserId) {
+    await this.assertCanManageMembers(chatId, actingUserId, "update group settings");
+
     const allowed = {};
-    if ("allowMembersToViewProfile" in data) allowed.allowMembersToViewProfile = data.allowMembersToViewProfile;
-    if ("enableAIAnswer" in data) allowed.enableAIAnswer = data.enableAIAnswer;
-    if ("lockSettings" in data) allowed.lockSettings = data.lockSettings;
-    if ("simpleModeOn" in data) allowed.simpleModeOn = data.simpleModeOn;
+    if ("allowMembersToAddOthers" in data) allowed.allowMembersToAddOthers = !!data.allowMembersToAddOthers;
+    if ("allowMembersToViewProfile" in data) allowed.allowMembersToViewProfile = !!data.allowMembersToViewProfile;
+    if ("enableAIAnswer" in data) allowed.enableAIAnswer = !!data.enableAIAnswer;
+    if ("lockSettings" in data) allowed.lockSettings = !!data.lockSettings;
+    if ("simpleModeOn" in data) allowed.simpleModeOn = !!data.simpleModeOn;
     if ("groupName" in data) allowed.groupName = data.groupName;
     if ("groupImage" in data) allowed.groupImage = data.groupImage;
 
-    return this.chatRepository.updateChat(chatId, allowed);
+    const updated = await this.chatRepository.updateChat(chatId, allowed);
+    if (!updated) return null;
+
+    try {
+      getIO().to(`chat-${chatId}`).emit("group settings updated", {
+        chatId,
+        groupName: updated.groupName,
+        groupImage: updated.groupImage,
+        allowMembersToAddOthers: !!updated.allowMembersToAddOthers,
+        allowMembersToViewProfile: !!updated.allowMembersToViewProfile,
+        enableAIAnswer: !!updated.enableAIAnswer,
+        lockSettings: !!updated.lockSettings,
+        simpleModeOn: !!updated.simpleModeOn,
+      });
+    } catch (err) {
+      console.warn("Socket.IO not initialized, skipping group-settings-updated broadcast");
+    }
+
+    return updated;
   }
 
   // Soft, per-caller delete: hides the chat from the caller's own list and
@@ -589,6 +634,41 @@ class ChatService {
     }
 
     return chat;
+  }
+
+  // Add-members gate — same admin-or-platform-admin baseline as
+  // assertCanManageMembers above, but also allows ANY current participant
+  // when this chat's allowMembersToAddOthers is turned on (Group settings
+  // -> "Allow members to add others"). removeMembers/hardDeleteChat/
+  // updateSettings stay admin-only regardless — this toggle only ever
+  // relaxes ADDING.
+  async assertCanAddMembers(chatId, actingUserId) {
+    const chat = await this.chatRepository.findMeta(chatId);
+    if (!chat) {
+      const err = new Error("Chat not found.");
+      err.statusCode = 404;
+      throw err;
+    }
+
+    const isGroupAdmin = chat.adminId === actingUserId;
+    if (isGroupAdmin) return chat;
+
+    const isParticipant = await this.chatRepository.isParticipant(chatId, actingUserId);
+    if (chat.allowMembersToAddOthers && isParticipant) return chat;
+
+    if (await this.isPlatformAdmin(actingUserId)) return chat;
+
+    // Two different reasons to fail, worth telling apart: a non-participant
+    // is rejected regardless of the setting (it only ever relaxes things
+    // for people already in the chat); a participant blocked here means
+    // the setting is genuinely off.
+    const err = new Error(
+      isParticipant
+        ? 'Only this chat\'s admin or a platform admin can add members (ask the admin to enable "Allow members to add others" in Group settings).'
+        : "Not a participant of this chat."
+    );
+    err.statusCode = 403;
+    throw err;
   }
 
   // Real, permanent delete — unlike deleteChatForUser (soft, per-caller

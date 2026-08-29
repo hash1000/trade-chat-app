@@ -70,6 +70,14 @@ const Chat = sequelize.define(
       defaultValue: false,
     },
 
+    // When true, any current member can add others (POST /:id/members) —
+    // not just the group admin. See ChatService.assertCanAddMembers.
+    allowMembersToAddOthers: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
+
     // Set when this chat was created from an order that bundled one or
     // more isChat services — lookup key for "does this order already have
     // a chat", regardless of how many services ended up attached. The

@@ -373,27 +373,33 @@ class MessageService {
       "Someone";
     const preview = this.previewText(message);
 
+    // Muted recipients still get their unreadCount bumped (already done by
+    // the caller above) and still see the message once they open the
+    // chat — muting only ever suppresses the notification/push, nothing
+    // about the message itself.
     await Promise.all(
-      recipients.map(({ userId, unreadCount }) =>
-        this.notificationService.notifyUser({
-          userId,
-          actorId: senderId,
-          type: "NEW_MESSAGE",
-          title: senderName,
-          message: preview,
-          entityType: "CHAT",
-          entityId: chatId,
-          // Full message (viewer-specific — e.g. payment.type/isDeletedForViewer
-          // depend on who's looking) plus this recipient's own up-to-date
-          // unread count for the chat, so the client can open straight into
-          // the thread and refresh its badge without a round-trip.
-          data: {
-            chatId,
-            unreadCount,
-            message: this.formatMessage(message, userId),
-          },
-        })
-      )
+      recipients
+        .filter(({ isMuted }) => !isMuted)
+        .map(({ userId, unreadCount }) =>
+          this.notificationService.notifyUser({
+            userId,
+            actorId: senderId,
+            type: "NEW_MESSAGE",
+            title: senderName,
+            message: preview,
+            entityType: "CHAT",
+            entityId: chatId,
+            // Full message (viewer-specific — e.g. payment.type/isDeletedForViewer
+            // depend on who's looking) plus this recipient's own up-to-date
+            // unread count for the chat, so the client can open straight into
+            // the thread and refresh its badge without a round-trip.
+            data: {
+              chatId,
+              unreadCount,
+              message: this.formatMessage(message, userId),
+            },
+          })
+        )
     );
   }
 

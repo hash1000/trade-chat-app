@@ -339,6 +339,29 @@ class ChatController {
     }
   }
 
+  // Personal — mutes/unmutes push notifications for this chat, for the
+  // caller only. No admin gate, unlike updateSettings below.
+  async setMuted(req, res) {
+    try {
+      const { id } = req.params;
+      const { id: userId } = req.user;
+      const { isMuted } = req.body;
+
+      const member = await chatService.setMuted(id, userId, !!isMuted);
+      if (!member) {
+        return res.status(404).json({ success: false, error: "Not a participant of this chat." });
+      }
+      const chat = await chatService.getById(id, userId);
+      return res.status(200).json({ success: true, data: chat });
+    } catch (error) {
+      console.error("ChatController.setMuted error:", error);
+      return res.status(500).json({
+        success: false,
+        error: "Server error. Please try again later.",
+      });
+    }
+  }
+
   async markRead(req, res) {
     try {
       const { id } = req.params;
@@ -359,12 +382,14 @@ class ChatController {
     }
   }
 
+  // Admin-only (this chat's adminId or a platform admin) — see
+  // ChatService.updateSettings / assertCanManageMembers.
   async updateSettings(req, res) {
     try {
       const { id } = req.params;
       const { id: userId } = req.user;
 
-      const updated = await chatService.updateSettings(id, req.body);
+      const updated = await chatService.updateSettings(id, req.body, userId);
       if (!updated) {
         return res.status(404).json({ success: false, error: "Chat not found." });
       }
@@ -372,6 +397,9 @@ class ChatController {
       return res.status(200).json({ success: true, data: chat });
     } catch (error) {
       console.error("ChatController.updateSettings error:", error);
+      if (error.statusCode) {
+        return res.status(error.statusCode).json({ success: false, error: error.message });
+      }
       return res.status(500).json({
         success: false,
         error: "Server error. Please try again later.",

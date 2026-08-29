@@ -41,7 +41,10 @@ router.post("/:id/leave", authMiddleware, chatController.leave.bind(chatControll
 router.put("/:id/favourite", authMiddleware, chatController.setFavourite.bind(chatController));
 router.put("/:id/archive", authMiddleware, chatController.setArchived.bind(chatController));
 router.put("/:id/block", authMiddleware, chatController.setBlocked.bind(chatController));
+// Personal — mutes/unmutes push notifications for this chat, caller only.
+router.put("/:id/mute", authMiddleware, chatController.setMuted.bind(chatController));
 router.put("/:id/read", authMiddleware, chatController.markRead.bind(chatController));
+// Admin-only (this chat's admin or a platform admin) — see ChatService.updateSettings.
 router.put("/:id/settings", authMiddleware, chatController.updateSettings.bind(chatController));
 
 router.delete("/:id", authMiddleware, chatController.remove.bind(chatController));
