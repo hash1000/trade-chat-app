@@ -101,12 +101,16 @@ class ChatService {
 
   formatMember(member) {
     const user = member.user || {};
+    const image = user.profilePic || null;
     return {
       memberId: member.userId,
       memberName: [user.firstName, user.lastName].filter(Boolean).join(" ") || user.username,
-      memberImage: user.profilePic || null,
+      memberImage: image,
       memberPhone: user.phoneNumber || null,
-      onlineImage: member.memberStatus === "online" ? user.profilePic || null : null,
+      // Always mirrors memberImage now — this used to be null unless
+      // memberStatus === "online", but that made a client that only reads
+      // onlineImage lose the avatar entirely for anyone offline.
+      onlineImage: image,
     };
   }
 
