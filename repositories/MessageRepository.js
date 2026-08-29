@@ -259,6 +259,28 @@ class MessageRepository {
     );
   }
 
+  // Bulk version of markDeletedForAll — recalls every existing message in a
+  // chat for every member at once (one row per message x member), instead
+  // of one message at a time. Used by ChatService.recallAllMessagesForEveryone
+  // (admin-only "recall all"). Returns the affected message ids so the
+  // caller can broadcast which ones just disappeared.
+  async markAllDeletedForEveryone(chatId, memberUserIds) {
+    if (memberUserIds.length === 0) return [];
+
+    const messages = await Message.findAll({ where: { chatId }, attributes: ["id"] });
+    if (messages.length === 0) return [];
+
+    const rows = [];
+    for (const { id: messageId } of messages) {
+      for (const userId of memberUserIds) {
+        rows.push({ messageId, userId, isDeleteAll: true });
+      }
+    }
+    await MessageDelete.bulkCreate(rows, { ignoreDuplicates: true });
+
+    return messages.map((m) => m.id);
+  }
+
   async setUploaded(messageId, uploadingPercentage = 100) {
     const [count] = await Message.update(
       { isUploading: false, uploadingPercentage },

@@ -46,6 +46,13 @@ router.put("/:id/settings", authMiddleware, chatController.updateSettings.bind(c
 
 router.delete("/:id", authMiddleware, chatController.remove.bind(chatController));
 
+// "Clear chat" — clears the caller's own message history but the chat
+// stays in their list (unlike DELETE /:id above, which also hides it) —
+// see ChatService.clearMessagesForUser. `{ forEveryone: true }` switches
+// this to an admin-only "recall all" instead — see
+// ChatService.recallAllMessagesForEveryone.
+router.delete("/:id/messages", authMiddleware, chatController.clearMessages.bind(chatController));
+
 // Real, permanent delete — every participant loses the chat at once,
 // cannot be undone. 403 unless caller is this chat's own admin or holds
 // the platform "admin" role — see ChatService.hardDeleteChat.

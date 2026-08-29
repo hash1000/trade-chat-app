@@ -307,7 +307,23 @@ class ChatService {
   // Only actually-new members get a system message and a socket-room join —
   // chatRepository.addMembers already de-dupes anyone already in the chat
   // and returns just the ones it created.
-  async addMembers(chatId, userIds) {
+  //
+  // Admin-only: gated to this chat's own admin (Chat.adminId) or a platform
+  // "admin" role — same check as hardDeleteChat below. Previously unchecked
+  // entirely (any member could add anyone), same gap removeMembers had.
+  //
+  // Exception: adding *only yourself* (userIds === [actingUserId]) is
+  // exempt — that's self-join (the QR-scanned "request to join a service
+  // group" flow, not admin member-management), same spirit as
+  // removeMembers' self-removal exemption below (redirected to /leave
+  // instead of being blocked). Adding anyone else, alone or mixed with
+  // yourself, still requires being this chat's admin or a platform admin.
+  async addMembers(chatId, userIds, actingUserId) {
+    const isSelfJoinOnly = userIds.length === 1 && userIds[0] === actingUserId;
+    if (!isSelfJoinOnly) {
+      await this.assertCanManageMembers(chatId, actingUserId, "add members");
+    }
+
     const added = await this.chatRepository.addMembers(chatId, userIds);
     const fullChat = await this.chatRepository.findByPk(chatId);
     joinUsersToChat(added.map((m) => m.userId), chatId);
@@ -330,7 +346,12 @@ class ChatService {
   // leaveChat's job, see below) so the two flows can't be conflated —
   // self-removal here would post a "you removed you" message and skip the
   // admin-reassignment leaveChat does.
+  //
+  // Admin-only: same check as addMembers/hardDeleteChat — previously
+  // unchecked entirely (any member could remove any other member).
   async removeMembers(chatId, targetUserIds, actingUserId) {
+    await this.assertCanManageMembers(chatId, actingUserId, "remove members");
+
     const label = await this.getGroupLabel(chatId);
     const actorName = await this.getUserName(actingUserId);
 
@@ -470,6 +491,70 @@ class ChatService {
     await this.messageRepository.markAllDeletedForChat(chatId, userId);
   }
 
+  // "Clear chat" — wipes the caller's own message history for this chat,
+  // same underlying markAllDeletedForChat as deleteChatForUser above, but
+  // deliberately does NOT touch isDeleteAll — so unlike deleteChatForUser,
+  // the chat stays exactly where it is in the caller's list (now just
+  // empty) instead of disappearing until the other side sends something
+  // new. WhatsApp's "Clear Chat" vs "Delete Chat" distinction. Other
+  // participant(s) are completely unaffected either way.
+  //
+  // Known limitation: Chat.lastMessage (the list-preview string) is a
+  // single column shared by every viewer, not per-user — clearing your own
+  // history can't blank just your copy of it, so your chat-list row may
+  // keep showing the old preview text even though opening the chat now
+  // shows nothing. Same shared-column limitation deleteChatForUser has,
+  // just more visible here since the chat itself stays listed.
+  async clearMessagesForUser(chatId, userId) {
+    const isParticipant = await this.chatRepository.isParticipant(chatId, userId);
+    if (!isParticipant) {
+      const err = new Error("Not a participant of this chat");
+      err.statusCode = 403;
+      throw err;
+    }
+
+    await this.messageRepository.markAllDeletedForChat(chatId, userId);
+    await this.chatRepository.resetUnread(chatId, userId);
+  }
+
+  // Admin-only "recall all" — DELETE /:id/messages with { forEveryone: true
+  // } (contrast clearMessagesForUser above, which needs no admin check
+  // since it only ever touches the caller's own view). Same "delete for
+  // everyone" semantics DELETE /messages/:messageId (isDeleteAll: true)
+  // already has per-message (MessageService.deleteForEveryone) — this just
+  // applies it across the chat's entire existing history in one call
+  // instead of one message at a time. The chat itself is untouched (still
+  // listed, still open) — only its messages disappear, for every
+  // participant, same as if each had been individually recalled.
+  // Gated the same way as add/removeMembers/hardDeleteChat.
+  async recallAllMessagesForEveryone(chatId, actingUserId) {
+    await this.assertCanManageMembers(chatId, actingUserId, "recall all messages");
+
+    const memberIds = await this.chatRepository.getMemberIds(chatId);
+    const messageIds = await this.messageRepository.markAllDeletedForEveryone(chatId, memberIds);
+
+    if (messageIds.length === 0) {
+      return { recalledCount: 0 };
+    }
+
+    // Unlike clearMessagesForUser's per-viewer limitation, this actually IS
+    // the right moment to reset the shared lastMessage column — the
+    // messages are gone for every participant, not just one viewer.
+    await this.chatRepository.setLastMessage(chatId, null);
+
+    // One lightweight event for the whole batch rather than a full
+    // "message deleted" (§3) per message — a chat's entire history could be
+    // thousands of rows, and every client here just needs to know which
+    // ids to strike from whatever it already has loaded.
+    try {
+      getIO().to(`chat-${chatId}`).emit("all messages deleted", { chatId, messageIds });
+    } catch (err) {
+      console.warn("Socket.IO not initialized, skipping all-messages-deleted broadcast");
+    }
+
+    return { recalledCount: messageIds.length };
+  }
+
   async isPlatformAdmin(userId) {
     const user = await User.findByPk(userId, {
       include: [{ model: Role, as: "roles", attributes: ["name"] }],
@@ -477,14 +562,13 @@ class ChatService {
     return !!(user && (user.roles || []).some((r) => r.name === "admin"));
   }
 
-  // Real, permanent delete — unlike deleteChatForUser (soft, per-caller
-  // only, above), this destroys the chat for EVERY participant at once and
-  // cannot be undone. Any chat type (1:1, group, service, order), not just
-  // groups. Gated to the chat's own group admin (Chat.adminId) or a
-  // platform "admin" role — checked here rather than by route middleware,
-  // since "admin of THIS chat" is resource-specific and authorize() only
-  // knows about global roles.
-  async hardDeleteChat(chatId, actingUserId) {
+  // Shared gate for every chat-management action that's admin-only (add
+  // members, remove members, hard-delete): the caller must be either this
+  // specific chat's own admin (Chat.adminId) or hold the platform "admin"
+  // role. Checked here rather than by route middleware, since "admin of
+  // THIS chat" is resource-specific and authorize() only knows about global
+  // roles. [action] only flavors the 403 message (e.g. "add members").
+  async assertCanManageMembers(chatId, actingUserId, action) {
     const chat = await this.chatRepository.findMeta(chatId);
     if (!chat) {
       const err = new Error("Chat not found.");
@@ -494,10 +578,20 @@ class ChatService {
 
     const isGroupAdmin = chat.adminId === actingUserId;
     if (!isGroupAdmin && !(await this.isPlatformAdmin(actingUserId))) {
-      const err = new Error("Only this chat's admin or a platform admin can hard-delete it.");
+      const err = new Error(`Only this chat's admin or a platform admin can ${action}.`);
       err.statusCode = 403;
       throw err;
     }
+
+    return chat;
+  }
+
+  // Real, permanent delete — unlike deleteChatForUser (soft, per-caller
+  // only, above), this destroys the chat for EVERY participant at once and
+  // cannot be undone. Any chat type (1:1, group, service, order), not just
+  // groups.
+  async hardDeleteChat(chatId, actingUserId) {
+    await this.assertCanManageMembers(chatId, actingUserId, "hard-delete it");
 
     // Member ids first — chat_members cascades away the moment the chat
     // row is destroyed, so this is the last chance to know who to evict.

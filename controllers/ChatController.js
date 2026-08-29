@@ -190,13 +190,16 @@ class ChatController {
         return res.status(400).json({ success: false, error: "memberIds is required." });
       }
 
-      const chat = await chatService.addMembers(id, memberIds);
+      const chat = await chatService.addMembers(id, memberIds, userId);
       return res.status(200).json({
         success: true,
         data: chatService.formatChat(chat, userId),
       });
     } catch (error) {
       console.error("ChatController.addMembers error:", error);
+      if (error.statusCode) {
+        return res.status(error.statusCode).json({ success: false, error: error.message });
+      }
       return res.status(500).json({
         success: false,
         error: "Server error. Please try again later.",
@@ -216,6 +219,9 @@ class ChatController {
       return res.status(200).json({ success: true });
     } catch (error) {
       console.error("ChatController.removeMember error:", error);
+      if (error.statusCode) {
+        return res.status(error.statusCode).json({ success: false, error: error.message });
+      }
       return res.status(500).json({
         success: false,
         error: "Server error. Please try again later.",
@@ -241,6 +247,9 @@ class ChatController {
       return res.status(200).json({ success: true, data: result });
     } catch (error) {
       console.error("ChatController.removeMembers error:", error);
+      if (error.statusCode) {
+        return res.status(error.statusCode).json({ success: false, error: error.message });
+      }
       return res.status(500).json({
         success: false,
         error: "Server error. Please try again later.",
@@ -383,6 +392,39 @@ class ChatController {
       console.error("ChatController.remove error:", error);
       if (error.statusCode === 403) {
         return res.status(403).json({ success: false, error: error.message });
+      }
+      return res.status(500).json({
+        success: false,
+        error: "Server error. Please try again later.",
+      });
+    }
+  }
+
+  // "Clear chat" — see ChatService.clearMessagesForUser. Wipes the caller's
+  // own message history for this chat but, unlike remove() above, the chat
+  // stays in their list (just empty) instead of disappearing.
+  // { forEveryone: true } switches this from "clear my own view" (anyone,
+  // no admin check) to "recall all" (admin-only — see
+  // ChatService.recallAllMessagesForEveryone) — same isDeleteAll-style flag
+  // idiom DELETE /messages/:messageId already uses to pick between its two
+  // modes.
+  async clearMessages(req, res) {
+    try {
+      const { id } = req.params;
+      const { id: userId } = req.user;
+      const { forEveryone } = req.body || {};
+
+      if (forEveryone) {
+        const result = await chatService.recallAllMessagesForEveryone(id, userId);
+        return res.status(200).json({ success: true, data: result });
+      }
+
+      await chatService.clearMessagesForUser(id, userId);
+      return res.status(200).json({ success: true });
+    } catch (error) {
+      console.error("ChatController.clearMessages error:", error);
+      if (error.statusCode) {
+        return res.status(error.statusCode).json({ success: false, error: error.message });
       }
       return res.status(500).json({
         success: false,
