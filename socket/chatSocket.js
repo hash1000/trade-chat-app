@@ -228,6 +228,41 @@ function initChatSocket(io) {
       }
     });
 
+    // Re-sends an existing message (verbatim content, isForward force-set to
+    // 1) into one or more chats at once. Requires access to the source
+    // message (participant of its chat, not deleted-for-you) plus
+    // participancy in each target chat — see MessageService.forwardMessage.
+    // One "message" broadcast per successful target, same as a normal send;
+    // a target you're not a member of just comes back with its own `error`
+    // in the ack instead of failing the whole call.
+    socket.on("forward message", async (payload, callback) => {
+      const ack = typeof callback === "function" ? callback : () => {};
+      const messageId = Number(payload && payload.messageId);
+      const chatIds = Array.isArray(payload && payload.chatIds)
+        ? payload.chatIds.map(Number)
+        : [Number(payload && payload.chatId)];
+
+      if (!Number.isInteger(messageId) || messageId <= 0) {
+        return ack({ error: "Invalid messageId" });
+      }
+      if (chatIds.length === 0 || chatIds.some((id) => !Number.isInteger(id) || id <= 0)) {
+        return ack({ error: "Invalid chatIds" });
+      }
+
+      try {
+        const results = await messageService.forwardMessage(messageId, socket.userId, chatIds);
+
+        results.forEach(({ chatId, message }) => {
+          if (message) socket.to(`chat-${chatId}`).emit("message", message);
+        });
+
+        ack({ results });
+      } catch (err) {
+        console.error("forward message error:", err);
+        ack({ error: err.message || "Failed to forward message" });
+      }
+    });
+
     // Client edits the text of their own message. Text-only — media/contact/
     // payment/reference messages have no editable caption, so the type check
     // lives in MessageService.editMessage. Ownership check doubles as the

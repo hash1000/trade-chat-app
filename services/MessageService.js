@@ -239,6 +239,74 @@ class MessageService {
     return { message, isDuplicate: false };
   }
 
+  // Re-sends an existing message into one or more other chats, verbatim —
+  // same messageType/content/attachments — except isForward is force-set
+  // to 1 so the receiving side can tell it apart from something authored
+  // fresh in that chat. replyToMessageId/localId are deliberately dropped:
+  // the reply would point at a message the target chat knows nothing about,
+  // and each target gets its own new row, not a de-duped retry of one send.
+  // Requires access to the source message (participant of its chat, and not
+  // already deleted-for-you there) — you can only forward what you can
+  // currently see — plus participancy in each target chat individually;
+  // one bad target doesn't fail the others, it just comes back with its
+  // own `error` in the per-chat results.
+  async forwardMessage(messageId, senderId, chatIds) {
+    const source = await this.messageRepository.findByPk(messageId);
+    if (!source) {
+      const err = new Error("Message not found.");
+      err.statusCode = 404;
+      throw err;
+    }
+    if (!(await this.chatRepository.isParticipant(source.chatId, senderId))) {
+      const err = new Error("Not a participant of this chat.");
+      err.statusCode = 403;
+      throw err;
+    }
+    if ((source.deletes || []).some((d) => d.userId === senderId)) {
+      const err = new Error("Message not found.");
+      err.statusCode = 404;
+      throw err;
+    }
+    // Payment messages are tied to one specific requester/requestee pair
+    // (see formatPayment) — accept/reject/cancel are gated on those two ids,
+    // so a forwarded copy would just be a dead, non-actionable card for
+    // anyone else, and it'd expose the amount/status of someone else's
+    // payment to a chat that has nothing to do with it. Blocked outright.
+    if (source.messageType === "payment") {
+      const err = new Error("Payment messages cannot be forwarded.");
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const basePayload = {
+      messageType: source.messageType,
+      message: source.message,
+      mediaUrl: source.mediaUrl,
+      thumbnailUrl: source.thumbnailUrl,
+      thumbnailBlurHash: source.thumbnailBlurHash,
+      contactCardId: source.contactCardId,
+      paymentRequestId: source.paymentRequestId,
+      orderId: source.orderId,
+      addressId: source.addressId,
+      bankAccountId: source.bankAccountId,
+      shortListId: source.shortListId,
+      ledgerId: source.ledgerId,
+      hashtags: source.hashtags,
+      isForward: true,
+    };
+
+    const results = [];
+    for (const chatId of chatIds) {
+      if (!(await this.chatRepository.isParticipant(chatId, senderId))) {
+        results.push({ chatId, error: "Not a participant of this chat" });
+        continue;
+      }
+      const { message } = await this.sendMessage(chatId, senderId, basePayload);
+      results.push({ chatId, message: this.formatMessage(message, senderId) });
+    }
+    return results;
+  }
+
   // Pushes a notification (DB row + best-effort FCM) to every other chat
   // participant. NotificationService.notifyUser never throws, but this is
   // still wrapped by the caller as a belt-and-suspenders fire-and-forget.
