@@ -31,6 +31,8 @@ router.post("/order", authMiddleware, chatController.createOrGetOrderChat.bind(c
 
 router.post("/:id/members", authMiddleware, chatController.addMembers.bind(chatController));
 router.delete("/:id/members/:userId", authMiddleware, chatController.removeMember.bind(chatController));
+// Bulk remove — { memberIds[] } in the body, mirrors the POST above.
+router.delete("/:id/members", authMiddleware, chatController.removeMembers.bind(chatController));
 
 // Caller removes themselves. If they were the group admin, the oldest
 // remaining member is auto-promoted.

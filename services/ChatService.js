@@ -321,27 +321,54 @@ class ChatService {
     return fullChat;
   }
 
-  async removeMember(chatId, targetUserId, actingUserId) {
-    const removed = await this.chatRepository.removeMember(chatId, targetUserId);
-    if (!removed) return false;
-
+  // Removes one or more members at once — mirrors addMembers' bulk shape.
+  // Each actually-removed member gets its own "removed" system message
+  // (same one-per-member convention as addMembers' "joined" messages).
+  // Anyone in targetUserIds who isn't currently a member is skipped, not
+  // errored — same "partial success" spirit as addMembers de-duping
+  // already-present ids. Removing yourself through this is refused (that's
+  // leaveChat's job, see below) so the two flows can't be conflated —
+  // self-removal here would post a "you removed you" message and skip the
+  // admin-reassignment leaveChat does.
+  async removeMembers(chatId, targetUserIds, actingUserId) {
     const label = await this.getGroupLabel(chatId);
-    const [actorName, targetName] = await Promise.all([
-      this.getUserName(actingUserId),
-      this.getUserName(targetUserId),
-    ]);
-    // Broadcast BEFORE evicting: if the removed member's socket is still
-    // connected, this is the one live notice that tells them it happened
-    // (chat-<id> is still their room at this point). Evicting first would
-    // silently deny them even that, leaving `check chat membership` (§2) as
-    // their only way to find out.
-    await this.postSystemMessage(chatId, actingUserId, `${actorName} removed ${targetName} from this ${label}`);
+    const actorName = await this.getUserName(actingUserId);
 
-    // Now cut them off — nothing sent to chat-<id> after this point should
-    // reach them (rooms are only joined once at connect, see chatSocket.js).
-    leaveUsersFromChat([targetUserId], chatId);
+    const removed = [];
+    const skipped = [];
 
-    return true;
+    for (const targetUserId of targetUserIds) {
+      if (targetUserId === actingUserId) {
+        skipped.push({ userId: targetUserId, reason: "Use POST /:id/leave to remove yourself" });
+        continue;
+      }
+
+      const wasRemoved = await this.chatRepository.removeMember(chatId, targetUserId);
+      if (!wasRemoved) {
+        skipped.push({ userId: targetUserId, reason: "Not a member of this chat" });
+        continue;
+      }
+
+      const targetName = await this.getUserName(targetUserId);
+      // Broadcast BEFORE evicting: if the removed member's socket is still
+      // connected, this is the one live notice that tells them it happened
+      // (chat-<id> is still their room at this point). Evicting first would
+      // silently deny them even that, leaving `check chat membership` (§2)
+      // as their only way to find out.
+      await this.postSystemMessage(chatId, actingUserId, `${actorName} removed ${targetName} from this ${label}`);
+      leaveUsersFromChat([targetUserId], chatId);
+
+      removed.push(targetUserId);
+    }
+
+    return { removed, skipped };
+  }
+
+  // Backward-compatible single-target wrapper — used by the existing
+  // DELETE /:id/members/:userId route.
+  async removeMember(chatId, targetUserId, actingUserId) {
+    const { removed } = await this.removeMembers(chatId, [targetUserId], actingUserId);
+    return removed.length > 0;
   }
 
   // Self-service leave. If the leaver was the group admin and other

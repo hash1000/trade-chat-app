@@ -223,6 +223,31 @@ class ChatController {
     }
   }
 
+  // Bulk remove — mirrors addMembers' { memberIds[] } shape. Returns which
+  // ids were actually removed vs skipped (not a member / tried to remove
+  // yourself) instead of a single true/false, since a batch can partially
+  // succeed.
+  async removeMembers(req, res) {
+    try {
+      const { id } = req.params;
+      const { id: actingUserId } = req.user;
+      const { memberIds } = req.body;
+
+      if (!Array.isArray(memberIds) || memberIds.length === 0) {
+        return res.status(400).json({ success: false, error: "memberIds is required." });
+      }
+
+      const result = await chatService.removeMembers(id, memberIds, actingUserId);
+      return res.status(200).json({ success: true, data: result });
+    } catch (error) {
+      console.error("ChatController.removeMembers error:", error);
+      return res.status(500).json({
+        success: false,
+        error: "Server error. Please try again later.",
+      });
+    }
+  }
+
   async leave(req, res) {
     try {
       const { id } = req.params;
