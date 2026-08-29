@@ -138,6 +138,32 @@ function initChatSocket(io) {
       }
     });
 
+    // One-shot existence + membership check — e.g. before opening a chat
+    // screen, or to find out you were removed/the chat was deleted after
+    // missing the live "message"/room-eviction that happens at the time
+    // (see ChatService.removeMember / leaveChat).
+    socket.on("check chat membership", async (payload, callback) => {
+      const ack = typeof callback === "function" ? callback : () => {};
+      const chatId = Number(payload && payload.chatId);
+
+      if (!Number.isInteger(chatId) || chatId <= 0) {
+        return ack({ error: "Invalid chatId" });
+      }
+
+      try {
+        const exists = await chatRepository.exists(chatId);
+        if (!exists) {
+          return ack({ exists: false, isMember: false });
+        }
+
+        const isMember = await chatRepository.isParticipant(chatId, socket.userId);
+        ack({ exists: true, isMember });
+      } catch (err) {
+        console.error("check chat membership error:", err);
+        ack({ error: "Failed to check chat membership" });
+      }
+    });
+
     // Same data/shape as GET /api/chat/:chatId/messages (MessageService.
     // getHistory) — lets the client fetch a page of history without a
     // separate REST round-trip, e.g. right after "join chat room".

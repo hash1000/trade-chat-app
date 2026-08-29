@@ -40,7 +40,11 @@ const Message = sequelize.define(
         "address",
         "bankCard",
         "shortList",
-        "balanceSheet"
+        "balanceSheet",
+        // Server-generated announcements (member joined/left/removed) —
+        // see ChatService.postSystemMessage. Never client-settable:
+        // MessageService.sendMessage rejects this value outright.
+        "system"
       ),
       allowNull: false,
       defaultValue: "text",

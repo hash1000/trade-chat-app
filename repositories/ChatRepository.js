@@ -147,6 +147,37 @@ class ChatRepository {
     return Boolean(member);
   }
 
+  // Existence only, no includes — for the "check chat membership" socket
+  // event, which needs to tell "chat doesn't exist" apart from "chat exists
+  // but you're not in it" without paying for buildDetailIncludes().
+  async exists(chatId) {
+    const chat = await Chat.findByPk(chatId, { attributes: ["id"] });
+    return Boolean(chat);
+  }
+
+  // "group" vs "chat" (1:1) — used to word system messages ("left the
+  // group" vs "left the chat") without pulling the full detail includes.
+  async getChatType(chatId) {
+    const chat = await Chat.findByPk(chatId, { attributes: ["type"] });
+    return chat ? chat.type : null;
+  }
+
+  // Just enough to authorize hardDeleteChat (adminId, type) without paying
+  // for buildDetailIncludes().
+  async findMeta(chatId) {
+    return Chat.findByPk(chatId, { attributes: ["id", "adminId", "type"] });
+  }
+
+  // Real, permanent delete — chat_members/chat_services/messages (and
+  // messages' reads/deletes/mentions) all cascade via each table's own
+  // ON DELETE CASCADE FK. Caller is responsible for anything that does NOT
+  // cascade first (messages.replyToMessageId has no cascade — see
+  // ChatService.hardDeleteChat).
+  async destroy(chatId, t) {
+    const count = await Chat.destroy({ where: { id: chatId }, transaction: t });
+    return count > 0;
+  }
+
   async findAllForUser(userId, { archived = false } = {}) {
     const memberships = await ChatMember.findAll({
       // isDeleteAll: excludes chats this user deleted "for me" (see

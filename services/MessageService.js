@@ -191,6 +191,16 @@ class MessageService {
   // De-dups on (chatId, senderId, localId): a retried "send message" after
   // a dropped ack returns the already-created row instead of a duplicate.
   async sendMessage(chatId, senderId, payload) {
+    // "system" is server-generated only (join/leave/removed notices, see
+    // ChatService.postSystemMessage -> createSystemMessage below) — never
+    // reachable from a client payload, so a message can't be spoofed to
+    // look like an authoritative group notice. Checked here (not just in
+    // the socket handler) so forwardMessage can't smuggle one through either.
+    if (payload && payload.messageType === "system") {
+      const err = new Error("messageType 'system' is reserved for server-generated messages.");
+      err.statusCode = 400;
+      throw err;
+    }
     if (payload.localId) {
       const existing = await this.messageRepository.findByLocalId(chatId, senderId, payload.localId);
       if (existing) return { message: existing, isDuplicate: true };
@@ -239,6 +249,38 @@ class MessageService {
     return { message, isDuplicate: false };
   }
 
+  // Bypasses sendMessage's "system" guard above — the only path allowed to
+  // actually create one. Called by ChatService.postSystemMessage for
+  // member-joined/left/removed notices. No localId/reply/forward/
+  // attachments — just an announcement line — and created already-uploaded
+  // (isUploading: false) since there's nothing for a client to upload or
+  // ever call markUploaded() for.
+  async createSystemMessage(chatId, senderId, text) {
+    const data = {
+      chatId,
+      senderId,
+      localId: null,
+      messageType: "system",
+      message: text,
+      isForward: false,
+      isUploading: false,
+      replyToMessageId: null,
+      hashtags: [],
+    };
+
+    const message = await this.messageRepository.create(data, []);
+
+    await this.chatRepository.setLastMessage(chatId, this.previewText(message));
+    await this.chatRepository.incrementUnreadForOthers(chatId, senderId);
+    await this.chatRepository.clearDeleteAllForOthers(chatId, senderId);
+
+    this.notifyNewMessage(chatId, senderId, message).catch((err) =>
+      console.error("notifyNewMessage error:", err.message)
+    );
+
+    return message;
+  }
+
   // Re-sends an existing message into one or more other chats, verbatim —
   // same messageType/content/attachments — except isForward is force-set
   // to 1 so the receiving side can tell it apart from something authored
@@ -274,6 +316,14 @@ class MessageService {
     // payment to a chat that has nothing to do with it. Blocked outright.
     if (source.messageType === "payment") {
       const err = new Error("Payment messages cannot be forwarded.");
+      err.statusCode = 400;
+      throw err;
+    }
+    // Also blocked here explicitly (sendMessage's own guard would catch it
+    // anyway) so it fails with a clear reason before touching any target,
+    // instead of a generic "reserved" error mid-loop.
+    if (source.messageType === "system") {
+      const err = new Error("System messages cannot be forwarded.");
       err.statusCode = 400;
       throw err;
     }

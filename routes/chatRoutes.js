@@ -44,6 +44,11 @@ router.put("/:id/settings", authMiddleware, chatController.updateSettings.bind(c
 
 router.delete("/:id", authMiddleware, chatController.remove.bind(chatController));
 
+// Real, permanent delete — every participant loses the chat at once,
+// cannot be undone. 403 unless caller is this chat's own admin or holds
+// the platform "admin" role — see ChatService.hardDeleteChat.
+router.delete("/:id/hard-delete", authMiddleware, chatController.hardDeleteChat.bind(chatController));
+
 // Messages are created over the socket ("send message" event, see
 // socket/chatSocket.js) — REST only covers paginated history and
 // per-recipient read/delete state.

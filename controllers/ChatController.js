@@ -207,8 +207,9 @@ class ChatController {
   async removeMember(req, res) {
     try {
       const { id, userId: targetUserId } = req.params;
+      const { id: actingUserId } = req.user;
 
-      const removed = await chatService.removeMember(id, targetUserId);
+      const removed = await chatService.removeMember(id, targetUserId, actingUserId);
       if (!removed) {
         return res.status(404).json({ success: false, error: "Member not found in chat." });
       }
@@ -357,6 +358,27 @@ class ChatController {
       console.error("ChatController.remove error:", error);
       if (error.statusCode === 403) {
         return res.status(403).json({ success: false, error: error.message });
+      }
+      return res.status(500).json({
+        success: false,
+        error: "Server error. Please try again later.",
+      });
+    }
+  }
+
+  // Real, permanent delete — see ChatService.hardDeleteChat. Destroys the
+  // chat for every participant at once, cannot be undone. 403 unless the
+  // caller is this chat's own admin or holds the platform "admin" role.
+  async hardDeleteChat(req, res) {
+    try {
+      const { id } = req.params;
+      const { id: userId } = req.user;
+      await chatService.hardDeleteChat(id, userId);
+      return res.status(200).json({ success: true });
+    } catch (error) {
+      console.error("ChatController.hardDeleteChat error:", error);
+      if (error.statusCode) {
+        return res.status(error.statusCode).json({ success: false, error: error.message });
       }
       return res.status(500).json({
         success: false,

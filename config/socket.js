@@ -41,4 +41,16 @@ module.exports = {
       io.in(`user-${userId}`).socketsJoin(`chat-${chatId}`)
     })
   },
+  // Mirror of joinUsersToChat, for when a member leaves/is removed. Without
+  // this, a currently-connected socket stays subscribed to chat-<chatId>
+  // (rooms are joined once at connect time, see chatSocket.js) and would
+  // keep receiving "message"/"typing"/etc. for a chat it's no longer a
+  // member of until it happens to reconnect. A no-op for anyone not
+  // currently connected.
+  leaveUsersFromChat: (userIds, chatId) => {
+    if (!io) return
+    userIds.forEach((userId) => {
+      io.in(`user-${userId}`).socketsLeave(`chat-${chatId}`)
+    })
+  },
 }

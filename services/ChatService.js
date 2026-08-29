@@ -1,15 +1,18 @@
 // services/ChatService.js
 const sequelize = require("../config/database");
+const { User, Role } = require("../models");
 const ChatRepository = require("../repositories/ChatRepository");
 const MessageRepository = require("../repositories/MessageRepository");
 const FriendsRepository = require("../repositories/FriendsRepository");
-const { joinUsersToChat, getIO } = require("../config/socket");
+const MessageService = require("./MessageService");
+const { joinUsersToChat, leaveUsersFromChat, getIO } = require("../config/socket");
 
 class ChatService {
   constructor() {
     this.chatRepository = new ChatRepository();
     this.messageRepository = new MessageRepository();
     this.friendsRepository = new FriendsRepository();
+    this.messageService = new MessageService();
   }
 
   // Everything the caller needs to decide "start a chat" vs "open existing"
@@ -53,6 +56,42 @@ class ChatService {
     } catch (err) {
       console.warn("Socket.IO not initialized, skipping new-chat broadcast");
     }
+  }
+
+  formatDisplayName(user) {
+    if (!user) return "Someone";
+    return [user.firstName, user.lastName].filter(Boolean).join(" ") || user.username || "Someone";
+  }
+
+  async getUserName(userId) {
+    const user = await User.findByPk(userId, { attributes: ["firstName", "lastName", "username"] });
+    return this.formatDisplayName(user);
+  }
+
+  // "group" vs "chat" — wording for the system messages below.
+  async getGroupLabel(chatId) {
+    const type = await this.chatRepository.getChatType(chatId);
+    return type === "group" ? "group" : "chat";
+  }
+
+  // Creates + broadcasts a member-joined/left/removed announcement.
+  // messageService.createSystemMessage gets it the same lastMessage-preview
+  // update, unread increment, and push notification as a normal message —
+  // the only thing missing versus a real "send message" call is the
+  // socket ack (there's no per-request socket here, this is called from
+  // plain REST controllers), so the room broadcast goes over io.to()
+  // directly, same as notifyNewChat above.
+  async postSystemMessage(chatId, actingUserId, text) {
+    const message = await this.messageService.createSystemMessage(chatId, actingUserId, text);
+    const formatted = this.messageService.formatMessage(message, actingUserId);
+
+    try {
+      getIO().to(`chat-${chatId}`).emit("message", formatted);
+    } catch (err) {
+      console.warn("Socket.IO not initialized, skipping system-message broadcast");
+    }
+
+    return formatted;
   }
 
   // --- response shaping -----------------------------------------------
@@ -265,15 +304,44 @@ class ChatService {
 
   // --- member actions --------------------------------------------------
 
+  // Only actually-new members get a system message and a socket-room join —
+  // chatRepository.addMembers already de-dupes anyone already in the chat
+  // and returns just the ones it created.
   async addMembers(chatId, userIds) {
-    await this.chatRepository.addMembers(chatId, userIds);
+    const added = await this.chatRepository.addMembers(chatId, userIds);
     const fullChat = await this.chatRepository.findByPk(chatId);
-    joinUsersToChat(userIds, chatId);
+    joinUsersToChat(added.map((m) => m.userId), chatId);
+
+    const label = await this.getGroupLabel(chatId);
+    for (const { userId } of added) {
+      const name = await this.getUserName(userId);
+      await this.postSystemMessage(chatId, userId, `${name} joined this ${label}`);
+    }
+
     return fullChat;
   }
 
-  async removeMember(chatId, userId) {
-    return this.chatRepository.removeMember(chatId, userId);
+  async removeMember(chatId, targetUserId, actingUserId) {
+    const removed = await this.chatRepository.removeMember(chatId, targetUserId);
+    if (!removed) return false;
+
+    const label = await this.getGroupLabel(chatId);
+    const [actorName, targetName] = await Promise.all([
+      this.getUserName(actingUserId),
+      this.getUserName(targetUserId),
+    ]);
+    // Broadcast BEFORE evicting: if the removed member's socket is still
+    // connected, this is the one live notice that tells them it happened
+    // (chat-<id> is still their room at this point). Evicting first would
+    // silently deny them even that, leaving `check chat membership` (§2) as
+    // their only way to find out.
+    await this.postSystemMessage(chatId, actingUserId, `${actorName} removed ${targetName} from this ${label}`);
+
+    // Now cut them off — nothing sent to chat-<id> after this point should
+    // reach them (rooms are only joined once at connect, see chatSocket.js).
+    leaveUsersFromChat([targetUserId], chatId);
+
+    return true;
   }
 
   // Self-service leave. If the leaver was the group admin and other
@@ -284,8 +352,9 @@ class ChatService {
     if (!chat) return null;
 
     const wasAdmin = chat.adminId === userId;
+    const leavingMember = (chat.members || []).find((m) => m.userId === userId);
 
-    return sequelize.transaction(async (t) => {
+    await sequelize.transaction(async (t) => {
       await this.chatRepository.removeMember(chatId, userId, t);
 
       if (wasAdmin) {
@@ -297,7 +366,17 @@ class ChatService {
           await this.chatRepository.updateChat(chatId, { adminId: null }, t);
         }
       }
-    }).then(() => ({ left: true }));
+    });
+
+    const name = this.formatDisplayName(leavingMember && leavingMember.user);
+    const label = chat.type === "group" ? "group" : "chat";
+    // Broadcast before evicting, same ordering as removeMember above — any
+    // other tab the leaver still has open in this room sees the notice too.
+    await this.postSystemMessage(chatId, userId, `${name} left this ${label}`);
+
+    leaveUsersFromChat([userId], chatId);
+
+    return { left: true };
   }
 
   async setFavourite(chatId, userId, isFavourite) {
@@ -362,6 +441,60 @@ class ChatService {
 
     await this.chatRepository.updateMemberState(chatId, userId, { isDeleteAll: true });
     await this.messageRepository.markAllDeletedForChat(chatId, userId);
+  }
+
+  async isPlatformAdmin(userId) {
+    const user = await User.findByPk(userId, {
+      include: [{ model: Role, as: "roles", attributes: ["name"] }],
+    });
+    return !!(user && (user.roles || []).some((r) => r.name === "admin"));
+  }
+
+  // Real, permanent delete — unlike deleteChatForUser (soft, per-caller
+  // only, above), this destroys the chat for EVERY participant at once and
+  // cannot be undone. Any chat type (1:1, group, service, order), not just
+  // groups. Gated to the chat's own group admin (Chat.adminId) or a
+  // platform "admin" role — checked here rather than by route middleware,
+  // since "admin of THIS chat" is resource-specific and authorize() only
+  // knows about global roles.
+  async hardDeleteChat(chatId, actingUserId) {
+    const chat = await this.chatRepository.findMeta(chatId);
+    if (!chat) {
+      const err = new Error("Chat not found.");
+      err.statusCode = 404;
+      throw err;
+    }
+
+    const isGroupAdmin = chat.adminId === actingUserId;
+    if (!isGroupAdmin && !(await this.isPlatformAdmin(actingUserId))) {
+      const err = new Error("Only this chat's admin or a platform admin can hard-delete it.");
+      err.statusCode = 403;
+      throw err;
+    }
+
+    // Member ids first — chat_members cascades away the moment the chat
+    // row is destroyed, so this is the last chance to know who to evict.
+    const memberIds = await this.chatRepository.getMemberIds(chatId);
+
+    await sequelize.transaction(async (t) => {
+      // See MessageRepository.clearRepliesForChat — replyToMessageId has no
+      // ON DELETE CASCADE, so this has to run before the chat (and its
+      // messages) actually get destroyed below.
+      await this.messageRepository.clearRepliesForChat(chatId, t);
+      await this.chatRepository.destroy(chatId, t);
+    });
+
+    // Broadcast before evicting — same ordering as removeMember/leaveChat
+    // above — so anyone still connected gets this one live notice before
+    // losing the room.
+    try {
+      getIO().to(`chat-${chatId}`).emit("chat deleted", { chatId });
+    } catch (err) {
+      console.warn("Socket.IO not initialized, skipping chat-deleted broadcast");
+    }
+    leaveUsersFromChat(memberIds, chatId);
+
+    return true;
   }
 }
 

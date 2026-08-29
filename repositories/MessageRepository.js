@@ -277,6 +277,18 @@ class MessageRepository {
     return this.findByPk(messageId);
   }
 
+  // Breaks every in-chat reply link before a hard delete of the chat.
+  // replyToMessageId references messages.id with no ON DELETE CASCADE (see
+  // the create-messages migration), so a message that's a reply target
+  // would otherwise throw a FK constraint error mid-cascade when its own
+  // row gets deleted along with the rest of the chat.
+  async clearRepliesForChat(chatId, t) {
+    await Message.update(
+      { replyToMessageId: null },
+      { where: { chatId }, transaction: t }
+    );
+  }
+
   async getUnreadCountForUser(chatId, userId, lastReadAt) {
     return Message.count({
       where: {
