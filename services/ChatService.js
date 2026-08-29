@@ -479,8 +479,9 @@ class ChatService {
   // Soft, per-caller delete: hides the chat from the caller's own list and
   // clears their own message history for it — the other participant(s)
   // keep the chat and every message exactly as before, this never touches
-  // their data. A later message from them clears this again (see
-  // MessageService.sendMessage -> ChatRepository.clearDeleteAllForOthers),
+  // their data. A later message in this chat — from either side, including
+  // the caller re-messaging it themselves — clears this again (see
+  // MessageService.sendMessage -> ChatRepository.clearDeleteAllForChat),
   // so the chat comes back into the caller's list with their old history
   // still hidden but that new message (and any after it) visible.
   async deleteChatForUser(chatId, userId) {

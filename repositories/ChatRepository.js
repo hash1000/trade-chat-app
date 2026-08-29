@@ -181,9 +181,10 @@ class ChatRepository {
   async findAllForUser(userId, { archived = false } = {}) {
     const memberships = await ChatMember.findAll({
       // isDeleteAll: excludes chats this user deleted "for me" (see
-      // ChatService.deleteChatForUser) — cleared again the moment the other
-      // participant sends a new message (MessageService.sendMessage), which
-      // is what brings the chat back into this list.
+      // ChatService.deleteChatForUser) — cleared again the moment anyone
+      // sends a new message in it, including this user themselves (see
+      // clearDeleteAllForChat), which is what brings the chat back into
+      // this list.
       where: { userId, isArchived: archived, isDeleteAll: false },
       include: [
         {
@@ -282,14 +283,22 @@ class ChatRepository {
     });
   }
 
-  // Un-hides this chat for every OTHER member who'd previously deleted it
-  // "for me" — a new incoming message revives it back into their list. Their
+  // Un-hides this chat for every member who'd previously deleted it "for
+  // me" — a new message revives it back into their list. Their
   // already-soft-deleted message history stays hidden; only this message
   // (and any after it) becomes visible again.
-  async clearDeleteAllForOthers(chatId, excludeUserId) {
+  //
+  // Deliberately includes the sender too, not just "everyone else" — it
+  // used to exclude excludeUserId (the sender) on the assumption that
+  // whoever just sent a message obviously already has the chat in view,
+  // but that's not true if THEY were the one who'd deleted it "for me" and
+  // are now re-engaging with it: excluding them left their own isDeleteAll
+  // flag stuck true forever, so the chat would never reappear in the
+  // sender's own list even though they were actively messaging in it.
+  async clearDeleteAllForChat(chatId) {
     await ChatMember.update(
       { isDeleteAll: false },
-      { where: { chatId, userId: { [Op.ne]: excludeUserId }, isDeleteAll: true } }
+      { where: { chatId, isDeleteAll: true } }
     );
   }
 

@@ -237,7 +237,7 @@ class MessageService {
     // Revives this chat for anyone who'd soft-deleted it "for me" — their
     // older history stays hidden, but the chat reappears in their list and
     // this message (and any after it) is visible. See ChatService.deleteChatForUser.
-    await this.chatRepository.clearDeleteAllForOthers(chatId, senderId);
+    await this.chatRepository.clearDeleteAllForChat(chatId);
 
     // Fire-and-forget — never blocks or fails the send itself. Skipped for
     // duplicate localId retries by the caller (see chatSocket.js), same as
@@ -272,7 +272,7 @@ class MessageService {
 
     await this.chatRepository.setLastMessage(chatId, this.previewText(message));
     await this.chatRepository.incrementUnreadForOthers(chatId, senderId);
-    await this.chatRepository.clearDeleteAllForOthers(chatId, senderId);
+    await this.chatRepository.clearDeleteAllForChat(chatId);
 
     this.notifyNewMessage(chatId, senderId, message).catch((err) =>
       console.error("notifyNewMessage error:", err.message)
