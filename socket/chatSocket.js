@@ -1,81 +1,12 @@
-const jwt = require("jsonwebtoken");
 const ChatRepository = require("../repositories/ChatRepository");
 const MessageService = require("../services/MessageService");
-const { redisClient } = require("../config/redis");
+const { authenticateSocket } = require("../middlewares/socketAuth");
 const chatRepository = new ChatRepository();
 const messageService = new MessageService();
 
-// Redis key for "how many sockets does this user have open, across every
-// server process" — a plain in-memory Map only sees the sockets connected
-// to this one process, which is wrong the moment there's more than one app
-// server behind the load balancer.
-const onlineCountKey = (userId) => `presence:online-count:${userId}`;
-
-// Mirrors middlewares/authenticate.js, but reads the token from the
-// Socket.IO handshake instead of an Express header. Accepts either
-// auth.token (preferred) or an Authorization header, for clients that
-// reuse their REST setup.
-function readToken(socket) {
-  const fromAuth = socket.handshake.auth && socket.handshake.auth.token;
-  if (fromAuth) {
-    return String(fromAuth).replace(/^Bearer /, "");
-  }
-  const header = socket.handshake.headers && socket.handshake.headers.authorization;
-  if (header && header.startsWith("Bearer ")) {
-    return header.substring(7);
-  }
-  return null;
-}
-
-function authenticateSocket(socket, next) {
-  const token = readToken(socket);
-  if (!token) {
-    return next(new Error("Missing token"));
-  }
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
-    if (!decoded || !decoded.userId) {
-      return next(new Error("Invalid or expired token"));
-    }
-    socket.userId = Number(decoded.userId);
-    return next();
-  } catch (err) {
-    return next(new Error("Invalid or expired token"));
-  }
-}
-
-// True if chat-<chatId> currently has a connected socket belonging to
-// someone other than `userId`, on ANY server process — i.e. there's
-// actually an audience for the presence event. fetchSockets() is the
-// Redis-adapter-aware, cross-process version of room membership; the
-// plain io.sockets.adapter.rooms map only sees sockets on this process.
-async function hasOtherLiveMember(io, chatId, userId) {
-  const sockets = await io.in(`chat-${chatId}`).fetchSockets();
-  return sockets.some((s) => s.userId !== userId);
-}
-
-async function broadcastStatus(io, userId, memberStatus) {
-  // Always persist across every chat — statusMembers over REST must be
-  // accurate regardless of who's currently connected to see it live.
-  const chatIds = await chatRepository.setStatusForAllChats(userId, memberStatus);
-
-  // But only emit into rooms someone is actually watching right now — a
-  // user with thousands of chats shouldn't fan out thousands of no-op
-  // emits into empty rooms on every connect/disconnect. WhatsApp-style:
-  // presence is pushed to active viewers, not broadcast to every chat you
-  // have.
-  const event = memberStatus === "online" ? "user online" : "user offline";
-  await Promise.all(
-    chatIds.map(async (chatId) => {
-      if (await hasOtherLiveMember(io, chatId, userId)) {
-        console.log(`[presence] emitting ${event} into chat-${chatId} (has live audience)`);
-        io.to(`chat-${chatId}`).emit(event, { userId, chatId, memberStatus });
-      } else {
-        console.log(`[presence] SKIPPED chat-${chatId} (no live audience)`);
-      }
-    })
-  );
-}
+// Online/offline presence lives in socket/userSocket.js now — it's a
+// global fact about a user, not something this (chat-scoped) module needs
+// to know about. See that file for the connect/disconnect handling.
 
 function initChatSocket(io) {
   io.use(authenticateSocket);
@@ -96,20 +27,6 @@ function initChatSocket(io) {
       chatIds.forEach((chatId) => socket.join(`chat-${chatId}`));
     } catch (err) {
       console.error(`Auto-join failed for user ${socket.userId}:`, err);
-    }
-
-    // First socket for this user across ALL processes -> they just came
-    // online. INCR is atomic, so two servers handling this user's tabs
-    // connecting at the same instant can't both see "I was the first".
-    try {
-      const newCount = await redisClient.incr(onlineCountKey(socket.userId));
-      if (newCount === 1) {
-        broadcastStatus(io, socket.userId, "online").catch((err) =>
-          console.error(`online broadcast failed for user ${socket.userId}:`, err)
-        );
-      }
-    } catch (err) {
-      console.error(`presence incr failed for user ${socket.userId}:`, err);
     }
 
     socket.on("join chat room", async (payload, callback) => {
@@ -409,23 +326,12 @@ function initChatSocket(io) {
       }
     });
 
-    socket.on("disconnect", async (reason) => {
+    socket.on("disconnect", (reason) => {
       console.log(`Socket ${socket.id} disconnected (${reason})`);
-
-      // Last socket for this user across ALL processes -> they just went
-      // offline. DECR is atomic; clamp at 0 so a Redis restart or a missed
-      // INCR can't leave the counter permanently negative.
-      try {
-        const remaining = await redisClient.decr(onlineCountKey(socket.userId));
-        if (remaining <= 0) {
-          await redisClient.del(onlineCountKey(socket.userId));
-          broadcastStatus(io, socket.userId, "offline").catch((err) =>
-            console.error(`offline broadcast failed for user ${socket.userId}:`, err)
-          );
-        }
-      } catch (err) {
-        console.error(`presence decr failed for user ${socket.userId}:`, err);
-      }
+      // Presence (online/offline) is handled in socket/userSocket.js's own
+      // "disconnect" listener on this same socket — Socket.IO allows
+      // multiple listeners per event, so that module doesn't need this
+      // one to do anything on its behalf.
     });
   });
 }

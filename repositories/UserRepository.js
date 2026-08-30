@@ -452,6 +452,24 @@ class UserRepository {
 
     return { message: "User tags deleted successfully" };
   }
+
+  // Global presence (see socket/userSocket.js) — flips isOnline and, only
+  // when going offline, stamps lastSeenAt to now. Coming online leaves
+  // whatever lastSeenAt was already there untouched (it's "last time they
+  // were offline", not "last activity").
+  async setPresence(userId, isOnline) {
+    const update = { isOnline };
+    if (!isOnline) update.lastSeenAt = new Date();
+    await User.update(update, { where: { id: userId } });
+    return User.findByPk(userId, { attributes: ["id", "isOnline", "lastSeenAt"] });
+  }
+
+  // Current presence snapshot — used to answer a "watch user" subscribe
+  // with the state as of right now, without waiting for the next
+  // online/offline transition.
+  async getPresence(userId) {
+    return User.findByPk(userId, { attributes: ["id", "isOnline", "lastSeenAt"] });
+  }
 }
 
 module.exports = UserRepository;

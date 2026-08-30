@@ -30,6 +30,9 @@ require('./socket/streamUploadSocket')(io);
 
 // Initialize the chat socket (auth, rooms, typing)
 require('./socket/chatSocket')(io);
+
+// Initialize the user socket (global online/offline presence)
+require('./socket/userSocket')(io);
 app.use(express.static(path.join(__dirname, "public")));
 app.use(express.static(path.join(__dirname, "node_modules/socket.io/client-dist")));
 

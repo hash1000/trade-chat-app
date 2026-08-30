@@ -150,12 +150,13 @@ class ChatService {
       isAllDeleteMainChat: members
         .filter((m) => m.isDeleteAll)
         .map((m) => ({ userId: m.userId, isDeleteAll: 1 })),
+      // Sourced from the joined User row now, not ChatMember — presence is
+      // global (see socket/userSocket.js), not one fact per chat. Same
+      // output shape as before so existing clients don't need to change.
       statusMembers: members.map((m) => ({
         userId: m.userId,
-        updatedAt: m.statusUpdatedAt
-          ? new Date(m.statusUpdatedAt).toISOString()
-          : null,
-        memberStatus: m.memberStatus,
+        updatedAt: m.user && m.user.lastSeenAt ? new Date(m.user.lastSeenAt).toISOString() : null,
+        memberStatus: m.user && m.user.isOnline ? "online" : "offline",
       })),
       viewer: viewerMember
         ? {
@@ -477,13 +478,6 @@ class ChatService {
 
   async setDeleteAll(chatId, userId, isDeleteAll) {
     return this.chatRepository.updateMemberState(chatId, userId, { isDeleteAll });
-  }
-
-  async setStatus(chatId, userId, memberStatus) {
-    return this.chatRepository.updateMemberState(chatId, userId, {
-      memberStatus,
-      statusUpdatedAt: new Date(),
-    });
   }
 
   async markRead(chatId, userId) {

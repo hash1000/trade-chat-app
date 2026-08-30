@@ -71,17 +71,6 @@ const ChatMember = sequelize.define(
       defaultValue: false,
     },
 
-    memberStatus: {
-      type: DataTypes.ENUM("online", "offline"),
-      allowNull: false,
-      defaultValue: "offline",
-    },
-
-    statusUpdatedAt: {
-      type: DataTypes.DATE,
-      allowNull: true,
-    },
-
     lastReadAt: {
       type: DataTypes.DATE,
       allowNull: true,

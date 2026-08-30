@@ -87,6 +87,21 @@ const User = sequelize.define(
       type: DataTypes.STRING,
       allowNull: true,
     },
+    // Global presence — one fact about this user, not per-chat. isOnline
+    // flips on socket connect (first device) / disconnect (last device),
+    // see socket/userSocket.js. lastSeenAt only updates on the disconnect
+    // side (WhatsApp-style "last seen") — it holds the timestamp of their
+    // most recent offline transition, untouched while currently online;
+    // null if they've never connected at all.
+    isOnline: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
+    lastSeenAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
     createdAt: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW,
