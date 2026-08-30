@@ -70,6 +70,8 @@ class UserRepository {
           "personalWalletBalance",
           "companyWalletBalance",
           "expiration_time",
+          "isOnline",
+          "lastSeenAt",
         ],
         include: [
           {
@@ -148,6 +150,8 @@ class UserRepository {
         "usdWalletBalance",
         "companyWalletBalance",
         "expiration_time",
+        "isOnline",
+        "lastSeenAt",
       ],
       include: [
         {
@@ -190,6 +194,8 @@ class UserRepository {
         "usdWalletBalance",
         "companyWalletBalance",
         "expiration_time",
+        "isOnline",
+        "lastSeenAt",
       ],
       include: [
         {
