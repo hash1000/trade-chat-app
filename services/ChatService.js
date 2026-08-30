@@ -433,16 +433,35 @@ class ChatService {
     return { left: true };
   }
 
+  // Fire-and-forget emit to one user's own personal room (all their
+  // connected devices/tabs), used for every per-member state change below
+  // (favourite/archive/block/mute/read) — these only ever affect the
+  // caller's own view of the chat, so unlike "group settings updated" or
+  // "chat deleted" they never go to the shared chat-<id> room.
+  emitToUser(userId, event, payload) {
+    try {
+      getIO().to(`user-${userId}`).emit(event, payload);
+    } catch (err) {
+      console.warn(`Socket.IO not initialized, skipping "${event}" broadcast`);
+    }
+  }
+
   async setFavourite(chatId, userId, isFavourite) {
-    return this.chatRepository.updateMemberState(chatId, userId, { isFavourite });
+    const member = await this.chatRepository.updateMemberState(chatId, userId, { isFavourite });
+    if (member) this.emitToUser(userId, "chat favourite updated", { chatId, isFavourite: !!isFavourite });
+    return member;
   }
 
   async setArchived(chatId, userId, isArchived) {
-    return this.chatRepository.updateMemberState(chatId, userId, { isArchived });
+    const member = await this.chatRepository.updateMemberState(chatId, userId, { isArchived });
+    if (member) this.emitToUser(userId, "chat archived updated", { chatId, isArchived: !!isArchived });
+    return member;
   }
 
   async setBlocked(chatId, userId, isBlocked) {
-    return this.chatRepository.updateMemberState(chatId, userId, { isBlocked });
+    const member = await this.chatRepository.updateMemberState(chatId, userId, { isBlocked });
+    if (member) this.emitToUser(userId, "chat blocked updated", { chatId, isBlocked: !!isBlocked });
+    return member;
   }
 
   // Personal — no admin gate, this only ever affects the caller's own
@@ -452,13 +471,7 @@ class ChatService {
   // view needs to change when you mute a chat.
   async setMuted(chatId, userId, isMuted) {
     const member = await this.chatRepository.updateMemberState(chatId, userId, { isMuted });
-    if (member) {
-      try {
-        getIO().to(`user-${userId}`).emit("chat muted", { chatId, isMuted: !!isMuted });
-      } catch (err) {
-        console.warn("Socket.IO not initialized, skipping chat-muted broadcast");
-      }
-    }
+    if (member) this.emitToUser(userId, "chat muted", { chatId, isMuted: !!isMuted });
     return member;
   }
 
@@ -475,7 +488,9 @@ class ChatService {
 
   async markRead(chatId, userId) {
     await this.chatRepository.resetUnread(chatId, userId);
-    return this.chatRepository.findMember(chatId, userId);
+    const member = await this.chatRepository.findMember(chatId, userId);
+    if (member) this.emitToUser(userId, "chat read updated", { chatId, unreadCount: 0 });
+    return member;
   }
 
   async recordIncomingMessage(chatId, senderId, messageText) {
