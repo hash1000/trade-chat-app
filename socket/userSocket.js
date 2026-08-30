@@ -17,6 +17,38 @@ const userRepository = new UserRepository();
 // server behind the load balancer.
 const onlineCountKey = (userId) => `presence:online-count:${userId}`;
 
+// How long a counter survives with no heartbeat before Redis drops it on
+// its own. Must comfortably outlast HEARTBEAT_INTERVAL_MS below (several
+// missed beats' worth of slack for a slow tick, not just one).
+const COUNTER_TTL_SECONDS = 90;
+// How often each connected socket refreshes its user's counter TTL while
+// still genuinely open.
+const HEARTBEAT_INTERVAL_MS = 30 * 1000;
+// How often the whole DB is swept for isOnline:true rows the Redis side no
+// longer backs up.
+const RECONCILE_INTERVAL_MS = 2 * 60 * 1000;
+
+// Without this, an ungracefully killed process (crash, hard restart, `kill
+// -9`, a droplet reboot) leaves every socket it owned uncounted forever —
+// nothing ever runs their DECR, since the process never got to. The
+// counter is then permanently wrong: stuck above 0 even though those
+// sockets are long gone, so a real user's *actual* last device
+// disconnecting never brings it down to 0, and they stay "online" forever.
+// Giving the key a TTL, refreshed by a heartbeat only while a real socket
+// is alive, means an orphaned counter just expires on its own within
+// COUNTER_TTL_SECONDS instead of staying wrong indefinitely.
+async function refreshCounterTtl(userId) {
+  const key = onlineCountKey(userId);
+  const refreshed = await redisClient.expire(key, COUNTER_TTL_SECONDS);
+  if (refreshed === 0) {
+    // EXPIRE is a no-op on a key that doesn't exist (e.g. it already
+    // lapsed, or was cleared manually) — recreate it so this still-live
+    // socket keeps counting correctly instead of silently going untracked.
+    await redisClient.incr(key);
+    await redisClient.expire(key, COUNTER_TTL_SECONDS);
+  }
+}
+
 async function broadcastPresence(io, userId, isOnline, user) {
   const event = isOnline ? "user online" : "user offline";
   io.to(`presence-${userId}`).emit(event, {
@@ -26,8 +58,43 @@ async function broadcastPresence(io, userId, isOnline, user) {
   });
 }
 
+// Second line of defense, independent of any one socket's lifecycle: finds
+// every user the DB says is online whose Redis counter has since
+// disappeared (expired via the TTL above, or a pre-existing ghost from
+// before this fix existed) and corrects them — flips isOnline false,
+// stamps lastSeenAt, and tells any live watchers. Runs on a fixed
+// interval, so a user stuck online this way is never wrong for longer
+// than one sweep period, even if they never reconnect to trigger the
+// per-socket disconnect path at all.
+// Note for a multi-process deployment: every app server runs this
+// independently (no leader election), so with N processes the same sweep
+// — and, for any user actually found stale, the same DB write/broadcast —
+// happens N times every RECONCILE_INTERVAL_MS. Harmless (idempotent,
+// infrequent, cheap) but worth knowing if this ever needs to scale down.
+async function reconcileStalePresence(io) {
+  try {
+    const onlineUserIds = await userRepository.getOnlineUserIds();
+    await Promise.all(
+      onlineUserIds.map(async (userId) => {
+        const stillTracked = await redisClient.exists(onlineCountKey(userId));
+        if (!stillTracked) {
+          const user = await userRepository.setPresence(userId, false);
+          await broadcastPresence(io, userId, false, user);
+        }
+      })
+    );
+  } catch (err) {
+    console.error("presence reconcile sweep failed:", err);
+  }
+}
+
 function initUserSocket(io) {
   io.use(authenticateSocket);
+
+  // Runs once for the whole process, not per-connection. setInterval's own
+  // delay before its first tick already gives a just-booted server's
+  // clients time to finish reconnecting before the first sweep runs.
+  setInterval(() => reconcileStalePresence(io), RECONCILE_INTERVAL_MS);
 
   io.on("connection", (socket) => {
     // First socket for this user across ALL processes -> they just came
@@ -63,6 +130,7 @@ function initUserSocket(io) {
       }
       try {
         const newCount = await redisClient.incr(onlineCountKey(socket.userId));
+        await redisClient.expire(onlineCountKey(socket.userId), COUNTER_TTL_SECONDS);
         if (newCount === 1) {
           await broadcastPresence(io, socket.userId, true, { lastSeenAt: null });
         }
@@ -70,6 +138,16 @@ function initUserSocket(io) {
         console.error(`presence incr failed for user ${socket.userId}:`, err);
       }
     })();
+
+    // Keeps this user's counter TTL alive for as long as this socket
+    // genuinely stays open. Stops the moment the socket disconnects (see
+    // below) — so if the whole process dies instead, nothing refreshes it
+    // anymore and it simply expires on schedule.
+    const heartbeat = setInterval(() => {
+      refreshCounterTtl(socket.userId).catch((err) =>
+        console.error(`presence heartbeat failed for user ${socket.userId}:`, err)
+      );
+    }, HEARTBEAT_INTERVAL_MS);
 
     // Subscribe to another user's live presence — call this when opening
     // their profile or a 1:1 chat with them, not for every chat member of
@@ -118,6 +196,8 @@ function initUserSocket(io) {
     });
 
     socket.on("disconnect", async () => {
+      clearInterval(heartbeat);
+
       // Last socket for this user across ALL processes -> they just went
       // offline. DECR is atomic; clamp at 0 so a Redis restart or a missed
       // INCR can't leave the counter permanently negative.
@@ -128,7 +208,8 @@ function initUserSocket(io) {
       // default-favor. If Redis itself is unreachable there's genuinely no
       // safe way to know whether other sockets for this user are still
       // open, so this degrades to "stays online until the next successful
-      // disconnect or reconnect resolves it" rather than guessing.
+      // disconnect or reconnect resolves it, or the periodic reconcile
+      // sweep catches it" rather than guessing.
       try {
         const remaining = await redisClient.decr(onlineCountKey(socket.userId));
         if (remaining <= 0) {

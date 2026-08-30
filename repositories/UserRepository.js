@@ -476,6 +476,16 @@ class UserRepository {
   async getPresence(userId) {
     return User.findByPk(userId, { attributes: ["id", "isOnline", "lastSeenAt"] });
   }
+
+  // Everyone currently marked online in the DB — used by userSocket.js's
+  // periodic reconciliation sweep to find rows stuck at isOnline:true whose
+  // Redis presence key has since disappeared (crashed process, missed
+  // decrement, etc.), so they can be corrected even if that user never
+  // happens to reconnect.
+  async getOnlineUserIds() {
+    const users = await User.findAll({ where: { isOnline: true }, attributes: ["id"] });
+    return users.map((u) => u.id);
+  }
 }
 
 module.exports = UserRepository;
