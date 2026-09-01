@@ -329,21 +329,34 @@ router.delete(
 
 // ------------------ WALLET-TO-WALLET TRANSFER (moved from /chat) ------------------
 
-// route to send a payment request to a user
+// list your own payment requests/sends (either side), newest first.
+// query: ?status=pending|accepted|rejected|cancelled&kind=request|direct&page=&pageSize=
+router.get(
+  "/request-payment/mine",
+  authMiddleware,
+  paymentController.getMyPaymentRequests.bind(paymentController),
+);
+
+// route to send a payment request to a user (e.g. after scanning their QR
+// code); body: { requesteeId, amount?, currency, description?, walletType? }
+// — omit amount for a bare request, the requestee names it on accept
 router.post(
   "/request-payment",
   authMiddleware,
   paymentController.sendPaymentRequest.bind(paymentController),
 );
 
-// route to send a payment to a user
+// route to send a payment to a user directly (e.g. after scanning their QR
+// code) — transfers immediately, no accept/reject step
 router.post(
   "/create-payment",
   authMiddleware,
   paymentController.sendPayment.bind(paymentController),
 );
 
-// requestee accepts/rejects a pending payment request; body: { walletType? } (accept only, defaults to PERSONAL)
+// requestee accepts/rejects a pending payment request;
+// body: { walletType? } (defaults to PERSONAL), plus { amount } when the
+// request was created without one
 router.put(
   "/request-payment/:id/accept",
   authMiddleware,

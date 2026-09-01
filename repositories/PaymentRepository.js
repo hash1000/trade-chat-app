@@ -133,40 +133,82 @@ class PaymentRepository {
     description,
     status,
     kind,
+    walletType,
   ) {
     const paymentRequest = await PaymentRequest.create({
       requesterId,
       requesteeId,
-      amount,
+      amount: amount ?? null,
       currency:currency,
       description:description,
       status: status || "pending",
       kind: kind || "request",
+      walletType: walletType || "PERSONAL",
     });
 
+    // Attribute whitelist matters here: without it Sequelize selects every
+    // User column, including password/resetToken/tokenVersion/otp — those
+    // only get stripped by User.prototype.toJSON, which never runs because
+    // formatPaymentRequest() calls .get({ plain: true }) first (that
+    // detaches the association into a plain object, bypassing toJSON
+    // entirely). This result also now goes out over sockets to both
+    // parties (PaymentService.emitToUser), not just the calling user's own
+    // REST response, so the whitelist isn't optional.
     return PaymentRequest.findByPk(paymentRequest.id, {
       include: [
         {
           model: User,
           as: "requester",
+          attributes: ["id", "username", "firstName", "lastName", "profilePic"],
           include: [
             {
               model: Role,
               as: "roles",
+              attributes: ["id", "name"],
             },
           ],
         },
         {
           model: User,
           as: "requestee",
+          attributes: ["id", "username", "firstName", "lastName", "profilePic"],
           include: [
             {
               model: Role,
               as: "roles",
+              attributes: ["id", "name"],
             },
           ],
         },
       ],
+    });
+  }
+
+  // requesterId OR requesteeId = userId, newest first, optional status/kind
+  // filter. Same safe requester/requestee whitelist as createPaymentRequest
+  // — see the comment there on why that's not optional.
+  async getPaymentRequestsForUser(userId, { status, kind, page = 1, pageSize = 20 } = {}) {
+    const where = { [Op.or]: [{ requesterId: userId }, { requesteeId: userId }] };
+    if (status) where.status = status;
+    if (kind) where.kind = kind;
+
+    return PaymentRequest.findAndCountAll({
+      where,
+      include: [
+        {
+          model: User,
+          as: "requester",
+          attributes: ["id", "username", "firstName", "lastName", "profilePic"],
+        },
+        {
+          model: User,
+          as: "requestee",
+          attributes: ["id", "username", "firstName", "lastName", "profilePic"],
+        },
+      ],
+      order: [["createdAt", "DESC"]],
+      limit: pageSize,
+      offset: (page - 1) * pageSize,
     });
   }
 

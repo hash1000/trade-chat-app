@@ -1136,8 +1136,26 @@ class PaymentController {
   }
 
   // Wallet-to-wallet transfer endpoints (moved from ChatController).
+  // Fills the gap the socket events alone can't: history from before the
+  // client connected, or a fresh app open. Query: ?status=&kind=&page=&pageSize=
+  async getMyPaymentRequests(req, res) {
+    try {
+      const { id: userId } = req.user;
+      const { status, kind, page, pageSize } = req.query;
+
+      const result = await paymentService.getMyPaymentRequests(userId, { status, kind, page, pageSize });
+
+      return res.json({ success: true, ...result });
+    } catch (error) {
+      console.error("Get my payment requests error:", error);
+      return res.status(error.statusCode || 500).json({ success: false, message: error.message });
+    }
+  }
+
+  // amount is optional — omit it to send a bare request ("without payment");
+  // the requestee names the amount when they accept.
   async sendPaymentRequest(req, res) {
-    const { amount, currency, description, requesteeId } = req.body;
+    const { amount, currency, description, requesteeId, walletType } = req.body;
     const { id: requesterId } = req.user;
 
     try {
@@ -1147,11 +1165,12 @@ class PaymentController {
         amount,
         currency,
         description,
+        walletType,
       );
 
       res.json(paymentService.formatPaymentRequest(paymentRequest));
     } catch (error) {
-      res.status(500).json({ message: error.message });
+      res.status(error.statusCode || 500).json({ message: error.message });
     }
   }
 
@@ -1172,9 +1191,9 @@ class PaymentController {
     try {
       const { id } = req.params;
       const { id: userId } = req.user;
-      const { walletType } = req.body;
+      const { walletType, amount } = req.body;
 
-      const paymentRequest = await paymentService.acceptPaymentRequest(id, userId, walletType);
+      const paymentRequest = await paymentService.acceptPaymentRequest(id, userId, walletType, amount);
       const message = await this.broadcastPaymentMessageUpdate(paymentRequest.id, userId);
 
       return res.json({ success: true, data: paymentService.formatPaymentRequest(paymentRequest), message });

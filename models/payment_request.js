@@ -26,9 +26,11 @@ const PaymentRequest = sequelize.define(
         key: "id",
       },
     },
+    // Null when created as a bare request ("send request without payment") —
+    // the requestee supplies the amount when they accept.
     amount: {
       type: DataTypes.DECIMAL(10, 2),
-      allowNull: false,
+      allowNull: true,
     },
     description: {
       type: DataTypes.TEXT,
@@ -50,6 +52,13 @@ const PaymentRequest = sequelize.define(
       type: DataTypes.STRING(10),
       allowNull: false,
       defaultValue: "request",
+    },
+    // Which wallet the transfer was (direct) or should be (request, once
+    // accepted) made against. Mirrors Wallet.walletType.
+    walletType: {
+      type: DataTypes.ENUM("PERSONAL", "COMPANY"),
+      allowNull: false,
+      defaultValue: "PERSONAL",
     },
   },
   {

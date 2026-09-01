@@ -1,4 +1,5 @@
 const { Op } = require("sequelize");
+const { getIO } = require("../config/socket");
 const sequelize = require("../config/database");
 const PaymentRepository = require("../repositories/PaymentRepository");
 const PaymentRequest = require("../models/payment_request");
@@ -1121,6 +1122,71 @@ class PaymentService {
     return this.paymentRepository.deletePaymentType(id);
   }
 
+  // Lists payment_requests involving userId (either side), newest first.
+  // Fills the gap the live socket events (§emitToUser below) can't cover on
+  // their own: state that arrived while the app was closed, or a fresh
+  // install pulling in history for the first time.
+  async getMyPaymentRequests(userId, { status, kind, page = 1, pageSize = 20 } = {}) {
+    const validStatuses = ["pending", "accepted", "rejected", "cancelled"];
+    if (status && !validStatuses.includes(status)) {
+      const err = new Error(`Invalid status. Must be one of: ${validStatuses.join(", ")}`);
+      err.statusCode = 400;
+      err.isUserError = true;
+      throw err;
+    }
+    const validKinds = ["request", "direct"];
+    if (kind && !validKinds.includes(kind)) {
+      const err = new Error(`Invalid kind. Must be one of: ${validKinds.join(", ")}`);
+      err.statusCode = 400;
+      err.isUserError = true;
+      throw err;
+    }
+
+    const pageNum = Math.max(1, Number(page) || 1);
+    const pageSizeNum = Math.min(100, Math.max(1, Number(pageSize) || 20));
+
+    const { rows, count } = await this.paymentRepository.getPaymentRequestsForUser(userId, {
+      status,
+      kind,
+      page: pageNum,
+      pageSize: pageSizeNum,
+    });
+
+    // Same viewer-relative type flip MessageService.formatPayment uses for
+    // the chat-attached version of this same row, so a list view and a
+    // chat bubble agree on what to call it.
+    const data = rows.map((row) => {
+      const formatted = this.formatPaymentRequest(row);
+      const direction = row.requesterId === userId ? "outgoing" : "incoming";
+      const type =
+        row.kind === "direct"
+          ? direction === "outgoing" ? "paymentSend" : "paymentReceived"
+          : "paymentRequest";
+      return { ...formatted, direction, type };
+    });
+
+    return {
+      data,
+      pagination: {
+        page: pageNum,
+        pageSize: pageSizeNum,
+        total: count,
+        totalPages: Math.ceil(count / pageSizeNum),
+      },
+    };
+  }
+
+  // Personal-room push, same pattern as ChatService.emitToUser: notifies
+  // every device a user has connected (not just whoever's making the
+  // request), so e.g. a payment request shows up live without a refresh.
+  emitToUser(userId, event, payload) {
+    try {
+      getIO().to(`user-${userId}`).emit(event, payload);
+    } catch (err) {
+      console.warn(`Socket.IO not initialized, skipping "${event}" broadcast`);
+    }
+  }
+
   // Explicitly normalize to ISO 8601 strings (what Sequelize's Date
   // instances already serialize to via res.json(), made explicit here so
   // the shape doesn't silently depend on the driver's default).
@@ -1138,22 +1204,39 @@ class PaymentService {
   }
 
   // Wallet-to-wallet transfer between two users (moved from ChatService).
-  async sendPaymentRequest(requesterId, requesteeId, amount, currency, description) {
+  // amount is optional — a bare "send request without payment" QR request
+  // leaves it null; the requestee names the amount when they accept.
+  async sendPaymentRequest(requesterId, requesteeId, amount, currency, description, walletType = "PERSONAL") {
     const requester = await userRepository.getById(requesterId);
     const requestee = await userRepository.getById(requesteeId);
     if (!requester || !requestee) {
       throw new Error("One or both users not found");
     }
 
-    return this.paymentRepository.createPaymentRequest(
+    const hasAmount = amount !== undefined && amount !== null && amount !== "";
+    if (hasAmount && (isNaN(amount) || Number(amount) <= 0)) {
+      const err = new Error("Amount must be a positive number");
+      err.statusCode = 400;
+      err.isUserError = true;
+      throw err;
+    }
+
+    const paymentRequest = await this.paymentRepository.createPaymentRequest(
       requesterId,
       requesteeId,
-      amount,
+      hasAmount ? Number(amount) : null,
       currency,
       description,
       "pending",
       "request",
+      walletType,
     );
+
+    const formatted = this.formatPaymentRequest(paymentRequest);
+    this.emitToUser(requesteeId, "payment request received", formatted);
+    this.emitToUser(requesterId, "payment request sent", formatted); // echo to requester's other devices
+
+    return paymentRequest;
   }
 
   async sendPayment(requesterId, requesteeId, amount, currency, walletType, description) {
@@ -1176,6 +1259,7 @@ class PaymentService {
       description,
       "accepted",
       "direct",
+      walletType,
     );
 
     // Now perform the balance transfer
@@ -1187,16 +1271,23 @@ class PaymentService {
     // an unrelated row if the ids happened to collide). Return the payment
     // record that was actually just created instead, plus the wallet
     // transaction group id from the transfer itself.
-    return {
+    const result = {
       ...this.formatPaymentRequest(paymentRequest),
       transactionGroupId: transfer.transaction_group_id,
     };
+    this.emitToUser(requesteeId, "payment received", result);
+    this.emitToUser(requesterId, "payment sent", result); // echo to sender's other devices
+
+    return result;
   }
 
   // Requestee accepts a pending payment request: pays the requester out of
   // their own wallet (reverse direction from sendPayment, where the
   // requester is the one initiating the transfer), then flips status.
-  async acceptPaymentRequest(paymentRequestId, actingUserId, walletType = "PERSONAL") {
+  // amount is required here only when the request was created without one
+  // (a bare "send request without payment") — it's ignored otherwise so the
+  // requestee can't override an amount the requester already fixed.
+  async acceptPaymentRequest(paymentRequestId, actingUserId, walletType = "PERSONAL", amount = null) {
     const request = await PaymentRequest.findByPk(paymentRequestId);
     if (!request) {
       const err = new Error("Payment request not found");
@@ -1219,11 +1310,23 @@ class PaymentService {
       throw err;
     }
 
+    let transferAmount = request.amount;
+    if (transferAmount === null || transferAmount === undefined) {
+      if (amount === null || amount === undefined || isNaN(amount) || Number(amount) <= 0) {
+        const err = new Error("This request has no amount — supply one to accept it");
+        err.statusCode = 400;
+        err.isUserError = true;
+        throw err;
+      }
+      transferAmount = Number(amount);
+      request.amount = transferAmount; // record what was actually paid
+    }
+
     await this.transferBalance(
       actingUserId,
       request.requesterId,
       walletType,
-      request.amount,
+      transferAmount,
       request.currency,
       request.description,
       request.id,
@@ -1231,6 +1334,11 @@ class PaymentService {
 
     request.status = "accepted";
     await request.save();
+
+    const formatted = this.formatPaymentRequest(request);
+    this.emitToUser(request.requesterId, "payment request accepted", formatted);
+    this.emitToUser(actingUserId, "payment request accepted", formatted); // echo to requestee's other devices
+
     return request;
   }
 
@@ -1260,6 +1368,11 @@ class PaymentService {
 
     request.status = "rejected";
     await request.save();
+
+    const formatted = this.formatPaymentRequest(request);
+    this.emitToUser(request.requesterId, "payment request rejected", formatted);
+    this.emitToUser(actingUserId, "payment request rejected", formatted); // echo to requestee's other devices
+
     return request;
   }
 
@@ -1291,6 +1404,11 @@ class PaymentService {
 
     request.status = "cancelled";
     await request.save();
+
+    const formatted = this.formatPaymentRequest(request);
+    this.emitToUser(request.requesteeId, "payment request cancelled", formatted);
+    this.emitToUser(actingUserId, "payment request cancelled", formatted); // echo to requester's other devices
+
     return request;
   }
 

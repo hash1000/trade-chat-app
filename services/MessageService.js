@@ -75,6 +75,7 @@ class MessageService {
       paymentRequestId: p.id,
       amount: p.amount,
       currency: p.currency,
+      walletType: p.walletType,
       note: p.description,
       status: p.status,
       type,
