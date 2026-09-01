@@ -461,7 +461,20 @@ class ChatService {
 
   async setBlocked(chatId, userId, isBlocked) {
     const member = await this.chatRepository.updateMemberState(chatId, userId, { isBlocked });
-    if (member) this.emitToUser(userId, "chat blocked updated", { chatId, isBlocked: !!isBlocked });
+    if (member) {
+      const payload = { chatId, isBlocked: !!isBlocked, userId };
+      // Unlike favourite/archive/mute above, a block is meaningful to the
+      // OTHER member too — they need "you've been blocked/unblocked" to
+      // reach their client live, not just on their next manual refresh. So
+      // this one also fans out to every other participant, carrying
+      // `userId` so a recipient can tell this describes the blocker's own
+      // flag, not theirs, and not misapply it to their own blockData entry.
+      this.emitToUser(userId, "chat blocked updated", payload);
+      const others = await this.chatRepository.getOtherMembers(chatId, userId);
+      for (const other of others) {
+        this.emitToUser(other.userId, "chat blocked updated", payload);
+      }
+    }
     return member;
   }
 
