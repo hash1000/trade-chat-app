@@ -1,7 +1,9 @@
 const ChatRepository = require("../repositories/ChatRepository");
+const ChatService = require("../services/ChatService");
 const MessageService = require("../services/MessageService");
 const { authenticateSocket } = require("../middlewares/socketAuth");
 const chatRepository = new ChatRepository();
+const chatService = new ChatService();
 const messageService = new MessageService();
 
 // Online/offline presence lives in socket/userSocket.js now — it's a
@@ -52,6 +54,39 @@ function initChatSocket(io) {
       } catch (err) {
         console.error("join chat room error:", err);
         if (typeof callback === "function") callback({ error: "Failed to join chat" });
+      }
+    });
+
+    // Self-service join for an existing GROUP chat — e.g. landing here from
+    // a scanned group QR code / invite link, with no admin or current
+    // member having to add you first. Unlike "join chat room" above (which
+    // only moves your socket into a room you're ALREADY a member of), this
+    // actually creates your chat_members row too — see
+    // ChatService.joinGroup. Rejected for a 1:1 "chat" (nothing to
+    // self-join there — see the "convert chat to group" REST endpoint
+    // instead, routes/chatRoutes.js). Re-emitting for a group you're
+    // already in is a harmless no-op (no duplicate row, no second system
+    // message), same idempotency as addMembers.
+    socket.on("join group", async (payload, callback) => {
+      const ack = typeof callback === "function" ? callback : () => {};
+      const chatId = Number(
+        payload && typeof payload === "object" ? payload.chatId : payload
+      );
+
+      if (!Number.isInteger(chatId) || chatId <= 0) {
+        return ack({ error: "Invalid chatId" });
+      }
+
+      try {
+        const chat = await chatService.joinGroup(chatId, socket.userId);
+        // ChatService.joinGroup -> addMembers already calls
+        // joinUsersToChat, which moves every socket this user currently
+        // has open (this one included, via the user-<id> room from
+        // connect) into chat-<chatId> — no separate socket.join needed here.
+        ack({ chat: chatService.formatChat(chat, socket.userId) });
+      } catch (err) {
+        console.error("join group error:", err);
+        ack({ error: err.message || "Failed to join group" });
       }
     });
 

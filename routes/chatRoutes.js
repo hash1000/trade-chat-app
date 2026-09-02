@@ -29,6 +29,11 @@ router.post("/service", authMiddleware, chatController.createServiceChat.bind(ch
 // Create (or reuse) the combined chat for every isChat service in an order.
 router.post("/order", authMiddleware, chatController.createOrGetOrderChat.bind(chatController));
 
+// Upgrade an existing 1:1 chat into a group in place (same chat id/history)
+// — any current participant, 400 if already a group; converting user
+// becomes the new group's admin. Body: { groupName, groupImage?, memberIds? }
+router.put("/:id/convert-to-group", authMiddleware, chatController.convertToGroup.bind(chatController));
+
 router.post("/:id/members", authMiddleware, chatController.addMembers.bind(chatController));
 router.delete("/:id/members/:userId", authMiddleware, chatController.removeMember.bind(chatController));
 // Bulk remove — { memberIds[] } in the body, mirrors the POST above.

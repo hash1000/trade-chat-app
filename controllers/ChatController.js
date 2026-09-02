@@ -180,6 +180,37 @@ class ChatController {
     }
   }
 
+  // Upgrades an existing 1:1 chat into a multi-member group in place (same
+  // chat id/history) — see ChatService.convertToGroup. Any current
+  // participant, not admin-gated (a 1:1 has no admin to gate on); the
+  // caller becomes the new group's admin. 400 if it's already a group.
+  async convertToGroup(req, res) {
+    try {
+      const { id } = req.params;
+      const { id: userId } = req.user;
+      const { groupName, groupImage, memberIds } = req.body;
+
+      const chat = await chatService.convertToGroup(id, userId, {
+        groupName,
+        groupImage,
+        memberIds: Array.isArray(memberIds) ? memberIds : [],
+      });
+      return res.status(200).json({
+        success: true,
+        data: chatService.formatChat(chat, userId),
+      });
+    } catch (error) {
+      console.error("ChatController.convertToGroup error:", error);
+      if (error.statusCode) {
+        return res.status(error.statusCode).json({ success: false, error: error.message });
+      }
+      return res.status(500).json({
+        success: false,
+        error: "Server error. Please try again later.",
+      });
+    }
+  }
+
   async addMembers(req, res) {
     try {
       const { id } = req.params;

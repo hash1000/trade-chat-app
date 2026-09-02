@@ -297,6 +297,88 @@ class ChatService {
     return fullChat;
   }
 
+  // Upgrades an existing 1:1 "chat" into a multi-member "group" in place —
+  // same chat id/history, just Chat.type flipped and a name/image/admin
+  // attached. Any current participant can call this (not admin-gated — a
+  // 1:1 has no admin concept to gate on yet), but only while it's still
+  // type "chat"; converting an already-converted group again is refused
+  // (use updateSettings for a rename instead). The converting user becomes
+  // this group's admin, same as createGroup.
+  //
+  // Optional memberIds are added in the same call — the common real case
+  // for this ("add a third person to a 1:1 chat" turns it into a group by
+  // definition), so the caller doesn't need a separate addMembers round
+  // trip right after. Added straight through the repository rather than
+  // via this.addMembers/assertCanAddMembers: the converting user was just
+  // made this chat's admin two lines above, so that check would pass
+  // anyway — this just skips the redundant re-fetch.
+  async convertToGroup(chatId, actingUserId, { groupName, groupImage, memberIds = [] } = {}) {
+    const chat = await this.chatRepository.findMeta(chatId);
+    if (!chat) {
+      const err = new Error("Chat not found.");
+      err.statusCode = 404;
+      throw err;
+    }
+    if (chat.type === "group") {
+      const err = new Error("This is already a group.");
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const isParticipant = await this.chatRepository.isParticipant(chatId, actingUserId);
+    if (!isParticipant) {
+      const err = new Error("Not a participant of this chat.");
+      err.statusCode = 403;
+      throw err;
+    }
+
+    if (!groupName || !groupName.trim()) {
+      const err = new Error("groupName is required to convert a chat into a group.");
+      err.statusCode = 400;
+      throw err;
+    }
+
+    await this.chatRepository.updateChat(chatId, {
+      type: "group",
+      groupName: groupName.trim(),
+      groupImage: groupImage || null,
+      adminId: actingUserId,
+    });
+    // Existing 1:1 members were created with isAdmin: false (see
+    // ChatRepository.create) — flip the converter's own row so
+    // ChatMember.isAdmin agrees with the Chat.adminId just set above, same
+    // invariant createGroup's bulkCreate establishes for a brand-new group.
+    await this.chatRepository.updateMemberState(chatId, actingUserId, { isAdmin: true });
+
+    const newMemberIds = [...new Set((memberIds || []).filter((id) => id !== actingUserId))];
+    const added = newMemberIds.length > 0 ? await this.chatRepository.addMembers(chatId, newMemberIds) : [];
+    if (added.length > 0) joinUsersToChat(added.map((m) => m.userId), chatId);
+
+    const fullChat = await this.chatRepository.findByPk(chatId);
+
+    const actorName = await this.getUserName(actingUserId);
+    await this.postSystemMessage(chatId, actingUserId, `${actorName} converted this chat into a group`);
+    for (const { userId } of added) {
+      const name = await this.getUserName(userId);
+      await this.postSystemMessage(chatId, userId, `${name} joined this group`);
+    }
+
+    try {
+      getIO().to(`chat-${chatId}`).emit("chat converted to group", {
+        chatId,
+        type: "group",
+        groupName: fullChat.groupName,
+        groupImage: fullChat.groupImage,
+        adminId: fullChat.adminId,
+        memberIds: (fullChat.members || []).map((m) => m.userId),
+      });
+    } catch (err) {
+      console.warn("Socket.IO not initialized, skipping chat-converted-to-group broadcast");
+    }
+
+    return fullChat;
+  }
+
   // --- reads ---------------------------------------------------------
 
   async getById(chatId, viewerUserId) {
@@ -343,6 +425,32 @@ class ChatService {
     }
 
     return fullChat;
+  }
+
+  // Self-service join for an existing GROUP chat by id — e.g. landing here
+  // from a scanned group QR code / invite link, with no admin or current
+  // member having to add you first. Restricted to type "group" (a 1:1
+  // "chat" has no one to self-join into — see convertToGroup above for
+  // that case). Delegates straight to addMembers with userIds === [userId],
+  // which already exempts a pure self-join from assertCanAddMembers AND
+  // already no-ops (no duplicate ChatMember row, no system message) if
+  // you're already a member — same idempotency as re-POSTing
+  // /:id/members with your own id, just over a socket ("join group") for
+  // a single round trip instead of REST + a manual room join.
+  async joinGroup(chatId, userId) {
+    const chat = await this.chatRepository.findMeta(chatId);
+    if (!chat) {
+      const err = new Error("Group not found.");
+      err.statusCode = 404;
+      throw err;
+    }
+    if (chat.type !== "group") {
+      const err = new Error("Only groups can be joined this way.");
+      err.statusCode = 400;
+      throw err;
+    }
+
+    return this.addMembers(chatId, [userId], userId);
   }
 
   // Removes one or more members at once — mirrors addMembers' bulk shape.
