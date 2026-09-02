@@ -215,6 +215,38 @@ class ChatRepository {
     }));
   }
 
+  // Chat ids linked to a given service via chat_services, restricted to
+  // chats this user is actually a member of — for "every chat I have going
+  // about service X" (there can be more than one: different teams offering
+  // the same service, or separate service-request/order chats that both
+  // happen to bundle it). One query: both the membership and the
+  // service-link are enforced as INNER JOINs (attributes: [] on each, so
+  // only Chat.id itself comes back) — replaces an earlier two-step version
+  // (this user's chat ids, then a separate chat_services scan). `Set`
+  // dedupes Chat.id, which can repeat in the raw join when a chat has more
+  // than one matching members/chatServices row.
+  async findChatIdsByServiceForUser(userId, serviceId) {
+    const chats = await Chat.findAll({
+      attributes: ["id"],
+      include: [
+        { model: ChatMember, as: "members", attributes: [], where: { userId }, required: true },
+        { model: ChatService, as: "chatServices", attributes: [], where: { serviceId }, required: true },
+      ],
+    });
+    return [...new Set(chats.map((c) => c.id))];
+  }
+
+  // Full detail rows (buildDetailIncludes) for a batch of chat ids in one
+  // query — used instead of calling findByPk once per id in a loop, which
+  // would fire N separate round trips for a caller with N matching chats.
+  async findManyByIds(chatIds) {
+    if (!Array.isArray(chatIds) || chatIds.length === 0) return [];
+    return Chat.findAll({
+      where: { id: { [Op.in]: chatIds } },
+      include: this.buildDetailIncludes(),
+    });
+  }
+
   async getServiceTeams(serviceId) {
     if (!serviceId) return [];
     const links = await TeamServiceLink.findAll({

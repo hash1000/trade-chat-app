@@ -42,6 +42,30 @@ class ChatController {
     }
   }
 
+  // Every chat the caller is in that has this service attached (via
+  // chat_services) — see ChatService.getChatsByService. Same read is also
+  // available over the socket as "get service chats", no REST round trip
+  // needed.
+  async getChatsByService(req, res) {
+    try {
+      const { id: userId } = req.user;
+      const serviceId = Number(req.params.serviceId);
+
+      if (!Number.isInteger(serviceId) || serviceId <= 0) {
+        return res.status(400).json({ success: false, error: "Invalid serviceId." });
+      }
+
+      const chats = await chatService.getChatsByService(userId, serviceId);
+      return res.status(200).json({ success: true, data: chats });
+    } catch (error) {
+      console.error("ChatController.getChatsByService error:", error);
+      return res.status(500).json({
+        success: false,
+        error: "Server error. Please try again later.",
+      });
+    }
+  }
+
   async getById(req, res) {
     try {
       const { id } = req.params;

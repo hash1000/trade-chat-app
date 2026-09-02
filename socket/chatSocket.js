@@ -142,6 +142,31 @@ function initChatSocket(io) {
       }
     });
 
+    // Every chat you're in that has this serviceId attached (chat_services)
+    // — same data/shape as GET /api/chat/service/:serviceId, just without a
+    // separate REST round trip, same convention as "get messages" above.
+    // Can come back with more than one chat: different teams offering the
+    // same service, or an order-combined chat that bundled it in with
+    // others.
+    socket.on("get service chats", async (payload, callback) => {
+      const ack = typeof callback === "function" ? callback : () => {};
+      const serviceId = Number(
+        payload && typeof payload === "object" ? payload.serviceId : payload
+      );
+
+      if (!Number.isInteger(serviceId) || serviceId <= 0) {
+        return ack({ error: "Invalid serviceId" });
+      }
+
+      try {
+        const chats = await chatService.getChatsByService(socket.userId, serviceId);
+        ack({ serviceId, chats });
+      } catch (err) {
+        console.error("get service chats error:", err);
+        ack({ error: "Failed to fetch service chats" });
+      }
+    });
+
     socket.on("leave chat room", (payload, callback) => {
       const chatId = Number(
         payload && typeof payload === "object" ? payload.chatId : payload

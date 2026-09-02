@@ -14,6 +14,11 @@ router.get("/", authMiddleware, chatController.list.bind(chatController));
 // Must stay above "/:id" — otherwise "relationship" would be swallowed as :id.
 router.get("/relationship/:userId", authMiddleware, chatController.getRelationship.bind(chatController));
 
+// Every chat I'm in that has this service attached (chat_services) — can
+// be more than one (different teams, or an order-combined chat). Must stay
+// above "/:id" for the same reason "relationship/:userId" does.
+router.get("/service/:serviceId", authMiddleware, chatController.getChatsByService.bind(chatController));
+
 // Fetch a single chat/group by id.
 router.get("/:id", authMiddleware, chatController.getById.bind(chatController));
 

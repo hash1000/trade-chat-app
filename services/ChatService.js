@@ -392,6 +392,24 @@ class ChatService {
     return chats.map((chat) => this.formatChat(chat, userId));
   }
 
+  // Every chat this user is currently a member of that has the given
+  // service attached (via chat_services) — a service can show up in more
+  // than one of the caller's chats: a plain service-request chat
+  // (createServiceChat), an order-combined chat that bundled it in with
+  // others (createOrGetOrderChat), potentially against different teams.
+  // Same formatted shape as listForUser/GET /api/chat, just filtered by
+  // service instead of archived/not.
+  async getChatsByService(userId, serviceId) {
+    const chatIds = await this.chatRepository.findChatIdsByServiceForUser(userId, serviceId);
+    if (chatIds.length === 0) return [];
+
+    // One batched query for every matching chat's full detail, instead of
+    // a findByPk per id — two queries total for this whole call, regardless
+    // of how many chats match.
+    const chats = await this.chatRepository.findManyByIds(chatIds);
+    return chats.map((chat) => this.formatChat(chat, userId));
+  }
+
   // --- member actions --------------------------------------------------
 
   // Only actually-new members get a system message and a socket-room join —
