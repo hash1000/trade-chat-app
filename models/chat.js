@@ -25,8 +25,14 @@ const Chat = sequelize.define(
       allowNull: true,
     },
 
+    // "chat": 1:1 (createDirectChat) · "group": user-created multi-member
+    // group (createGroup) · "service_group": customer <-> service team
+    // (createServiceChat) — a group in every behavioral sense (has an
+    // admin, can grow past 2 members) but tagged distinctly so a client
+    // can render/filter it apart from a plain user-made group. See
+    // ChatService.isGroupType.
     type: {
-      type: DataTypes.ENUM("chat", "group"),
+      type: DataTypes.ENUM("chat", "group", "service_group"),
       allowNull: false,
       defaultValue: "chat",
     },

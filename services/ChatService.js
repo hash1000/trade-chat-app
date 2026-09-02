@@ -68,10 +68,19 @@ class ChatService {
     return this.formatDisplayName(user);
   }
 
-  // "group" vs "chat" — wording for the system messages below.
+  // "group" (Chat.type "group" or "service_group") vs "chat" (1:1) — a
+  // service_group is a group in every behavioral sense (has an admin, can
+  // grow past 2 members), just tagged distinctly on the type column itself
+  // so a client can tell it apart from a plain user-made group; anywhere
+  // the code just needs "is this group-shaped", both should count.
+  isGroupType(type) {
+    return type === "group" || type === "service_group";
+  }
+
+  // Wording for the system messages below.
   async getGroupLabel(chatId) {
     const type = await this.chatRepository.getChatType(chatId);
-    return type === "group" ? "group" : "chat";
+    return this.isGroupType(type) ? "group" : "chat";
   }
 
   // Creates + broadcasts a member-joined/left/removed announcement.
@@ -248,11 +257,18 @@ class ChatService {
     return fullChat;
   }
 
-  // Single-service request chat: customer <-> service team.
+  // Single-service request chat: customer <-> service team. Type
+  // "service_group" (not "chat") — see the model comment on Chat.type and
+  // isGroupType above: this isn't a plain 1:1 (it has an admin, and the
+  // team side can grow past just `ownerId` as other team members are added
+  // via addMembers), just tagged distinctly from a user-made "group" so a
+  // client can tell the two apart. `ownerId` becomes this chat's admin —
+  // same as createGroup's creator-is-admin convention — so they (not just
+  // a platform admin) can add the rest of their team later.
   async createServiceChat({ serviceId, teamId, customerId, ownerId, requestSubject, requestDesc }) {
     const chat = await sequelize.transaction(async (t) => {
       const chat = await this.chatRepository.create(
-        { type: "chat", customerId },
+        { type: "service_group", customerId, adminId: ownerId },
         [customerId, ownerId],
         t
       );
@@ -319,7 +335,10 @@ class ChatService {
       err.statusCode = 404;
       throw err;
     }
-    if (chat.type === "group") {
+    if (this.isGroupType(chat.type)) {
+      // Also blocks re-converting a "service_group" — turning it into a
+      // plain "group" here would erase its service-chat identity (and the
+      // distinction service_group exists for) instead of just renaming it.
       const err = new Error("This is already a group.");
       err.statusCode = 400;
       throw err;
@@ -445,16 +464,19 @@ class ChatService {
     return fullChat;
   }
 
-  // Self-service join for an existing GROUP chat by id — e.g. landing here
-  // from a scanned group QR code / invite link, with no admin or current
-  // member having to add you first. Restricted to type "group" (a 1:1
-  // "chat" has no one to self-join into — see convertToGroup above for
-  // that case). Delegates straight to addMembers with userIds === [userId],
-  // which already exempts a pure self-join from assertCanAddMembers AND
-  // already no-ops (no duplicate ChatMember row, no system message) if
-  // you're already a member — same idempotency as re-POSTing
-  // /:id/members with your own id, just over a socket ("join group") for
-  // a single round trip instead of REST + a manual room join.
+  // Self-service join for an existing group-shaped chat by id ("group" or
+  // "service_group" — see isGroupType above) — e.g. landing here from a
+  // scanned group/service QR code or invite link, with no admin or current
+  // member having to add you first. This is the "QR-scanned 'request to
+  // join a service group' flow" addMembers' own self-join exemption already
+  // refers to. Restricted away from plain 1:1 "chat" (nothing to self-join
+  // into there — see convertToGroup above for turning one into a group).
+  // Delegates straight to addMembers with userIds === [userId], which
+  // already exempts a pure self-join from assertCanAddMembers AND already
+  // no-ops (no duplicate ChatMember row, no system message) if you're
+  // already a member — same idempotency as re-POSTing /:id/members with
+  // your own id, just over a socket ("join group") for a single round trip
+  // instead of REST + a manual room join.
   async joinGroup(chatId, userId) {
     const chat = await this.chatRepository.findMeta(chatId);
     if (!chat) {
@@ -462,7 +484,7 @@ class ChatService {
       err.statusCode = 404;
       throw err;
     }
-    if (chat.type !== "group") {
+    if (!this.isGroupType(chat.type)) {
       const err = new Error("Only groups can be joined this way.");
       err.statusCode = 400;
       throw err;
@@ -550,7 +572,7 @@ class ChatService {
     });
 
     const name = this.formatDisplayName(leavingMember && leavingMember.user);
-    const label = chat.type === "group" ? "group" : "chat";
+    const label = this.isGroupType(chat.type) ? "group" : "chat";
     // Broadcast before evicting, same ordering as removeMember above — any
     // other tab the leaver still has open in this room sees the notice too.
     await this.postSystemMessage(chatId, userId, `${name} left this ${label}`);
