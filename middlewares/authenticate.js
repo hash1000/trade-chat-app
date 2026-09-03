@@ -3,7 +3,6 @@ const UserService = require('../services/UserService') // Replace the path with 
 
 // Authentication middleware
 const authenticate = async (req, res, next) => {
-  console.log("running...");
   const authHeader = req.headers.authorization
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ message: 'Missing or invalid token' })
@@ -13,7 +12,6 @@ const authenticate = async (req, res, next) => {
   if (token) {
     try {
       const decoded =  jwt.verify(token, process.env.JWT_SECRET_KEY)
-      console.log("decode",decoded);
       const { userId, tokenVersion } = decoded
       // Check if the user exists
       // console.log("authentication");

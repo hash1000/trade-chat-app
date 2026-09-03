@@ -233,12 +233,20 @@ class MessageService {
 
     const message = await this.messageRepository.create(data, payload.mentionUserIds || []);
 
-    await this.chatRepository.setLastMessage(chatId, this.previewText(message));
-    await this.chatRepository.incrementUnreadForOthers(chatId, senderId);
-    // Revives this chat for anyone who'd soft-deleted it "for me" — their
-    // older history stays hidden, but the chat reappears in their list and
-    // this message (and any after it) is visible. See ChatService.deleteChatForUser.
-    await this.chatRepository.clearDeleteAllForChat(chatId);
+    // Three independent writes — different table/columns, none reads a
+    // value the others produce — run together instead of as three
+    // sequential round trips. This fires on every single message sent, so
+    // it's the single hottest path in the app; sequential awaits here were
+    // adding 2 extra round trips of pure waiting to every "send message".
+    // (clearDeleteAllForChat revives this chat for anyone who'd
+    // soft-deleted it "for me" — their older history stays hidden, but the
+    // chat reappears in their list and this message, and any after it, is
+    // visible. See ChatService.deleteChatForUser.)
+    await Promise.all([
+      this.chatRepository.setLastMessage(chatId, this.previewText(message)),
+      this.chatRepository.incrementUnreadForOthers(chatId, senderId),
+      this.chatRepository.clearDeleteAllForChat(chatId),
+    ]);
 
     // Fire-and-forget — never blocks or fails the send itself. Skipped for
     // duplicate localId retries by the caller (see chatSocket.js), same as
@@ -271,9 +279,12 @@ class MessageService {
 
     const message = await this.messageRepository.create(data, []);
 
-    await this.chatRepository.setLastMessage(chatId, this.previewText(message));
-    await this.chatRepository.incrementUnreadForOthers(chatId, senderId);
-    await this.chatRepository.clearDeleteAllForChat(chatId);
+    // Same three independent writes, run together — see sendMessage above.
+    await Promise.all([
+      this.chatRepository.setLastMessage(chatId, this.previewText(message)),
+      this.chatRepository.incrementUnreadForOthers(chatId, senderId),
+      this.chatRepository.clearDeleteAllForChat(chatId),
+    ]);
 
     this.notifyNewMessage(chatId, senderId, message).catch((err) =>
       console.error("notifyNewMessage error:", err.message)

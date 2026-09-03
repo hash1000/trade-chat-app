@@ -1,28 +1,23 @@
-const { User, Role } = require("../models");
-const UserService = require('../services/UserService')
-
+// authMiddleware (middlewares/authenticate.js) always runs before this —
+// every route below wires them in that order — and it already attaches the
+// full user + roles to req.user. This used to re-fetch that same
+// user-with-roles from the DB again here via a second, identical query on
+// every single role-gated request; now it just reads what's already on
+// req.user, which also means this no longer needs to be async.
 const authorize = (allowedRoles = []) => {
-  return async (req, res, next) => {
+  return (req, res, next) => {
     try {
-      const userId = req.user.id; // Ensure req.user is set by the authenticate middleware
-      if (!userId) {
+      const user = req.user;
+      if (!user || !user.id) {
         return res.status(401).json({ message: "Unauthorized" });
       }
-      // Fetch user along with their roles through the user_roles junction table
-      const userService = new UserService()
-      const user = await userService.getUserById(userId)
-    console.log("Authorization middleware user:", user, "allowedRoles:", allowedRoles);
-      if (!user || !user.roles.length) {
+      if (!user.roles || !user.roles.length) {
         return res.status(403).json({ message: "Forbidden: No roles assigned" });
       }
 
-      // Extract role names
       const userRoles = user.roles.map((role) => role.name);
-      console.log("User roles:", userRoles, "Allowed roles:", allowedRoles);
-      // Check if the user has an allowed role
       const hasPermission = allowedRoles.some((role) => userRoles.includes(role));
 
-      // console.log("hasPermission",hasPermission);
       if (!hasPermission) {
         return res.status(403).json({ message: "Forbidden: Access denied" });
       }
