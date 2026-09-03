@@ -1,10 +1,11 @@
 // services/ChatService.js
 const sequelize = require("../config/database");
-const { User, Role } = require("../models");
+const { User, Role, Team } = require("../models");
 const ChatRepository = require("../repositories/ChatRepository");
 const MessageRepository = require("../repositories/MessageRepository");
 const FriendsRepository = require("../repositories/FriendsRepository");
 const MessageService = require("./MessageService");
+const NotificationService = require("./NotificationService");
 const { joinUsersToChat, leaveUsersFromChat, getIO } = require("../config/socket");
 
 class ChatService {
@@ -13,6 +14,7 @@ class ChatService {
     this.messageRepository = new MessageRepository();
     this.friendsRepository = new FriendsRepository();
     this.messageService = new MessageService();
+    this.notificationService = new NotificationService();
   }
 
   // Everything the caller needs to decide "start a chat" vs "open existing"
@@ -281,7 +283,87 @@ class ChatService {
     });
     const fullChat = await this.chatRepository.findByPk(chat.id);
     this.notifyNewChat(fullChat, customerId);
+
+    // The customer's own free-text ask, auto-posted as the thread's first
+    // real message (not a system notice) — otherwise it only ever lived in
+    // chat_services.requestDesc, invisible unless a client went looking
+    // for it there instead of just reading the chat.
+    if (requestDesc && requestDesc.trim()) {
+      await this.postServiceRequestMessage(fullChat.id, customerId, requestDesc.trim());
+    }
+
+    // Fire-and-forget — every team member (not just ownerId, the only one
+    // actually IN this chat) hears "someone wants this service", same
+    // "never block the main flow for a notification" spirit as
+    // MessageService.notifyNewMessage.
+    this.notifyTeamOfServiceRequest({ teamId, ownerId, customerId, serviceId, chatId: fullChat.id }).catch(
+      (err) => console.error("notifyTeamOfServiceRequest error:", err.message)
+    );
+
     return fullChat;
+  }
+
+  // Posts the customer's requestDesc into the chat as a real (non-system)
+  // text message authored by them — reuses MessageService.sendMessage so it
+  // gets the exact same lastMessage preview update, unread increment, and
+  // (to the chat's other participant, i.e. ownerId) "NEW_MESSAGE" push as
+  // anything a client sends themselves. Broadcast to the room manually
+  // (io.to(), same as postSystemMessage above) since this runs from a plain
+  // REST controller, not a socket event — there's no per-request socket
+  // here to do a sender-excluded socket.to().
+  async postServiceRequestMessage(chatId, customerId, text) {
+    const { message } = await this.messageService.sendMessage(chatId, customerId, {
+      messageType: "text",
+      message: text,
+    });
+    const formatted = this.messageService.formatMessage(message, customerId);
+
+    try {
+      getIO().to(`chat-${chatId}`).emit("message", formatted);
+    } catch (err) {
+      console.warn("Socket.IO not initialized, skipping service-request-message broadcast");
+    }
+
+    return formatted;
+  }
+
+  // Distinct from the message-based push above (which only ever reaches
+  // ownerId, the sole other chat participant) — every member of the
+  // service's team gets their own "<customer> wants this service"
+  // notification, so the whole team hears about the request even though
+  // only the owner is actually a member of this chat. Falls back to just
+  // ownerId if teamId wasn't given or the team has no other members on
+  // record. Never throws (NotificationService.notifyUser already
+  // swallows its own errors) — the caller still wraps this call in a
+  // .catch() as belt-and-suspenders, same as notifyNewMessage's caller.
+  async notifyTeamOfServiceRequest({ teamId, ownerId, customerId, serviceId, chatId }) {
+    const customerName = await this.getUserName(customerId);
+
+    let teamMemberIds = [];
+    if (teamId) {
+      const team = await Team.findByPk(teamId, {
+        include: [{ model: User, as: "members", attributes: ["id"] }],
+      });
+      teamMemberIds = ((team && team.members) || []).map((u) => u.id);
+    }
+    const recipientIds = [...new Set([...teamMemberIds, ownerId])].filter(
+      (id) => id && id !== customerId
+    );
+
+    await Promise.all(
+      recipientIds.map((userId) =>
+        this.notificationService.notifyUser({
+          userId,
+          actorId: customerId,
+          type: "SERVICE_REQUEST",
+          title: "New service request",
+          message: `${customerName} wants this service`,
+          entityType: "CHAT",
+          entityId: chatId,
+          data: { chatId, serviceId, teamId },
+        })
+      )
+    );
   }
 
   // Order-combined chat: bundles every isChat service in the order into
