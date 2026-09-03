@@ -87,25 +87,39 @@ class ChatRepository {
     return Chat.findOne({ where: { orderId } });
   }
 
+  // A 1:1 "chat" between exactly these two users (not a group) — called on
+  // every POST /chat/direct, GET /chat/relationship/:userId, and profile
+  // view. Used to load and JS-scan EVERY "chat"-type chat on the whole
+  // platform (with every one of their members) on every single call,
+  // regardless of how many chats these two particular users actually have
+  // — an O(every 1:1 chat that exists anywhere) cost that only gets worse
+  // as the platform grows. Scoped down to userAId's own handful of 1:1s
+  // (indexed on chat_members.userId) first, then one indexed lookup to see
+  // if userBId shares one of those specific chats.
   async findExistingDirectChat(userAId, userBId) {
-    // A 1:1 "chat" between exactly these two users (not a group).
-    const chats = await Chat.findAll({
-      where: { type: "chat" },
-      include: [
-        {
-          model: ChatMember,
-          as: "members",
-          attributes: ["userId"],
-        },
-      ],
-    });
+    const myDirectChatIds = (
+      await ChatMember.findAll({
+        where: { userId: userAId },
+        attributes: ["chatId"],
+        include: [{ model: Chat, as: "chat", attributes: [], where: { type: "chat" }, required: true }],
+      })
+    ).map((m) => m.chatId);
+    if (myDirectChatIds.length === 0) return null;
 
-    return (
-      chats.find((chat) => {
-        const ids = chat.members.map((m) => m.userId);
-        return ids.length === 2 && ids.includes(userAId) && ids.includes(userBId);
-      }) || null
-    );
+    const shared = await ChatMember.findOne({
+      where: { chatId: { [Op.in]: myDirectChatIds }, userId: userBId },
+      attributes: ["chatId"],
+    });
+    if (!shared) return null;
+
+    // Defensive, same intent as the old JS-side "exactly 2 members" check:
+    // a "chat" (1:1) row is only ever supposed to have 2 members, but
+    // addMembers doesn't actually gate on type, so a platform admin could
+    // in principle grow one past 2 — confirm this specific candidate
+    // really is 1:1 rather than silently treating a 3+-member outlier as
+    // this pair's direct chat.
+    const memberCount = await ChatMember.count({ where: { chatId: shared.chatId } });
+    return memberCount === 2 ? { id: shared.chatId } : null;
   }
 
   async findByPk(chatId, options = {}) {
