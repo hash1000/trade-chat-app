@@ -261,6 +261,34 @@ class ChatController {
     }
   }
 
+  // Downgrades an existing "service_group"/"service_order_group" into a
+  // plain "group" — see ChatService.convertServiceChatToGroup.
+  async convertServiceChatToGroup(req, res) {
+    try {
+      const { id } = req.params;
+      const { id: userId } = req.user;
+      const { groupName, groupImage } = req.body;
+
+      const chat = await chatService.convertServiceChatToGroup(id, userId, {
+        groupName,
+        groupImage,
+      });
+      return res.status(200).json({
+        success: true,
+        data: chatService.formatChat(chat, userId),
+      });
+    } catch (error) {
+      console.error("ChatController.convertServiceChatToGroup error:", error);
+      if (error.statusCode) {
+        return res.status(error.statusCode).json({ success: false, error: error.message });
+      }
+      return res.status(500).json({
+        success: false,
+        error: "Server error. Please try again later.",
+      });
+    }
+  }
+
   async addMembers(req, res) {
     try {
       const { id } = req.params;

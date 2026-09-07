@@ -83,6 +83,14 @@ class ChatRepository {
     );
   }
 
+  // Reverse of attachServices — deletes every chat_services row for this
+  // chat. Used when downgrading a "service_group"/"service_order_group"
+  // into a plain "group" (ChatService.convertServiceChatToGroup), where the
+  // whole point is that the result no longer has any service attached.
+  async detachAllServices(chatId, t) {
+    return ChatService.destroy({ where: { chatId }, transaction: t });
+  }
+
   async findByServiceOrderId(serviceOrderId) {
     return Chat.findOne({ where: { serviceOrderId } });
   }

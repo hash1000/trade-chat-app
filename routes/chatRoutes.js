@@ -54,6 +54,16 @@ router.post("/service-order", authMiddleware, chatController.createOrGetServiceO
 // becomes the new group's admin. Body: { groupName, groupImage?, memberIds? }
 router.put("/:id/convert-to-group", authMiddleware, chatController.convertToGroup.bind(chatController));
 
+// Downgrade an existing "service_group"/"service_order_group" into a plain
+// "group" in place (same chat id/history) — opposite direction from above,
+// admin-only, strips the service association (chat_services rows deleted,
+// customerId/serviceOrderId cleared). Body: { groupName, groupImage? }
+router.put(
+  "/:id/convert-to-simple-group",
+  authMiddleware,
+  chatController.convertServiceChatToGroup.bind(chatController)
+);
+
 router.post("/:id/members", authMiddleware, chatController.addMembers.bind(chatController));
 router.delete("/:id/members/:userId", authMiddleware, chatController.removeMember.bind(chatController));
 // Bulk remove — { memberIds[] } in the body, mirrors the POST above.

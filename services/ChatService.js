@@ -626,6 +626,93 @@ class ChatService {
     return fullChat;
   }
 
+  // Downgrades an existing "service_group" or "service_order_group" chat
+  // into a plain "group" — the opposite direction from convertToGroup
+  // above, which explicitly refuses this exact case (see its own guard
+  // comment). Same chat id/history; only the type/service association
+  // changes. Admin-only (this chat's own adminId — the service owner for
+  // service_group, the customer for service_order_group, already set at
+  // creation — or a platform admin), unlike convertToGroup's more lenient
+  // "any participant" rule: unlike a bare 1:1 "chat", these already have a
+  // real admin to gate on, same as removeMembers/updateSettings/
+  // hardDeleteChat (assertCanManageMembers).
+  //
+  // "Simple" per the caller's own wording: this doesn't just flip
+  // Chat.type, it strips the service association entirely — every
+  // chat_services row for this chat is deleted, and customerId/
+  // serviceOrderId are cleared — so the result is genuinely
+  // indistinguishable from a chat createGroup would have made (no
+  // lingering `service`/`services` block in formatChat's output, and it
+  // stops showing up in getChatsByService/getChatsByServiceOrder). What it
+  // used to be about isn't silently lost, though: a system message
+  // summarizing the removed service(s) by name is posted before they're
+  // deleted.
+  async convertServiceChatToGroup(chatId, actingUserId, { groupName, groupImage } = {}) {
+    const chat = await this.chatRepository.findByPk(chatId);
+    if (!chat) {
+      const err = new Error("Chat not found.");
+      err.statusCode = 404;
+      throw err;
+    }
+    if (chat.type !== "service_group" && chat.type !== "service_order_group") {
+      const err = new Error("This chat is not a service or service-order group.");
+      err.statusCode = 400;
+      throw err;
+    }
+    if (!groupName || !groupName.trim()) {
+      const err = new Error("groupName is required to convert this into a group.");
+      err.statusCode = 400;
+      throw err;
+    }
+
+    await this.assertCanManageMembers(chatId, actingUserId, "convert this into a plain group");
+
+    const serviceNames = (chat.chatServices || [])
+      .map((cs) => cs.service && cs.service.name)
+      .filter(Boolean);
+    const wasLabel = chat.type === "service_order_group" ? "service order" : "service";
+
+    await sequelize.transaction(async (t) => {
+      await this.chatRepository.updateChat(
+        chatId,
+        {
+          type: "group",
+          groupName: groupName.trim(),
+          groupImage: groupImage || chat.groupImage || null,
+          customerId: null,
+          serviceOrderId: null,
+        },
+        t
+      );
+      await this.chatRepository.detachAllServices(chatId, t);
+    });
+
+    const actorName = await this.getUserName(actingUserId);
+    const summary = serviceNames.length > 0 ? ` (was about: ${serviceNames.join(", ")})` : "";
+    await this.postSystemMessage(
+      chatId,
+      actingUserId,
+      `${actorName} converted this ${wasLabel} chat into a group${summary}`
+    );
+
+    const fullChat = await this.chatRepository.findByPk(chatId);
+
+    try {
+      getIO().to(`chat-${chatId}`).emit("chat converted to group", {
+        chatId,
+        type: "group",
+        groupName: fullChat.groupName,
+        groupImage: fullChat.groupImage,
+        adminId: fullChat.adminId,
+        memberIds: (fullChat.members || []).map((m) => m.userId),
+      });
+    } catch (err) {
+      console.warn("Socket.IO not initialized, skipping chat-converted-to-group broadcast");
+    }
+
+    return fullChat;
+  }
+
   // --- reads ---------------------------------------------------------
 
   async getById(chatId, viewerUserId) {

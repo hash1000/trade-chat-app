@@ -90,6 +90,64 @@ function initChatSocket(io) {
       }
     });
 
+    // Upgrades an existing 1:1 "chat" into a "group" in place — socket
+    // counterpart to PUT /api/chat/:id/convert-to-group (routes/
+    // chatRoutes.js), same underlying ChatService.convertToGroup, so the
+    // 403/400 guards (not a participant, already a group, missing
+    // groupName), the "<name> converted this chat into a group" + per-added
+    // -member "joined" system messages, and the "chat converted to group"
+    // room broadcast (§3) all happen exactly the same way — this handler
+    // just acks the result back over the same round trip instead of
+    // requiring a separate REST call.
+    socket.on("convert to group", async (payload, callback) => {
+      const ack = typeof callback === "function" ? callback : () => {};
+      const chatId = Number(payload && payload.chatId);
+
+      if (!Number.isInteger(chatId) || chatId <= 0) {
+        return ack({ error: "Invalid chatId" });
+      }
+
+      try {
+        const chat = await chatService.convertToGroup(chatId, socket.userId, {
+          groupName: payload && payload.groupName,
+          groupImage: payload && payload.groupImage,
+          memberIds: (payload && payload.memberIds) || [],
+        });
+        ack({ chat: chatService.formatChat(chat, socket.userId) });
+      } catch (err) {
+        console.error("convert to group error:", err);
+        ack({ error: err.message || "Failed to convert chat into a group" });
+      }
+    });
+
+    // Downgrades an existing "service_group"/"service_order_group" into a
+    // plain "group" in place — socket counterpart to PUT
+    // /api/chat/:id/convert-to-simple-group, same underlying
+    // ChatService.convertServiceChatToGroup, so the admin-only gate, the
+    // chat_services-stripping, the "<name> converted this service[ order]
+    // chat into a group (was about: ...)" system message, and the "chat
+    // converted to group" room broadcast (§3) all happen exactly the same
+    // way as the REST route.
+    socket.on("convert to simple group", async (payload, callback) => {
+      const ack = typeof callback === "function" ? callback : () => {};
+      const chatId = Number(payload && payload.chatId);
+
+      if (!Number.isInteger(chatId) || chatId <= 0) {
+        return ack({ error: "Invalid chatId" });
+      }
+
+      try {
+        const chat = await chatService.convertServiceChatToGroup(chatId, socket.userId, {
+          groupName: payload && payload.groupName,
+          groupImage: payload && payload.groupImage,
+        });
+        ack({ chat: chatService.formatChat(chat, socket.userId) });
+      } catch (err) {
+        console.error("convert to simple group error:", err);
+        ack({ error: err.message || "Failed to convert into a simple group" });
+      }
+    });
+
     // One-shot existence + membership check — e.g. before opening a chat
     // screen, or to find out you were removed/the chat was deleted after
     // missing the live "message"/room-eviction that happens at the time
