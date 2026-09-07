@@ -310,7 +310,12 @@ class ChatService {
       messageType: "text",
       message: text,
     });
-    const formatted = this.messageService.formatMessage(message, customerId);
+    // Auto-posted server-side, not through the client's own "send message"
+    // -> markUploaded() flow — nothing would ever clear isUploading
+    // otherwise, leaving it stuck at the clock icon forever. Same reasoning
+    // as createSystemMessage's isUploading: false.
+    const uploaded = await this.messageService.markUploaded(message.id);
+    const formatted = this.messageService.formatMessage(uploaded, customerId);
 
     try {
       getIO().to(`chat-${chatId}`).emit("message", formatted);
