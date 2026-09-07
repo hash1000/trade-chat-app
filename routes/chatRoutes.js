@@ -19,11 +19,18 @@ router.get("/relationship/:userId", authMiddleware, chatController.getRelationsh
 // above "/:id" for the same reason "relationship/:userId" does.
 router.get("/service/:serviceId", authMiddleware, chatController.getChatsByService.bind(chatController));
 
-// Every chat I'm in that has any of this order's services attached
+// Every chat I'm in that has any of this SERVICE order's services attached
 // (chat_services) — the order's own combined chat, plus any standalone
-// per-service chat that happens to share one of the same services. Must
-// stay above "/:id" for the same reason "relationship/:userId" does.
-router.get("/order/:orderId", authMiddleware, chatController.getChatsByOrder.bind(chatController));
+// per-service chat that happens to share one of the same services. Named
+// "service-order", not bare "order": product/shop orders (ProductOrder/
+// ProductShopOrder) are a separate, unrelated concept — see
+// models/chat.js's serviceOrderId comment. Must stay above "/:id" for the
+// same reason "relationship/:userId" does.
+router.get(
+  "/service-order/:serviceOrderId",
+  authMiddleware,
+  chatController.getChatsByServiceOrder.bind(chatController)
+);
 
 // Fetch a single chat/group by id.
 router.get("/:id", authMiddleware, chatController.getById.bind(chatController));
@@ -37,8 +44,10 @@ router.post("/group", authMiddleware, chatController.createGroup.bind(chatContro
 // Create a customer <-> team chat for a single service request.
 router.post("/service", authMiddleware, chatController.createServiceChat.bind(chatController));
 
-// Create (or reuse) the combined chat for every isChat service in an order.
-router.post("/order", authMiddleware, chatController.createOrGetOrderChat.bind(chatController));
+// Create (or reuse) the combined chat for every isChat service in a
+// SERVICE order — see the "service-order" GET route above for why this
+// isn't bare "/order".
+router.post("/service-order", authMiddleware, chatController.createOrGetServiceOrderChat.bind(chatController));
 
 // Upgrade an existing 1:1 chat into a group in place (same chat id/history)
 // — any current participant, 400 if already a group; converting user

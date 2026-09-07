@@ -183,8 +183,8 @@ class ChatService {
         : null,
     };
 
-    if (plain.orderId) {
-      // Order-combined chat: one fully-detailed entry per bundled service —
+    if (plain.serviceOrderId) {
+      // Service-order-combined chat: one fully-detailed entry per bundled service —
       // NOT just ids — so a client can render every service's own name,
       // price, and description, not only the first one's.
       // `service_order_id`/`service_ids` carried on every entry (not just
@@ -195,7 +195,7 @@ class ChatService {
       const serviceIds = chatServices.map((cs) => cs.serviceId);
       result.services = chatServices.map((cs) => ({
         ...this.formatSingleService(plain, cs),
-        service_order_id: plain.orderId,
+        service_order_id: plain.serviceOrderId,
         service_ids: serviceIds,
       }));
       result.service = result.services[0] || null;
@@ -367,28 +367,30 @@ class ChatService {
     );
   }
 
-  // Order-combined chat: bundles every chat-enabled (Service.isChat) service
-  // in the order into one "service_order_group" thread — e.g. an order with
-  // 3 services where only 2 have isChat true produces one group with just
-  // those 2 attached. Fully derived from the order's own ServiceOrder rows
-  // server-side (the caller only supplies orderId, nothing about which
-  // services/teams to include) so a stale or wrong client payload can't
-  // smuggle in a disabled service or skip an enabled one — unlike
-  // createServiceChat's single ownerId membership, EVERY member of EVERY
-  // team linked to EVERY bundled service is added as an actual chat member
-  // (a service can be linked to more than one team via TeamServiceLink;
-  // all of them count here, no attempt to pick "the" team — see
-  // getServiceTeams), UNIONED with each service's own direct ServiceMembers
-  // (Service.members via ServiceMember, a separate roster from Team
-  // membership — see getServiceMemberIds). Reuses the existing chat if this
-  // order already has one (services/membership are not re-synced on repeat
-  // calls).
-  async createOrGetOrderChat({ orderId, customerId, requestDesc }) {
+  // Service-order-combined chat: bundles every chat-enabled (Service.isChat)
+  // service in a *service* order (Order + ServiceOrder — not a product or
+  // shop order, see models/chat.js's serviceOrderId comment) into one
+  // "service_order_group" thread — e.g. an order with 3 services where only
+  // 2 have isChat true produces one group with just those 2 attached. Fully
+  // derived from the order's own ServiceOrder rows server-side (the caller
+  // only supplies serviceOrderId, nothing about which services/teams to
+  // include) so a stale or wrong client payload can't smuggle in a disabled
+  // service or skip an enabled one — unlike createServiceChat's single
+  // ownerId membership, EVERY member of EVERY team linked to EVERY bundled
+  // service is added as an actual chat member (a service can be linked to
+  // more than one team via TeamServiceLink; all of them count here, no
+  // attempt to pick "the" team — see getServiceTeams), UNIONED with each
+  // service's own direct ServiceMembers (Service.members via ServiceMember,
+  // a separate roster from Team membership — see getServiceMemberIds).
+  // Reuses the existing chat if this service order already has one
+  // (services/membership are not re-synced on repeat calls).
+  async createOrGetServiceOrderChat({ serviceOrderId, customerId, requestDesc }) {
     // Ownership check comes before the existing-chat short-circuit below,
-    // not after — findByOrderId isn't scoped to customerId, so checking
-    // ownership only on the create path would let anyone who knows an
-    // orderId fetch that order's chat in full once it already exists.
-    const order = await Order.findByPk(orderId);
+    // not after — findByServiceOrderId isn't scoped to customerId, so
+    // checking ownership only on the create path would let anyone who knows
+    // a serviceOrderId fetch that order's chat in full once it already
+    // exists.
+    const order = await Order.findByPk(serviceOrderId);
     if (!order) {
       const err = new Error("Order not found.");
       err.statusCode = 404;
@@ -400,11 +402,15 @@ class ChatService {
       throw err;
     }
 
-    const existing = await this.chatRepository.findByOrderId(orderId);
+    const existing = await this.chatRepository.findByServiceOrderId(serviceOrderId);
     if (existing) return this.chatRepository.findByPk(existing.id);
 
+    // ServiceOrder's own FK column is still just "orderId" (see
+    // ChatRepository.findChatIdsByServiceOrderForUser's comment) — only
+    // Chat's own column and this method's own params needed the
+    // "serviceOrder" prefix.
     const orderServices = await ServiceOrder.findAll({
-      where: { orderId },
+      where: { orderId: serviceOrderId },
       include: [{ model: Service, as: "service", attributes: ["id", "name", "isChat"] }],
     });
     // De-duped by serviceId: an order can carry more than one ServiceOrder
@@ -458,7 +464,7 @@ class ChatService {
 
     const chat = await sequelize.transaction(async (t) => {
       const chat = await this.chatRepository.create(
-        { type: "service_order_group", orderId, customerId, adminId: customerId },
+        { type: "service_order_group", serviceOrderId, customerId, adminId: customerId },
         memberIds,
         t
       );
@@ -492,22 +498,22 @@ class ChatService {
     // (already added to the room above) also gets a proper notification
     // per bundled service, same "someone wants this service" wording as
     // notifyTeamOfServiceRequest.
-    this.notifyTeamsOfOrderRequest({ chatId: fullChat.id, orderId, customerId, serviceTeams }).catch(
-      (err) => console.error("notifyTeamsOfOrderRequest error:", err.message)
+    this.notifyTeamsOfServiceOrderRequest({ chatId: fullChat.id, serviceOrderId, customerId, serviceTeams }).catch(
+      (err) => console.error("notifyTeamsOfServiceOrderRequest error:", err.message)
     );
 
     return fullChat;
   }
 
-  // Order-group counterpart to notifyTeamOfServiceRequest: one notification
-  // per recipient per bundled service their team is linked to (a member on
-  // two of the order's services' teams hears about both, separately) —
-  // "<customer> wants this service" reaching everyone even though they're
-  // now also an actual chat member, same "notification center entry, not
-  // just room membership" reasoning as the single-service flow. Never
-  // throws (notifyUser already swallows its own errors); caller still
-  // wraps this in .catch() as belt-and-suspenders.
-  async notifyTeamsOfOrderRequest({ chatId, orderId, customerId, serviceTeams }) {
+  // Service-order-group counterpart to notifyTeamOfServiceRequest: one
+  // notification per recipient per bundled service their team is linked to
+  // (a member on two of the order's services' teams hears about both,
+  // separately) — "<customer> wants this service" reaching everyone even
+  // though they're now also an actual chat member, same "notification
+  // center entry, not just room membership" reasoning as the single-service
+  // flow. Never throws (notifyUser already swallows its own errors);
+  // caller still wraps this in .catch() as belt-and-suspenders.
+  async notifyTeamsOfServiceOrderRequest({ chatId, serviceOrderId, customerId, serviceTeams }) {
     const customerName = await this.getUserName(customerId);
 
     await Promise.all(
@@ -523,7 +529,7 @@ class ChatService {
               message: `${customerName} wants this service`,
               entityType: "CHAT",
               entityId: chatId,
-              data: { chatId, orderId, serviceId },
+              data: { chatId, serviceOrderId, serviceId },
             })
           )
       )
@@ -631,8 +637,9 @@ class ChatService {
   // Every chat this user is currently a member of that has the given
   // service attached (via chat_services) — a service can show up in more
   // than one of the caller's chats: a plain service-request chat
-  // (createServiceChat), an order-combined chat that bundled it in with
-  // others (createOrGetOrderChat), potentially against different teams.
+  // (createServiceChat), a service-order-combined chat that bundled it in
+  // with others (createOrGetServiceOrderChat), potentially against
+  // different teams.
   // Same formatted shape as listForUser/GET /api/chat, just filtered by
   // service instead of archived/not.
   async getChatsByService(userId, serviceId) {
@@ -646,15 +653,15 @@ class ChatService {
     return chats.map((chat) => this.formatChat(chat, userId));
   }
 
-  // Order counterpart to getChatsByService above: every chat this user is
-  // currently a member of that has ANY service from this order attached —
-  // the order's own "service_order_group" bundle (if it has one), plus any
-  // standalone chat that separately has one of the order's services
-  // attached (e.g. a "service_group" chat started before the order ever
-  // bundled that service in). Same formatted shape/batching as
-  // getChatsByService.
-  async getChatsByOrder(userId, orderId) {
-    const chatIds = await this.chatRepository.findChatIdsByOrderForUser(userId, orderId);
+  // Service-order counterpart to getChatsByService above: every chat this
+  // user is currently a member of that has ANY service from this service
+  // order attached — the order's own "service_order_group" bundle (if it
+  // has one), plus any standalone chat that separately has one of the
+  // order's services attached (e.g. a "service_group" chat started before
+  // the order ever bundled that service in). Same formatted shape/batching
+  // as getChatsByService.
+  async getChatsByServiceOrder(userId, serviceOrderId) {
+    const chatIds = await this.chatRepository.findChatIdsByServiceOrderForUser(userId, serviceOrderId);
     if (chatIds.length === 0) return [];
 
     const chats = await this.chatRepository.findManyByIds(chatIds);

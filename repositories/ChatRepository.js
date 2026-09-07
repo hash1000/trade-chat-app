@@ -34,7 +34,7 @@ class ChatRepository {
       },
       { model: User, as: "admin", attributes: MEMBER_USER_ATTRIBUTES },
       { model: User, as: "customer", attributes: MEMBER_USER_ATTRIBUTES },
-      { model: Order, as: "order", attributes: ["id", "status"] },
+      { model: Order, as: "serviceOrder", attributes: ["id", "status"] },
       {
         model: ChatService,
         as: "chatServices",
@@ -83,8 +83,8 @@ class ChatRepository {
     );
   }
 
-  async findByOrderId(orderId) {
-    return Chat.findOne({ where: { orderId } });
+  async findByServiceOrderId(serviceOrderId) {
+    return Chat.findOne({ where: { serviceOrderId } });
   }
 
   // A 1:1 "chat" between exactly these two users (not a group) — called on
@@ -250,18 +250,24 @@ class ChatRepository {
     return [...new Set(chats.map((c) => c.id))];
   }
 
-  // Order counterpart to findChatIdsByServiceForUser above: every chat this
-  // user is a member of that has ANY of this order's services attached via
-  // chat_services — not just the one chat tagged Chat.orderId = orderId
-  // (the "service_order_group" bundle itself), but also any standalone
-  // chat (e.g. a "service_group" from POST /chat/service, started before
-  // the order ever bundled that service in) that happens to share one of
-  // the same services. Two queries: this order's serviceIds, then the same
+  // Service-order counterpart to findChatIdsByServiceForUser above: every
+  // chat this user is a member of that has ANY of this (Order +
+  // ServiceOrder) service order's services attached via chat_services —
+  // not just the one chat tagged Chat.serviceOrderId = serviceOrderId (the
+  // "service_order_group" bundle itself), but also any standalone chat
+  // (e.g. a "service_group" from POST /chat/service, started before the
+  // order ever bundled that service in) that happens to share one of the
+  // same services. Two queries: this order's serviceIds, then the same
   // members+chatServices INNER JOIN shape as findChatIdsByServiceForUser,
   // just matched against serviceId IN (...) instead of a single id.
-  async findChatIdsByOrderForUser(userId, orderId) {
+  async findChatIdsByServiceOrderForUser(userId, serviceOrderId) {
+    // ServiceOrder's own FK column is still just "orderId" (it points at
+    // the same orders.id, and there's nothing else it could mean on that
+    // table) — only Chat's own column and this method's own param needed
+    // the "serviceOrder" prefix, to disambiguate from a future product-/
+    // shop-order chat feature on Chat itself.
     const orderServices = await ServiceOrder.findAll({
-      where: { orderId },
+      where: { orderId: serviceOrderId },
       attributes: ["serviceId"],
     });
     const serviceIds = [...new Set(orderServices.map((os) => os.serviceId))];

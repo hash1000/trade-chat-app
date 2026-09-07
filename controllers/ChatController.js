@@ -66,23 +66,23 @@ class ChatController {
     }
   }
 
-  // Every chat the caller is in that has any of this order's services
-  // attached (via chat_services) — see ChatService.getChatsByOrder. Same
-  // read is also available over the socket as "get order chats", no REST
-  // round trip needed.
-  async getChatsByOrder(req, res) {
+  // Every chat the caller is in that has any of this service order's
+  // services attached (via chat_services) — see
+  // ChatService.getChatsByServiceOrder. Same read is also available over
+  // the socket as "get service order chats", no REST round trip needed.
+  async getChatsByServiceOrder(req, res) {
     try {
       const { id: userId } = req.user;
-      const orderId = Number(req.params.orderId);
+      const serviceOrderId = Number(req.params.serviceOrderId);
 
-      if (!Number.isInteger(orderId) || orderId <= 0) {
-        return res.status(400).json({ success: false, error: "Invalid orderId." });
+      if (!Number.isInteger(serviceOrderId) || serviceOrderId <= 0) {
+        return res.status(400).json({ success: false, error: "Invalid serviceOrderId." });
       }
 
-      const chats = await chatService.getChatsByOrder(userId, orderId);
+      const chats = await chatService.getChatsByServiceOrder(userId, serviceOrderId);
       return res.status(200).json({ success: true, data: chats });
     } catch (error) {
-      console.error("ChatController.getChatsByOrder error:", error);
+      console.error("ChatController.getChatsByServiceOrder error:", error);
       return res.status(500).json({
         success: false,
         error: "Server error. Please try again later.",
@@ -197,20 +197,20 @@ class ChatController {
     }
   }
 
-  async createOrGetOrderChat(req, res) {
+  async createOrGetServiceOrderChat(req, res) {
     try {
       const { id: userId } = req.user;
-      const { orderId, requestDesc } = req.body;
+      const { serviceOrderId, requestDesc } = req.body;
 
-      if (!orderId) {
+      if (!serviceOrderId) {
         return res.status(400).json({
           success: false,
-          error: "orderId is required.",
+          error: "serviceOrderId is required.",
         });
       }
 
-      const chat = await chatService.createOrGetOrderChat({
-        orderId,
+      const chat = await chatService.createOrGetServiceOrderChat({
+        serviceOrderId,
         customerId: userId,
         requestDesc,
       });
@@ -219,7 +219,7 @@ class ChatController {
         data: chatService.formatChat(chat, userId),
       });
     } catch (error) {
-      console.error("ChatController.createOrGetOrderChat error:", error);
+      console.error("ChatController.createOrGetServiceOrderChat error:", error);
       if (error.statusCode) {
         return res.status(error.statusCode).json({ success: false, error: error.message });
       }

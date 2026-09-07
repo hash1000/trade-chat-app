@@ -86,11 +86,17 @@ const Chat = sequelize.define(
       defaultValue: false,
     },
 
-    // Set when this chat was created from an order that bundled one or
-    // more isChat services — lookup key for "does this order already have
-    // a chat", regardless of how many services ended up attached. The
-    // actual service links live in ChatService (chat_services).
-    orderId: {
+    // Set when this chat was created from a *service* order (Order +
+    // ServiceOrder) that bundled one or more isChat services — lookup key
+    // for "does this service order already have a chat", regardless of how
+    // many services ended up attached. The actual service links live in
+    // ChatService (chat_services). Named "serviceOrderId", not bare
+    // "orderId": product/shop orders (ProductOrder/ProductShopOrder) live
+    // in entirely separate tables with their own id spaces, not `orders`,
+    // so this column can only ever mean "orders.id" — a future product- or
+    // shop-order chat would need (and get) its own, differently-named
+    // column, not this one.
+    serviceOrderId: {
       type: DataTypes.INTEGER,
       allowNull: true,
     },

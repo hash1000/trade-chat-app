@@ -695,10 +695,15 @@ Order.belongsTo(Address, {
   // Chat -> admin (group creator/owner)
   Chat.belongsTo(User, { foreignKey: "adminId", as: "admin" });
 
-  // Chat -> order (set when this chat bundles one or more isChat services
-  // from a single order — lookup key for "does this order have a chat")
-  Chat.belongsTo(Order, { foreignKey: "orderId", as: "order" });
-  Order.hasOne(Chat, { foreignKey: "orderId", as: "chat" });
+  // Chat -> service order (set when this chat bundles one or more isChat
+  // services from a single Order/ServiceOrder — lookup key for "does this
+  // service order have a chat"). Named "serviceOrderId", not bare
+  // "orderId": product/shop orders live in entirely separate tables
+  // (product_orders, product_shop_orders — see ProductOrder/
+  // ProductShopOrder), not `orders`, so a bare "order" would be ambiguous
+  // once those get their own chat-bundling columns.
+  Chat.belongsTo(Order, { foreignKey: "serviceOrderId", as: "serviceOrder" });
+  Order.hasOne(Chat, { foreignKey: "serviceOrderId", as: "serviceOrderChat" });
 
   Chat.belongsTo(User, { foreignKey: "customerId", as: "customer" });
 
