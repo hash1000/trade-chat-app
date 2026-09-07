@@ -167,6 +167,30 @@ function initChatSocket(io) {
       }
     });
 
+    // Order counterpart to "get service chats" above: every chat you're in
+    // that has ANY of this order's services attached (chat_services) — same
+    // data/shape as GET /api/chat/order/:orderId. Comes back with the
+    // order's own combined chat plus any standalone per-service chat that
+    // happens to share one of the same services.
+    socket.on("get order chats", async (payload, callback) => {
+      const ack = typeof callback === "function" ? callback : () => {};
+      const orderId = Number(
+        payload && typeof payload === "object" ? payload.orderId : payload
+      );
+
+      if (!Number.isInteger(orderId) || orderId <= 0) {
+        return ack({ error: "Invalid orderId" });
+      }
+
+      try {
+        const chats = await chatService.getChatsByOrder(socket.userId, orderId);
+        ack({ orderId, chats });
+      } catch (err) {
+        console.error("get order chats error:", err);
+        ack({ error: "Failed to fetch order chats" });
+      }
+    });
+
     socket.on("leave chat room", (payload, callback) => {
       const chatId = Number(
         payload && typeof payload === "object" ? payload.chatId : payload

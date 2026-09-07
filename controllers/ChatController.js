@@ -66,6 +66,30 @@ class ChatController {
     }
   }
 
+  // Every chat the caller is in that has any of this order's services
+  // attached (via chat_services) — see ChatService.getChatsByOrder. Same
+  // read is also available over the socket as "get order chats", no REST
+  // round trip needed.
+  async getChatsByOrder(req, res) {
+    try {
+      const { id: userId } = req.user;
+      const orderId = Number(req.params.orderId);
+
+      if (!Number.isInteger(orderId) || orderId <= 0) {
+        return res.status(400).json({ success: false, error: "Invalid orderId." });
+      }
+
+      const chats = await chatService.getChatsByOrder(userId, orderId);
+      return res.status(200).json({ success: true, data: chats });
+    } catch (error) {
+      console.error("ChatController.getChatsByOrder error:", error);
+      return res.status(500).json({
+        success: false,
+        error: "Server error. Please try again later.",
+      });
+    }
+  }
+
   async getById(req, res) {
     try {
       const { id } = req.params;
@@ -176,20 +200,19 @@ class ChatController {
   async createOrGetOrderChat(req, res) {
     try {
       const { id: userId } = req.user;
-      const { orderId, ownerId, services } = req.body;
+      const { orderId, requestDesc } = req.body;
 
-      if (!orderId || !ownerId || !Array.isArray(services) || services.length === 0) {
+      if (!orderId) {
         return res.status(400).json({
           success: false,
-          error: "orderId, ownerId and services[] are required.",
+          error: "orderId is required.",
         });
       }
 
       const chat = await chatService.createOrGetOrderChat({
         orderId,
         customerId: userId,
-        ownerId,
-        services,
+        requestDesc,
       });
       return res.status(201).json({
         success: true,
@@ -197,6 +220,9 @@ class ChatController {
       });
     } catch (error) {
       console.error("ChatController.createOrGetOrderChat error:", error);
+      if (error.statusCode) {
+        return res.status(error.statusCode).json({ success: false, error: error.message });
+      }
       return res.status(500).json({
         success: false,
         error: "Server error. Please try again later.",

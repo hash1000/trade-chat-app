@@ -27,12 +27,14 @@ const Chat = sequelize.define(
 
     // "chat": 1:1 (createDirectChat) · "group": user-created multi-member
     // group (createGroup) · "service_group": customer <-> service team
-    // (createServiceChat) — a group in every behavioral sense (has an
-    // admin, can grow past 2 members) but tagged distinctly so a client
-    // can render/filter it apart from a plain user-made group. See
-    // ChatService.isGroupType.
+    // (createServiceChat) · "service_order_group": customer <-> every team
+    // linked to every chat-enabled (isChat) service in one order, bundled
+    // into a single thread (createOrGetOrderChat) — every one of these is a
+    // group in every behavioral sense (has an admin, can grow past 2
+    // members) but tagged distinctly so a client can render/filter it apart
+    // from a plain user-made group. See ChatService.isGroupType.
     type: {
-      type: DataTypes.ENUM("chat", "group", "service_group"),
+      type: DataTypes.ENUM("chat", "group", "service_group", "service_order_group"),
       allowNull: false,
       defaultValue: "chat",
     },

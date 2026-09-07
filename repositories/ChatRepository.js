@@ -7,7 +7,7 @@ const {
   User,
   Service,
   Order,
-  TeamServiceLink,
+  ServiceOrder,
   Team,
 } = require("../models");
 
@@ -250,6 +250,39 @@ class ChatRepository {
     return [...new Set(chats.map((c) => c.id))];
   }
 
+  // Order counterpart to findChatIdsByServiceForUser above: every chat this
+  // user is a member of that has ANY of this order's services attached via
+  // chat_services — not just the one chat tagged Chat.orderId = orderId
+  // (the "service_order_group" bundle itself), but also any standalone
+  // chat (e.g. a "service_group" from POST /chat/service, started before
+  // the order ever bundled that service in) that happens to share one of
+  // the same services. Two queries: this order's serviceIds, then the same
+  // members+chatServices INNER JOIN shape as findChatIdsByServiceForUser,
+  // just matched against serviceId IN (...) instead of a single id.
+  async findChatIdsByOrderForUser(userId, orderId) {
+    const orderServices = await ServiceOrder.findAll({
+      where: { orderId },
+      attributes: ["serviceId"],
+    });
+    const serviceIds = [...new Set(orderServices.map((os) => os.serviceId))];
+    if (serviceIds.length === 0) return [];
+
+    const chats = await Chat.findAll({
+      attributes: ["id"],
+      include: [
+        { model: ChatMember, as: "members", attributes: [], where: { userId }, required: true },
+        {
+          model: ChatService,
+          as: "chatServices",
+          attributes: [],
+          where: { serviceId: { [Op.in]: serviceIds } },
+          required: true,
+        },
+      ],
+    });
+    return [...new Set(chats.map((c) => c.id))];
+  }
+
   // Full detail rows (buildDetailIncludes) for a batch of chat ids in one
   // query — used instead of calling findByPk once per id in a loop, which
   // would fire N separate round trips for a caller with N matching chats.
@@ -261,13 +294,36 @@ class ChatRepository {
     });
   }
 
+  // Every team linked to this service — a service can belong to more than
+  // one (Service.belongsToMany(Team, {as:"teams"}), through
+  // TeamServiceLink). Goes through that belongsToMany association rather
+  // than querying TeamServiceLink directly: there's no
+  // TeamServiceLink.belongsTo(Team) association registered, only the
+  // through-association below, so this is the one that actually works.
   async getServiceTeams(serviceId) {
     if (!serviceId) return [];
-    const links = await TeamServiceLink.findAll({
-      where: { serviceId },
-      include: [{ model: Team, as: "team", attributes: ["id", "name", "profile_image"] }],
+    const service = await Service.findByPk(serviceId, {
+      attributes: [],
+      include: [{ model: Team, as: "teams", attributes: ["id", "name", "profile_image"] }],
     });
-    return links.map((l) => l.team).filter(Boolean);
+    return service ? service.teams : [];
+  }
+
+  // Direct per-service staff (Service.belongsToMany(User, {through:
+  // ServiceMember, as:"members"})) — independent of Team entirely. A
+  // service's actual staff can be added straight to the service (no Team
+  // involved at all) via this table, or via a Team linked through
+  // getServiceTeams above, or both — the two don't merge on their own, so
+  // anything that needs "everyone who works on this service" has to read
+  // both and union them (see ChatService.createOrGetOrderChat /
+  // notifyTeamOfServiceRequest).
+  async getServiceMemberIds(serviceId) {
+    if (!serviceId) return [];
+    const service = await Service.findByPk(serviceId, {
+      attributes: [],
+      include: [{ model: User, as: "members", attributes: ["id"] }],
+    });
+    return service ? service.members.map((u) => u.id) : [];
   }
 
   // Oldest remaining member (by join order), used to auto-promote a new

@@ -19,6 +19,12 @@ router.get("/relationship/:userId", authMiddleware, chatController.getRelationsh
 // above "/:id" for the same reason "relationship/:userId" does.
 router.get("/service/:serviceId", authMiddleware, chatController.getChatsByService.bind(chatController));
 
+// Every chat I'm in that has any of this order's services attached
+// (chat_services) — the order's own combined chat, plus any standalone
+// per-service chat that happens to share one of the same services. Must
+// stay above "/:id" for the same reason "relationship/:userId" does.
+router.get("/order/:orderId", authMiddleware, chatController.getChatsByOrder.bind(chatController));
+
 // Fetch a single chat/group by id.
 router.get("/:id", authMiddleware, chatController.getById.bind(chatController));
 
