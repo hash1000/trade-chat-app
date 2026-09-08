@@ -145,6 +145,15 @@ const Message = sequelize.define(
       allowNull: false,
       defaultValue: [],
     },
+
+    // Firestore "chat" (message) doc id, set only by
+    // scripts/migrateFirebaseChats.js. Null for every message sent normally
+    // through the app. Lets a re-run of that script tell "already migrated"
+    // from "new" without redoing work.
+    legacyId: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
   },
   {
     tableName: "messages",

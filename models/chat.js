@@ -105,6 +105,14 @@ const Chat = sequelize.define(
       type: DataTypes.INTEGER,
       allowNull: true,
     },
+
+    // Firestore "group" doc id, set only by scripts/migrateFirebaseChats.js.
+    // Null for every chat created normally through the app. Lets a re-run of
+    // that script tell "already migrated" from "new" without redoing work.
+    legacyId: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
   },
   {
     tableName: "chats",
