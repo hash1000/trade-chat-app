@@ -18,6 +18,28 @@ const client = twilio(
   process.env.TWILIO_AUTH_TOKEN
 );
 
+const { publicIdentity } = require("../utilities/userPrivacy");
+
+// Checks the latest SMS code sent to this number (same rules as verify-otp-sms)
+// and consumes it on success. Returns { ok: true } or { ok: false, reason }.
+async function matchSmsOtp(country_code, phoneNumber, otp) {
+  const otpInstance = await OTP.findOne({ where: { contact: `${country_code}${phoneNumber}` } });
+  if (!otpInstance || !otpInstance.otp) return { ok: false, reason: "Send a new code first." };
+  let codes = [];
+  try {
+    codes = JSON.parse(otpInstance.otp);
+  } catch (e) {
+    codes = [];
+  }
+  const latest = codes[codes.length - 1];
+  if (!latest || String(otp) !== String(latest)) return { ok: false, reason: "OTP did not match" };
+  if (new Date() > new Date(otpInstance.expiration_time)) return { ok: false, reason: "OTP has expired" };
+  otpInstance.verified = true;
+  otpInstance.otp = null;
+  await otpInstance.save();
+  return { ok: true };
+}
+
 class UserController {
   async googleSignIn(req, res) {
     const { displayName, email, photoURL } = req.body;
@@ -106,17 +128,11 @@ class UserController {
       const userByEmail = await userService.getUserByEmail(email);
 
       if (userByEmail) {
-        const token = jwt.sign(
-          {
-            userId: userByEmail.id,
-            tokenVersion: userByEmail.tokenVersion
-          },
-          process.env.JWT_SECRET_KEY
-        );
-        return res.status(200).json({
-          message: "User with this email and phone number already exists. Authentication successful.",
-          token,
-          user: userByEmail,
+        // Signing up never signs into an existing account: that used to hand out
+        // the account's token without any password. Existing users sign in, or
+        // confirm an email code (verify-otp-email), which the app already does.
+        return res.status(409).json({
+          message: "User with this email already exists.",
         });
       } else if (userByEmail) {
         // Check if user exists but some required fields are missing
@@ -706,9 +722,13 @@ class UserController {
           Details: "OTP has expired",
         });
       }
-      await userService.updateUserProfile(user, {
-        email_verified: true,
-      });
+      // A correct SMS code verifies that phone number for the account using it
+      // (this used to reference an undefined `user` and crash after a match).
+      const phoneOwner = await userService.getUserByPhoneNumber(country_code, phoneNumber);
+      if (phoneOwner) {
+        phoneOwner.phoneNumber_verified = true;
+        await phoneOwner.save();
+      }
       // Mark as verified and clear OTPs
       otpInstance.verified = true;
       otpInstance.otp = null; // Clear the OTP array
@@ -753,7 +773,9 @@ class UserController {
   }
 
   async updateUserEmailOrPhoneNumber(req, res) {
-    const { email, country_code, phoneNumber } = req.body;
+    // `otp` is optional (the website sends it): with it the new number is checked
+    // and saved as verified in one step; without it this behaves as before.
+    const { email, country_code, phoneNumber, otp } = req.body;
     const user = req.user;
     const { dataValues } = req.user;
     // Validate payload
@@ -781,11 +803,22 @@ class UserController {
             .status(401)
             .json({ message: " phone number Already Exist." });
         } else {
+          let verified = false;
+          if (otp) {
+            const check = await matchSmsOtp(country_code, phoneNumber, otp);
+            if (!check.ok) {
+              return res.status(400).json({ message: check.reason });
+            }
+            verified = true;
+          }
           userData = {
             country_code,
             phoneNumber,
           };
           updateData = await userService.updatePhoneNumber(user, userData);
+          // A new number is only "verified" when its code was confirmed here.
+          updateData.phoneNumber_verified = verified;
+          await updateData.save();
         }
       } else if (email) {
         userCheck = await userService.getUserByEmail(email);
@@ -849,7 +882,9 @@ class UserController {
         return res.status(200).json({ message: "User Not Exist" });
       }
 
-      return res.status(200).json({ message: "User exists.", user: user });
+      // Public route: reveal only what the app needs (email, username, name, photo),
+      // never phone, settings / payment code, push token or balances.
+      return res.status(200).json({ message: "User exists.", user: publicIdentity(user) });
     } catch (error) {
       // Log the error and send a generic error message
       console.error(error);
@@ -869,13 +904,15 @@ class UserController {
         return res.status(401).json({ message: "Invalid credentials" });
       }
 
-      // Verify the password
+      // Verify the password. 400, not 401 "Invalid credentials": the app signs
+      // the user out on that 401 message, and a wrong current password while
+      // changing it must not end their session.
       const validatedUser = await userService.verifyUserPassword(
         user,
         password
       );
       if (!validatedUser) {
-        return res.status(401).json({ message: "Invalid credentials" });
+        return res.status(400).json({ message: "Current password is incorrect." });
       }
       const updateduser = await userService.updateUserPassword(
         user.id,

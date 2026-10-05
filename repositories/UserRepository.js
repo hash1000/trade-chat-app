@@ -313,14 +313,21 @@ class UserRepository {
   }
 
   async getPaginatedUsers(page, limit, search, userId) {
+    // Query params arrive as strings — Sequelize needs numbers for LIMIT/OFFSET.
+    page = Math.max(1, parseInt(page, 10) || 1);
+    limit = Math.min(50, Math.max(1, parseInt(limit, 10) || 10));
     const offset = (page - 1) * limit;
 
-    const where = search
+    // users has no "name" column; search the real name fields instead.
+    const term = typeof search === "string" ? search.trim() : "";
+    const where = term
       ? {
           [Op.or]: [
-            { email: { [Op.like]: `%${search}%` } },
-            { phoneNumber: { [Op.like]: `%${search}%` } },
-            { name: { [Op.like]: `%${search}%` } },
+            { email: { [Op.like]: `%${term}%` } },
+            { phoneNumber: { [Op.like]: `%${term}%` } },
+            { firstName: { [Op.like]: `%${term}%` } },
+            { lastName: { [Op.like]: `%${term}%` } },
+            { username: { [Op.like]: `%${term}%` } },
           ],
         }
       : {};
@@ -329,6 +336,10 @@ class UserRepository {
       where,
       limit,
       offset,
+      distinct: true,
+      order: [["firstName", "ASC"], ["id", "ASC"]],
+      // Never hand other people's push token or wallet balances to a search.
+      attributes: { exclude: ["fcm", "personalWalletBalance", "usdWalletBalance", "companyWalletBalance"] },
       include: [
         {
           model: Role,
@@ -351,6 +362,18 @@ class UserRepository {
 
     users.rows = users.rows.map((user) => {
       user = user.toJSON();
+      // The payment code lives in settings — it must never leave the server for someone else.
+      if (typeof user.settings === "string") {
+        try {
+          user.settings = JSON.parse(user.settings);
+        } catch (e) {
+          user.settings = null;
+        }
+      }
+      if (user.settings && typeof user.settings === "object") {
+        const { paymentCode, ...settings } = user.settings;
+        user.settings = settings;
+      }
       user.friendship = friendsMap[user.id] || null;
       return user;
     });

@@ -40,6 +40,45 @@ function publicView(service) {
   return s;
 }
 
+const isAdminUser = (user) => !!user && (user.roles || []).some((r) => r.name === "admin");
+
+// Who may change a service: its owner, the one assigned editor ("Edit" in
+// Access & Team, same as the app), or a platform admin.
+function canEditService(service, user) {
+  if (!service || !user) return false;
+  if (isAdminUser(user)) return true;
+  return service.userId === user.id || service.assigneeEditorId === user.id;
+}
+
+// Badges and metric overrides are admin controls. For anyone else they are
+// ignored (not rejected) so a normal save that happens to include them still works.
+const ADMIN_ONLY_FIELDS = ["isTopChoice", "isQRMVerified", "desiredViewCount", "desiredLikeCount", "ratingAvg", "ratingCount"];
+function dropAdminOnlyFields(req) {
+  if (isAdminUser(req.user)) return;
+  for (const f of ADMIN_ONLY_FIELDS) delete req.body[f];
+}
+
+const FORBIDDEN = { success: false, error: "Only the service owner, its editor or an admin can change this service." };
+
+// Signed-in viewers who don't run the service see the payout wallet's currency
+// and type only (what the app displays), never its account number or balance,
+// and not the owner's email / phone. Owner, editor and admins see everything.
+function viewFor(service, user) {
+  if (!service) return service;
+  if (!user) return publicView(service);
+  const s = typeof service.toJSON === "function" ? service.toJSON() : { ...service };
+  if (canEditService(s, user)) return s;
+  if (s.payoutWallet) {
+    const { id, currency, walletType } = s.payoutWallet;
+    s.payoutWallet = { id, currency, walletType };
+  }
+  if (s.owner) {
+    const { email, phoneNumber, country_code, ...owner } = s.owner;
+    s.owner = owner;
+  }
+  return s;
+}
+
 class ServiceController {
   async list(req, res) {
     try {
@@ -67,7 +106,7 @@ class ServiceController {
 
       return res.status(200).json({
         success: true,
-        data: userId ? services : services.map(publicView),
+        data: services.map((svc) => viewFor(svc, req.user)),
       });
     } catch (error) {
       console.error("ServiceController.list error:", error);
@@ -109,7 +148,7 @@ class ServiceController {
       }
       // fire-and-forget — never throws, never delays response
       if (userId) serviceService.recordView(userId, id).catch(() => {});
-      return res.status(200).json({ success: true, data: userId ? service : publicView(service) });
+      return res.status(200).json({ success: true, data: viewFor(service, req.user) });
     } catch (error) {
       console.error("ServiceController.getById error:", error);
       return res.status(500).json({
@@ -122,6 +161,7 @@ class ServiceController {
   async create(req, res) {
     try {
       const { id: userId } = req.user;
+      dropAdminOnlyFields(req);
 
       const {
         name,
@@ -358,6 +398,11 @@ class ServiceController {
           error: "Service not found.",
         });
       }
+
+      if (!canEditService(service, req.user)) {
+        return res.status(403).json(FORBIDDEN);
+      }
+      dropAdminOnlyFields(req);
 
       const {
         name,
@@ -691,6 +736,10 @@ class ServiceController {
         });
       }
 
+      if (!canEditService(service, req.user)) {
+        return res.status(403).json(FORBIDDEN);
+      }
+
       await serviceService.delete(id, userId);
 
       return res.status(200).json({
@@ -718,6 +767,10 @@ class ServiceController {
           success: false,
           error: "Service not found.",
         });
+      }
+
+      if (!canEditService(service, req.user)) {
+        return res.status(403).json(FORBIDDEN);
       }
 
       if (!service.deletedAt) {

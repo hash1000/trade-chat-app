@@ -372,21 +372,17 @@ class UserService {
     return userRepository.getUserByResetToken(resetToken);
   }
 
+  // Returns the user when the password matches, otherwise null. A wrong
+  // password is a normal answer (callers reply 401/400), not a server error —
+  // it used to throw here, which turned every wrong password into a 500.
   async verifyUserPassword(user, password) {
+    if (!user || !user.password || typeof password !== "string") return null;
     try {
-      console.log("password, user.password",password, user.password, typeof(user.password), typeof(password));
-      // Compare the password
       const isPasswordValid = await bcrypt.compare(password, user.password);
-      console.log("isPasswordValid",isPasswordValid)
-      if (isPasswordValid) {
-        // Password is valid, return the user
-        return user;
-      } else {
-        throw new Error("Invalid password");
-      }
+      return isPasswordValid ? user : null;
     } catch (error) {
-      // Handle any errors
-      throw new Error("Failed to login");
+      // e.g. a malformed stored hash — treat as "doesn't match"
+      return null;
     }
   }
 

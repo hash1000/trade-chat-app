@@ -1,3 +1,4 @@
+const { forViewer } = require("../utilities/userPrivacy");
 const UserProfileService = require("../services/UserProfileService"); // Replace the path with the correct location of your UserService.js file
 const AddressService = require("../services/AddressService");
 
@@ -20,7 +21,7 @@ class UserProfileController {
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
-      res.json({ user });
+      res.json({ user: forViewer(user, req.user) });
     } catch (error) {
       console.error(error);
       res.status(500).json({ message: "Internal server error" });
@@ -48,7 +49,7 @@ class UserProfileController {
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
-      res.json({ user });
+      res.json({ user: forViewer(user, req.user) });
     } catch (error) {
       console.error(error);
       res.status(500).json({ message: "Internal server error" });
@@ -76,7 +77,7 @@ class UserProfileController {
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
-      res.json({ user });
+      res.json({ user: forViewer(user, req.user) });
     } catch (error) {
       console.error(error);
       res.status(500).json({ message: "Internal server error" });
@@ -98,7 +99,7 @@ class UserProfileController {
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
-      res.json({ user });
+      res.json({ user: forViewer(user, req.user) });
     } catch (error) {
       console.error(error);
       res.status(500).json({ message: "Internal server error" });
@@ -123,7 +124,7 @@ class UserProfileController {
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
-      res.json({ ...result, user });
+      res.json({ ...result, user: forViewer(user, req.user) });
     } catch (error) {
       console.error(error);
       const statusCode = error.statusCode || 500;
@@ -269,7 +270,7 @@ class UserProfileController {
   async getAllUsers(req, res) {
     try {
       const users = await userProfileService.getAllUsersProfile();
-      return res.json({ user: users });
+      return res.json({ user: (users || []).map((u) => forViewer(u, req.user)) });
     } catch (error) {
       console.error("Error during getting users profile:", error);
       res.status(500).json({ message: "Login getting users" });

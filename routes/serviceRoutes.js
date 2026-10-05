@@ -8,6 +8,7 @@ const ServiceDiscountController = require("../controllers/ServiceDiscountControl
 const paymentTermRoutes = require("./paymentTermRoutes");
 const authMiddleware = require("../middlewares/authenticate");
 const authenticateOptional = require("../middlewares/authenticateOptional");
+const { requireServiceEditor, requireServiceFileEditor } = require("../middlewares/serviceEditor");
 const checkIntegerParam = require("../middlewares/paramIntegerValidation");
 const authorize = require("../middlewares/authorization");
 const ServicePurchaseController = require("../controllers/ServicePurchaseController");
@@ -63,10 +64,10 @@ router.post(
 
 // ── Teams & Categories ────────────────────────────────────────────────────────
 
-router.post("/:id/teams", authMiddleware, checkIntegerParam("id"), serviceController.addTeam.bind(serviceController));
-router.delete("/:id/teams/:teamId", authMiddleware, checkIntegerParam("id"), checkIntegerParam("teamId"), serviceController.removeTeam.bind(serviceController));
-router.post("/:id/categories", authMiddleware, checkIntegerParam("id"), serviceController.addCategory.bind(serviceController));
-router.delete("/:id/categories/:categoryId", authMiddleware, checkIntegerParam("id"), checkIntegerParam("categoryId"), serviceController.removeCategory.bind(serviceController));
+router.post("/:id/teams", authMiddleware, checkIntegerParam("id"), requireServiceEditor, serviceController.addTeam.bind(serviceController));
+router.delete("/:id/teams/:teamId", authMiddleware, checkIntegerParam("id"), requireServiceEditor, checkIntegerParam("teamId"), serviceController.removeTeam.bind(serviceController));
+router.post("/:id/categories", authMiddleware, checkIntegerParam("id"), requireServiceEditor, serviceController.addCategory.bind(serviceController));
+router.delete("/:id/categories/:categoryId", authMiddleware, checkIntegerParam("id"), requireServiceEditor, checkIntegerParam("categoryId"), serviceController.removeCategory.bind(serviceController));
 
 // ── Likes ─────────────────────────────────────────────────────────────────────
 
@@ -106,6 +107,7 @@ router.delete(
   "/files/:fileId",
   authMiddleware,
   checkIntegerParam("fileId"),
+  requireServiceFileEditor,
   serviceFileController.deleteFile.bind(serviceFileController)
 );
 
@@ -123,6 +125,7 @@ router.post(
   "/:serviceId/media",
   authMiddleware,
   checkIntegerParam("serviceId"),
+  requireServiceEditor,
   serviceFileController.handleMulterError(uploadServiceMedia),
   serviceFileController.uploadMedia.bind(serviceFileController)
 );
