@@ -26,15 +26,30 @@ function parseTags(raw) {
   return arr;
 }
 
+// Guests (no token) must not see private owner / wallet data. Signed-in
+// responses are unchanged so the app keeps working exactly as before.
+function publicView(service) {
+  if (!service) return service;
+  const s = typeof service.toJSON === "function" ? service.toJSON() : { ...service };
+  delete s.payoutWallet;
+  delete s.payoutWalletId;
+  if (s.owner) {
+    const { email, phoneNumber, country_code, ...owner } = s.owner;
+    s.owner = owner;
+  }
+  return s;
+}
+
 class ServiceController {
   async list(req, res) {
     try {
-      const { id: userId } = req.user;
+      // Public route (authenticateOptional): guests browse without a user.
+      const userId = req.user ? req.user.id : undefined;
 
       const includeTeams = req.query.includeTeams === "true";
       const includeMembers = req.query.includeMembers === "true";
       const includeCategories = req.query.includeCategories === "true";
-      const includeDeleted = req.query.includeDeleted === "true";
+      const includeDeleted = !!userId && req.query.includeDeleted === "true";
       const isLiked = req.query.isLiked === "true";
       const includeAddOns = req.query.includeAddOns === "true";
       const me = req.query.me === "true";
@@ -52,7 +67,7 @@ class ServiceController {
 
       return res.status(200).json({
         success: true,
-        data: services,
+        data: userId ? services : services.map(publicView),
       });
     } catch (error) {
       console.error("ServiceController.list error:", error);
@@ -66,7 +81,8 @@ class ServiceController {
   async getById(req, res) {
     try {
       const { id } = req.params;
-      const { id: userId } = req.user;
+      // Public route (authenticateOptional): guests can open a service.
+      const userId = req.user ? req.user.id : undefined;
       const includeTeams = req.query.includeTeams !== "false";
       const includeMembers = req.query.includeMembers === "true";
       const includeCategories = req.query.includeCategories !== "false";
@@ -92,8 +108,8 @@ class ServiceController {
         });
       }
       // fire-and-forget — never throws, never delays response
-      serviceService.recordView(userId, id).catch(() => {});
-      return res.status(200).json({ success: true, data: service });
+      if (userId) serviceService.recordView(userId, id).catch(() => {});
+      return res.status(200).json({ success: true, data: userId ? service : publicView(service) });
     } catch (error) {
       console.error("ServiceController.getById error:", error);
       return res.status(500).json({

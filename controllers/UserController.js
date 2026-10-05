@@ -727,6 +727,11 @@ class UserController {
   async userDelete(req, res) {
     const { userId } = req.params;
     try {
+      // Only the account owner (or a platform admin) may delete an account.
+      const isAdmin = (req.user.roles || []).some((r) => r.name === "admin");
+      if (String(req.user.id) !== String(userId) && !isAdmin) {
+        return res.status(403).json({ message: "You can only delete your own account." });
+      }
       // Attempt to delete the user
       const user = await userService.deleteUser(userId);
 
@@ -1123,8 +1128,9 @@ class UserController {
         profilePic,
         password,
         description,
-        email_verified,
       } = req.body;
+      // email_verified is deliberately not taken from the body: it is only set
+      // by verify-otp-email / verify-email-phone, never by the client.
       
       const user = req.user;
       if (country_code && phoneNumber) {
@@ -1152,7 +1158,6 @@ class UserController {
             settings,
             description,
             rating,
-            email_verified,
           });
           res.json({ user: updatedUser });
         }
@@ -1169,7 +1174,6 @@ class UserController {
           settings,
           description,
             rating,
-            email_verified,
         });
         res.json({ user: updatedUser });
       }
@@ -1197,7 +1201,11 @@ class UserController {
   async logout(req, res) {
     try {
       const user = req.user;
-      await userService.updateToken(user, null);
+      // The website has no push token of its own; `fcm` belongs to the phone
+      // app, so a web sign-out ({ device: "web" }) must leave it alone.
+      if (req.body?.device !== "web") {
+        await userService.updateToken(user, null);
+      }
       res.json({ success: true, message: "Logged out successfully." });
     } catch (error) {
       console.error("logout error:", error);

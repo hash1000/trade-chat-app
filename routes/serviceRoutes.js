@@ -7,6 +7,7 @@ const ServiceAddOnController = require("../controllers/ServiceAddOnController");
 const ServiceDiscountController = require("../controllers/ServiceDiscountController");
 const paymentTermRoutes = require("./paymentTermRoutes");
 const authMiddleware = require("../middlewares/authenticate");
+const authenticateOptional = require("../middlewares/authenticateOptional");
 const checkIntegerParam = require("../middlewares/paramIntegerValidation");
 const authorize = require("../middlewares/authorization");
 const ServicePurchaseController = require("../controllers/ServicePurchaseController");
@@ -23,7 +24,7 @@ const serviceDiscountController = new ServiceDiscountController();
 
 // ── Core CRUD ─────────────────────────────────────────────────────────────────
 
-router.get("/", authMiddleware, serviceController.list.bind(serviceController));
+router.get("/", authenticateOptional, serviceController.list.bind(serviceController));
 
 // create — accepts optional images[] and media[] alongside JSON body fields
 router.post(
@@ -112,7 +113,7 @@ router.delete(
 // GET /services/:id — returns service + images[] + media[]
 router.get(
   "/:id",
-  authMiddleware,
+  authenticateOptional,
   checkIntegerParam("id"),
   serviceController.getById.bind(serviceController)
 );
