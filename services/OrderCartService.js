@@ -1,4 +1,5 @@
 const sequelize = require("../config/database");
+const { Op } = require("sequelize");
 const { Order, ServiceOrder, ServiceOrderAddOn, ServiceAddOn, Cart, CartItem, Service, Wallet, WalletTransaction, Address, OrderPayment, User, Role } = require("../models");
 const Transaction = require("../models/transaction");
 const ServiceService = require("./ServiceService");
@@ -55,6 +56,44 @@ function clientError(message, statusCode, code) {
   return err;
 }
 
+// Services are priced in QRMB (stored as CNY), so every order payment uses the
+// CNY wallet of the chosen type. Each user also has USD and EUR wallets of the
+// same type — looking up by type alone could pick one of those.
+const ORDER_CURRENCY = "CNY";
+
+// Deducts only if the balance still covers it, inside the transaction, so two
+// payments at the same moment can't overdraw the wallet.
+async function debitWallet(walletId, amount, transaction) {
+  const [affected] = await Wallet.update(
+    { availableBalance: sequelize.literal(`availableBalance - ${Number(amount)}`) },
+    { where: { id: walletId, availableBalance: { [Op.gte]: Number(amount) } }, transaction }
+  );
+  if (!affected) {
+    const err = new Error("Insufficient wallet balance.");
+    err.statusCode = 402;
+    err.code = "INSUFFICIENT_BALANCE";
+    throw err;
+  }
+}
+
+// Order lines embed the full service. Only its owner / assigned editor may see
+// the payout wallet's account number and balance or the owner's contact
+// details; buyers get the wallet's currency and type (what the app shows).
+function forOrderViewer(service, viewerId) {
+  if (!service) return service;
+  const s = typeof service.toJSON === "function" ? service.toJSON() : { ...service };
+  if (s.userId === viewerId || s.assigneeEditorId === viewerId) return s;
+  if (s.payoutWallet) {
+    const { id, currency, walletType } = s.payoutWallet;
+    s.payoutWallet = { id, currency, walletType };
+  }
+  if (s.owner) {
+    const { email, phoneNumber, country_code, ...owner } = s.owner;
+    s.owner = owner;
+  }
+  return s;
+}
+
 class OrderCartService {
   constructor() {
     this.serviceService = new ServiceService();
@@ -87,8 +126,9 @@ class OrderCartService {
       includeAddOns,
       isLiked,
     });
-    cache.set(cacheKey, full);
-    return full;
+    const visible = forOrderViewer(full, viewerId);
+    cache.set(cacheKey, visible);
+    return visible;
   }
   // Generate a DRAFT order from a cart (DB-backed)
   async generateOrderFromCart(userId, cartId) {
@@ -294,7 +334,7 @@ class OrderCartService {
     }
     if (!ownerWallet) {
       ownerWallet = await Wallet.findOne({
-        where: { userId: so.serviceOwnerId },
+        where: { userId: so.serviceOwnerId, currency: ORDER_CURRENCY },
         order: [["walletType", "ASC"]], // COMPANY first if exists
       });
     }
@@ -400,7 +440,7 @@ class OrderCartService {
     const totalAmount = parseFloat(order.price);
 
     // Find buyer's wallet of the chosen type
-    const buyerWallet = await Wallet.findOne({ where: { userId, walletType: buyerWalletType } });
+    const buyerWallet = await Wallet.findOne({ where: { userId, walletType: buyerWalletType, currency: ORDER_CURRENCY } });
     if (!buyerWallet) throw clientError(`Buyer ${buyerWalletType} wallet not found.`, 402, "NO_WALLET");
 
     const buyerBalance = parseFloat(buyerWallet.availableBalance);
@@ -421,10 +461,7 @@ class OrderCartService {
     const tx = await sequelize.transaction();
     try {
       // Deduct total from buyer wallet
-      await Wallet.update(
-        { availableBalance: sequelize.literal(`availableBalance - ${totalAmount}`) },
-        { where: { id: buyerWallet.id }, transaction: tx }
-      );
+      await debitWallet(buyerWallet.id, totalAmount, tx);
 
       const distributions = [];
 
@@ -585,7 +622,7 @@ class OrderCartService {
       throw clientError("Invalid walletType. Must be PERSONAL or COMPANY.", 400, "VALIDATION_ERROR");
     }
 
-    const buyerWallet = await Wallet.findOne({ where: { userId, walletType: buyerWalletType } });
+    const buyerWallet = await Wallet.findOne({ where: { userId, walletType: buyerWalletType, currency: ORDER_CURRENCY } });
     if (!buyerWallet) throw clientError(`Buyer ${buyerWalletType} wallet not found.`, 402, "NO_WALLET");
 
     const buyerBalance = parseFloat(buyerWallet.availableBalance);
@@ -599,10 +636,7 @@ class OrderCartService {
 
     const tx = await sequelize.transaction();
     try {
-      await Wallet.update(
-        { availableBalance: sequelize.literal(`availableBalance - ${parsedAmount}`) },
-        { where: { id: buyerWallet.id }, transaction: tx }
-      );
+      await debitWallet(buyerWallet.id, parsedAmount, tx);
 
       const distributions = [];
 
@@ -902,7 +936,7 @@ class OrderCartService {
       orderItemsData.push({ item, svc, lockedPrice, subtotal, discountAmount, finalAmount, addOns, addOnSubtotal, itemTotal });
     }
 
-    const buyerWallet = await Wallet.findOne({ where: { userId, walletType: buyerWalletType } });
+    const buyerWallet = await Wallet.findOne({ where: { userId, walletType: buyerWalletType, currency: ORDER_CURRENCY } });
     if (!buyerWallet) throw clientError(`Buyer ${buyerWalletType} wallet not found.`, 402, "NO_WALLET");
     const buyerBalance = parseFloat(buyerWallet.availableBalance);
     if (buyerBalance < orderTotal) {
@@ -924,7 +958,7 @@ class OrderCartService {
       }
       if (!ownerWallet) {
         ownerWallet = await Wallet.findOne({
-          where: { userId: od.svc.userId },
+          where: { userId: od.svc.userId, currency: ORDER_CURRENCY },
           order: [["walletType", "ASC"]],
         });
       }
@@ -1022,10 +1056,7 @@ class OrderCartService {
         });
       }
 
-      await Wallet.update(
-        { availableBalance: sequelize.literal(`availableBalance - ${orderTotal}`) },
-        { where: { id: buyerWallet.id }, transaction: tx }
-      );
+      await debitWallet(buyerWallet.id, orderTotal, tx);
 
       await Cart.update({ status: "converted" }, { where: { id: cartId }, transaction: tx });
 

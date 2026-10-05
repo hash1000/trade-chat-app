@@ -6,7 +6,7 @@ class AddressService {
   }
 
   async getaddressByUserId(userId) {
-    return await this.addressRepository.getAddressByUserId(userId);
+    return await this.addressRepository.getaddressByUserId(userId);
   }
 
   async getaddressByType(userId, type) {
