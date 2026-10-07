@@ -20,6 +20,7 @@ const {
   validateUpdatePaymentType,
 } = require("../middlewares/paymentValidation");
 const authorize = require("../middlewares/authorization");
+const ownLedger = require("../middlewares/ledgerOwnership");
 
 const paymentController = new PaymentController();
 
@@ -193,6 +194,7 @@ router.put(
 router.put(
   "/ledgers/:id",
   authMiddleware,
+  ownLedger(),
   addLedgerValidator,
   paymentController.updateLedger.bind(paymentController),
 );
@@ -201,6 +203,7 @@ router.put(
 router.delete(
   "/ledgers/:id",
   authMiddleware,
+  ownLedger(),
   paymentController.deleteLedger.bind(paymentController),
 );
 
@@ -213,6 +216,7 @@ router.post(
 router.patch(
   "/ledgers/:id/archive",
   authMiddleware,
+  ownLedger(),
   paymentController.archiveLedger.bind(paymentController),
 );
 

@@ -66,7 +66,8 @@ class ShortListController {
   async pinShortListItem(req, res) {
     try {
       const { id: userId } = req.user; // Assuming `userId` is available in `req.user`
-      const { id } = req.params;
+      // The route names the param `shortListId`; reading `id` left it undefined.
+      const id = Number(req.params.shortListId ?? req.params.id);
 
       // Get shortlist item for the logged-in user
       const item = await shortListService.pinShortListItem(userId, id);
@@ -90,7 +91,8 @@ class ShortListController {
     try {
       const { id: userId } = req.user;  // Assuming `userId` is available in `req.user`
       const { id } = req.params;
-      const updateData = req.body;
+      // The list stays with its owner.
+      const { id: _id, userId: _userId, ...updateData } = req.body;
 
       // Update shortlist item for the logged-in user
       const updated = await shortListService.updateListItem(userId, id, updateData);

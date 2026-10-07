@@ -3,6 +3,7 @@ const ShortListRepository = require("../repositories/ShortListRepository");
 const CategoryRepository = require("../repositories/CategoryRepository"); // Add CategoryRepository to check for category existence
 const ListRepository = require("../repositories/ListRepository");
 const ShortList = require("../models/shortList");
+const sequelize = require("../config/database"); // used by pinShortListItem's transaction
 const shortListRepository = new ShortListRepository();
 const listRepository = new ListRepository();
 const categoryRepository = new CategoryRepository();

@@ -1,11 +1,23 @@
 const InvoiceService = require('../services/InvoiceService')
+const { CUSTOM } = require('../repositories/InvoiceRepository')
 const invoiceService = new InvoiceService()
+
+/** The invoice when it belongs to the caller, otherwise null (answered as 404). */
+async function ownInvoice (req) {
+  const invoice = await invoiceService.getInvoice(req.params.id).catch(() => null)
+  return invoice && Number(invoice.userId) === Number(req.user.id) ? invoice : null
+}
 
 class InvoiceController {
   async createInvoice (req, res) {
     try {
       const { id: userId } = req.user
       const { orderId } = req.body
+      if (req.body.type === CUSTOM) {
+        const { name, number, date, paymentTerm, deliveryTerm, bundle, total } = req.body
+        const invoice = await invoiceService.createCustomInvoice(userId, { name, number, date, paymentTerm, deliveryTerm, bundle, total })
+        return res.status(201).json(invoice)
+      }
       const cart = await invoiceService.createInvoice(userId, orderId)
       res.json(cart)
     } catch (error) {
@@ -17,8 +29,12 @@ class InvoiceController {
   async updateInvoice (req, res) {
     try {
       const { id: orderId } = req.params
+      const invoice = await ownInvoice(req)
+      if (!invoice) return res.status(404).json({ error: 'Invoice not found' })
       const { name, number, date, paymentTerm, deliveryTerm } = req.body
-      const cart = await invoiceService.updateInvoice(orderId, { name, number, date, paymentTerm, deliveryTerm })
+      // Hand-written invoices keep their lines and total in `bundle` / `total`.
+      const extra = invoice.type === CUSTOM ? { bundle: req.body.bundle, total: req.body.total } : {}
+      const cart = await invoiceService.updateInvoice(orderId, { name, number, date, paymentTerm, deliveryTerm, ...extra })
       res.json(cart)
     } catch (error) {
       console.error(error)
@@ -28,9 +44,8 @@ class InvoiceController {
 
   async getInvoice (req, res) {
     try {
-      const { id: invoiceId } = req.params
-      // Get the user's orders
-      const invoice = await invoiceService.getInvoice(invoiceId)
+      const invoice = await ownInvoice(req)
+      if (!invoice) return res.status(404).json({ error: 'Invoice not found' })
 
       res.json(invoice)
     } catch (error) {
@@ -44,7 +59,7 @@ class InvoiceController {
       const { id: userId } = req.user
 
       // Get the user's orders
-      const userInvoices = await invoiceService.getUserInvoices(userId)
+      const userInvoices = await invoiceService.getUserInvoices(userId, { custom: req.query.type === CUSTOM })
 
       res.json(userInvoices)
     } catch (error) {
@@ -56,8 +71,7 @@ class InvoiceController {
   async deleteInvoice (req, res) {
     try {
       const invoiceId = req.params.id
-      // Delete the order
-      console.log(invoiceId)
+      if (!(await ownInvoice(req))) return res.status(404).json({ error: 'Invoice not found' })
       await invoiceService.deleteInvoice(invoiceId)
       res.json({ message: 'Invoice deleted successfully' })
     } catch (error) {

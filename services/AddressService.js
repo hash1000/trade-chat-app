@@ -48,9 +48,9 @@ class AddressService {
     );
 
     if (type.toLowerCase() === "delivery") {
+      // Middle name and delivery note are optional (not everyone has one).
       const requiredFields = [
         "firstName",
-        "middleName",
         "lastName",
         "title",
         "country",
@@ -58,7 +58,6 @@ class AddressService {
         "postalCode",
         "street",
         "streetNumber",
-        "deliveryNote",
       ];
       for (const field of requiredFields) {
         if (!address[field]) {
@@ -68,7 +67,7 @@ class AddressService {
 
       const deliveryObj = {
         firstName: address.firstName,
-        middleName: address.middleName,
+        middleName: address.middleName || null,
         lastName: address.lastName,
         country: address.country,
         city: address.city,
@@ -77,7 +76,7 @@ class AddressService {
         street: address.street,
         pin: existingAddress.length === 0, // Set pin to true if no existing address of this type
         streetNumber: address.streetNumber,
-        deliveryNote: address.deliveryNote,
+        deliveryNote: address.deliveryNote || null,
       };
 
       return await this.addressRepository.addAddress(id, type, deliveryObj);

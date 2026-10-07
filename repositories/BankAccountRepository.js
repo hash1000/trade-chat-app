@@ -98,8 +98,11 @@ class BankAccountRepository {
     const where = { testCard: true };
 
     if (currency) {
+      // Public route: only known codes reach the SQL literal (it was injectable).
+      const code = String(currency).trim().toUpperCase();
+      if (!["USD", "EUR"].includes(code)) return [];
       // MySQL JSON_CONTAINS
-      where.currency = literal(`JSON_CONTAINS(currency, '["${currency}"]')`);
+      where.currency = literal(`JSON_CONTAINS(currency, '["${code}"]')`);
     }
 
     return await BankAccount.findAll({

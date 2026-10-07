@@ -1,5 +1,9 @@
+const { Op } = require('sequelize')
 const Invoice = require('../models/invoice')
 const sequelize = require('../config/database')
+
+/** Invoices written by hand on the website (not built from an order). */
+const CUSTOM = 'custom'
 
 class InvoiceRepository {
   async getInvoiceById (invoiceId) {
@@ -27,7 +31,7 @@ class InvoiceRepository {
   }
 
   async updateInvoice (invoice, payload) {
-    const { name, type, number, date, paymentTerm, deliveryTerm, bundle } = payload
+    const { name, type, number, date, paymentTerm, deliveryTerm, bundle, total } = payload
     try {
       if (name) {
         invoice.name = name
@@ -50,6 +54,9 @@ class InvoiceRepository {
       if (bundle) {
         invoice.bundle = bundle
       }
+      if (total !== undefined && total !== null && invoice.type === CUSTOM) {
+        invoice.total = total
+      }
       // Save the updated invoice
       return await invoice.save()
     } catch (error) {
@@ -58,10 +65,18 @@ class InvoiceRepository {
     }
   }
 
-  async getUserInvoices (userId) {
-    // Retrieve the user's orders from the database
+  async storeCustomInvoice (userId, { name, number, date, paymentTerm, deliveryTerm, bundle, total }) {
+    return await Invoice.create({ type: CUSTOM, userId, name, number, date, paymentTerm, deliveryTerm, bundle, total })
+  }
+
+  /**
+   * Order invoices by default (what the app lists); `custom` → hand-written ones only.
+   * The app parses every row as an order bundle, so custom ones never reach its list.
+   */
+  async getUserInvoices (userId, { custom = false } = {}) {
     return await Invoice.findAll({
-      where: { userId }
+      where: custom ? { userId, type: CUSTOM } : { userId, [Op.or]: [{ type: null }, { type: { [Op.ne]: CUSTOM } }] },
+      order: [['createdAt', 'DESC']]
     })
   }
 
@@ -87,5 +102,7 @@ class InvoiceRepository {
     }
   }
 }
+
+InvoiceRepository.CUSTOM = CUSTOM
 
 module.exports = InvoiceRepository

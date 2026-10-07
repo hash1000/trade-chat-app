@@ -13,6 +13,10 @@ class InvoiceService {
     return await this.invoiceRepository.storeInvoice(userId, order)
   };
 
+  async createCustomInvoice (userId, data) {
+    return await this.invoiceRepository.storeCustomInvoice(userId, data)
+  }
+
   async updateInvoice (orderId, payload) {
     const invoice = await this.invoiceRepository.getInvoiceById(orderId)
     if (!invoice) {
@@ -22,9 +26,9 @@ class InvoiceService {
     return await this.invoiceRepository.updateInvoice(invoice, payload)
   };
 
-  async getUserInvoices (userId) {
+  async getUserInvoices (userId, options) {
     // Retrieve the user's orders from the repository
-    return await this.invoiceRepository.getUserInvoices(userId)
+    return await this.invoiceRepository.getUserInvoices(userId, options)
   }
 
   async getInvoice (invoiceId) {

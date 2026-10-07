@@ -91,7 +91,19 @@ class ReceiptController {
     try {
       const { id: userId } = req.user;
       const { id } = req.params;
-      const updateData = req.body;
+      // Owners may only correct their own request while it waits for review:
+      // status, locks, admin amounts and ownership are set by staff only.
+      const current = await receiptService.getReceiptById(userId, id);
+      if (!current) {
+        return res.status(404).json({ success: false, error: "Receipt not found." });
+      }
+      if (current.status !== "pending" || current.isLock) {
+        return res.status(409).json({ success: false, error: "Only pending receipts can be changed." });
+      }
+      const updateData = {};
+      for (const key of ["senderId", "receiverId", "amount", "currency", "note"]) {
+        if (req.body[key] !== undefined) updateData[key] = req.body[key];
+      }
       const updated = await receiptService.updateReceipt(
         userId,
         id,
@@ -115,7 +127,7 @@ class ReceiptController {
         return res.status(400).json({ success: false, error: error.message });
       }
 
-      res.status(500).json({ success: false, error: "Server erro r. Please try again later." });
+      res.status(500).json({ success: false, error: "Server error. Please try again later." });
     }
   }
 
@@ -123,6 +135,12 @@ class ReceiptController {
     try {
       const { id: userId } = req.user;
       const { id } = req.params;
+      // Approved / rejected receipts are part of the wallet history; locked ones hold funds.
+      const current = await receiptService.getReceiptById(userId, id);
+      if (!current) return res.status(404).json({ success: false, error: "Receipt not found." });
+      if (current.status !== "pending" || current.isLock) {
+        return res.status(409).json({ success: false, error: "Only pending receipts can be deleted." });
+      }
       const deleted = await receiptService.deleteReceipt(userId, id);
       if (!deleted) return res.status(404).json({ success: false, error: "Receipt not found." });
       return res.status(200).json({ success: true, message: "Receipt deleted successfully." });

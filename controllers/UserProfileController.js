@@ -410,7 +410,9 @@ class UserProfileController {
     try {
       const user = req.user; // Extract user from request
       const { addressId } = req.parsedParams;
-      const { pin, type, ...updateFields } = req.body;
+      // Ownership fields can't be changed through an update.
+      // eslint-disable-next-line no-unused-vars
+      const { pin, type, id, userId, creatorId, ...updateFields } = req.body;
       if (!updateFields || Object.keys(updateFields).length === 0) {
         return res
           .status(400)
