@@ -413,9 +413,9 @@ class BankAccountService {
         throw error;
       }
 
+      // (currencies, transaction) — an extra `null` here ran this outside the transaction.
       await this.reassignCurrenciesFromOtherTestCards(
         requestedCurrencies,
-        null,
         transaction,
       );
 

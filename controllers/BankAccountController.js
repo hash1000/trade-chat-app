@@ -21,6 +21,20 @@ function handleBankAccountError(res, error) {
   return res.status(500).json({ error: "Server Error" });
 }
 
+/** Link / unlink only touch the caller's own bank accounts. */
+async function ownsAccount(req, res) {
+  const BankAccount = require("../models/bankAccount");
+  const account = await BankAccount.findOne({
+    where: { id: req.params.id, userId: req.user.id, isDeleted: false },
+    attributes: ["id"],
+  });
+  if (!account) {
+    res.status(404).json({ success: false, message: "Account not found" });
+    return false;
+  }
+  return true;
+}
+
 class BankAccountController {
   // Get all bank accounts for the logged-in user
   async getBankAccounts(req, res) {
@@ -250,6 +264,7 @@ class BankAccountController {
     try {
       const { id: userId } = req.user;
       const { id: bankAccountId } = req.params;
+      if (!(await ownsAccount(req, res))) return;
       const { type, walletType, currency } = req.body;
       const resolvedType = walletType || type;
 
@@ -297,6 +312,7 @@ class BankAccountController {
   async unlinkFromWallet(req, res) {
     try {
       const { id: bankAccountId } = req.params;
+      if (!(await ownsAccount(req, res))) return;
       const walletType =
         req.body?.walletType || req.body?.type ||
         req.query?.walletType || req.query?.type;
