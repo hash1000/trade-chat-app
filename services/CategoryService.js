@@ -63,7 +63,7 @@ class CategoryService {
       const alreadyPinned = await this.categoryRepository.findPinned(userId);
 
       // If same category already pinned → stop
-      if (alreadyPinned && alreadyPinned.id === categoryId) {
+      if (alreadyPinned && Number(alreadyPinned.id) === Number(categoryId)) {
         await transaction.rollback();
         return {
           success: false,
@@ -71,10 +71,11 @@ class CategoryService {
         };
       }
 
-      // Unpin previously pinned category (ONLY ONE)
+      // Unpin the previous default of the same type only — shortlist and
+      // services categories each keep their own default.
       await Category.update(
         { pin: 0 },
-        { where: { userId, pin: 1 }, transaction }
+        { where: { userId, pin: 1, type: category.type }, transaction }
       );
 
       // Pin selected category

@@ -676,7 +676,7 @@ class PaymentController {
   async updatePaymentType(req, res) {
     try {
       const { id } = req.params;
-      const result = await paymentService.updatePaymentType(id, req.body);
+      const result = await paymentService.updatePaymentType(id, req.body, req.user.id);
       if (!result)
         return res
           .status(404)
@@ -688,7 +688,9 @@ class PaymentController {
       });
     } catch (error) {
       console.error("Update payment type error:", error);
-      res.status(500).json({ success: false, message: error.message });
+      const msg = error.message?.toLowerCase() || "";
+      const status = msg.includes("not found") ? 404 : msg.includes("already exists") || msg.includes("permanent") ? 400 : 500;
+      res.status(status).json({ success: false, message: error.message });
     }
   }
 
@@ -707,6 +709,10 @@ class PaymentController {
       res.json({ success: true, message: "Payment type deleted" });
     } catch (error) {
       const lowerMsg = error.message?.toLowerCase() || "";
+
+      if (lowerMsg.includes("not found")) {
+        return res.status(404).json({ success: false, message: "Payment type not found" });
+      }
 
       const knownError =
         lowerMsg.includes("in use") ||
