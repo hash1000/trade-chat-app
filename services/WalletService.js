@@ -929,6 +929,9 @@ class WalletService {
         t,
       );
       const toWallet = await this.getOrCreateWallet(uid, toCur, walletType, t);
+      // Lock both rows for this transaction so two conversions can't spend the same balance.
+      await fromWallet.reload({ transaction: t, lock: t.LOCK.UPDATE });
+      await toWallet.reload({ transaction: t, lock: t.LOCK.UPDATE });
 
       const fromBefore = Number(fromWallet.availableBalance) || 0;
       if (fromBefore < amountFrom) {

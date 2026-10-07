@@ -71,7 +71,13 @@ class PaymentService {
     // the user typed. Derive the equivalent source-currency amount here so
     // fxConvert's sufficiency check runs against the correct wallet, and its
     // internal multiply reproduces this exact target amount on credit.
-    const rate = Number(currentRate);
+    // Always the server's own current rate (what GET /payment/current-rate shows).
+    // The client's `current_rate` used to be trusted as-is, so sending a made-up
+    // rate turned $1 into any amount of CNY. It's now ignored for the maths.
+    const { finalRate } = await currencyService.getAdjustedRate(toCurrency, fromCurrency);
+    const rate = Number(finalRate);
+    if (!rate || rate <= 0) throw new Error("Exchange rate unavailable. Please try again.");
+    void currentRate;
     const sourceAmount = Number(amount) / rate;
 
     return walletService.fxConvert({
