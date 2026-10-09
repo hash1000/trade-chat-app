@@ -119,6 +119,20 @@ class MessageService {
       swiftCode: b.swift_code,
       accountNo: b.accountNo,
       accountCurrency: b.accountCurrency,
+      // Personal accounts carry the holder's name instead of accountName — without
+      // these a shared personal card arrived empty. Document numbers stay out of chat.
+      firstName: b.firstName,
+      lastName: b.lastName,
+      familyName: b.familyName,
+      walletType: b.walletType,
+      classification: b.classification,
+      bankAddress: b.bank_address,
+      beneficiaryAddress: b.beneficiary_address,
+      // The app parses this card with its bank-account model, which reads the
+      // table's own column names — same values under those keys.
+      bank_name: b.bank_name,
+      swift_code: b.swift_code,
+      bank_address: b.bank_address,
     };
   }
 

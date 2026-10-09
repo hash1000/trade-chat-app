@@ -53,7 +53,10 @@ class MessageRepository {
       {
         model: BankAccount,
         as: "bankAccount",
-        attributes: ["id", "accountName", "bank_name", "iban", "swift_code", "accountNo", "accountCurrency"],
+        attributes: [
+          "id", "accountName", "bank_name", "iban", "swift_code", "accountNo", "accountCurrency",
+          "firstName", "lastName", "familyName", "walletType", "classification", "bank_address", "beneficiary_address",
+        ],
       },
       { model: ShortList, as: "shortList", attributes: ["id", "title", "type", "description"] },
       { model: Ledger, as: "balanceSheet", attributes: ["id", "title", "description", "archived"] },
