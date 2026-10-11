@@ -147,7 +147,8 @@ router.post(
   "/change-password",
   userController.changePassword.bind(userController)
 );
-router.post("/create-admin", userController.createAdmin.bind(userController));
+// Was open without even a login: anyone could make any email an admin. The app never calls it.
+router.post("/create-admin", authenticate, authorize(["admin"]), userController.createAdmin.bind(userController));
 router.put(
   "/users/:id/disable-account",
   authenticate,

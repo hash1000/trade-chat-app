@@ -30,7 +30,9 @@ router.get(
 router.patch(
   "/users",
   authenticate,
-  // authorize(["admin"]), // temporarily open to any authenticated user
+  // Admin only: this sets a user's roles, so leaving it open let anyone make themselves admin.
+  // The app uses the admin-only /users/bulk route.
+  authorize(["admin"]),
   updateUserRolesValidation,
   roleController.updateUserRoles.bind(roleController)
 );
