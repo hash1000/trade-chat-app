@@ -3,6 +3,7 @@ const router = express.Router()
 
 const ShopController = require('../controllers/ShopController')
 const authMiddleware = require('../middlewares/authenticate')
+const authenticateOptional = require('../middlewares/authenticateOptional')
 const checkIntegerParam = require('../middlewares/paramIntegerValidation')
 const multerHandler = require('../middlewares/multerHandler')
 const { uploadShopImages } = require('../utilities/shopFileMulter')
@@ -34,6 +35,11 @@ router.get('/', authMiddleware, shopController.getShops.bind(shopController))
 
 // Must be BEFORE /:id so "list" is not swallowed as an id value
 router.get('/list', authMiddleware, getPaginatedShopsValidation, shopController.getPaginatedShops.bind(shopController))
+
+// Buyer-facing reads, no login needed (the web shows shops to signed-out visitors).
+// No payout wallet / editor / members, and the owner without email.
+router.get('/public/list', authenticateOptional, shopController.getPublicShops.bind(shopController))
+router.get('/public/:id', authenticateOptional, checkIntegerParam('id'), shopController.getPublicShop.bind(shopController))
 
 // ── Teams ─────────────────────────────────────────────────────────────────────
 

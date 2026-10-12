@@ -48,6 +48,22 @@ function shopOrderInclude() {
   ];
 }
 
+// Shop-order reads on their own (seller queue, one shop-order) also carry the
+// parent order's delivery details — the seller needs the address to ship, and
+// can't open the buyer-scoped parent order. Not added to shopOrderInclude()
+// itself, since that's also nested inside parent orders.
+function shopOrderWithParentInclude() {
+  return [
+    ...shopOrderInclude(),
+    {
+      model: ProductOrder,
+      as: "parentOrder",
+      attributes: ["id", "orderNo", "deliveryType", "note", "walletType", "createdAt"],
+      include: [{ model: Address, as: "address" }],
+    },
+  ];
+}
+
 class ProductOrderRepository {
   async fetchAddress(addressId, userId) {
     return Address.findOne({ where: { id: addressId, userId } });
@@ -116,7 +132,7 @@ class ProductOrderRepository {
   }
 
   async findShopOrder(shopOrderId) {
-    return ProductShopOrder.findByPk(shopOrderId, { include: shopOrderInclude() });
+    return ProductShopOrder.findByPk(shopOrderId, { include: shopOrderWithParentInclude() });
   }
 
   async findShopOrderForOwnerCheck(shopOrderId) {
@@ -130,7 +146,7 @@ class ProductOrderRepository {
 
     const { count, rows } = await ProductShopOrder.findAndCountAll({
       where,
-      include: shopOrderInclude(),
+      include: shopOrderWithParentInclude(),
       limit,
       offset,
       order: [["createdAt", "DESC"]],

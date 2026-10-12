@@ -55,7 +55,9 @@ app.use("/api", routes);
 // Stripe redirect pages
 const { Transaction } = require("./models");
 
-app.get("/wallet/topup-success", async (req, res) => {
+// Also under /api/wallet/…, so a site that only proxies /api (e.g. chatqrm.com)
+// can be the https return address: APP_BASE_URL=https://chatqrm.com/api
+app.get(["/wallet/topup-success", "/api/wallet/topup-success"], async (req, res) => {
   const { session_id } = req.query;
   let transaction = null;
   if (session_id) {
@@ -67,7 +69,7 @@ app.get("/wallet/topup-success", async (req, res) => {
   res.render("topup-success", { transaction });
 });
 
-app.get("/wallet/topup-cancelled", (req, res) => {
+app.get(["/wallet/topup-cancelled", "/api/wallet/topup-cancelled"], (req, res) => {
   res.render("topup-cancelled");
 });
 

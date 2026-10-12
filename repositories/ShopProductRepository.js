@@ -54,6 +54,8 @@ class ShopProductRepository {
         as: "shop",
         attributes: [
           "id",
+          // Owner's user id, so a buyer can start a chat with the shop.
+          "userId",
           "name",
           "profile_image",
           "header_image",

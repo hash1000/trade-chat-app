@@ -252,7 +252,15 @@ class PaymentService {
 
     // Step 5: Create Stripe Checkout Session
     const user = await walletService.getUserWalletById(userId);
-    const baseUrl = process.env.baseUrl;
+    // Where Stripe sends the payer back (the /wallet/topup-* pages). `baseUrl` is the
+    // old name, `APP_BASE_URL` the one in .env.example; Stripe needs a full http(s) URL.
+    const baseUrl = String(process.env.baseUrl || process.env.APP_BASE_URL || "").trim().replace(/\/+$/, "");
+    if (!/^https?:\/\//i.test(baseUrl)) {
+      console.error("❌ Card top-up: set APP_BASE_URL (e.g. https://chatqrm.com/api) — got:", baseUrl || "(empty)");
+      const err = new Error("Card top-up isn't set up on this server yet.");
+      err.statusCode = 503;
+      throw err;
+    }
     console.log("Processing top-up payment:", baseUrl);
 
     let session;

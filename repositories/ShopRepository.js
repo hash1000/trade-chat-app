@@ -14,6 +14,14 @@ const {
 
 const USER_ATTRIBUTES = ["id", "username", "email", "profilePic"];
 
+// What anyone (even signed out) may see of a shop: no payout wallet, editor or
+// members, and the owner without their email.
+const PUBLIC_SHOP_ATTRIBUTES = [
+  "id", "name", "description", "country", "leadTime", "likes", "rating", "userId",
+  "header_image", "header_image_thumbnail", "profile_image", "profile_image_thumbnail", "createdAt",
+];
+const PUBLIC_OWNER_ATTRIBUTES = ["id", "username", "firstName", "lastName", "profilePic"];
+
 class ShopRepository {
   buildIncludes({ includeTeams = false, includeMembers = false, includeProducts = false } = {}) {
     const include = [
@@ -146,6 +154,47 @@ class ShopRepository {
       currentPage: Number(page),
       shops: rows,
     };
+  }
+
+  // ── Public (buyer-facing) reads ──────────────────────────────────────────────
+
+  _publicIncludes() {
+    return [
+      { model: ShopImage, as: "images" },
+      { model: User, as: "createdBy", attributes: PUBLIC_OWNER_ATTRIBUTES },
+    ];
+  }
+
+  async getPublicById(id) {
+    return Shop.findByPk(id, { attributes: PUBLIC_SHOP_ATTRIBUTES, include: this._publicIncludes() });
+  }
+
+  async getPublicPaginated(page, limit, shop_name, country) {
+    const where = {};
+    if (shop_name) where.name = { [Op.like]: `%${shop_name}%` };
+    if (country) where.country = { [Op.like]: `%${country}%` };
+    const { count, rows } = await Shop.findAndCountAll({
+      where,
+      attributes: PUBLIC_SHOP_ATTRIBUTES,
+      include: this._publicIncludes(),
+      limit: Number(limit),
+      offset: (page - 1) * limit,
+      order: [["createdAt", "DESC"]],
+      distinct: true,
+    });
+    return { total: count, totalPages: Math.ceil(count / limit), currentPage: Number(page), shops: rows };
+  }
+
+  /** shopId → number of published products, for the given shops. */
+  async countPublishedProducts(shopIds) {
+    if (!shopIds.length) return {};
+    const rows = await ShopProduct.findAll({
+      attributes: ["shopId", [ShopProduct.sequelize.fn("COUNT", ShopProduct.sequelize.col("id")), "count"]],
+      where: { shopId: shopIds, status: "published" },
+      group: ["shopId"],
+      raw: true,
+    });
+    return Object.fromEntries(rows.map((r) => [r.shopId, Number(r.count)]));
   }
 
   // ── Images ─────────────────────────────────────────────────────────────────

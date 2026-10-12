@@ -252,6 +252,20 @@ class ShopService {
     return this.shopRepository.getById(userId, id, options)
   }
 
+  // Buyer-facing shop page / directory (GET /shop/public/:id, /shop/public/list).
+  async getPublicShop(id) {
+    const shop = await this.shopRepository.getPublicById(id);
+    if (!shop) throw new CustomError("Shop not found", 404);
+    const counts = await this.shopRepository.countPublishedProducts([shop.id]);
+    return { ...shop.toJSON(), productCount: counts[shop.id] || 0 };
+  }
+
+  async getPublicShops(page, limit, shop_name, country) {
+    const result = await this.shopRepository.getPublicPaginated(page, limit, shop_name, country);
+    const counts = await this.shopRepository.countPublishedProducts(result.shops.map((s) => s.id));
+    return { ...result, shops: result.shops.map((s) => ({ ...s.toJSON(), productCount: counts[s.id] || 0 })) };
+  }
+
   async getPaginatedShops(page, limit, shop_name, country) {
     return this.shopRepository.getPaginatedShops(page, limit, shop_name, country)
   }

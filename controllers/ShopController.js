@@ -87,6 +87,31 @@ class ShopController {
     }
   }
 
+  // GET /shop/public/:id — anyone, signed in or not
+  async getPublicShop(req, res) {
+    try {
+      const shop = await shopService.getPublicShop(req.params.id)
+      return res.json({ status: true, message: 'Successfully fetched shop', data: shop })
+    } catch (error) {
+      if (error.statusCode === 404) return res.status(404).json({ status: false, message: error.message })
+      console.error(error)
+      return res.status(500).json({ message: 'Failed to retrieve shop' })
+    }
+  }
+
+  // GET /shop/public/list?page=&limit=&shop_name=&country= — anyone
+  async getPublicShops(req, res) {
+    try {
+      const page = Math.max(parseInt(req.query.page, 10) || 1, 1)
+      const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 100)
+      const data = await shopService.getPublicShops(page, limit, req.query.shop_name, req.query.country)
+      return res.json({ status: true, message: 'Successfully fetched shops', data })
+    } catch (error) {
+      console.error(error)
+      return res.status(500).json({ message: 'Failed to retrieve shops' })
+    }
+  }
+
   async getPaginatedShops(req, res) {
     try {
       const { page = 1, limit = 10, shop_name, country } = req.query
