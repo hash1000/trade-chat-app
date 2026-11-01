@@ -2,6 +2,7 @@ const ChatRepository = require("../repositories/ChatRepository");
 const ChatService = require("../services/ChatService");
 const MessageService = require("../services/MessageService");
 const { authenticateSocket } = require("../middlewares/socketAuth");
+const sequelize = require("../config/database");
 const chatRepository = new ChatRepository();
 const chatService = new ChatService();
 const messageService = new MessageService();
@@ -9,6 +10,22 @@ const messageService = new MessageService();
 // Online/offline presence lives in socket/userSocket.js now — it's a
 // global fact about a user, not something this (chat-scoped) module needs
 // to know about. See that file for the connect/disconnect handling.
+
+// Server-side time from receiving "send message" to acking it. Anything
+// over SLOW_SEND_MS is logged with the DB pool state: `waiting` > 0 means
+// the send queued for a free connection (pool too small / something else
+// holding connections); waiting 0 with a slow send points at the DB itself.
+const SLOW_SEND_MS = Number(process.env.SLOW_SEND_MS) || 1000;
+
+function logSlowSend(startedAt, chatId, userId) {
+  const ms = Date.now() - startedAt;
+  if (ms < SLOW_SEND_MS) return;
+  const pool = sequelize.connectionManager.pool || {};
+  console.warn(
+    `Slow send message: ${ms}ms chat=${chatId} user=${userId} ` +
+      `pool size=${pool.size} using=${pool.using} waiting=${pool.waiting}`
+  );
+}
 
 function initChatSocket(io) {
   io.use(authenticateSocket);
@@ -268,7 +285,10 @@ function initChatSocket(io) {
 
       // socket.to() (not io.to()) excludes the sender — only the other
       // participant(s) see the indicator, never yourself.
-      if (await chatRepository.isParticipant(chatId, socket.userId)) {
+      // Membership comes from the socket's rooms, not the DB: typing fires
+      // on every keystroke, and the rooms already track membership (auto-
+      // join on connect, joinUsersToChat / leaveUsersFromChat on changes).
+      if (socket.rooms.has(`chat-${chatId}`)) {
         socket.to(`chat-${chatId}`).emit("typing", {
           chatId,
           userId: socket.userId,
@@ -291,6 +311,7 @@ function initChatSocket(io) {
         return ack({ error: "Invalid chatId" });
       }
 
+      const startedAt = Date.now();
       try {
         if (!(await chatRepository.isParticipant(chatId, socket.userId))) {
           return ack({ error: "Not a participant of this chat" });
@@ -304,6 +325,7 @@ function initChatSocket(io) {
         const formatted = messageService.formatMessage(message, socket.userId);
 
         ack({ message: formatted });
+        logSlowSend(startedAt, chatId, socket.userId);
 
         // Don't re-broadcast a duplicate retry — everyone already got it
         // the first time this localId was sent.

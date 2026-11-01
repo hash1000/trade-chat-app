@@ -31,6 +31,7 @@ const teamRoutes = require('./teamRoutes')
 const serviceRoutes = require('./serviceRoutes')
 const discountRoutes = require('./discountRoutes')
 const chatRoutes = require('./chatRoutes')
+const templateRoutes = require('./templateRoutes')
 
 // Signup route
 router.use('/auth', authRoutes)
@@ -64,5 +65,6 @@ router.use('/team', teamRoutes)
 router.use('/service', serviceRoutes)
 router.use('/discounts', discountRoutes)
 router.use('/chat', chatRoutes)
+router.use('/template', templateRoutes)
 
 module.exports = router

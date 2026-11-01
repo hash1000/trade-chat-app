@@ -57,6 +57,7 @@ const Message = require("./message");
 const MessageRead = require("./messageRead");
 const MessageDelete = require("./messageDelete");
 const MessageMention = require("./messageMention");
+const Template = require("./template");
 const TeamServiceLink = require("./teamService");
 const ServiceCategoryLink = require("./serviceCategory");
 const PaymentRequest = require("./payment_request");
@@ -843,4 +844,5 @@ module.exports = {
   MessageRead,
   MessageDelete,
   MessageMention,
+  Template,
 };

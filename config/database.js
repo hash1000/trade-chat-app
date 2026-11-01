@@ -27,9 +27,12 @@ const sequelize = new Sequelize({
   // long time" rather than a clear error. Override via MYSQL_POOL_MAX if
   // you run multiple app instances/processes sharing the same DB — check
   // MySQL's own max_connections first.
+  // min keeps a few connections open through quiet periods — with min 0
+  // every connection closed after `idle`, so the first message after a
+  // pause paid for a new TCP + TLS + auth handshake on every query it ran.
   pool: {
     max: Number(process.env.MYSQL_POOL_MAX) || 20,
-    min: 0,
+    min: Number(process.env.MYSQL_POOL_MIN) || 2,
     acquire: 30000,
     idle: 10000,
   },

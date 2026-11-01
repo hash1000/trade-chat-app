@@ -249,7 +249,20 @@ class MessageService {
       hashtags: payload.hashtags || [],
     };
 
-    const message = await this.messageRepository.create(data, payload.mentionUserIds || []);
+    let message;
+    try {
+      message = await this.messageRepository.create(data, payload.mentionUserIds || []);
+    } catch (err) {
+      // A retry that arrived while the first send with this localId was
+      // still being written: findByLocalId above missed it, and the
+      // (chatId, localId) unique index stopped the second insert. Answer
+      // with the row the first one created, like any other duplicate.
+      if (err.name === "SequelizeUniqueConstraintError" && payload.localId) {
+        const existing = await this.messageRepository.findByLocalId(chatId, senderId, payload.localId);
+        if (existing) return { message: existing, isDuplicate: true };
+      }
+      throw err;
+    }
 
     // Three independent writes — different table/columns, none reads a
     // value the others produce — run together instead of as three
@@ -396,7 +409,7 @@ class MessageService {
   }
 
   // Pushes a notification (DB row + best-effort FCM) to every other chat
-  // participant. NotificationService.notifyUser never throws, but this is
+  // participant. NotificationService.notifyUsers never throws, but this is
   // still wrapped by the caller as a belt-and-suspenders fire-and-forget.
   async notifyNewMessage(chatId, senderId, message) {
     // Called after incrementUnreadForOthers() in sendMessage(), so each
@@ -415,34 +428,35 @@ class MessageService {
     // the caller above) and still see the message once they open the
     // chat — muting only ever suppresses the notification/push, nothing
     // about the message itself.
-    await Promise.all(
+    // One bulk insert + one token lookup for the whole group (see
+    // NotificationService.notifyUsers) — per-recipient calls here used to
+    // fire 2 queries per member and hold up the next "send message".
+    await this.notificationService.notifyUsers(
       recipients
         .filter(({ isMuted }) => !isMuted)
-        .map(({ userId, unreadCount }) =>
-          this.notificationService.notifyUser({
-            userId,
-            actorId: senderId,
-            type: "NEW_MESSAGE",
-            title: senderName,
-            message: preview,
-            entityType: "CHAT",
-            entityId: chatId,
-            // Full message (viewer-specific — e.g. payment.type/isDeletedForViewer
-            // depend on who's looking) plus this recipient's own up-to-date
-            // unread count for the chat, so the client can open straight into
-            // the thread and refresh its badge without a round-trip.
-            data: {
-              chatId,
-              unreadCount,
-              // For the notification's "Mark as read" / image preview —
-              // `message` below is dropped when the push gets too large.
-              messageId: message.id,
-              messageType: message.messageType,
-              imageUrl: this.notificationImageUrl(message),
-              message: this.formatMessage(message, userId),
-            },
-          })
-        )
+        .map(({ userId, unreadCount }) => ({
+          userId,
+          actorId: senderId,
+          type: "NEW_MESSAGE",
+          title: senderName,
+          message: preview,
+          entityType: "CHAT",
+          entityId: chatId,
+          // Full message (viewer-specific — e.g. payment.type/isDeletedForViewer
+          // depend on who's looking) plus this recipient's own up-to-date
+          // unread count for the chat, so the client can open straight into
+          // the thread and refresh its badge without a round-trip.
+          data: {
+            chatId,
+            unreadCount,
+            // For the notification's "Mark as read" / image preview —
+            // `message` below is dropped when the push gets too large.
+            messageId: message.id,
+            messageType: message.messageType,
+            imageUrl: this.notificationImageUrl(message),
+            message: this.formatMessage(message, userId),
+          },
+        }))
     );
   }
 

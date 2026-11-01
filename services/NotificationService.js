@@ -119,18 +119,63 @@ class NotificationService {
 
       const created = await Notification.bulkCreate(rows);
 
-      for (const userId of recipientIds) {
-        this._push(userId, title, message, {
-          type,
-          entityType,
-          entityId,
-          ...data,
-        });
-      }
+      this._pushMany(
+        recipientIds.map((userId) => ({
+          userId,
+          title,
+          body: message,
+          data: { type, entityType, entityId, ...data },
+        })),
+      );
 
       return created;
     } catch (error) {
       console.error("notifyStaff error:", error.message);
+      return [];
+    }
+  }
+
+  /**
+   * notifyUser for many recipients at once — one INSERT and one user lookup
+   * for the pushes, instead of two queries per recipient. Use this for
+   * fan-outs (a chat message to every group member): per-recipient
+   * notifyUser calls there fill the DB pool and stall every other request
+   * until they drain. Each entry: { userId, actorId, type, title, message,
+   * entityType, entityId, data }. Never throws.
+   */
+  async notifyUsers(entries) {
+    if (!entries.length) return [];
+    try {
+      const created = await Notification.bulkCreate(
+        entries.map((e) => ({
+          userId: e.userId,
+          actorId: e.actorId ?? null,
+          type: e.type,
+          title: e.title,
+          message: e.message,
+          entityType: e.entityType ?? null,
+          entityId: e.entityId ?? null,
+          data: e.data ?? {},
+        })),
+      );
+
+      this._pushMany(
+        entries.map((e) => ({
+          userId: e.userId,
+          title: e.title,
+          body: e.message,
+          data: {
+            type: e.type,
+            entityType: e.entityType ?? null,
+            entityId: e.entityId ?? null,
+            ...(e.data || {}),
+          },
+        })),
+      );
+
+      return created;
+    } catch (error) {
+      console.error("notifyUsers error:", error.message);
       return [];
     }
   }
@@ -249,56 +294,76 @@ class NotificationService {
   // firebase-admin (FCM v1) when a service account is configured, else the
   // legacy endpoint. The FCM branches go away once Firebase is removed.
   _push(userId, title, body, data = {}) {
+    this._pushMany([{ userId, title, body, data }]);
+  }
+
+  // Same as _push for several recipients, with one query for all their
+  // device tokens. items: [{ userId, title, body, data }].
+  _pushMany(items) {
     const canJPush = jpush.isConfigured();
     if (!canJPush && !fcmAdmin && !process.env.FCM_SERVER_KEY) return;
-    User.findByPk(userId, { attributes: ["id", "fcm", "jpushRegistrationId"] })
-      .then((user) => {
-        if (!user) return;
-
-        if (canJPush && user.jpushRegistrationId) {
-          return jpush.sendToRegistrationId(user.jpushRegistrationId, title, body, data);
+    if (!items.length) return;
+    const userIds = [...new Set(items.map((i) => i.userId))];
+    User.findAll({
+      where: { id: { [Op.in]: userIds } },
+      attributes: ["id", "fcm", "jpushRegistrationId"],
+    })
+      .then((users) => {
+        const byId = new Map(users.map((u) => [u.id, u]));
+        for (const { userId, title, body, data = {} } of items) {
+          const user = byId.get(userId);
+          if (!user) continue;
+          Promise.resolve()
+            .then(() => this._sendToDevice(user, canJPush, title, body, data))
+            .catch((error) => {
+              const detail = error.response?.data ? JSON.stringify(error.response.data) : "";
+              console.error("Push error:", error.message, detail);
+            });
         }
-
-        if (!user.fcm) return;
-
-        if (fcmAdmin) {
-          // FCM v1: data values must all be strings, and the whole message
-          // must stay under 4KB — so the same capped extras as JPush.
-          return fcmAdmin.messaging().send({
-            token: user.fcm,
-            notification: {
-              title,
-              body: body && body.length > 150 ? `${body.slice(0, 150)}…` : body,
-              // Image messages: FCM shows the picture in the notification.
-              ...(typeof data.imageUrl === "string" && /^https?:\/\//i.test(data.imageUrl)
-                ? { imageUrl: data.imageUrl }
-                : {}),
-            },
-            data: jpush.toStringExtras(data),
-          });
-        }
-
-        // Legacy fallback (shut down by Google in 2024 — kept only until a
-        // service account file is added; requests will fail harmlessly)
-        return axios.post(
-          "https://fcm.googleapis.com/fcm/send",
-          {
-            notification: { title, body },
-            data: { data: JSON.stringify(data) },
-            to: user.fcm,
-          },
-          {
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `key=${process.env.FCM_SERVER_KEY}`,
-            },
-          },
-        );
       })
-      .catch((error) => {
-        const detail = error.response?.data ? JSON.stringify(error.response.data) : "";
-        console.error("Push error:", error.message, detail);
+      .catch((error) => console.error("Push error:", error.message));
+  }
+
+  _sendToDevice(user, canJPush, title, body, data) {
+    if (canJPush && user.jpushRegistrationId) {
+      return jpush.sendToRegistrationId(user.jpushRegistrationId, title, body, data);
+    }
+
+    if (!user.fcm) return;
+
+    if (fcmAdmin) {
+      // FCM v1: data values must all be strings, and the whole message
+      // must stay under 4KB — so the same capped extras as JPush.
+      return fcmAdmin.messaging().send({
+        token: user.fcm,
+        notification: {
+          title,
+          body: body && body.length > 150 ? `${body.slice(0, 150)}…` : body,
+          // Image messages: FCM shows the picture in the notification.
+          ...(typeof data.imageUrl === "string" && /^https?:\/\//i.test(data.imageUrl)
+            ? { imageUrl: data.imageUrl }
+            : {}),
+        },
+        data: jpush.toStringExtras(data),
       });
+    }
+
+    // Legacy fallback (shut down by Google in 2024 — kept only until a
+    // service account file is added; requests will fail harmlessly)
+    return axios.post(
+      "https://fcm.googleapis.com/fcm/send",
+      {
+        notification: { title, body },
+        data: { data: JSON.stringify(data) },
+        to: user.fcm,
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `key=${process.env.FCM_SERVER_KEY}`,
+        },
+      },
+    );
   }
 }
 
