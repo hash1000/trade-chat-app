@@ -148,6 +148,13 @@ class ChatService {
       group_last_message: plain.lastMessage,
       created_at: plain.createdAt ? new Date(plain.createdAt).toISOString() : null,
       updated_at: plain.updatedAt ? new Date(plain.updatedAt).toISOString() : null,
+      // Last activity (any message, incl. system notices) — what the chat list
+      // shows and sorts by. Falls back to creation for a chat with no messages.
+      last_message_at: plain.lastMessageAt
+        ? new Date(plain.lastMessageAt).toISOString()
+        : plain.createdAt
+          ? new Date(plain.createdAt).toISOString()
+          : null,
       memberIds: members.map((m) => m.userId),
       group_members: members.map((m) => this.formatMember(m)),
       isFav: members.filter((m) => m.isFavourite).map((m) => m.userId),
