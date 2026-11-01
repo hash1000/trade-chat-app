@@ -160,6 +160,10 @@ class MessageService {
     return {
       id: plain.id,
       chat_id: plain.chatId,
+      // The sender's client-generated id from "send message". Lets the
+      // sender's app match this row to its optimistic copy even when the
+      // send ack was lost (it then arrives through history/catch-up instead).
+      local_id: plain.localId || null,
       message_sender_id: plain.senderId,
       message_sender_name: [sender.firstName, sender.lastName].filter(Boolean).join(" ") || sender.username,
       message_sender_imageUrl: sender.profilePic || null,
