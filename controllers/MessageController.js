@@ -115,6 +115,56 @@ class MessageController {
       });
     }
   }
+
+  // POST /api/chat/:chatId/messages  { message, localId?, replyToMessageId? }
+  // Text only. For replies typed into a notification, where the app has no
+  // socket connection — the socket "send message" event stays the normal
+  // path. Same de-dup on localId, and the same "message" broadcast (to the
+  // whole room, so the sender's own open devices get it too).
+  async sendText(req, res) {
+    try {
+      const chatId = Number(req.params.chatId);
+      const { id: userId } = req.user;
+      const text = typeof req.body.message === "string" ? req.body.message.trim() : "";
+
+      if (!Number.isInteger(chatId) || chatId <= 0) {
+        return res.status(400).json({ success: false, error: "Invalid chatId." });
+      }
+      if (!text) {
+        return res.status(400).json({ success: false, error: "message is required." });
+      }
+      if (!(await chatRepository.isParticipant(chatId, userId))) {
+        return res.status(403).json({ success: false, error: "Not a participant of this chat." });
+      }
+
+      const { message: created, isDuplicate } = await messageService.sendMessage(chatId, userId, {
+        messageType: "text",
+        message: text,
+        localId: req.body.localId || null,
+        replyToMessageId: req.body.replyToMessageId || null,
+      });
+      // Nothing to upload for text; the socket client clears this itself.
+      const message = (await messageService.markUploaded(created.id, 100)) || created;
+      const formatted = messageService.formatMessage(message, userId);
+
+      if (!isDuplicate) {
+        try {
+          getIO().to(`chat-${chatId}`).emit("message", formatted);
+        } catch (err) {
+          console.warn("Socket.IO not initialized, skipping message broadcast");
+        }
+      }
+
+      return res.status(201).json({ success: true, data: formatted });
+    } catch (error) {
+      console.error("MessageController.sendText error:", error);
+      const status = error.statusCode || 500;
+      return res.status(status).json({
+        success: false,
+        error: status === 500 ? "Server error. Please try again later." : error.message,
+      });
+    }
+  }
 }
 
 module.exports = MessageController;

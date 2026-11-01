@@ -62,12 +62,18 @@ async function sendToRegistrationId(registrationId, title, body, data = {}) {
   const alert = truncate(String(body || ""), MAX_BODY_CHARS);
   title = truncate(String(title || ""), 60);
   const extras = toStringExtras(data);
+  // Image messages: Android shows the picture expanded (style 3 = big
+  // picture; JPush downloads big_pic_path itself, so it works with the app closed).
+  const bigPicture =
+    typeof data.imageUrl === "string" && /^https?:\/\//i.test(data.imageUrl)
+      ? { style: 3, big_pic_path: data.imageUrl }
+      : {};
 
   const payload = {
     platform: "all",
     audience: { registration_id: [registrationId] },
     notification: {
-      android: { title, alert, extras },
+      android: { title, alert, extras, ...bigPicture },
       ios: { alert: { title, body: alert }, sound: "default", badge: "+1", extras },
     },
     options: {

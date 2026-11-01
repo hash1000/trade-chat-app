@@ -97,9 +97,10 @@ router.delete("/:id/messages", authMiddleware, chatController.clearMessages.bind
 router.delete("/:id/hard-delete", authMiddleware, chatController.hardDeleteChat.bind(chatController));
 
 // Messages are created over the socket ("send message" event, see
-// socket/chatSocket.js) — REST only covers paginated history and
-// per-recipient read/delete state.
+// socket/chatSocket.js). REST covers paginated history, per-recipient
+// read/delete state, and a text-only send for notification replies.
 router.get("/:chatId/messages", authMiddleware, messageController.history.bind(messageController));
+router.post("/:chatId/messages", authMiddleware, messageController.sendText.bind(messageController));
 router.put("/:chatId/messages/seen", authMiddleware, messageController.markSeen.bind(messageController));
 router.put("/messages/:messageId/uploaded", authMiddleware, messageController.markUploaded.bind(messageController));
 router.delete("/messages/:messageId", authMiddleware, messageController.deleteForMe.bind(messageController));

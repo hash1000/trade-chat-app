@@ -266,7 +266,14 @@ class NotificationService {
           // must stay under 4KB — so the same capped extras as JPush.
           return fcmAdmin.messaging().send({
             token: user.fcm,
-            notification: { title, body: body && body.length > 150 ? `${body.slice(0, 150)}…` : body },
+            notification: {
+              title,
+              body: body && body.length > 150 ? `${body.slice(0, 150)}…` : body,
+              // Image messages: FCM shows the picture in the notification.
+              ...(typeof data.imageUrl === "string" && /^https?:\/\//i.test(data.imageUrl)
+                ? { imageUrl: data.imageUrl }
+                : {}),
+            },
             data: jpush.toStringExtras(data),
           });
         }

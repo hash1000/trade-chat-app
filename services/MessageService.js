@@ -383,6 +383,14 @@ class MessageService {
     return results;
   }
 
+  // Picture shown in an image message's notification (thumbnail when there
+  // is one — smaller to download). Only absolute http(s) URLs.
+  notificationImageUrl(message) {
+    if (message.messageType !== "image") return undefined;
+    const url = message.thumbnailUrl || message.mediaUrl;
+    return url && /^https?:\/\//i.test(url) ? url : undefined;
+  }
+
   // Pushes a notification (DB row + best-effort FCM) to every other chat
   // participant. NotificationService.notifyUser never throws, but this is
   // still wrapped by the caller as a belt-and-suspenders fire-and-forget.
@@ -422,6 +430,11 @@ class MessageService {
             data: {
               chatId,
               unreadCount,
+              // For the notification's "Mark as read" / image preview —
+              // `message` below is dropped when the push gets too large.
+              messageId: message.id,
+              messageType: message.messageType,
+              imageUrl: this.notificationImageUrl(message),
               message: this.formatMessage(message, userId),
             },
           })
