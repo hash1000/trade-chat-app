@@ -199,6 +199,25 @@ class MessageRepository {
     };
   }
 
+  // Other people's messages in [chatId] that [userId] hasn't seen yet —
+  // newest first, capped (an old backlog doesn't need ticks one by one).
+  async findUnseenIds(chatId, userId, limit = 200) {
+    const recent = await Message.findAll({
+      where: { chatId, senderId: { [Op.ne]: userId } },
+      attributes: ["id"],
+      order: [["id", "DESC"]],
+      limit,
+    });
+    const ids = recent.map((m) => m.id);
+    if (ids.length === 0) return [];
+    const seen = await MessageRead.findAll({
+      where: { userId, messageId: { [Op.in]: ids } },
+      attributes: ["messageId"],
+    });
+    const seenIds = new Set(seen.map((r) => r.messageId));
+    return ids.filter((id) => !seenIds.has(id));
+  }
+
   async markSeen(messageIds, userId) {
     if (messageIds.length === 0) return;
 

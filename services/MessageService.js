@@ -476,6 +476,10 @@ class MessageService {
     await this.messageRepository.markSeen(messageIds, userId);
   }
 
+  async findUnseenIds(chatId, userId) {
+    return this.messageRepository.findUnseenIds(chatId, userId);
+  }
+
   // "Delete for me" — any participant can hide a message from just their
   // own history/devices, including ones they didn't send. Participant check
   // lives here (not the transport layer) so REST and the "delete message"

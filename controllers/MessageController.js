@@ -29,18 +29,49 @@ class MessageController {
     }
   }
 
-  // PUT /api/chat/:chatId/messages/seen  { messageIds: [1,2,3] }
+  // PUT /api/chat/:chatId/messages/seen  { messageIds?: [1,2,3], all?: true }
+  // Same effect as the socket "mark message seen": records the read, resets
+  // the caller's unread counter and broadcasts "message seen" so the sender
+  // sees the ticks live. `all: true` marks every unseen message from others
+  // (a notification's "Mark as read").
   async markSeen(req, res) {
     try {
       const { id: userId } = req.user;
-      const { messageIds } = req.body;
+      const chatId = Number(req.params.chatId);
+      const given = Array.isArray(req.body.messageIds) ? req.body.messageIds : [];
 
-      if (!Array.isArray(messageIds) || messageIds.length === 0) {
+      if (!Number.isInteger(chatId) || chatId <= 0) {
+        return res.status(400).json({ success: false, error: "Invalid chatId." });
+      }
+      if (!(await chatRepository.isParticipant(chatId, userId))) {
+        return res.status(403).json({ success: false, error: "Not a participant of this chat." });
+      }
+
+      const unseen = req.body.all === true ? await messageService.findUnseenIds(chatId, userId) : [];
+      const messageIds = [...new Set([...given.map(Number).filter(Number.isInteger), ...unseen])];
+      if (messageIds.length === 0 && req.body.all !== true) {
         return res.status(400).json({ success: false, error: "messageIds is required." });
       }
 
       await messageService.markSeen(messageIds, userId);
-      return res.status(200).json({ success: true });
+      await chatRepository.resetUnread(chatId, userId);
+      const latestMessage = await messageService.getLatestFormatted(chatId, userId);
+
+      if (messageIds.length > 0) {
+        try {
+          getIO().to(`chat-${chatId}`).emit("message seen", {
+            chatId,
+            messageIds,
+            userId,
+            unreadCount: 0,
+            latestMessage,
+          });
+        } catch (err) {
+          console.warn("Socket.IO not initialized, skipping message-seen broadcast");
+        }
+      }
+
+      return res.status(200).json({ success: true, seen: messageIds, unreadCount: 0, latestMessage });
     } catch (error) {
       console.error("MessageController.markSeen error:", error);
       return res.status(500).json({
