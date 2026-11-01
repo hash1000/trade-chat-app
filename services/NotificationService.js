@@ -5,6 +5,7 @@ const { Op } = require("sequelize");
 const Notification = require("../models/notification");
 const User = require("../models/user");
 const Role = require("../models/role");
+const jpush = require("../utilities/jpush");
 
 const STAFF_ROLE_NAMES = ["admin", "accountant", "operator"];
 
@@ -57,7 +58,7 @@ class NotificationService {
         data,
       });
 
-      this._pushFcm(userId, title, message, {
+      this._push(userId, title, message, {
         type,
         entityType,
         entityId,
@@ -119,7 +120,7 @@ class NotificationService {
       const created = await Notification.bulkCreate(rows);
 
       for (const userId of recipientIds) {
-        this._pushFcm(userId, title, message, {
+        this._push(userId, title, message, {
           type,
           entityType,
           entityId,
@@ -237,24 +238,36 @@ class NotificationService {
     return Notification.destroy({ where: { userId } });
   }
 
-  // Fire-and-forget push to the user's device. Uses firebase-admin (FCM v1)
-  // when a service account is configured; otherwise tries the legacy endpoint.
-  _pushFcm(userId, title, body, data = {}) {
-    if (!fcmAdmin && !process.env.FCM_SERVER_KEY) return;
-    User.findByPk(userId, { attributes: ["id", "fcm"] })
+  // Push only — no notification row. For pushes that aren't part of the
+  // in-app notification list (e.g. "X added you"). Never throws.
+  push(userId, title, body, data = {}) {
+    this._push(userId, title, body, data);
+  }
+
+  // Fire-and-forget push to the user's device: JPush when the app has
+  // registered a JPush id (works in mainland China), otherwise FCM — via
+  // firebase-admin (FCM v1) when a service account is configured, else the
+  // legacy endpoint. The FCM branches go away once Firebase is removed.
+  _push(userId, title, body, data = {}) {
+    const canJPush = jpush.isConfigured();
+    if (!canJPush && !fcmAdmin && !process.env.FCM_SERVER_KEY) return;
+    User.findByPk(userId, { attributes: ["id", "fcm", "jpushRegistrationId"] })
       .then((user) => {
-        if (!user || !user.fcm) return;
+        if (!user) return;
+
+        if (canJPush && user.jpushRegistrationId) {
+          return jpush.sendToRegistrationId(user.jpushRegistrationId, title, body, data);
+        }
+
+        if (!user.fcm) return;
 
         if (fcmAdmin) {
-          // FCM v1: data values must all be strings
-          const stringData = {};
-          for (const [k, v] of Object.entries(data)) {
-            if (v !== null && v !== undefined) stringData[k] = String(typeof v === "object" ? JSON.stringify(v) : v);
-          }
+          // FCM v1: data values must all be strings, and the whole message
+          // must stay under 4KB — so the same capped extras as JPush.
           return fcmAdmin.messaging().send({
             token: user.fcm,
-            notification: { title, body },
-            data: stringData,
+            notification: { title, body: body && body.length > 150 ? `${body.slice(0, 150)}…` : body },
+            data: jpush.toStringExtras(data),
           });
         }
 
@@ -276,7 +289,8 @@ class NotificationService {
         );
       })
       .catch((error) => {
-        console.error("FCM push error:", error.message);
+        const detail = error.response?.data ? JSON.stringify(error.response.data) : "";
+        console.error("Push error:", error.message, detail);
       });
   }
 }

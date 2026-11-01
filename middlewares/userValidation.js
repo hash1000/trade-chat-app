@@ -62,8 +62,8 @@ exports.validateVerify = [
 
 // Validation middeleware for Google sign-in
 exports.validateGoogleSignup = [
-  body("displayName").notEmpty().withMessage("Display name is required"),
-  body("email").isEmail().withMessage("Invalid email"),
+  body("idToken").isString().notEmpty().withMessage("Google ID token is required"),
+  body("displayName").optional().isString(),
   body("photoURL")
     .optional()
     .isString()

@@ -9,6 +9,7 @@ const PRIVATE_FIELDS = [
   "resetToken",
   "tokenVersion",
   "fcm",
+  "jpushRegistrationId",
   "personalWalletBalance",
   "usdWalletBalance",
   "companyWalletBalance",

@@ -9,7 +9,7 @@ const ChatRepository = require("../repositories/ChatRepository");
 const Wallet = require("../models/wallet");
 const UserTags = require("../models/userTags");
 
-const { AddRequestNotification } = require("../notifications");
+const NotificationService = require("./NotificationService");
 
 const CustomError = require("../errors/CustomError");
 const BankAccount = require("../models/bankAccount");
@@ -19,6 +19,7 @@ const reactionRepository = new ReactionRepository();
 const userFavouriteRepository = new UserFavouriteRepository();
 const friendsRepository = new FriendsRepository();
 const chatRepository = new ChatRepository();
+const notificationService = new NotificationService();
 
 class UserService {
   async getUserProfileById(profileId, userId) {
@@ -288,14 +289,12 @@ class UserService {
     if (!alreadyFriend) {
       await friendsRepository.addFriend(me, them);
 
-      const otherUser = await userRepository.getUserTokenAndName(them);
       const myUser = await userRepository.getUserTokenAndName(me);
-      if (otherUser && otherUser.fcm && myUser && myUser.name) {
-        await new AddRequestNotification(
-          otherUser.fcm,
-          {},
-          myUser,
-        ).sendNotification();
+      if (myUser && myUser.get("name")) {
+        notificationService.push(them, "New Add Request", `${myUser.get("name")} wants to add you.`, {
+          type: "ADD_REQUEST",
+          userId: me,
+        });
       }
     }
 

@@ -118,6 +118,12 @@ const User = sequelize.define(
       type: DataTypes.STRING,
       allowNull: true,
     },
+    // JPush device registration id — preferred over `fcm` for push
+    // (see NotificationService._push).
+    jpushRegistrationId: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
     tokenVersion: {
       type: DataTypes.INTEGER,
       defaultValue: 0,

@@ -1,5 +1,6 @@
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
+const { Op } = require("sequelize");
 const UserRepository = require("../repositories/UserRepository"); // Replace the path with the correct location of your UserRepository.js file
 const CustomError = require("../errors/CustomError");
 const PaymentService = require("./PaymentService");
@@ -503,6 +504,21 @@ class UserService {
     // Save the updated user
     await user.save();
 
+    return user;
+  }
+
+  // A JPush id belongs to one device, so it's taken away from any other
+  // account that last used this phone — otherwise a second user logging in
+  // on the same device would also get the first user's notifications.
+  async updateJPushRegistrationId(user, registrationId) {
+    if (registrationId) {
+      await User.update(
+        { jpushRegistrationId: null },
+        { where: { jpushRegistrationId: registrationId, id: { [Op.ne]: user.id } } }
+      );
+    }
+    user.jpushRegistrationId = registrationId || null;
+    await user.save();
     return user;
   }
 

@@ -339,7 +339,7 @@ class UserRepository {
       distinct: true,
       order: [["firstName", "ASC"], ["id", "ASC"]],
       // Never hand other people's push token or wallet balances to a search.
-      attributes: { exclude: ["fcm", "personalWalletBalance", "usdWalletBalance", "companyWalletBalance"] },
+      attributes: { exclude: ["fcm", "jpushRegistrationId", "personalWalletBalance", "usdWalletBalance", "companyWalletBalance"] },
       include: [
         {
           model: Role,

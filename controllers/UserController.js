@@ -19,6 +19,7 @@ const client = twilio(
 );
 
 const { publicIdentity } = require("../utilities/userPrivacy");
+const { verifyGoogleIdToken, InvalidGoogleTokenError } = require("../utilities/googleIdToken");
 
 // Checks the latest SMS code sent to this number (same rules as verify-otp-sms)
 // and consumes it on success. Returns { ok: true } or { ok: false, reason }.
@@ -41,9 +42,24 @@ async function matchSmsOtp(country_code, phoneNumber, otp) {
 }
 
 class UserController {
+  // Identity comes only from the Google-signed ID token, never from the
+  // request body — otherwise anyone could post someone else's email and
+  // receive their JWT.
   async googleSignIn(req, res) {
-    const { displayName, email, photoURL } = req.body;
     try {
+      let google;
+      try {
+        google = await verifyGoogleIdToken(req.body.idToken);
+      } catch (err) {
+        if (err instanceof InvalidGoogleTokenError) {
+          return res.status(401).json({ message: "Invalid Google sign-in. Please try again." });
+        }
+        throw err;
+      }
+      const email = google.email.toLowerCase();
+      const displayName = google.name || req.body.displayName || email.split("@")[0];
+      const photoURL = google.picture || req.body.photoURL || null;
+
       const userData = {
         username: displayName,
         email,
@@ -1220,11 +1236,18 @@ class UserController {
     }
   }
 
+  // Registers the device's push address: `jpushRegistrationId` (JPush) and/or
+  // `fcmToken` (FCM, until Firebase is removed). Only the fields sent are changed.
   async updateFCM(req, res) {
     try {
-      const { fcmToken } = req.body;
-      const user = req.user; // Assuming you have an authentication middleware to attach the user object to the request
-      const updatedUser = await userService.updateToken(user, fcmToken);
+      const { fcmToken, jpushRegistrationId } = req.body;
+      let updatedUser = req.user; // Assuming you have an authentication middleware to attach the user object to the request
+      if (jpushRegistrationId !== undefined) {
+        updatedUser = await userService.updateJPushRegistrationId(updatedUser, jpushRegistrationId);
+      }
+      if (fcmToken !== undefined) {
+        updatedUser = await userService.updateToken(updatedUser, fcmToken);
+      }
       res.json({ user: updatedUser });
     } catch (error) {
       console.error(error);
@@ -1232,7 +1255,7 @@ class UserController {
     }
   }
 
-  // Clears the device's FCM token so a logged-out device stops receiving push
+  // Clears the device's FCM token and JPush id so a logged-out device stops receiving push
   // notifications. The JWT itself stays valid (tokenVersion check is disabled
   // in authenticate) — the app must also discard its stored token locally.
   async logout(req, res) {
@@ -1242,6 +1265,7 @@ class UserController {
       // app, so a web sign-out ({ device: "web" }) must leave it alone.
       if (req.body?.device !== "web") {
         await userService.updateToken(user, null);
+        await userService.updateJPushRegistrationId(user, null);
       }
       res.json({ success: true, message: "Logged out successfully." });
     } catch (error) {
