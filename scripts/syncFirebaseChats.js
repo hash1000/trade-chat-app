@@ -54,6 +54,15 @@
 //   node scripts/syncFirebaseChats.js --no-update        # only create missing chats/messages, never touch existing rows
 //   node scripts/syncFirebaseChats.js --remove-members   # also remove MySQL members that are gone from the Firestore chat
 //   node scripts/syncFirebaseChats.js --verbose          # log every individual skip/change, not just tallies
+//   node scripts/syncFirebaseChats.js --since=2026-11-01 # only messages created/edited since then
+//
+// --since (any date Date.parse accepts, e.g. 2026-11-01 or 2026-11-01T06:00:00Z)
+// limits the message phase to "chat" docs whose created_at or updated_at is
+// on/after that time — a few reads instead of the whole collection (~15k),
+// which matters on the Spark plan's 50k reads/day shared with the live app.
+// Groups are still read in full (~900 reads): membership/settings changes
+// carry no timestamp. Changes that don't touch updated_at (e.g. a message
+// being seen) are not picked up — run once without --since to catch those.
 //
 // Same env requirements as migrateFirebaseChats.js: MYSQL_* must point at
 // the database holding the real users, and the Firebase service account at
@@ -96,6 +105,12 @@ const NO_UPDATE = args.includes("--no-update");
 const REMOVE_MEMBERS = args.includes("--remove-members");
 const limitArg = args.find((a) => a.startsWith("--limit="));
 const GROUP_LIMIT = limitArg ? Number(limitArg.split("=")[1]) : null;
+const sinceArg = args.find((a) => a.startsWith("--since="));
+const SINCE_MS = sinceArg ? Date.parse(sinceArg.slice("--since=".length)) : null;
+if (sinceArg && !Number.isFinite(SINCE_MS)) {
+  console.error(`Invalid --since date: ${sinceArg}`);
+  process.exit(1);
+}
 
 const CHAT_DOC_TYPES = new Set(["chat", "group", "service_group"]);
 const MESSAGE_TYPE_MAP = { message: "text", image: "image", video: "video", file: "file" };
@@ -191,6 +206,20 @@ async function paginate(collection, pageSize, onPage) {
   let cursor = null;
   for (;;) {
     let q = collection.orderBy("__name__").limit(pageSize);
+    if (cursor) q = q.startAfter(cursor);
+    const snap = await q.get();
+    if (snap.empty) return;
+    await onPage(snap.docs);
+    cursor = snap.docs[snap.docs.length - 1];
+    if (snap.size < pageSize) return;
+  }
+}
+
+// paginate() for "docs where `field` >= sinceMs" (field holds epoch ms).
+async function paginateSince(collection, field, sinceMs, pageSize, onPage) {
+  let cursor = null;
+  for (;;) {
+    let q = collection.where(field, ">=", sinceMs).orderBy(field).limit(pageSize);
     if (cursor) q = q.startAfter(cursor);
     const snap = await q.get();
     if (snap.empty) return;
@@ -636,7 +665,7 @@ async function run() {
     }
   }
 
-  await paginate(firestore.collection("chat"), MESSAGE_PAGE_SIZE, async (docs) => {
+  const processMessagePage = async (docs) => {
     const existing = await Message.findAll({
       where: { legacyId: { [Op.in]: docs.map((d) => d.id) } },
       attributes: ["id", "legacyId", "chatId", "message", "mediaUrl", "thumbnailUrl", "hashtags", "isForward", "updatedAt"],
@@ -748,7 +777,24 @@ async function run() {
     tally.readsCreated += extras.reads.length;
     tally.deletesCreated += extras.deletes.length;
     tally.mentionsCreated += extras.mentions.length;
-  });
+  };
+
+  if (SINCE_MS === null) {
+    await paginate(firestore.collection("chat"), MESSAGE_PAGE_SIZE, processMessagePage);
+  } else {
+    // Created-since and edited-since, each doc processed once.
+    console.log(`Messages: only those created or edited since ${new Date(SINCE_MS).toISOString()}`);
+    const seen = new Set();
+    const onlyNew = async (docs) => {
+      const fresh = docs.filter((d) => !seen.has(d.id));
+      fresh.forEach((d) => seen.add(d.id));
+      if (fresh.length) await processMessagePage(fresh);
+    };
+    for (const field of ["created_at", "updated_at"]) {
+      await paginateSince(firestore.collection("chat"), field, SINCE_MS, MESSAGE_PAGE_SIZE, onlyNew);
+    }
+    tally.messageDocsRead = seen.size;
+  }
 
   // ---- Phase 3: refresh chat.lastMessage / lastMessageAt where Firestore data changed ----
   if (COMMIT) {
