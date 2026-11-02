@@ -1,10 +1,16 @@
 const { body, validationResult } = require("express-validator");
 
+// Smallest top-up the app accepts (Stripe's own floor is about $0.50).
+const MIN_TOPUP_AMOUNT = 1;
+
 // Handle validation result
 function handleValidationErrors(req, res, next) {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    return res.status(422).json({ errors: errors.array() });
+    const list = errors.array();
+    // `message`: the first problem as one readable line, for clients that
+    // show a single error; `errors` keeps the per-field list.
+    return res.status(422).json({ success: false, message: list[0].msg, errors: list });
   }
   next();
 }
@@ -12,10 +18,11 @@ function handleValidationErrors(req, res, next) {
 // Create Topup
 exports.createTopupValidator = [
   body("amount")
-    .isFloat({ min: 1 })
-    .withMessage("Amount must be a number greater than 0")
     .notEmpty()
-    .withMessage("Amount is required"),
+    .withMessage("Amount is required")
+    .bail()
+    .isFloat({ min: MIN_TOPUP_AMOUNT })
+    .withMessage(`Minimum top-up amount is ${MIN_TOPUP_AMOUNT}`),
   body("walletType")
     .notEmpty()
     .withMessage("walletType is required")
@@ -27,10 +34,11 @@ exports.createTopupValidator = [
 // Create Topup via Google Pay
 exports.createGooglePayTopupValidator = [
   body("amount")
-    .isFloat({ min: 1 })
-    .withMessage("Amount must be a number greater than 0")
     .notEmpty()
-    .withMessage("Amount is required"),
+    .withMessage("Amount is required")
+    .bail()
+    .isFloat({ min: MIN_TOPUP_AMOUNT })
+    .withMessage(`Minimum top-up amount is ${MIN_TOPUP_AMOUNT}`),
   body("walletType")
     .notEmpty()
     .withMessage("walletType is required")
