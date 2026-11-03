@@ -124,6 +124,11 @@ const User = sequelize.define(
       type: DataTypes.STRING,
       allowNull: true,
     },
+    // App version the device last reported via PUT /auth/profile.
+    appVersion: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+    },
     tokenVersion: {
       type: DataTypes.INTEGER,
       defaultValue: 0,

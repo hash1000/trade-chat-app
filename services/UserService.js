@@ -248,6 +248,9 @@ class UserService {
       if (profileData.stripeCustomerId) {
         user.stripeCustomerId = profileData.stripeCustomerId;
       }
+      if (profileData.appVersion) {
+        user.appVersion = profileData.appVersion;
+      }
 
       // ✅ Auto-check if profile is completed
       const requiredFields = [

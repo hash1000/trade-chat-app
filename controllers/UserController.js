@@ -1181,6 +1181,7 @@ class UserController {
         profilePic,
         password,
         description,
+        appVersion,
       } = req.body;
       // email_verified is deliberately not taken from the body: it is only set
       // by verify-otp-email / verify-email-phone, never by the client.
@@ -1211,6 +1212,7 @@ class UserController {
             settings,
             description,
             rating,
+            appVersion,
           });
           res.json({ user: updatedUser });
         }
@@ -1227,6 +1229,7 @@ class UserController {
           settings,
           description,
             rating,
+          appVersion,
         });
         res.json({ user: updatedUser });
       }

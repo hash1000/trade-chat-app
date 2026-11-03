@@ -152,6 +152,7 @@ class UserRepository {
         "expiration_time",
         "isOnline",
         "lastSeenAt",
+        "appVersion",
       ],
       include: [
         {

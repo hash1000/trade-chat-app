@@ -228,5 +228,12 @@ exports.validateUpdateProfile = [
     .isBoolean()
     .withMessage("email_verified must be true or false")
     .toBoolean(),
+  body("appVersion")
+    .optional()
+    .isString()
+    .withMessage("appVersion must be a string")
+    .trim()
+    .isLength({ min: 1, max: 50 })
+    .withMessage("appVersion must be 1-50 characters"),
   handleValidationErrors,
 ];
