@@ -242,7 +242,10 @@ class UserService {
       if (profileData.phoneNumber_verified) {
         user.phoneNumber_verified = profileData.phoneNumber_verified;
       }
-      if (profileData.hasOwnProperty("description")) {
+      // `!== undefined`, not hasOwnProperty: updateUser always passes the key,
+      // so a request without `description` (e.g. the app's version report)
+      // used to save it as NULL and wipe the user's description.
+      if (profileData.description !== undefined) {
         user.description = profileData.description;
       }
       if (profileData.stripeCustomerId) {
