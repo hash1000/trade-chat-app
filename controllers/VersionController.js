@@ -6,14 +6,23 @@ const { subject_mail, message } = require('../templates/email/email_version_upda
 
 class VersionController {
   // GET all versions
-  async getAll(req, res) {
-    try {
-      const versions = await versionService.getAll();
-      return res.json({ success: true, data: versions });
-    } catch (error) {
-      return res.status(500).json({ success: false, message: error.message });
-    }
+ async getAll(req, res) {
+  try {
+    const versions = (await versionService.getAll()).sort(
+      (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+    );
+
+    return res.json({
+      success: true,
+      data: versions,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
+}
 
   // Add new version
   async add(req, res) {
