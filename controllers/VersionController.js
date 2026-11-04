@@ -1,8 +1,8 @@
 const VersionService = require('../services/VersionService');
 const versionService = new VersionService();
-const nodemailer = require('nodemailer');
-const User = require('../models/user'); // Make sure you import your User model properly
-const { subject_mail, message } = require('../templates/email/email_version_update'); // Adjust the path if needed
+const Version = require('../models/version');
+const VersionEmailService = require('../services/VersionEmailService');
+const versionEmailService = new VersionEmailService();
 
 class VersionController {
   // GET all versions
@@ -41,6 +41,8 @@ class VersionController {
       const { versionId } = req.params;
       const { version, changelog } = req.body; // Extract version and changelog from request body
 
+      const previous = await Version.findByPk(versionId, { attributes: ['version'] });
+
       // Update version using version service
       const updated = await versionService.update(versionId, version, changelog);
 
@@ -52,65 +54,21 @@ class VersionController {
       // Respond immediately to the user after the version update
       res.json({ success: true, message: 'Version updated successfully' });
 
-      // Proceed to send emails asynchronously in the background
-      const email_message = message(version); // Pass the dynamic version to the message function
-      await this.sendVersionUpdateEmails(email_message); // Send email with the dynamic message
-
+      // Email users still on an old build — only when the version number
+      // itself changed (editing just the changelog sends nothing). Runs in
+      // the background; see services/VersionEmailService.js for who gets it.
+      if (version && (!previous || previous.version !== version)) {
+        versionEmailService
+          .send(version)
+          .catch((err) => console.error('Version update emails failed:', err.message));
+      }
     } catch (error) {
       console.error('Error in update process:', error);
+      if (res.headersSent) return;
       return res.status(500).json({
         success: false,
-        message: "Error updating version or sending emails: " + error.message,
+        message: "Error updating version: " + error.message,
       });
-    }
-  }
-
-  // Send version update emails to all users
-  async sendVersionUpdateEmails(email_message) {
-    try {
-      // Retrieve all user emails efficiently using 'attributes'
-      const users = await User.findAll({
-        attributes: ["email"], // Only fetch the email field
-      });
-
-      // Create nodemailer transporter
-      const transporter = nodemailer.createTransport({
-        service: "gmail",
-        auth: {
-          user: process.env.EMAIL_ADDRESS,
-          pass: process.env.EMAIL_PASSWORD,
-        },
-      });
-
-      // Prepare email content
-      const email_subject = subject_mail;
-
-      // Loop through all users and send email
-      const failedEmails = [];
-      for (const user of users) {
-        const mailOptions = {
-          from: `"Nasko China" <${process.env.EMAIL_ADDRESS}>`,
-          to: user.email , // Send to actual user email
-          subject: email_subject,
-          html: email_message, // Use the dynamic email content
-        };
-        try {
-          await transporter.sendMail(mailOptions);
-          console.log(`Email sent to: ${user.email}`);
-        } catch (err) {
-          console.error(`Error sending email to ${user.email}:`, err);
-          failedEmails.push(user.email);
-        }
-      }
-
-      // Handle failed email attempts
-      if (failedEmails.length > 0) {
-        console.error(`Failed to send emails to: ${failedEmails.join(", ")}`);
-      } else {
-        console.log("All emails sent successfully");
-      }
-    } catch (err) {
-      console.error('Error in email sending:', err);
     }
   }
 

@@ -1,13 +1,11 @@
-// emailTemplate.js
+// "New version available" email (services/VersionEmailService.js).
+// The date is computed per send, not at server start.
+const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.qrm.naskochina";
+const SUPPORT_EMAIL = "naskochina@gmail.com";
 
-const currentDate = new Date();
-const formattedDate = currentDate
-  .toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  })
-  .replace(/ /g, " ");
+function formattedDate() {
+  return new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
 
 module.exports = {
   message: (version) => `
@@ -16,50 +14,31 @@ module.exports = {
       <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <meta http-equiv="X-UA-Compatible" content="ie=edge" />
-        <title>Email Template</title>
-        <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet" />
+        <title>NaskoChina ${version}</title>
       </head>
-      <body style="margin: 0; font-family: 'Poppins', sans-serif; background: #ffffff; font-size: 14px;">
-        <div style="max-width: 680px; margin: 0 auto; padding: 45px 30px 60px; background: #f4f7ff; font-size: 14px; color: #434343;">
-          <header>
-            <table style="width: 100%;">
-              <tbody>
-                <tr style="height: 0;">
-                  <td>
-                    <h3 style="font-size: 14px; line-height: 30px; color: #ffffff;">Trade Chat QRM</h3>
-                  </td>
-                  <td style="text-align: right;">
-                    <span style="font-size: 12px; line-height: 30px; color: #ffffff;">${formattedDate}</span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </header>
-          <main>
-            <div style="margin-top: 70px; padding: 92px 30px 115px; background: #ffffff; border-radius: 30px; text-align: center;">
-              <div style="width: 100%; max-width: 489px; margin: 0 auto;">
-                <h1 style="margin: 0; font-size: 20px; font-weight: 500; color: #1f1f1f;">Version Update: ${version}</h1>
-                <p style="margin-top: 17px; font-weight: 500; letter-spacing: 0.56px;">Thank you for choosing Trade Chat QRM. We are excited to inform you that the app has been updated to version <strong>${version}</strong>.</p>
-                <p style="margin-top: 30px; font-size: 20px; font-weight: 600; letter-spacing: 10px; color: #ba3d4f;">New Features & Improvements!</p>
-                <a href="https://play.google.com/store/apps/details?id=com.qrm.naskochina&pcampaignid=web_shareyou" style="display: inline-block; padding: 12px 30px; background-color: #499fb6; color: white; font-weight: bold; text-decoration: none; border-radius: 6px; margin-top: 40px;">Update Now</a>
-              </div>
-            </div>
-            <p style="max-width: 400px; margin: 0 auto; margin-top: 90px; text-align: center; font-weight: 500; color: #8c8c8c;">Need help? Ask at <a href="mailto:naskochina@gmail.com" style="color: #499fb6; text-decoration: none;">naskochina@gmail.com</a> or visit our <a href="" target="_blank" style="color: #499fb6; text-decoration: none;">Help Center</a></p>
-          </main>
-          <footer style="width: 100%; max-width: 490px; margin: 20px auto 0; text-align: center; border-top: 1px solid #e6ebf1;">
-            <p style="margin-top: 40px; font-size: 16px; font-weight: 600; color: #fff;">Trade Chat QRM</p>
-            <p style="margin-top: 8px; color: #434343;">Address 540, City, State.</p>
-            <div style="margin-top: 16px;">
-              <a href="" target="_blank"><img width="36px" alt="Facebook" src="https://archisketch-resources.s3.ap-northeast-2.amazonaws.com/vrstyler/1661502815169_682499/email-template-icon-facebook" /></a>
-              <a href="" target="_blank" style="margin-left: 8px;"><img width="36px" alt="Instagram" src="https://archisketch-resources.s3.ap-northeast-2.amazonaws.com/vrstyler/1661504218208_684135/email-template-icon-instagram" /></a>
-              <a href="" target="_blank" style="margin-left: 8px;"><img width="36px" alt="Twitter" src="https://archisketch-resources.s3.ap-northeast-2.amazonaws.com/vrstyler/1661503043040_372004/email-template-icon-twitter" /></a>
-              <a href="" target="_blank" style="margin-left: 8px;"><img width="36px" alt="Youtube" src="https://archisketch-resources.s3.ap-northeast-2.amazonaws.com/vrstyler/1661503195931_210869/email-template-icon-youtube" /></a>
-            </div>
-            <p style="margin-top: 16px; color: #434343;">Copyright © 2024 Company. All rights reserved.</p>
-          </footer>
+      <body style="margin: 0; font-family: Arial, Helvetica, sans-serif; background: #ffffff; font-size: 14px;">
+        <div style="max-width: 600px; margin: 0 auto; padding: 32px 24px 40px; background: #f4f7ff; color: #434343;">
+          <table style="width: 100%;">
+            <tr>
+              <td style="font-size: 16px; font-weight: bold; color: #1f1f1f;">NaskoChina</td>
+              <td style="text-align: right; font-size: 12px; color: #8c8c8c;">${formattedDate()}</td>
+            </tr>
+          </table>
+          <div style="margin-top: 24px; padding: 40px 24px; background: #ffffff; border-radius: 16px; text-align: center;">
+            <h1 style="margin: 0; font-size: 20px; font-weight: 600; color: #1f1f1f;">New version ${version} is available</h1>
+            <p style="margin-top: 16px; line-height: 1.6;">
+              NaskoChina has moved to a new, faster server. Please update the app to version
+              <strong>${version}</strong> to keep using chats, payments and orders.
+              Older versions can no longer connect.
+            </p>
+            <a href="${PLAY_STORE_URL}" style="display: inline-block; margin-top: 24px; padding: 12px 28px; background-color: #3e9f3e; color: #ffffff; font-weight: bold; text-decoration: none; border-radius: 6px;">Update on Google Play</a>
+            <p style="margin-top: 24px; font-size: 13px; color: #8c8c8c;">You can also use NaskoChina in your browser at <a href="https://chatqrm.com" style="color: #3e9f3e;">chatqrm.com</a>.</p>
+          </div>
+          <p style="margin-top: 24px; text-align: center; font-size: 12px; color: #8c8c8c;">
+            Questions? Write to <a href="mailto:${SUPPORT_EMAIL}" style="color: #3e9f3e;">${SUPPORT_EMAIL}</a>.
+          </p>
         </div>
       </body>
     </html>`,
-  subject_mail: "App Version Update Notification",
+  subject_mail: "Please update NaskoChina",
 };
