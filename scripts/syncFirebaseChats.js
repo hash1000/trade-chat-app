@@ -595,6 +595,9 @@ async function run() {
   // Firestore message doc -> { row, extras } ready to insert/compare, or
   // { skip } naming the tally counter to bump.
   function parseMessage(doc, data) {
+    // "Please update the app" notices written for old app builds by
+    // scripts/announceUpdateInFirebaseChats.js — never copied into MySQL.
+    if (data.isUpdateNotice) return { skip: "byType", type: "update-notice" };
     const messageType = MESSAGE_TYPE_MAP[data.message_type];
     if (!messageType) return { skip: "byType", type: data.message_type || "(none)" };
     const chatId = groupIdToChatId.get(data.group_id);

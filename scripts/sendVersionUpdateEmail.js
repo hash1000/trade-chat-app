@@ -11,6 +11,11 @@
 //   node scripts/sendVersionUpdateEmail.js                  # dry run: counts + a few sample addresses
 //   node scripts/sendVersionUpdateEmail.js --commit         # actually sends
 //   node scripts/sendVersionUpdateEmail.js --test=me@x.com  # sends one email to that address only
+//   node scripts/sendVersionUpdateEmail.js --reminder --commit
+//                     reminder round: once per user per day (UTC), still only
+//                     users who haven't updated. Keep reminders rare (every
+//                     2-3 days) — repeated mail gets the Gmail account flagged
+//                     as spam, which also blocks OTP/password-reset emails.
 //   --version=3.1.0   override the version (default: the version row the app reads)
 //   --limit=N         send at most N this run
 
@@ -23,6 +28,7 @@ const { subject_mail, message } = require("../templates/email/email_version_upda
 const args = process.argv.slice(2);
 const arg = (name) => (args.find((a) => a.startsWith(`--${name}=`)) || "").split("=")[1];
 const COMMIT = args.includes("--commit");
+const ROUND = args.includes("--reminder") ? new Date().toISOString().slice(0, 10) : undefined;
 
 function mask(email) {
   const [u, d] = email.split("@");
@@ -48,8 +54,9 @@ async function run() {
   }
 
   const service = new VersionEmailService();
-  const { pending, alreadySent } = await service.recipients(version);
+  const { pending, alreadySent } = await service.recipients(version, { round: ROUND });
   const limit = Number(arg("limit")) || VersionEmailService.MAX_PER_RUN;
+  if (ROUND) console.log(`Reminder round ${ROUND}`);
   console.log(`Version ${version}: ${pending.length} to email, ${alreadySent} already emailed, this run sends up to ${Math.min(limit, pending.length)}.`);
   console.log(`Sample: ${pending.slice(0, 5).map(mask).join(", ") || "-"}`);
 
@@ -57,7 +64,7 @@ async function run() {
     console.log("\nDRY RUN — nothing sent. Add --commit to send.");
     return;
   }
-  await service.send(version, { limit });
+  await service.send(version, { round: ROUND, limit });
 }
 
 run()

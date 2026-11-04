@@ -1,7 +1,6 @@
 // "New version available" email (services/VersionEmailService.js).
 // The date is computed per send, not at server start.
-const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.qrm.naskochina";
-const SUPPORT_EMAIL = "naskochina@gmail.com";
+const { PLAY_STORE_URL, WEB_APP_URL, SUPPORT_EMAIL } = require("../../config/appLinks");
 
 function formattedDate() {
   return new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
@@ -32,7 +31,7 @@ module.exports = {
               Older versions can no longer connect.
             </p>
             <a href="${PLAY_STORE_URL}" style="display: inline-block; margin-top: 24px; padding: 12px 28px; background-color: #3e9f3e; color: #ffffff; font-weight: bold; text-decoration: none; border-radius: 6px;">Update on Google Play</a>
-            <p style="margin-top: 24px; font-size: 13px; color: #8c8c8c;">You can also use NaskoChina in your browser at <a href="https://chatqrm.com" style="color: #3e9f3e;">chatqrm.com</a>.</p>
+            <p style="margin-top: 24px; font-size: 13px; color: #8c8c8c;">You can also use NaskoChina in your browser at <a href="${WEB_APP_URL}" style="color: #3e9f3e;">chatqrm.com</a>.</p>
           </div>
           <p style="margin-top: 24px; text-align: center; font-size: 12px; color: #8c8c8c;">
             Questions? Write to <a href="mailto:${SUPPORT_EMAIL}" style="color: #3e9f3e;">${SUPPORT_EMAIL}</a>.
