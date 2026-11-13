@@ -11,9 +11,19 @@ const EmailOtp = sequelize.define(
       primaryKey: true,
       type: DataTypes.INTEGER
     },
+    // HMAC of the code (utilities/otpCodes.js); the plain code is never stored.
     otp: {
       type: DataTypes.STRING,
       allowNull: false,
+    },
+    contact: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    attempts: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
     },
     expiration_time: {
       type: DataTypes.DATE,

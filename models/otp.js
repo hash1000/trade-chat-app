@@ -26,6 +26,25 @@ const OTP = sequelize.define(
       type: DataTypes.STRING,
       allowNull: false,
     },
+    // HMAC of the current code (utilities/otpCodes.js); the plain code is never stored.
+    code_hash: {
+      type: DataTypes.STRING(64),
+      allowNull: true,
+    },
+    attempts: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
+    },
+    send_count: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
+    },
+    send_window_start: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
     contact_type: {
       type: DataTypes.ENUM("email", "phoneNumber"),
       allowNull: false,

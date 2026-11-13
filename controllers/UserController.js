@@ -5,13 +5,8 @@ const UserService = require("../services/UserService"); // Replace the path with
 const CustomError = require("../errors/CustomError");
 const UnauthorizedError = require("../errors/UnauthorizedError");
 const EmailService = require("../services/EmailService");
-const OTP = require("../models/otp.js");
-const EmailOtp = require("../models/email_otp.js");
-var otpGenerator = require("otp-generator");
-const AddMinutesToDate = require("../utilities/addMinutesToDate");
 const nodemailer = require("nodemailer");
 const { decode, encode } = require("../middlewares/emailValidation.js");
-const dates = require("../utilities/verifyDates.js");
 const userService = new UserService();
 const client = twilio(
   process.env.TWILIO_ACCOUNT_SID,
@@ -20,25 +15,29 @@ const client = twilio(
 
 const { publicIdentity } = require("../utilities/userPrivacy");
 const { verifyGoogleIdToken, InvalidGoogleTokenError } = require("../utilities/googleIdToken");
+const { issueChatToken } = require("../utilities/chatToken");
+const {
+  OtpError,
+  issueContactCode,
+  checkContactCode,
+  issueEmailCode,
+  checkEmailCode,
+  normalizeEmail,
+} = require("../utilities/otpCodes");
 
-// Checks the latest SMS code sent to this number (same rules as verify-otp-sms)
-// and consumes it on success. Returns { ok: true } or { ok: false, reason }.
-async function matchSmsOtp(country_code, phoneNumber, otp) {
-  const otpInstance = await OTP.findOne({ where: { contact: `${country_code}${phoneNumber}` } });
-  if (!otpInstance || !otpInstance.otp) return { ok: false, reason: "Send a new code first." };
-  let codes = [];
-  try {
-    codes = JSON.parse(otpInstance.otp);
-  } catch (e) {
-    codes = [];
-  }
-  const latest = codes[codes.length - 1];
-  if (!latest || String(otp) !== String(latest)) return { ok: false, reason: "OTP did not match" };
-  if (new Date() > new Date(otpInstance.expiration_time)) return { ok: false, reason: "OTP has expired" };
-  otpInstance.verified = true;
-  otpInstance.otp = null;
-  await otpInstance.save();
-  return { ok: true };
+const SMS_CODE_MINUTES = 5;
+const EMAIL_CODE_MINUTES = 10;
+
+// Checks the latest SMS code sent to this number and uses it up on success.
+// Returns { ok: true } or { ok: false, reason }.
+function matchSmsOtp(country_code, phoneNumber, otp) {
+  return checkContactCode(`${country_code}${phoneNumber}`, otp);
+}
+
+// The "change email" code (verify-email-phone → make-primary) is kept per
+// account + new address, in the same hashed store as SMS codes.
+function emailChangeContact(userId, email) {
+  return `email-change:${userId}:${normalizeEmail(email)}`;
 }
 
 class UserController {
@@ -333,15 +332,29 @@ class UserController {
             .status(401)
             .json({ message: "Invalid email or password." });
         }
-      } else if (country_code && phoneNumber) {
-        // Login with country code and phone number
+      } else if (country_code && phoneNumber && password) {
+        // Login with phone number and password
         user = await userService.getUserByPhoneNumber(
           country_code,
           phoneNumber
         );
-        if (!user) {
-          return res.status(401).json({ message: "Invalid phone number." });
+        const validatedUser = user
+          ? await userService.verifyUserPassword(user, password)
+          : null;
+        if (!validatedUser) {
+          return res
+            .status(401)
+            .json({ message: "Invalid phone number or password." });
         }
+      } else if (country_code && phoneNumber) {
+        // A phone number alone used to sign anyone in as that number's owner.
+        // Phone sign-in without a password now goes through the SMS code
+        // (send-otp-sms → verify-otp-sms with purpose "login"). Old app
+        // builds still send only the number: tell them to update, no token.
+        return res.status(426).json({
+          code: "app_update_required",
+          message: "Please update the app to sign in with your phone number.",
+        });
       } else {
         return res.status(400).json({ message: "Invalid request parameters." });
       }
@@ -372,11 +385,7 @@ class UserController {
       //   });
       // }
 
-      // Generate JWT token
-      const token = jwt.sign(
-        { userId: user.id, tokenVersion: user.tokenVersion },
-        process.env.JWT_SECRET_KEY
-      );
+      const token = issueChatToken(user);
 
       return res.json({
         message: "Login successful.",
@@ -404,24 +413,25 @@ class UserController {
           .status(400)
           .send({ Status: "Failure", Details: "Type not provided" });
       }
-      // Generate OTP
-      const otp = otpGenerator.generate(6, {
-        digits: true,
-        lowerCaseAlphabets: false,
-        upperCaseAlphabets: false,
-        specialChars: false,
-      });
+      if (!["VERIFICATION", "FORGET", "2FA"].includes(type)) {
+        return res
+          .status(400)
+          .send({ Status: "Failure", Details: "Incorrect Type Provided" });
+      }
+      // New code: only its hash is stored; max 5 per hour per email.
       const now = new Date();
-      const expiration_time = AddMinutesToDate(now, 10);
+      let otp, otp_instance;
+      try {
+        const issued = await issueEmailCode(email, EMAIL_CODE_MINUTES);
+        otp = issued.code;
+        otp_instance = { id: issued.id };
+      } catch (e) {
+        if (e instanceof OtpError) {
+          return res.status(e.status).send({ Status: "Failure", Details: e.message });
+        }
+        throw e;
+      }
 
-      console.log("Generated OTP:", otp, expiration_time);
-      // Create OTP instance in DB
-      const otp_instance = await EmailOtp.create({
-        otp: otp,
-        expiration_time: expiration_time,
-      });
-
-      console.log("OTP instance created:", otp_instance);
       // Create details object containing the email and otp id
       const details = {
         timestamp: now,
@@ -505,7 +515,6 @@ class UserController {
 
   async verifyEmailOtp(req, res) {
     try {
-      var currentdate = new Date();
       const { verification_key, otp, check } = req.body;
 
       if (!verification_key) {
@@ -546,59 +555,34 @@ class UserController {
         return res.status(400).send(response);
       }
 
-      const otp_instance = await EmailOtp.findOne({
-        where: { id: obj.otp_id },
-      });
-      //Check if OTP is available in the DB
-      if (otp_instance != null) {
-        //Check if OTP is already used or not
-        if (otp_instance.verified != true) {
-          //Check if OTP is expired or not
-          if (dates.compare(otp_instance.expiration_time, currentdate) == 1) {
-            //Check if OTP is equal to the OTP in the DB
-            if (otp === otp_instance.otp) {
-              user = await userService.getUserByEmail(check);
-              if (!user) {
-                return res
-                  .status(400)
-                  .json({ message: "User with this email dose not exist" });
-              } else {
-                token = jwt.sign(
-                  { userId: user.id, tokenVersion: user.tokenVersion },
-                  process.env.JWT_SECRET_KEY
-                );
-              }
-              otp_instance.verified = true;
-              await userService.updateUserProfile(user, {
-                email_verified: true,
-              });
-              otp_instance.save();
-              const response = {
-                Status: "Success",
-                Details: "OTP Matched",
-                Check: check,
-                token: token,
-              };
-              return res.status(200).send(response);
-            } else {
-              const response = {
-                Status: "Failure",
-                Details: "OTP NOT Matched",
-              };
-              return res.status(400).send(response);
-            }
-          } else {
-            const response = { Status: "Failure", Details: "OTP Expired" };
-            return res.status(400).send(response);
-          }
-        } else {
-          const response = { Status: "Failure", Details: "OTP Already Used" };
-          return res.status(400).send(response);
-        }
-      } else {
-        const response = { Status: "Failure", Details: "Bad Request" };
-        return res.status(400).send(response);
+      user = await userService.getUserByEmail(check);
+      if (user && user.disableAccount) {
+        return res.status(403).json({ message: "Your account has been disabled." });
       }
+
+      // Hash compare, max 5 wrong tries, one-time. When no account exists yet
+      // (sign-up), the app reads the message below as "code OK, continue to
+      // sign-up", so the code is checked but not used up, as before.
+      const result = await checkEmailCode(obj.otp_id, check, otp, { consume: !!user });
+      if (!result.ok) {
+        return res.status(400).send({ Status: "Failure", Details: result.reason });
+      }
+      if (!user) {
+        return res
+          .status(400)
+          .json({ message: "User with this email dose not exist" });
+      }
+
+      token = issueChatToken(user);
+      await userService.updateUserProfile(user, {
+        email_verified: true,
+      });
+      return res.status(200).send({
+        Status: "Success",
+        Details: "OTP Matched",
+        Check: check,
+        token: token,
+      });
     } catch (err) {
       console.log(err);
       const response = { Status: "Failure", Details: err.message };
@@ -618,53 +602,29 @@ class UserController {
       }
 
       const fullPhoneNumber = `${country_code}${phoneNumber}`;
-      const otp = otpGenerator.generate(6, {
-        digits: true,
-        lowerCaseAlphabets: false,
-        upperCaseAlphabets: false,
-        specialChars: false,
-      });
-      const expiration_time = AddMinutesToDate(new Date(), 10);
+      const templates = {
+        VERIFICATION: (code) => `Your verification code is ${code}. It expires in ${SMS_CODE_MINUTES} minutes. Please don't share this code. Nasko.China`,
+        FORGET: (code) => `Your password reset code is ${code}. It expires in ${SMS_CODE_MINUTES} minutes.`,
+        "2FA": (code) => `Your 2FA code is ${code}. It expires in ${SMS_CODE_MINUTES} minutes.`,
+      };
+      if (!templates[type]) {
+        return res
+          .status(400)
+          .send({ Status: "Failure", Details: "Incorrect Type Provided" });
+      }
 
-      let otpInstance = await OTP.findOne({
-        where: { contact: fullPhoneNumber },
-      });
-      if (!otpInstance) {
-        otpInstance = await OTP.create({
-          contact: fullPhoneNumber,
-          otp: [otp], // Store as stringified array
-          expiration_time,
-          contact_type: "phoneNumber",
-          verified: false,
-        });
-      } else {
-        if (!otpInstance.otp && otp) {
-          await OTP.update({ otp: [otp] }, { where: { id: otpInstance.id } });
-        } else {
-          const otpArray = JSON.parse(otpInstance.otp);
-          otpArray.push(otp); // Add new OTP
-          otpInstance.otp = otpArray; // Convert array back to string
-          otpInstance.expiration_time = expiration_time;
-          await otpInstance.save();
+      // New code: only its hash is stored, the previous code stops working,
+      // max 5 codes per hour per number.
+      let otp;
+      try {
+        otp = await issueContactCode(fullPhoneNumber, "phoneNumber", SMS_CODE_MINUTES);
+      } catch (e) {
+        if (e instanceof OtpError) {
+          return res.status(e.status).send({ Status: "Failure", Details: e.message });
         }
+        throw e;
       }
-
-      let sms_message;
-      switch (type) {
-        case "VERIFICATION":
-          sms_message = `Your verification code is ${otp}.please dont share this code Nasko.China`;
-          break;
-        case "FORGET":
-          sms_message = `Your password reset code is ${otp}. It will expire in 10 minutes.`;
-          break;
-        case "2FA":
-          sms_message = `Your 2FA code is ${otp}. It will expire in 10 minutes.`;
-          break;
-        default:
-          return res
-            .status(400)
-            .send({ Status: "Failure", Details: "Incorrect Type Provided" });
-      }
+      const sms_message = templates[type](otp);
 
       // Uncomment to send SMS via Twilio or another service
       await client.messages.create({
@@ -683,10 +643,14 @@ class UserController {
     }
   }
 
-  // Verify SMS OTP
+  // Verify SMS OTP.
+  // With purpose "login" this is the phone sign-in: a correct code for an
+  // existing account returns the normal token (same shape as /auth/login).
+  // Without it (sign-up, phone change) it only checks the code, as before,
+  // and never returns a token.
   async verifySmsOtp(req, res) {
     try {
-      const { country_code, phoneNumber, otp } = req.body;
+      const { country_code, phoneNumber, otp, purpose } = req.body;
 
       if (!country_code || !phoneNumber || !otp) {
         return res.status(400).send({
@@ -695,60 +659,41 @@ class UserController {
         });
       }
 
-      const fullPhoneNumber = `${country_code}${phoneNumber}`;
-
-      const otpInstance = await OTP.findOne({
-        where: { contact: fullPhoneNumber },
-      });
-
-      if (!otpInstance) {
-        return res.status(400).send({
-          Status: "Failure",
-          Details: "OTP not found",
-        });
-      }
-
-      if (!otpInstance.otp && otp) {
-        return res.status(400).send({
-          Status: "Failure",
-          Details: "OTP is already in used",
-        });
-      }
-      const otpArray = JSON.parse(otpInstance.otp); // Parse the OTP field
-
-      if (otpArray.length === 0) {
-        return res.status(400).send({
-          Status: "Failure",
-          Details: "No OTP available for verification",
-        });
-      }
-
-      const latestOtp = otpArray[otpArray.length - 1]; // Get the latest OTP
-
-      if (otp !== latestOtp) {
-        return res.status(400).send({
-          Status: "Failure",
-          Details: "OTP did not match",
-        });
-      }
-
-      if (new Date() > new Date(otpInstance.expiration_time)) {
-        return res.status(400).send({
-          Status: "Failure",
-          Details: "OTP has expired",
-        });
-      }
-      // A correct SMS code verifies that phone number for the account using it
-      // (this used to reference an undefined `user` and crash after a match).
       const phoneOwner = await userService.getUserByPhoneNumber(country_code, phoneNumber);
+
+      if (purpose === "login") {
+        // Checked before the code, so a code is not used up for nothing.
+        if (!phoneOwner) {
+          return res.status(404).send({
+            Status: "Failure",
+            Details: "No account uses this phone number.",
+          });
+        }
+        if (phoneOwner.disableAccount) {
+          return res.status(403).json({ message: "Your account has been disabled." });
+        }
+      }
+
+      const check = await checkContactCode(`${country_code}${phoneNumber}`, otp);
+      if (!check.ok) {
+        return res.status(400).send({ Status: "Failure", Details: check.reason });
+      }
+
+      // A correct SMS code verifies that phone number for the account using it.
       if (phoneOwner) {
         phoneOwner.phoneNumber_verified = true;
         await phoneOwner.save();
       }
-      // Mark as verified and clear OTPs
-      otpInstance.verified = true;
-      otpInstance.otp = null; // Clear the OTP array
-      await otpInstance.save(); // Persist changes
+
+      if (purpose === "login") {
+        return res.status(200).send({
+          Status: "Success",
+          Details: "OTP verified successfully",
+          message: "Login successful.",
+          token: issueChatToken(phoneOwner),
+          user: phoneOwner,
+        });
+      }
 
       return res.status(200).send({
         Status: "Success",
@@ -1281,48 +1226,29 @@ class UserController {
     try {
       const { phone, email } = req.body;
       const user = req.user; // Assuming you have an authentication middleware to attach the user object to the request
-      // const vonage = new Vonage({
-      //   apiKey: "70c5b3e3",
-      //   apiSecret: "sMo8UULGWO94oeuY",
-      // });
       if (phone) {
-        const { country_code, phoneNumber } = phone;
-        // check if any other user has the phone number
-        const userByPhone = await userService.getUserByPhoneNumber(
-          country_code,
-          phoneNumber
-        );
-        if (userByPhone) {
-          return res
-            .status(409)
-            .json({ message: "Phone number already in use" });
-        }
-        // vonage.verify
-        //   .start({
-        //     number: `${country_code}${phoneNumber}`,
-        //     brand: "QRM Trade Chat",
-        //   })
-        //   .then(async (resp) => {
-        //     // Respond with the token and user data
-        //     await userService.updateUserEmailCode(user.id, resp.request_id);
-        //     res.json({ message: "SMS OTP Sent.", request_id: resp.request_id });
-        //   })
-        //   .catch((err) => {
-        //     res.status(500).json({ message: "Filed to send OTP" });
-        //   });
+        // This branch never answered (the old SMS provider was removed), so the
+        // request just hung. Phone codes are sent by send-otp-sms.
+        return res.status(400).json({
+          message: "Phone codes are sent by /auth/send-otp-sms.",
+        });
       } else if (email) {
-        // check if any other user has the phone number
+        // check if any other user has the email
         const userByEmail = await userService.getUserByEmail(email);
         if (userByEmail) {
           return res
             .status(409)
-            .json({ message: "Email already in use", error: err });
+            .json({ message: "Email already in use" });
         }
-        // generate random 4 digit code
-        const code = Math.floor(1000 + Math.random() * 9000);
-        // send email
+        // 6-digit code, stored only as a hash (no longer in users.otp)
+        let code;
+        try {
+          code = await issueContactCode(emailChangeContact(user.id, email), "email", EMAIL_CODE_MINUTES);
+        } catch (e) {
+          if (e instanceof OtpError) return res.status(e.status).json({ message: e.message });
+          throw e;
+        }
         await EmailService.sendEmailCode(email, user.name, code);
-        await userService.updateUserEmailCode(user.id, code);
         res.json({ message: "Email OTP Sent." });
       }
     } catch (error) {
@@ -1340,50 +1266,26 @@ class UserController {
         if (userByEmail) {
           return res.status(409).json({ message: "Email already in use" });
         }
-        const { otp: userByEmailCode } = await userService.getUserOTPCode(
-          user.id
-        );
-        if (!userByEmailCode) {
+        if (!otp) {
           return res.status(401).json({ message: "Invalid code" });
         }
-        if (userByEmailCode !== otp) {
-          return res.status(401).json({ message: "Invalid code" });
+        const check = await checkContactCode(emailChangeContact(user.id, email), otp);
+        if (!check.ok) {
+          return res.status(401).json({ message: check.reason });
         }
-        await userService.updateUserProfileById(user.id, { email });
+        // The code proved the new address belongs to this person.
+        await userService.updateUserProfileById(user.id, { email, email_verified: true });
         const updatedUser = await userService.getUserById(user.id);
 
         res.json({ updatedUser });
       } else if (phone) {
-        const { country_code, phoneNumber } = phone;
-        // check if any other user has the phone number
-        const userByPhone = await userService.getUserByPhoneNumber(
-          country_code,
-          phoneNumber
-        );
-        if (userByPhone) {
-          return res
-            .status(409)
-            .json({ message: "Phone number already in use" });
-        }
-        // const vonage = new Vonage({
-        //   apiKey: "70c5b3e3",
-        //   apiSecret: "sMo8UULGWO94oeuY",
-        // });
-
-        const { otp: request_id } = await userService.getUserOTPCode(user.id);
-        // vonage.verify
-        //   .check(request_id, otp)
-        //   .then(async (resp) => {
-        //     await userService.updateUserProfileById(user.id, {
-        //       country_code,
-        //       phoneNumber,
-        //     });
-        //     const updatedUser = await userService.getUserById(user.id);
-        //     res.json({ updatedUser });
-        //   })
-        //   .catch((err) => {
-        //     res.status(500).json({ message: "Filed to verify OTP" });
-        //   });
+        // This branch never answered (the old SMS provider was removed), so the
+        // request just hung. Phone changes go through update-email-phoneNumber.
+        return res.status(400).json({
+          message: "Phone changes use /auth/update-email-phoneNumber with an SMS code.",
+        });
+      } else {
+        return res.status(400).json({ message: "Provide email or phone." });
       }
     } catch (error) {
       console.error(error);
