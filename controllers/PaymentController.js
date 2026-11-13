@@ -10,6 +10,25 @@ const currencyService = new CurrencyService();
 const messageService = new MessageService();
 const User = require("../models/user");
 const Wallet = require("../models/wallet");
+const Payment = require("../models/payment");
+
+function isAdmin(user) {
+  return (user?.roles || []).some((role) => role.name === "admin");
+}
+
+// Loads the payment in req.params.id for an edit or delete by its owner (or an
+// admin). Returns { payment } or { status, error }.
+async function loadOwnPendingPayment(req) {
+  const payment = await Payment.findByPk(req.params.id);
+  if (!payment) return { status: 404, error: "Payment not found" };
+  if (Number(payment.userId) !== Number(req.user.id) && !isAdmin(req.user)) {
+    return { status: 403, error: "You can only change your own payments" };
+  }
+  if (payment.status !== "pending") {
+    return { status: 409, error: `Payment is already ${payment.status}` };
+  }
+  return { payment };
+}
 
 class PaymentController {
   async createPayment(req, res, next) {
@@ -44,92 +63,115 @@ class PaymentController {
 
   async updatePayment(req, res) {
     try {
-      const paymentId = req.params.id;
       const { amount, senderName, orderNumber, accountNumber } = req.body;
 
-      // Update the payment using the payment service
-      const updatedPayment = await paymentService.updatePayment(paymentId, {
+      // Only the owner (or an admin) may edit, and only while the payment is
+      // still pending: once confirmed, the credited amount must not change.
+      const check = await loadOwnPendingPayment(req);
+      if (check.error) return res.status(check.status).json({ error: check.error });
+
+      const updatedPayment = await check.payment.update({
         amount,
         senderName,
         orderNumber,
         accountNumber,
       });
 
-      // Return the updated payment as a response
       return res.json(updatedPayment);
     } catch (error) {
       console.error("Error updating payment:", error);
-      res.status(500).json({ error: "Internal server error" });
+      return res.status(500).json({ error: "Internal server error" });
     }
   }
 
+  // Admin only (the route adds authorize(["admin"])). Credits exactly the
+  // amount stored on the payment, never an amount sent in the request, and
+  // only once: the payment row is locked, its status changes only from
+  // "pending", and the status change and the balance credit are one DB
+  // transaction.
   async confirmPayment(req, res) {
-    try {
-      const paymentId = req.params.id;
-      const { amount } = req.body;
-      const { role: userRole } = req.user;
-      if (userRole !== "admin") {
-        res.status(400).json({ error: "User is not an admin" });
-      }
-      const payment = await paymentService.getPaymentById(paymentId);
-      if (!payment) {
-        res.status(400).json({ error: "Payment not found" });
-      }
-      if (payment.status === "confirmed") {
-        res.status(400).json({ error: "Payment is already confirmed" });
-      }
-      // Update the payment using the payment service
-      const updatedPayment = await paymentService.updatePayment(paymentId, {
-        confirmedAmount: amount,
-        status: "confirmed",
-      });
-      if (updatedPayment) {
-        await this.addBalance(payment.userId, amount, payment.accountType);
-      }
-      // Return the updated payment as a response
-      return res.json(await updatedPayment);
-    } catch (error) {
-      console.error("Error updating payment:", error);
-      res.status(500).json({ error: "Internal server error" });
+    const paymentId = Number(req.params.id);
+    if (!Number.isInteger(paymentId) || paymentId <= 0) {
+      return res.status(400).json({ error: "Invalid payment id" });
     }
-  }
 
-  async addBalance(toUserId, amount, walletType) {
     const t = await sequelize.transaction();
-
     try {
-      // Add balance to the receiver
-      const receiver = await User.findByPk(toUserId, { transaction: t });
-      if (walletType === "personal") {
-        receiver.personalWalletBalance += amount;
-      } else {
-        receiver.companyWalletBalance += amount;
+      const payment = await Payment.findByPk(paymentId, {
+        transaction: t,
+        lock: t.LOCK.UPDATE,
+      });
+      if (!payment) {
+        await t.rollback();
+        return res.status(404).json({ error: "Payment not found" });
       }
-      await receiver.save({ transaction: t });
-      // Commit the transaction
+      if (payment.status !== "pending") {
+        await t.rollback();
+        return res
+          .status(409)
+          .json({ error: `Payment is already ${payment.status}` });
+      }
+      const amount = Number(payment.amount);
+      if (!Number.isFinite(amount) || amount <= 0) {
+        await t.rollback();
+        return res.status(400).json({ error: "Payment has no valid amount" });
+      }
+
+      const [changed] = await Payment.update(
+        { status: "confirmed", confirmedAmount: amount },
+        { where: { id: paymentId, status: "pending" }, transaction: t }
+      );
+      if (changed !== 1) {
+        await t.rollback();
+        return res.status(409).json({ error: "Payment is already confirmed" });
+      }
+
+      await this.addBalance(payment.userId, amount, payment.accountType, t);
       await t.commit();
 
-      console.log(`Successfully transferred ${amount} units.`);
+      return res.json(await Payment.findByPk(paymentId));
     } catch (error) {
-      // If any error occurs, roll back the transaction
-      await t.rollback();
-      console.error("Error transferring balance:", error);
-      throw error;
+      await t.rollback().catch(() => {});
+      console.error("Error confirming payment:", error);
+      return res.status(500).json({ error: "Internal server error" });
     }
+  }
+
+  // Adds `amount` to the user's personal or company balance in one UPDATE
+  // (balance = balance + amount), so parallel credits can't overwrite each
+  // other. Runs inside `transaction` when given, otherwise in its own.
+  async addBalance(toUserId, amount, walletType, transaction = null) {
+    const column =
+      walletType === "personal" ? "personalWalletBalance" : "companyWalletBalance";
+    const value = Number(amount);
+    if (!Number.isFinite(value) || value <= 0) {
+      throw new Error("addBalance: amount must be a positive number");
+    }
+
+    const run = async (t) => {
+      const [updated] = await User.update(
+        { [column]: sequelize.literal(`${column} + ${sequelize.escape(value)}`) },
+        { where: { id: toUserId }, transaction: t }
+      );
+      if (updated !== 1) throw new Error(`addBalance: user ${toUserId} not found`);
+    };
+
+    if (transaction) return run(transaction);
+    return sequelize.transaction(run);
   }
 
   async deletePayment(req, res) {
     try {
-      const paymentId = req.params.id;
+      // Only the owner (or an admin) may delete, and only a pending payment:
+      // confirmed ones stay as the record of money that was credited.
+      const check = await loadOwnPendingPayment(req);
+      if (check.error) return res.status(check.status).json({ error: check.error });
 
-      // Delete the payment using the payment service
-      await paymentService.deletePayment(paymentId);
-
-      // Return a success response
+      await check.payment.destroy();
       return res.json({ message: "Payment deleted successfully" });
     } catch (error) {
       console.error("Error deleting payment:", error);
-      res.status(500).json({ error: "Internal server error" });
+      return res.status(500).json({ error: "Internal server error" });
     }
   }
 

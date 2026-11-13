@@ -39,6 +39,8 @@ router.put(
 router.post(
   "/:id/confirm",
   authMiddleware,
+  // Was open to every signed-in user (B1): only admins confirm a payment.
+  authorize(["admin"]),
   paymentController.confirmPayment.bind(paymentController),
 );
 router.delete(
