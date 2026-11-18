@@ -70,6 +70,10 @@ class UserController {
       // Check if user exists
       let user = await userService.getUserByEmail(email);
 
+      // #2151: a disabled account gets no new session here either (same rule as /auth/login)
+      if (user && user.disableAccount) {
+        return res.status(403).json({ message: "Your account has been disabled." });
+      }
       if (user) {
         // Always update profile with email_verified = true (and run is_completed check)
         user = await userService.updateUserProfile(user, {
@@ -562,6 +566,9 @@ class UserController {
                 return res
                   .status(400)
                   .json({ message: "User with this email dose not exist" });
+              } else if (user.disableAccount) {
+                // #2151: a disabled account gets no new session (same rule as /auth/login)
+                return res.status(403).json({ message: "Your account has been disabled." });
               } else {
                 token = jwt.sign(
                   { userId: user.id, tokenVersion: user.tokenVersion },

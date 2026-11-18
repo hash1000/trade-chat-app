@@ -34,6 +34,7 @@ const chatRoutes = require('./chatRoutes')
 const templateRoutes = require('./templateRoutes')
 
 // Signup route
+router.use('/auth/idqrm', require('./idqrmRoutes')()) // #2151 Chat QRM web sign-in via ID QRM (idqrm.com)
 router.use('/auth', authRoutes)
 router.use('/company', companyRoutes)
 router.use('/product', productRoutes)
